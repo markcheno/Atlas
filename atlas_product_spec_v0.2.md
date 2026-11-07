@@ -5,7 +5,8 @@
 **Initial platform:** macOS, Windows, Linux  
 **Deployment strategy:** Local-first desktop; future open-source self-hosted and paid hosted/cloud service  
 **Primary user:** An individual with thousands to tens of thousands of PDFs, EPUBs, books, and research papers in partially organized directories
-**Version changes:** Extension points; resource-aware onboarding and scheduling; unified configurable data root; open-source dependency policy
+**Version changes:** Extension points; resource-aware onboarding and scheduling; unified configurable data root; open-source dependency policy  
+**Revision 2 (2026-11-07, after review):** Bundled recommendation catalog; summarization named as an opt-in enrichment job; prompt-injection wording; network volumes excluded as data root; vector-engine candidates widened; scale benchmarking from Phase 0 onward; Phase 1 done criterion made testable
 
 ## 1. Vision
 
@@ -125,6 +126,8 @@ The first release supports separate **chat** and **embedding** configurations. T
 
 Provide a small, maintained recommendation catalog based on hardware, **memory headroom after Atlas and other apps**, CPU/GPU availability, available disk, battery/power source, privacy preference, role, installed runtimes, model capabilities, and optional local benchmarks. Present **recommended / faster / higher-quality** choices, not a giant leaderboard. Recommendations are advice, never mandatory.
 
+The catalog is **bundled with each application release** and consulted offline. Atlas never fetches it in the background; a "Check for newer recommendations" action may fetch an updated catalog over HTTPS on explicit user request, sending no device or library information. This keeps the no-silent-network-calls rule intact.
+
 **Initial candidates for a 64 GB Apple Silicon Mac (benchmark before declaring defaults):**
 
 - Chat: `qwen3.5:9b` for everyday tasks; `qwen3.5:27b` for richer synthesis.
@@ -171,11 +174,11 @@ Not every conceptual object requires a separate database table in v0.1. Keep use
 ### Retrieval and research
 
 - Lexical search (SQLite FTS5) plus semantic search (embedded vector index).
-- Hierarchical retrieval: document summaries first, deeper passage candidates when needed.
+- Hierarchical retrieval: document summaries first, deeper passage candidates when needed. Generating summaries for tens of thousands of documents is a **background AI enrichment job** in its own right, with its own opt-in, its own provider assignment, and full subjection to the battery, privacy, and cost policies in Sections 4 and 9. Until summaries exist for a document, retrieval falls back to metadata plus passage search; the feature must degrade, not block.
 - Optional reranking and evidence selection.
 - Citation-backed answers referencing original document and page/section.
 - Never invent citations; distinguish extracted source text from LLM interpretation.
-- Prevent document text from being treated as instructions to the LLM.
+- Mitigate prompt injection from document content: delimit retrieved text clearly from instructions, use an explicit instruction hierarchy in prompts, never let retrieved text trigger tool calls or settings changes, and show the user which passages were supplied to the model. No technique prevents injection outright; the design goal is to bound what a malicious document can cause.
 - Small, repeatable retrieval evaluation corpus with user-known questions.
 
 ## 6. Cross-platform application and packaging
@@ -260,6 +263,7 @@ All **Atlas-created persistent application data** should live together under a s
 - All file paths inside the data root are resolved relative to the root wherever practical. Source file paths are referenced, never automatically copied into the root.
 - If the data root is inside a watched source folder, exclude it recursively from ingestion; prevent directory symlink cycles and duplicate traversal.
 - Prevent concurrent writers to the same data root, using an instance lock and clear recovery options; allow multiple unrelated data roots/workspaces in future designs.
+- **Network and cloud-synced volumes are not supported as a data root** (SMB, NFS, AFP, iCloud Drive, Dropbox, OneDrive and similar). SQLite WAL and advisory locks are unreliable there, and sync clients can corrupt a live database. Detect and refuse with a plain explanation; offer the local default. Local external drives are supported. Source roots may live anywhere readable, including network shares.
 - **Move Atlas Data** is a first-class operation: pause jobs, verify destination space, take a consistent database snapshot, copy/verify files, atomically switch the locator, and roll back safely on failure.
 - Separate **irreplaceable user-authored data** (notes, annotations, trails, projects, saved citations, preferences) from rebuildable caches and semantic indexes. Provide backup/export and restore verification; do not count indexes as a substitute for backups.
 - Expose storage usage by category, safe cache cleanup, and optional quotas/retention. Do not silently delete user notes, exports, or backups to recover disk space.
@@ -343,7 +347,7 @@ Atlas should build differentiated value in the **experience, data model, orchest
 | EPUB text/metadata | Maintained EPUB parser and standard ZIP/XML tooling | Real-world malformed EPUB fixtures |
 | Scanned-document OCR | Tesseract (optional component) | Quality, languages, performance and packaging |
 | Complex PDF/table extraction | Docling or comparable existing tool (optional bundled helper) | Accuracy, dependency size, cross-platform installers |
-| Vector search | Embedded LanceDB or comparable open engine | Index size, rebuild/swap, recall, portability |
+| Vector search | Embedded engine: LanceDB, `sqlite-vec`, or `usearch` | Index size, rebuild/swap, recall, portability, **crate build time and binary-size delta** (LanceDB's Rust crate pulls in Arrow and DataFusion); decided in Phase 0 Slice 0.9 |
 | LLM inference / embeddings | Ollama, LM Studio, MLX-compatible runtimes; API services | Use provider APIs; do not write model runtime |
 | Hardware/power telemetry | OS APIs and maintained Rust crates (for example `sysinfo`, battery telemetry libraries) | Verify each OS, fallbacks and measurement overhead |
 
@@ -365,7 +369,9 @@ Do not sync entire document collections to mobile devices by default. Sync small
 
 ### Phase 0 — Product UX and architectural spike
 
-Deliver screen flows, core data contracts, buildable Tauri skeleton, a 200–1,000-file representative test set, packaging spike for each OS, and ingestion/library benchmarks. Add a data-root layout spike, resource telemetry/power-state detection on each platform, conservative background scheduler prototype, and a basic extractor/provider adapter contract. Record dependency licenses before committing. Decide on extraction/vector libraries after practical tests and licensing review.
+Deliver screen flows, core data contracts, buildable Tauri skeleton, a 200–1,000-file representative test set plus a 30,000-file synthetic set, packaging spike for each OS, and ingestion/library benchmarks. Add a data-root layout spike, resource telemetry/power-state detection on each platform, conservative background scheduler prototype, and a basic extractor/provider adapter contract. Record dependency licenses before committing. Decide on extraction/vector libraries after practical tests and licensing review; this is a named Phase 0 slice with its own benchmark corpus, not an implicit side task.
+
+**Scale is a constant, not a late phase.** The primary user's collection is tens of thousands of files from day one, so the 30,000-file fixture carries forward: Phase 1 adds realistic extracted-text volume to it, Phase 2 adds chunk and vector counts in the millions, and every phase reports benchmarks at that scale. Phase 4 hardens and optimizes; it must not be the first time the architecture meets the real collection size.
 
 **Done when:** App launches on macOS, Windows, and Linux; adds a directory; persists a catalog entry entirely under the selected data root; opens a source file; and connects to a test local model endpoint. The app can pause/resume a durable indexing job, detect missing data volume/low storage, and report battery state where supported.
 
@@ -373,7 +379,7 @@ Deliver screen flows, core data contracts, buildable Tauri skeleton, a 200–1,0
 
 Add folder scanning, metadata, extraction, deduplication, indexes, browse/open, exact/full-text search, configurable data-root management, device preflight checks, and resilient, battery-aware progress reporting. AI setup remains optional.
 
-**Done when:** The user can find forgotten files reliably; rescans do not duplicate unchanged work or modify originals; and indexing pauses safely on battery, low space, or shutdown.
+**Done when:** Full-text search over extracted body text answers the Section 5 evaluation corpus with the known-relevant document in the top results for an agreed share of questions (set the target before Phase 1 starts); extraction succeeds on an agreed share of the 30,000-file fixture with failures reported per file; rescans do not duplicate unchanged work or modify originals; and indexing pauses safely on battery, low space, or shutdown.
 
 ### Phase 2 — AI librarian
 

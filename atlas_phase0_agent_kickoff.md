@@ -16,6 +16,7 @@ Requirements for Slice 0.1:
 - Add a typed Tauri IPC client facade with clear `NotImplemented` responses for unavailable actions. Don't fabricate document data.
 - Add formatting, linting, typechecking, and test commands; run them, report results.
 - Document setup, architecture, constraints, and the deliberate no-server design.
+- Copy the three specification files into `docs/` under the stable names given in the implementation spec's repository layout (`product-spec.md`, `phase0-spec.md`, `phase0-kickoff.md`) and fix the cross-links; leave the originals at the repository root untouched.
 
 **Do not implement** indexing, OCR, embeddings, chat, cloud, a backend daemon, or full plugin loading in Slice 0.1. Do not install dependencies at end-user runtime. Do not access or mutate the user's real documents.
 
