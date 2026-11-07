@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "Slice 0.1 baseline: core window/event/app permissions only. No filesystem, shell, dialog, opener, or HTTP plugins are enabled; Atlas commands are the renderer's only route to native functionality.",
+  "windows": ["main"],
+  "permissions": ["core:default"]
+}

@@ -1,0 +1,3 @@
+# Single-package repo; this file only carries pnpm settings.
+saveExact: true
+engineStrict: true

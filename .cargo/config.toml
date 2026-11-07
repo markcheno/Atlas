@@ -1,0 +1,5 @@
+[env]
+# ts-rs writes generated TypeScript DTO bindings here during `cargo test`.
+# Lives at the repo root so it applies whether cargo runs from the root
+# (pnpm scripts, CI) or from src-tauri/.
+TS_RS_EXPORT_DIR = { value = "src/lib/api/bindings", relative = true, force = true }
