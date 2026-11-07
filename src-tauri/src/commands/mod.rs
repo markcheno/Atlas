@@ -42,5 +42,7 @@ pub const COMMAND_NAMES: &[&str] = &[
     "reveal_original",
     "list_provider_profiles",
     "save_provider_profile",
+    "delete_provider_profile",
     "test_provider_connection",
+    "detect_local_providers",
 ];

@@ -3,6 +3,8 @@
 
 pub mod clock;
 pub mod fsutil;
+pub mod http_probe;
+pub mod keychain;
 pub mod local_source;
 pub mod native_path;
 pub mod system_probe;

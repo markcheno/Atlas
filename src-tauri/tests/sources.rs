@@ -388,11 +388,24 @@ fn slice_02_libraries_migrate_forward() {
     // Turn it back into a schema-1 library.
     {
         let conn = rusqlite::Connection::open(root_path.join("library/catalog.sqlite")).unwrap();
-        conn.execute_batch(
-            "DROP TABLE file_instances; DROP TABLE scan_directories; DROP TABLE scan_sessions;
-             DROP TABLE source_roots; DELETE FROM schema_migrations WHERE version >= 2;",
-        )
-        .unwrap();
+        // Drop everything newer than schema 1, whatever later slices added.
+        let tables: Vec<String> = conn
+            .prepare(
+                "SELECT name FROM sqlite_master WHERE type = 'table'
+                 AND name NOT IN ('schema_migrations', 'workspace') AND name NOT LIKE 'sqlite_%'",
+            )
+            .unwrap()
+            .query_map([], |r| r.get(0))
+            .unwrap()
+            .collect::<Result<_, _>>()
+            .unwrap();
+        conn.execute_batch("PRAGMA foreign_keys = OFF").unwrap();
+        for table in tables {
+            conn.execute_batch(&format!("DROP TABLE \"{table}\""))
+                .unwrap();
+        }
+        conn.execute("DELETE FROM schema_migrations WHERE version >= 2", [])
+            .unwrap();
     }
     let mut m = manifest::read(&root_path).unwrap();
     m.catalog_schema_version = 1;

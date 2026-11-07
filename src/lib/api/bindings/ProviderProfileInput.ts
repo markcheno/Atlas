@@ -3,6 +3,8 @@ import type { ProviderKind } from "./ProviderKind";
 
 /**
  * Input for creating or updating a profile. `api_key` is written straight
- * to OS credential storage and is never persisted in the catalog.
+ * to OS credential storage and is never persisted in the catalog. Omit it
+ * to keep an existing key; set `clear_api_key` to remove it. `Debug`
+ * redacts the key.
  */
-export type ProviderProfileInput = { id: string | null, kind: ProviderKind, label: string, baseUrl: string, apiKey: string | null, insecureHttpAcknowledged: boolean, };
+export type ProviderProfileInput = { id: string | null, kind: ProviderKind, label: string, baseUrl: string, apiKey: string | null, clearApiKey: boolean, insecureHttpAcknowledged: boolean, };

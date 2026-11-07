@@ -5,7 +5,7 @@
   import type { DeviceCheck } from '../lib/api/bindings/DeviceCheck';
   import DeviceReadings from '../lib/components/DeviceReadings.svelte';
   import LibraryFoldersPanel from '../lib/components/LibraryFoldersPanel.svelte';
-  import NotImplementedNotice from '../lib/components/NotImplementedNotice.svelte';
+  import AiModelsPanel from '../lib/components/AiModelsPanel.svelte';
   import ProblemNotice from '../lib/components/ProblemNotice.svelte';
   import ViewHeading from '../lib/components/ViewHeading.svelte';
   import { PROVISIONAL_NOTE, policySentence } from '../lib/deviceCopy';
@@ -13,8 +13,6 @@
   import { THEME_OPTIONS, theme } from '../lib/stores/theme.svelte';
   import { view } from '../lib/stores/view.svelte';
   import { workspace } from '../lib/stores/workspace.svelte';
-
-  const PENDING_SECTIONS = [{ id: 'ai', title: 'AI Models', slice: '0.7' }] as const;
 
   /** How often device readings refresh while Settings is open. */
   const DEVICE_REFRESH_MS = 30_000;
@@ -140,15 +138,21 @@
 
   <section aria-labelledby="settings-privacy">
     <h2 id="settings-privacy">Privacy</h2>
-    <p>This build of Atlas makes no network requests and reads no files from your library.</p>
+    <p>
+      Atlas reads only the names, sizes, and dates of files in your library folders, never their
+      contents, and never changes them. It contacts an AI service only when you test a connection,
+      and sends nothing from your library.
+    </p>
   </section>
 
-  {#each PENDING_SECTIONS as section (section.id)}
-    <section aria-labelledby={`settings-${section.id}`}>
-      <h2 id={`settings-${section.id}`}>{section.title}</h2>
-      <NotImplementedNotice title={section.title} plannedSlice={section.slice} />
-    </section>
-  {/each}
+  <section aria-labelledby="settings-ai">
+    <h2 id="settings-ai">AI Models</h2>
+    {#if workspace.isOpen}
+      <AiModelsPanel />
+    {:else}
+      <p class="muted">No Atlas library is open.</p>
+    {/if}
+  </section>
 </div>
 
 <style>

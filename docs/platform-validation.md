@@ -299,6 +299,74 @@ Not verified:
   rows and columns, so the tree shows content more than once. This is an
   inspection artifact; the DOM has a single copy, which the tests confirm.
 
+## Slice 0.7
+
+| Platform | Build | AI Models walkthrough | Evidence |
+| --- | --- | --- | --- |
+| macOS arm64 | ✅ | ✅ against real Ollama 0.40.15 and oMLX | Below |
+| Windows x64 | ❌ unverified | ❌ unverified | Credential Manager store and rustls/aws-lc build untested |
+| Linux x64 | ❌ unverified | ❌ unverified | Secret Service store untested; without a running Secret Service, keys fall back to session-only |
+
+### macOS arm64, Slice 0.7 (2026-11-07)
+
+All runs used a scratch `ATLAS_CONFIG_DIR` and the debug keychain service
+`com.altazlabs.atlas.debug`. No model was downloaded and no real key was
+used.
+
+- **`just ci` passed.** That covers 106 Rust unit tests, 8 provider
+  integration tests against a scripted local HTTP server, all earlier
+  suites, and 68 Vitest tests. The provider tests cover P0-17, P0-18,
+  P0-19, empty lists, every failure class, timeouts, redirects not
+  followed, session-only keys, and detection. The provider tests were run
+  3 times with no flakes.
+- **Look for AI services on this computer** found `Ollama (http://localhost:11434)` and
+  `oMLX (http://localhost:8000/v1) · needs a key`. oMLX was identified by its `/health` response.
+- **Ollama, real.** Test reported "Ollama 0.40.15 is running but has no
+  models installed. Install one with Ollama, then test again." The detail
+  was "The service answered with an empty model list."
+- **oMLX, real, no key.** Test reported "oMLX needs an API key. Enter the
+  key from oMLX's settings." (HTTP 401).
+- **oMLX, real, dummy key.** With the key `atlas-dummy-key-not-real-7f3a`,
+  Test reported "The key was rejected" (HTTP 401). After saving, the card
+  read "Key saved in Keychain".
+  - `security find-generic-password` (attributes only) showed a `genp` item
+    with service `com.altazlabs.atlas.debug` and account
+    `provider:<profile id>`. The release service had no item.
+  - The key string was absent from `catalog.sqlite`, its `-wal` and `-shm`
+    files, every file under the library folder, and the dev log.
+  - Testing the saved profile read the key from the Keychain; it was
+    rejected again, which shows it was sent.
+  - Remove deleted both the row and the Keychain item.
+- **Plain HTTP to another computer.** Entering `http://192.168.1.20:11434`
+  showed the warning and the "I trust this network" checkbox. Test
+  reported "Unencrypted HTTP to another computer needs your confirmation
+  first."
+
+Not verified:
+
+- **Authenticated success against oMLX.** The user enters the real key
+  in Settings › AI Models. A mock covers the success path.
+- **A real model listing from Ollama.** No model was downloaded, by the
+  user's choice. A mock covers it.
+- **Hosted HTTPS services** (OpenAI and others), and the keychain
+  access prompt that an installed (signed) build may show.
+
+## Manual checklist additions for Slice 0.7
+
+1. In Settings › AI Models, press "Look for AI services on this computer".
+   Confirm local services are listed, and that nothing is contacted
+   before you press it.
+2. Add Ollama and press Test. You should see either a model list or the
+   "no models installed" message.
+3. Add an OpenAI-compatible service with a key and press Test. Confirm the
+   key is stored (macOS: Keychain Access, service `com.altazlabs.atlas`;
+   Windows: Credential Manager; Linux: Seahorse) and is not in any file
+   under the Atlas library folder.
+4. Enter an `http://` address on another computer. Confirm Atlas blocks it
+   until you tick the acknowledgement.
+5. Linux without a Secret Service (for example a minimal window manager):
+   confirm the key shows as "kept for this session only".
+
 ## Manual checklist additions for Slice 0.6
 
 1. With a fixture cataloged, search `cafe` and confirm the "Café crème"

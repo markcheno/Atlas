@@ -1,6 +1,6 @@
 # Atlas architecture
 
-Status: Phase 0, Slice 0.6. This document describes what is built, and marks
+Status: Phase 0, Slice 0.7. This document describes what is built, and marks
 what is only planned. Decisions with lasting consequences are recorded as
 ADRs in [adr/](adr/).
 
@@ -48,7 +48,7 @@ commands and added the native multi-folder picker.
 | Source roots | `list_source_roots`, `add_source_root`, `remove_source_root`, `pick_and_add_source_roots` | **0.3 (working)** |
 | Inventory jobs | `start_inventory`, `pause_job`, `resume_job`, `cancel_job`, `get_inventory_status` | **0.5 (working)** |
 | Library | `list_documents`, `open_original`, `reveal_original` | **0.6 (working)** |
-| Providers | `list_provider_profiles`, `save_provider_profile`, `test_provider_connection` | 0.7 |
+| Providers | `list_provider_profiles`, `save_provider_profile`, `delete_provider_profile`, `test_provider_connection`, `detect_local_providers` | **0.7 (working)** |
 
 `get_app_status` returns only facts about the running process, including a
 feature list that marks exactly which capabilities this build provides.
@@ -93,7 +93,7 @@ section 9, abstraction budget). They are defined in
 | `InventorySource` | Streamed, read-only directory listing | **0.5 (`LocalFsSource`)** |
 | `VolumeInspector` | Free space, filesystem type, network or cloud-synced | **0.2 (`OsVolumeInspector`)** |
 | `ResourceMonitor` | Device snapshot for the data-root volume | **0.4 (`OsResourceMonitor`, `SimulatedMonitor`)** |
-| `ModelProvider` | Endpoint probe and model listing | 0.7 |
+| `ModelProvider` | Endpoint probe and model listing | **0.7 (`HttpModelProvider`)** |
 | `SourceOpener` | OS-native open and reveal | **0.6 (`OsOpener` via `tauri-plugin-opener`)** |
 | `DocumentProcessor` | Reserved name for Phase 1 extraction | Phase 1 |
 
@@ -287,6 +287,27 @@ in [ADR 0006](adr/0006-search-keys-and-safe-opening.md).
   OS opener receives the native path. A cloud-only file needs
   `allowDownload: true`. For a legacy iCloud placeholder, Atlas reveals the
   placeholder instead of opening it.
+
+## AI service connections
+
+Implemented in `services/providers/`, `infrastructure/http_probe.rs`, and
+`infrastructure/keychain.rs`; rationale in
+[ADR 0007](adr/0007-provider-connections-and-secrets.md).
+
+- **Profiles** (migration 0005) store kind, label, base URL, an insecure-HTTP
+  acknowledgement, and *where* the key is kept. The key itself is never in
+  the catalog.
+- **Keys** go to the OS keychain under service `com.altazlabs.atlas`, or
+  `….debug` in debug builds, with account `provider:<id>`. If the keychain
+  is unavailable, they are kept in memory for the session only. A
+  redacting `Secret` type keeps keys out of `Debug` output.
+- **Address rules:** http(s) only, no credentials, query, or fragment; plain
+  HTTP silently to loopback only, otherwise per-profile acknowledgement.
+- **Tests** are bodiless GETs of the model list, with no redirects, no
+  proxies, bounded time and size, and honest outcomes. They never claim
+  chat or embedding support.
+- **Detection** probes loopback well-known ports only, and only when the
+  user asks.
 
 The webview also creates its own website-data and cache folders, on macOS
 `~/Library/WebKit/<bundle>` and `~/Library/Caches/<bundle>`. These are

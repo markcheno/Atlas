@@ -8,6 +8,7 @@ vi.mock('@tauri-apps/api/core', () => import('./test/tauriMock'));
 vi.mock('@tauri-apps/api/event', () => import('./test/eventMock'));
 
 const { library: libraryStore } = await import('./lib/stores/library.svelte');
+const { providers: providersStore } = await import('./lib/stores/providers.svelte');
 
 const { default: App } = await import('./App.svelte');
 const { view } = await import('./lib/stores/view.svelte');
@@ -729,5 +730,185 @@ describe('library table', () => {
     await user.type(screen.getByLabelText('Search file names and folders'), 'meteor{Enter}');
     await screen.findByRole('heading', { level: 1, name: 'Library' });
     await waitFor(() => expect(lastQuery().text).toBe('meteor'));
+  });
+});
+
+describe('AI models settings', () => {
+  beforeEach(() => {
+    resetAll();
+    providersStore.clear();
+  });
+
+  async function openAiSettings() {
+    const user = await launchOpen();
+    await user.click(screen.getByRole('button', { name: 'Settings' }));
+    await screen.findByRole('heading', { level: 2, name: 'AI Models' });
+    return user;
+  }
+
+  const aiSection = () =>
+    screen.getByRole('heading', { level: 2, name: 'AI Models' }).closest('section') as HTMLElement;
+
+  it('explains it is optional and that nothing from the library is sent', async () => {
+    await openAiSettings();
+    expect(within(aiSection()).getByText(/nothing from your library is sent/)).toBeInTheDocument();
+    expect(within(aiSection()).getByText('No AI services connected.')).toBeInTheDocument();
+  });
+
+  it('adds Ollama from a preset, tests before saving, and saves', async () => {
+    tauri.setHandler('test_provider_connection', () =>
+      tauri.connectionResult({
+        outcome: 'no_models_listed',
+        modelIds: [],
+        serverVersion: '0.40.15',
+      }),
+    );
+    const user = await openAiSettings();
+    await user.click(within(aiSection()).getByRole('button', { name: 'Add a service…' }));
+    const form = within(aiSection()).getByRole('form', { name: 'Add an AI service' });
+    expect(within(form).getByLabelText('Address')).toHaveValue('http://localhost:11434');
+    await user.click(within(form).getByRole('button', { name: 'Test' }));
+    expect(
+      await within(aiSection()).findByText(
+        'Ollama 0.40.15 is running but has no models installed. Install one with Ollama, then test again.',
+      ),
+    ).toBeInTheDocument();
+    expect(tauri.invoke).toHaveBeenCalledWith('test_provider_connection', {
+      target: expect.objectContaining({ target: 'candidate' }),
+    });
+    await user.click(within(form).getByRole('button', { name: 'Save' }));
+    expect(await within(aiSection()).findByText('Ollama')).toBeInTheDocument();
+    expect(within(aiSection()).getByText(/This computer/)).toBeInTheDocument();
+  });
+
+  it('stores a key without ever showing it again, and explains key problems', async () => {
+    const user = await openAiSettings();
+    await user.click(within(aiSection()).getByRole('button', { name: 'Add a service…' }));
+    const form = within(aiSection()).getByRole('form', { name: 'Add an AI service' });
+    await user.selectOptions(within(form).getByRole('combobox', { name: 'Service' }), 'omlx');
+    expect(within(form).getByLabelText('Address')).toHaveValue('http://localhost:8000/v1');
+
+    tauri.setHandler('test_provider_connection', () =>
+      tauri.connectionResult({
+        outcome: 'authentication_failed',
+        modelIds: [],
+        message: 'The service replied with HTTP 401.',
+      }),
+    );
+    await user.click(within(form).getByRole('button', { name: 'Test' }));
+    expect(
+      await within(aiSection()).findByText(
+        "oMLX needs an API key. Enter the key from oMLX's settings.",
+      ),
+    ).toBeInTheDocument();
+
+    await user.type(within(form).getByLabelText(/API key/), 'sk-secret-123');
+    await user.click(within(form).getByRole('button', { name: 'Test' }));
+    expect(
+      await within(aiSection()).findByText('The key was rejected. Check it and try again.'),
+    ).toBeInTheDocument();
+
+    await user.click(within(form).getByRole('button', { name: 'Save' }));
+    expect(await within(aiSection()).findByText('Key saved in Keychain')).toBeInTheDocument();
+    expect(document.body.innerHTML).not.toContain('sk-secret-123');
+    expect(tauri.invoke).toHaveBeenCalledWith('save_provider_profile', {
+      profile: expect.objectContaining({ apiKey: 'sk-secret-123', kind: 'openai_compatible' }),
+    });
+  });
+
+  it('shows models and never claims chat or embedding support', async () => {
+    const user = await openAiSettings();
+    await user.click(within(aiSection()).getByRole('button', { name: 'Add a service…' }));
+    const form = within(aiSection()).getByRole('form', { name: 'Add an AI service' });
+    await user.click(within(form).getByRole('button', { name: 'Test' }));
+    expect(await within(aiSection()).findByText('qwen3.5:9b')).toBeInTheDocument();
+    expect(
+      within(aiSection()).getByText(/Atlas will check what each model can do/),
+    ).toBeInTheDocument();
+    expect(aiSection().textContent).not.toMatch(/supports (chat|embeddings)/i);
+  });
+
+  it('requires an acknowledgement for plain HTTP to another computer', async () => {
+    const user = await openAiSettings();
+    await user.click(within(aiSection()).getByRole('button', { name: 'Add a service…' }));
+    const form = within(aiSection()).getByRole('form', { name: 'Add an AI service' });
+    const address = within(form).getByLabelText('Address');
+    await user.clear(address);
+    await user.type(address, 'http://192.168.1.20:11434');
+    expect(within(form).getByText(/unencrypted HTTP to another computer/)).toBeInTheDocument();
+    await user.click(within(form).getByRole('checkbox', { name: /I trust this network/ }));
+    await user.click(within(form).getByRole('button', { name: 'Save' }));
+    expect(tauri.invoke).toHaveBeenCalledWith('save_provider_profile', {
+      profile: expect.objectContaining({ insecureHttpAcknowledged: true }),
+    });
+    expect(await within(aiSection()).findByText(/Another computer/)).toBeInTheDocument();
+  });
+
+  it('looks for local services only when asked and prefills the form', async () => {
+    tauri.setHandler('detect_local_providers', () => [
+      {
+        kind: 'ollama',
+        label: 'Ollama',
+        baseUrl: 'http://localhost:11434',
+        needsKey: false,
+        modelCount: null,
+      },
+      {
+        kind: 'openai_compatible',
+        label: 'oMLX',
+        baseUrl: 'http://localhost:8000/v1',
+        needsKey: true,
+        modelCount: null,
+      },
+    ]);
+    const user = await openAiSettings();
+    expect(tauri.invoke).not.toHaveBeenCalledWith('detect_local_providers', undefined);
+    await user.click(
+      within(aiSection()).getByRole('button', { name: 'Look for AI services on this computer' }),
+    );
+    await user.click(
+      await within(aiSection()).findByRole('button', { name: /Add oMLX .*needs a key/ }),
+    );
+    const form = within(aiSection()).getByRole('form', { name: 'Add an AI service' });
+    expect(within(form).getByLabelText('Address')).toHaveValue('http://localhost:8000/v1');
+    expect(within(form).getByLabelText('Name')).toHaveValue('oMLX');
+  });
+
+  it('tests and removes a saved service with confirmation', async () => {
+    tauri.setHandler('list_provider_profiles', () => [
+      {
+        id: 'p1',
+        kind: 'ollama',
+        label: 'Ollama',
+        baseUrl: 'http://localhost:11434',
+        hasCredential: false,
+        credentialStorage: 'none',
+        insecureHttpAcknowledged: false,
+        onThisComputer: true,
+        createdAt: 't',
+        updatedAt: 't',
+      },
+    ]);
+    tauri.setHandler('test_provider_connection', () =>
+      tauri.connectionResult({
+        outcome: 'network_error',
+        modelIds: [],
+        message: 'Nothing answered at this address.',
+      }),
+    );
+    const user = await openAiSettings();
+    await user.click(await within(aiSection()).findByRole('button', { name: 'Test Ollama' }));
+    expect(tauri.invoke).toHaveBeenCalledWith('test_provider_connection', {
+      target: { target: 'saved_profile', profileId: 'p1' },
+    });
+    expect(
+      await within(aiSection()).findByText(
+        'Nothing answered at this address. Is the service running?',
+      ),
+    ).toBeInTheDocument();
+    await user.click(within(aiSection()).getByRole('button', { name: 'Remove Ollama' }));
+    expect(within(aiSection()).getByText('Remove this service and its key?')).toBeInTheDocument();
+    await user.click(within(aiSection()).getByRole('button', { name: 'Remove' }));
+    expect(tauri.invoke).toHaveBeenCalledWith('delete_provider_profile', { id: 'p1' });
   });
 });

@@ -6,6 +6,8 @@ use std::sync::{Arc, Mutex};
 use crate::domain::dto::{DeviceCheck, DeviceSnapshot};
 use crate::domain::traits::SourceOpener;
 use crate::error::{AtlasError, AtlasResult};
+use crate::infrastructure::http_probe::ProbeConfig;
+use crate::services::providers::secrets::SecretVault;
 use crate::services::system::ResourceGovernor;
 use crate::services::workspace::Workspace;
 
@@ -15,6 +17,9 @@ pub struct AppState {
     pub governor: Arc<Mutex<ResourceGovernor>>,
     /// Opens and reveals original files with the OS.
     pub opener: Arc<dyn SourceOpener>,
+    /// API keys: the OS keychain, or this session only.
+    pub vault: Arc<SecretVault>,
+    pub probe: ProbeConfig,
 }
 
 impl AppState {
@@ -22,11 +27,14 @@ impl AppState {
         workspace: Workspace,
         governor: Arc<Mutex<ResourceGovernor>>,
         opener: Arc<dyn SourceOpener>,
+        vault: Arc<SecretVault>,
     ) -> Self {
         Self {
             workspace: Arc::new(Mutex::new(workspace)),
             governor,
             opener,
+            vault,
+            probe: ProbeConfig::default(),
         }
     }
 

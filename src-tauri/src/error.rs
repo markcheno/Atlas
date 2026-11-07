@@ -71,6 +71,16 @@ pub enum ErrorCode {
     SourceUnavailable,
     /// The operating system could not open or show the file.
     OpenFailed,
+    /// No AI service connection has that ID.
+    ProfileNotFound,
+    /// The address is not a usable http(s) URL.
+    InvalidUrl,
+    /// The address contains a user name or password.
+    UrlHasCredentials,
+    /// Plain HTTP to another computer needs the user's acknowledgement.
+    InsecureHttpNotAcknowledged,
+    /// The system keychain refused to store or remove a key.
+    SecretStoreFailed,
     IoError,
     DatabaseError,
     Internal,
@@ -169,6 +179,16 @@ pub enum AtlasError {
     SourceUnavailable,
     #[error("The system couldn't open that file.")]
     OpenFailed,
+    #[error("That AI service connection no longer exists.")]
+    ProfileNotFound,
+    #[error("That address isn't a web address Atlas can use.")]
+    InvalidUrl,
+    #[error("That address contains a user name or password.")]
+    UrlHasCredentials,
+    #[error("That address uses unencrypted HTTP to another computer.")]
+    InsecureHttpNotAcknowledged,
+    #[error("The system keychain couldn't store or remove the key.")]
+    SecretStoreFailed,
     #[error("Atlas could not {context} ({kind}).", kind = source.kind())]
     Io {
         context: &'static str,
@@ -246,6 +266,11 @@ impl AtlasError {
             Self::FileCloudPlaceholder => ErrorCode::FileCloudPlaceholder,
             Self::SourceUnavailable => ErrorCode::SourceUnavailable,
             Self::OpenFailed => ErrorCode::OpenFailed,
+            Self::ProfileNotFound => ErrorCode::ProfileNotFound,
+            Self::InvalidUrl => ErrorCode::InvalidUrl,
+            Self::UrlHasCredentials => ErrorCode::UrlHasCredentials,
+            Self::InsecureHttpNotAcknowledged => ErrorCode::InsecureHttpNotAcknowledged,
+            Self::SecretStoreFailed => ErrorCode::SecretStoreFailed,
             Self::Io { .. } => ErrorCode::IoError,
             Self::Database { .. } => ErrorCode::DatabaseError,
             Self::Internal(_) => ErrorCode::Internal,
@@ -307,6 +332,17 @@ impl AtlasError {
             }
             Self::SourceUnavailable => "Reconnect the drive or folder, then try again.",
             Self::OpenFailed => "Check that an app that opens this kind of file is installed.",
+            Self::ProfileNotFound => "Refresh the list of AI services.",
+            Self::InvalidUrl => {
+                "Enter an address that starts with http:// or https://, like http://localhost:11434."
+            }
+            Self::UrlHasCredentials => {
+                "Remove the name and password, and enter the key in the API key field instead."
+            }
+            Self::InsecureHttpNotAcknowledged => {
+                "Use https://, or confirm that you trust the network between this computer and the service."
+            }
+            Self::SecretStoreFailed => "Try again, or check your system keychain settings.",
             Self::Io { .. } | Self::Database { .. } => {
                 "Try again. If this keeps happening, check the drive for problems."
             }

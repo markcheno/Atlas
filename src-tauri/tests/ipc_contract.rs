@@ -1,37 +1,19 @@
 //! IPC contract tests.
 //!
-//! Every command of the Phase 0 contract is registered. Commands whose
-//! slice has not shipped return an explicit `not_implemented` error that
-//! names itself and its planned slice; nothing returns placeholder data.
-//! Implemented commands are thin adapters, tested through their services
-//! (see `workspace.rs`).
+//! Every command of the Phase 0 contract is registered, listed in
+//! `COMMAND_NAMES`, and exposed by the frontend facade under the same name.
+//! Since Slice 0.7 no command is a stub. Implemented commands are thin
+//! adapters, tested through their services (see the other test files).
 
 use atlas_lib::commands::{self, COMMAND_NAMES};
-use atlas_lib::domain::dto::{ConnectionTestTarget, OsKind, ProviderKind, ProviderProfileInput};
-use atlas_lib::error::{AtlasError, ErrorCode};
+use atlas_lib::domain::dto::OsKind;
 use tauri::async_runtime::block_on;
-
-fn assert_not_implemented<T: std::fmt::Debug>(
-    result: Result<T, AtlasError>,
-    command: &str,
-    slice: &str,
-) {
-    let err = result.expect_err("stub must not return data");
-    let payload = err.payload();
-    assert_eq!(payload.code, ErrorCode::NotImplemented);
-    assert_eq!(payload.command.as_deref(), Some(command));
-    assert_eq!(payload.planned_slice.as_deref(), Some(slice));
-    assert!(
-        COMMAND_NAMES.contains(&command),
-        "{command} missing from COMMAND_NAMES"
-    );
-}
 
 #[test]
 fn app_status_reports_only_true_facts() {
     let status = block_on(commands::app::get_app_status()).unwrap();
     assert_eq!(status.app_version, env!("CARGO_PKG_VERSION"));
-    assert_eq!(status.slice, "0.6");
+    assert_eq!(status.slice, "0.7");
     assert_eq!(status.arch, std::env::consts::ARCH);
     if cfg!(target_os = "macos") {
         assert_eq!(status.os, OsKind::Macos);
@@ -49,7 +31,8 @@ fn app_status_reports_only_true_facts() {
             "source_folders",
             "device_check",
             "inventory",
-            "library_browse"
+            "library_browse",
+            "provider_test"
         ]
     );
     assert!(
@@ -61,38 +44,22 @@ fn app_status_reports_only_true_facts() {
     );
 }
 
+/// No command returns `not_implemented` any more (Slice 0.7 shipped the
+/// last ones). Checked on the source so a stub can't sneak back in.
 #[test]
-fn every_stub_returns_not_implemented() {
-    use commands::providers;
-    let candidate = ProviderProfileInput {
-        id: None,
-        kind: ProviderKind::Ollama,
-        label: "Local".into(),
-        base_url: "http://localhost:11434".into(),
-        api_key: None,
-        insecure_http_acknowledged: false,
-    };
-
-    block_on(async {
-        assert_not_implemented(
-            providers::list_provider_profiles().await,
-            "list_provider_profiles",
-            "0.7",
-        );
-        assert_not_implemented(
-            providers::save_provider_profile(candidate.clone()).await,
-            "save_provider_profile",
-            "0.7",
-        );
-        assert_not_implemented(
-            providers::test_provider_connection(ConnectionTestTarget::Candidate {
-                profile: candidate,
-            })
-            .await,
-            "test_provider_connection",
-            "0.7",
-        );
-    });
+fn no_command_is_a_stub() {
+    let sources = [
+        include_str!("../src/commands/app.rs"),
+        include_str!("../src/commands/workspace.rs"),
+        include_str!("../src/commands/settings.rs"),
+        include_str!("../src/commands/sources.rs"),
+        include_str!("../src/commands/inventory.rs"),
+        include_str!("../src/commands/library.rs"),
+        include_str!("../src/commands/providers.rs"),
+    ];
+    for source in sources {
+        assert!(!source.contains("not_implemented("));
+    }
 }
 
 /// `generate_handler!` cannot be introspected, so check its source text

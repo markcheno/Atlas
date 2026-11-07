@@ -18,10 +18,12 @@ use std::sync::{Arc, Mutex};
 use tauri::{Emitter, Manager};
 
 use domain::dto::InventoryOverview;
+use infrastructure::keychain::KeychainStore;
 use infrastructure::local_source::LocalFsSource;
 use infrastructure::system_probe::{OsResourceMonitor, SimulatedMonitor, Simulation};
 use infrastructure::volume::OsVolumeInspector;
 use services::inventory::{InventoryConfig, InventoryDeps};
+use services::providers::secrets::{SecretStore, SecretVault};
 use services::source_open::OsOpener;
 use services::system::ResourceGovernor;
 use services::workspace::{Workspace, WorkspaceConfig, layout};
@@ -77,7 +79,16 @@ pub fn run() {
             // Reopens the remembered root and resumes interrupted cataloging;
             // problems become status, never a crash.
             workspace.startup();
-            app.manage(AppState::new(workspace, governor, Arc::new(OsOpener)));
+            // Keys go to the OS keychain; if it's unavailable, they are kept
+            // for this session only and never written to disk.
+            let keychain = KeychainStore::open().map(|k| Arc::new(k) as Arc<dyn SecretStore>);
+            let vault = Arc::new(SecretVault::new(keychain));
+            app.manage(AppState::new(
+                workspace,
+                governor,
+                Arc::new(OsOpener),
+                vault,
+            ));
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -106,7 +117,9 @@ pub fn run() {
             commands::library::reveal_original,
             commands::providers::list_provider_profiles,
             commands::providers::save_provider_profile,
+            commands::providers::delete_provider_profile,
             commands::providers::test_provider_connection,
+            commands::providers::detect_local_providers,
         ])
         .build(tauri::generate_context!())
         .expect("error while building Atlas")

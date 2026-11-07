@@ -1,5 +1,9 @@
-//! `ModelProvider` probes for Ollama and OpenAI-compatible endpoints: URL
-//! validation (loopback-only silent HTTP), bounded model-list requests, and
-//! OS credential storage for optional API keys. No inference.
-//!
-//! Not implemented in Slice 0.1. Delivered by Slice 0.7.
+//! AI service connections (phase0-spec §5.7, §10; ADR 0007): saved
+//! profiles, URL rules, API keys in the keychain, connection tests, and
+//! finding services on this computer on request. No inference: a test only
+//! asks the service for its list of models.
+
+pub mod detect;
+pub mod profiles;
+pub mod secrets;
+pub mod url_policy;

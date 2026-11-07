@@ -21,6 +21,7 @@ import type { DocumentQuery } from './bindings/DocumentQuery';
 import type { ErrorCode } from './bindings/ErrorCode';
 import type { ErrorPayload } from './bindings/ErrorPayload';
 import type { InventoryOverview } from './bindings/InventoryOverview';
+import type { LocalProviderSuggestion } from './bindings/LocalProviderSuggestion';
 import type { ProviderProfile } from './bindings/ProviderProfile';
 import type { ProviderProfileInput } from './bindings/ProviderProfileInput';
 import type { Settings } from './bindings/Settings';
@@ -130,8 +131,12 @@ export const atlas = {
   listProviderProfiles: () => call<ProviderProfile[]>('list_provider_profiles'),
   saveProviderProfile: (profile: ProviderProfileInput) =>
     call<ProviderProfile>('save_provider_profile', { profile }),
+  deleteProviderProfile: (id: string) => call<void>('delete_provider_profile', { id }),
+  /** Asks the service for its model list only; nothing from the library is sent. */
   testProviderConnection: (target: ConnectionTestTarget) =>
     call<ConnectionResult>('test_provider_connection', { target }),
+  /** Checks well-known ports on this computer; only when the user asks. */
+  detectLocalProviders: () => call<LocalProviderSuggestion[]>('detect_local_providers'),
 } as const;
 
 export type AtlasApi = typeof atlas;

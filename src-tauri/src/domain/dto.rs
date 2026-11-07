@@ -464,8 +464,21 @@ pub enum ProviderKind {
     OpenaiCompatible,
 }
 
-/// A saved provider profile as the UI sees it. The credential itself never
-/// crosses IPC after it is saved; only whether one exists.
+/// Where a profile's API key is kept.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "snake_case")]
+#[ts(export)]
+pub enum CredentialStorage {
+    None,
+    /// The OS keychain (macOS Keychain, Windows Credential Manager, Linux
+    /// Secret Service).
+    Keychain,
+    /// In memory only; it must be entered again after Atlas restarts.
+    SessionOnly,
+}
+
+/// A saved provider profile as the UI sees it. The key itself never
+/// crosses IPC after it is saved; only where it is kept.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]
 #[ts(export)]
@@ -475,15 +488,20 @@ pub struct ProviderProfile {
     pub label: String,
     pub base_url: String,
     pub has_credential: bool,
+    pub credential_storage: CredentialStorage,
     /// Per-profile acknowledgement for plain HTTP to a non-loopback host.
     pub insecure_http_acknowledged: bool,
+    /// The address is this computer (loopback), for the privacy indicator.
+    pub on_this_computer: bool,
     pub created_at: String,
     pub updated_at: String,
 }
 
 /// Input for creating or updating a profile. `api_key` is written straight
-/// to OS credential storage and is never persisted in the catalog.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+/// to OS credential storage and is never persisted in the catalog. Omit it
+/// to keep an existing key; set `clear_api_key` to remove it. `Debug`
+/// redacts the key.
+#[derive(Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]
 #[ts(export)]
 pub struct ProviderProfileInput {
@@ -492,7 +510,39 @@ pub struct ProviderProfileInput {
     pub label: String,
     pub base_url: String,
     pub api_key: Option<String>,
+    #[serde(default)]
+    pub clear_api_key: bool,
     pub insecure_http_acknowledged: bool,
+}
+
+impl std::fmt::Debug for ProviderProfileInput {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ProviderProfileInput")
+            .field("id", &self.id)
+            .field("kind", &self.kind)
+            .field("label", &self.label)
+            .field("base_url", &self.base_url)
+            .field("api_key", &self.api_key.as_ref().map(|_| "<redacted>"))
+            .field("clear_api_key", &self.clear_api_key)
+            .field(
+                "insecure_http_acknowledged",
+                &self.insecure_http_acknowledged,
+            )
+            .finish()
+    }
+}
+
+/// An AI service found answering on this computer.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct LocalProviderSuggestion {
+    pub kind: ProviderKind,
+    pub label: String,
+    pub base_url: String,
+    /// It answered but requires an API key.
+    pub needs_key: bool,
+    pub model_count: Option<u32>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
@@ -528,8 +578,13 @@ pub enum ConnectionOutcome {
 #[ts(export)]
 pub struct ConnectionResult {
     pub outcome: ConnectionOutcome,
+    /// Listed model identifiers. Listing a model does not mean Atlas has
+    /// checked it can chat or produce embeddings.
     pub model_ids: Vec<String>,
+    /// A short technical detail (for example the HTTP status). Never
+    /// contains the API key.
     pub message: String,
+    pub server_version: Option<String>,
     pub tested_at: String,
 }
 

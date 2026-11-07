@@ -15,6 +15,9 @@ import type { FileInstance } from '../lib/api/bindings/FileInstance';
 import type { ErrorPayload } from '../lib/api/bindings/ErrorPayload';
 import type { InventoryOverview } from '../lib/api/bindings/InventoryOverview';
 import type { InventoryStatus } from '../lib/api/bindings/InventoryStatus';
+import type { ConnectionResult } from '../lib/api/bindings/ConnectionResult';
+import type { ProviderProfile } from '../lib/api/bindings/ProviderProfile';
+import type { ProviderProfileInput } from '../lib/api/bindings/ProviderProfileInput';
 import type { AddSourceRootsResult } from '../lib/api/bindings/AddSourceRootsResult';
 import type { Settings } from '../lib/api/bindings/Settings';
 import type { SourceRoot } from '../lib/api/bindings/SourceRoot';
@@ -26,7 +29,7 @@ export const fakeStatus: AppStatus = {
   os: 'macos',
   arch: 'aarch64',
   buildProfile: 'debug',
-  slice: '0.6',
+  slice: '0.7',
   features: [],
 };
 
@@ -159,6 +162,17 @@ export function documentPage(overrides: Partial<DocumentPage> = {}): DocumentPag
   return { items: [], page: 0, pageSize: 50, matchedSoFar: 0, scanning: false, ...overrides };
 }
 
+export function connectionResult(overrides: Partial<ConnectionResult> = {}): ConnectionResult {
+  return {
+    outcome: 'reachable',
+    modelIds: ['qwen3-embedding:0.6b', 'qwen3.5:9b'],
+    message: 'The service listed 2 models.',
+    serverVersion: null,
+    testedAt: '2026-11-07T00:00:00Z',
+    ...overrides,
+  };
+}
+
 /** Folders the fake picker returns, in order, on each call. */
 export const pickerQueue: AddSourceRootsResult[] = [];
 
@@ -169,14 +183,42 @@ export function apiError(code: ErrorPayload['code'], message: string, recovery?:
 
 type Handler = (args: Record<string, unknown> | undefined) => unknown;
 
-const plannedSlices: Record<string, string> = {
-  list_provider_profiles: '0.7',
-};
+const plannedSlices: Record<string, string> = {};
 
 function defaults(): Record<string, Handler> {
   let settings: Settings = { appearance: { theme: 'system' } };
   let roots: SourceRoot[] = [];
+  let profiles: ProviderProfile[] = [];
   return {
+    list_provider_profiles: () => profiles,
+    save_provider_profile: (args) => {
+      const input = args?.profile as ProviderProfileInput;
+      const id = input.id ?? `profile-${profiles.length + 1}`;
+      const previous = profiles.find((p) => p.id === id);
+      const hasKey = input.clearApiKey
+        ? false
+        : Boolean(input.apiKey) || Boolean(previous?.hasCredential);
+      const saved: ProviderProfile = {
+        id,
+        kind: input.kind,
+        label: input.label || (input.kind === 'ollama' ? 'Ollama' : 'OpenAI-compatible service'),
+        baseUrl: input.baseUrl.replace(/\/+$/, ''),
+        hasCredential: hasKey,
+        credentialStorage: hasKey ? 'keychain' : 'none',
+        insecureHttpAcknowledged: input.insecureHttpAcknowledged,
+        onThisComputer: /\/\/(localhost|127\.)/.test(input.baseUrl),
+        createdAt: 't',
+        updatedAt: 't',
+      };
+      profiles = [...profiles.filter((p) => p.id !== id), saved];
+      return saved;
+    },
+    delete_provider_profile: (args) => {
+      profiles = profiles.filter((p) => p.id !== args?.id);
+      return null;
+    },
+    test_provider_connection: () => connectionResult(),
+    detect_local_providers: () => [],
     get_device_check: () => deviceCheck(),
     get_inventory_status: () => overview(),
     list_documents: () => documentPage(),
