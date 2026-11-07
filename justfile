@@ -32,6 +32,10 @@ dev:
 ui:
     pnpm dev
 
+# Launch with no cataloging rate limit, for benchmarks (debug builds only)
+dev-unthrottled $ATLAS_INVENTORY_UNTHROTTLED="1":
+    pnpm tauri dev
+
 # Launch with simulated power (ac, battery:<pct>, unknown, desktop) and optional free bytes, e.g. `just dev-simulate battery:18`
 dev-simulate $ATLAS_SIMULATE_POWER $ATLAS_SIMULATE_FREE_BYTES="":
     pnpm tauri dev
@@ -93,6 +97,10 @@ bundle bundles=default_bundles:
 [macos]
 open-bundle:
     open src-tauri/target/debug/bundle/macos/Atlas.app
+
+# Generate a synthetic test library outside the repo, e.g. `just fixtures ~/atlas-fx 30000`
+fixtures dir files="1000":
+    node scripts/generate-fixtures.mjs {{ dir }} --files {{ files }}
 
 # --------------------------------------------------------- maintenance
 

@@ -43,9 +43,8 @@ pub fn decode(stored: &[u8]) -> Option<PathBuf> {
     use std::ffi::OsStr;
     use std::os::unix::ffi::OsStrExt;
     match stored.split_first() {
-        Some((&TAG_UNIX, payload)) if !payload.is_empty() => {
-            Some(PathBuf::from(OsStr::from_bytes(payload)))
-        }
+        // An empty payload is the empty relative path (a source root itself).
+        Some((&TAG_UNIX, payload)) => Some(PathBuf::from(OsStr::from_bytes(payload))),
         _ => None,
     }
 }
@@ -55,7 +54,7 @@ pub fn decode(stored: &[u8]) -> Option<PathBuf> {
     use std::ffi::OsString;
     use std::os::windows::ffi::OsStringExt;
     match stored.split_first() {
-        Some((&TAG_WINDOWS, payload)) if !payload.is_empty() && payload.len() % 2 == 0 => {
+        Some((&TAG_WINDOWS, payload)) if payload.len() % 2 == 0 => {
             let units: Vec<u16> = payload
                 .chunks_exact(2)
                 .map(|pair| u16::from_le_bytes([pair[0], pair[1]]))
@@ -108,6 +107,11 @@ mod tests {
         let units = [b'C' as u16, b':' as u16, b'\\' as u16, 0xD800, b'x' as u16];
         let path = PathBuf::from(OsString::from_wide(&units));
         assert_eq!(decode(&encode(&path)).unwrap(), path);
+    }
+
+    #[test]
+    fn empty_relative_path_round_trips() {
+        assert_eq!(decode(&encode(Path::new(""))).unwrap(), PathBuf::new());
     }
 
     #[test]

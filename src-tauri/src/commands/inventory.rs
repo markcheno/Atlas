@@ -1,33 +1,47 @@
-use crate::domain::dto::InventoryStatus;
-use crate::error::{AtlasError, AtlasResult};
+use tauri::State;
 
-/// Starts (or resumes) inventory of one source root; returns the job ID.
+use crate::domain::dto::InventoryOverview;
+use crate::error::AtlasResult;
+use crate::services::inventory::control;
+use crate::state::AppState;
+
+/// Starts (or resumes) cataloging one library folder; returns the job ID.
 #[tauri::command]
-pub async fn start_inventory(source_root_id: String) -> AtlasResult<String> {
-    let _ = source_root_id;
-    Err(AtlasError::not_implemented("start_inventory", "0.5"))
+pub async fn start_inventory(
+    state: State<'_, AppState>,
+    source_root_id: String,
+) -> AtlasResult<String> {
+    state
+        .with_workspace(move |ws| control::enqueue(ws.require_open()?, &source_root_id))
+        .await
+}
+
+/// Pauses a job until the user resumes it, across restarts.
+#[tauri::command]
+pub async fn pause_job(state: State<'_, AppState>, job_id: String) -> AtlasResult<()> {
+    state
+        .with_workspace(move |ws| control::pause(ws.require_open()?, &job_id))
+        .await
 }
 
 #[tauri::command]
-pub async fn pause_job(job_id: String) -> AtlasResult<()> {
-    let _ = job_id;
-    Err(AtlasError::not_implemented("pause_job", "0.5"))
-}
-
-#[tauri::command]
-pub async fn resume_job(job_id: String) -> AtlasResult<()> {
-    let _ = job_id;
-    Err(AtlasError::not_implemented("resume_job", "0.5"))
+pub async fn resume_job(state: State<'_, AppState>, job_id: String) -> AtlasResult<()> {
+    state
+        .with_workspace(move |ws| control::resume(ws.require_open()?, &job_id))
+        .await
 }
 
 /// Stops the job, keeping already cataloged entries.
 #[tauri::command]
-pub async fn cancel_job(job_id: String) -> AtlasResult<()> {
-    let _ = job_id;
-    Err(AtlasError::not_implemented("cancel_job", "0.5"))
+pub async fn cancel_job(state: State<'_, AppState>, job_id: String) -> AtlasResult<()> {
+    state
+        .with_workspace(move |ws| control::cancel(ws.require_open()?, &job_id))
+        .await
 }
 
 #[tauri::command]
-pub async fn get_inventory_status() -> AtlasResult<InventoryStatus> {
-    Err(AtlasError::not_implemented("get_inventory_status", "0.5"))
+pub async fn get_inventory_status(state: State<'_, AppState>) -> AtlasResult<InventoryOverview> {
+    state
+        .with_workspace(|ws| control::overview(ws.require_open()?))
+        .await
 }

@@ -20,7 +20,7 @@ import type { DocumentPage } from './bindings/DocumentPage';
 import type { DocumentQuery } from './bindings/DocumentQuery';
 import type { ErrorCode } from './bindings/ErrorCode';
 import type { ErrorPayload } from './bindings/ErrorPayload';
-import type { InventoryStatus } from './bindings/InventoryStatus';
+import type { InventoryOverview } from './bindings/InventoryOverview';
 import type { ProviderProfile } from './bindings/ProviderProfile';
 import type { ProviderProfileInput } from './bindings/ProviderProfileInput';
 import type { Settings } from './bindings/Settings';
@@ -119,7 +119,7 @@ export const atlas = {
   pauseJob: (jobId: string) => call<void>('pause_job', { jobId }),
   resumeJob: (jobId: string) => call<void>('resume_job', { jobId }),
   cancelJob: (jobId: string) => call<void>('cancel_job', { jobId }),
-  getInventoryStatus: () => call<InventoryStatus>('get_inventory_status'),
+  getInventoryStatus: () => call<InventoryOverview>('get_inventory_status'),
 
   listDocuments: (query: DocumentQuery) => call<DocumentPage>('list_documents', { query }),
   openOriginal: (fileId: string) => call<void>('open_original', { fileId }),

@@ -20,10 +20,48 @@ type Job = Box<dyn FnOnce(&mut Connection) + Send>;
 /// Provisional; revisited with Slice 0.8 measurements.
 pub const BUSY_TIMEOUT: Duration = Duration::from_secs(5);
 
+/// A cloneable way to submit jobs to the writer thread. The inventory
+/// worker holds one; it must be dropped before the [`CatalogWriter`], whose
+/// `Drop` waits for every handle to go away.
+#[derive(Clone)]
+pub struct CatalogHandle {
+    tx: mpsc::Sender<Job>,
+}
+
+impl CatalogHandle {
+    /// Runs `f` on the writer thread and waits for its result.
+    /// Call from blocking contexts only (never on an async executor thread).
+    pub fn call<R, F>(&self, f: F) -> AtlasResult<R>
+    where
+        R: Send + 'static,
+        F: FnOnce(&mut Connection) -> R + Send + 'static,
+    {
+        let (reply_tx, reply_rx) = mpsc::sync_channel(1);
+        let job: Job = Box::new(move |conn| {
+            let _ = reply_tx.send(f(conn));
+        });
+        self.tx
+            .send(job)
+            .map_err(|_| AtlasError::Internal("catalog writer is not running"))?;
+        reply_rx
+            .recv()
+            .map_err(|_| AtlasError::Internal("catalog writer stopped unexpectedly"))
+    }
+}
+
 pub struct CatalogWriter {
-    tx: Option<mpsc::Sender<Job>>,
+    handle: Option<CatalogHandle>,
     thread: Option<JoinHandle<()>>,
     path: PathBuf,
+}
+
+impl std::ops::Deref for CatalogWriter {
+    type Target = CatalogHandle;
+    fn deref(&self) -> &CatalogHandle {
+        self.handle
+            .as_ref()
+            .expect("catalog handle is present until drop")
+    }
 }
 
 impl CatalogWriter {
@@ -61,35 +99,19 @@ impl CatalogWriter {
             .map_err(|_| AtlasError::Internal("catalog writer exited during startup"))??;
 
         Ok(Self {
-            tx: Some(tx),
+            handle: Some(CatalogHandle { tx }),
             thread: Some(thread),
             path: path.to_path_buf(),
         })
     }
 
-    pub fn path(&self) -> &Path {
-        &self.path
+    /// Another handle to the same writer thread.
+    pub fn handle(&self) -> CatalogHandle {
+        (**self).clone()
     }
 
-    /// Runs `f` on the writer thread and waits for its result.
-    /// Call from blocking contexts only (never on an async executor thread).
-    pub fn call<R, F>(&self, f: F) -> AtlasResult<R>
-    where
-        R: Send + 'static,
-        F: FnOnce(&mut Connection) -> R + Send + 'static,
-    {
-        let (reply_tx, reply_rx) = mpsc::sync_channel(1);
-        let job: Job = Box::new(move |conn| {
-            let _ = reply_tx.send(f(conn));
-        });
-        self.tx
-            .as_ref()
-            .ok_or(AtlasError::Internal("catalog writer is closed"))?
-            .send(job)
-            .map_err(|_| AtlasError::Internal("catalog writer is not running"))?;
-        reply_rx
-            .recv()
-            .map_err(|_| AtlasError::Internal("catalog writer stopped unexpectedly"))
+    pub fn path(&self) -> &Path {
+        &self.path
     }
 }
 
@@ -98,7 +120,7 @@ impl Drop for CatalogWriter {
     /// fully closed before anything that outlives the writer (such as the
     /// data-root lock) is released.
     fn drop(&mut self) {
-        drop(self.tx.take());
+        drop(self.handle.take());
         if let Some(thread) = self.thread.take() {
             let _ = thread.join();
         }

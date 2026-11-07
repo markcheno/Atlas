@@ -32,6 +32,7 @@ use crate::error::{AtlasError, AtlasResult, ErrorPayload};
 use crate::infrastructure::clock::now_rfc3339;
 use crate::infrastructure::fsutil::{clear_dir, sync_dir};
 use crate::services::catalog::{self, CatalogWriter};
+use crate::services::inventory::{self, InventoryDeps, InventoryRunner};
 use crate::services::system::low_space_threshold;
 use layout::{CATALOG, DIRECTORIES, INIT_MARKER, TMP};
 use lock::RootLock;
@@ -44,9 +45,11 @@ pub struct WorkspaceConfig {
     pub default_root: PathBuf,
 }
 
-/// An open data root. Field order matters: the catalog closes before the
-/// lock is released, because Rust drops fields in declaration order.
+/// An open data root. Field order matters, because Rust drops fields in
+/// declaration order: the inventory worker stops first, then the catalog
+/// closes, then the lock is released.
 pub struct OpenRoot {
+    inventory: Option<InventoryRunner>,
     catalog: CatalogWriter,
     _lock: RootLock,
     path: PathBuf,
@@ -65,6 +68,10 @@ impl OpenRoot {
     pub fn catalog(&self) -> &CatalogWriter {
         &self.catalog
     }
+    /// The background inventory worker, when this workspace runs one.
+    pub fn inventory(&self) -> Option<&InventoryRunner> {
+        self.inventory.as_ref()
+    }
 }
 
 enum State {
@@ -81,6 +88,7 @@ enum State {
 pub struct Workspace {
     config: WorkspaceConfig,
     volumes: Arc<dyn VolumeInspector>,
+    inventory_deps: Option<InventoryDeps>,
     state: State,
 }
 
@@ -89,8 +97,21 @@ impl Workspace {
         Self {
             config,
             volumes,
+            inventory_deps: None,
             state: State::NotConfigured,
         }
+    }
+
+    /// Runs an inventory worker for every root this workspace opens.
+    pub fn with_inventory(mut self, deps: InventoryDeps) -> Self {
+        self.inventory_deps = Some(deps);
+        self
+    }
+
+    /// Closes the open root (stopping its worker) without forgetting it.
+    /// Used when the app exits.
+    pub fn shutdown(&mut self) {
+        self.state = State::NotConfigured;
     }
 
     /// Reopens the remembered root, if any. Never fails: problems become
@@ -286,7 +307,14 @@ impl Workspace {
             manifest::write(path, &manifest)?;
         }
 
+        // Interrupted scans become queued; a user's pause is kept.
+        let now = now_rfc3339();
+        catalog
+            .call(move |c| inventory::db::recover_on_open(c, &now))?
+            .map_err(AtlasError::db("recover interrupted cataloging"))?;
+
         Ok(OpenRoot {
+            inventory: self.start_inventory(&catalog, path)?,
             catalog,
             _lock: lock,
             path: path.to_path_buf(),
@@ -294,6 +322,17 @@ impl Workspace {
             settings: settings::read(path),
             manifest,
         })
+    }
+
+    fn start_inventory(
+        &self,
+        catalog: &CatalogWriter,
+        path: &Path,
+    ) -> AtlasResult<Option<InventoryRunner>> {
+        self.inventory_deps
+            .as_ref()
+            .map(|deps| InventoryRunner::start(catalog.handle(), path, deps.clone()))
+            .transpose()
     }
 
     /// Creates a root, or finishes a previously interrupted creation.
@@ -335,6 +374,7 @@ impl Workspace {
         let _ = sync_dir(path);
 
         Ok(OpenRoot {
+            inventory: self.start_inventory(&catalog, path)?,
             catalog,
             _lock: lock,
             path: path.to_path_buf(),

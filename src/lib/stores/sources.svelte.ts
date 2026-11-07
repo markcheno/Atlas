@@ -2,6 +2,7 @@
 import { atlas, AtlasApiError, toApiError } from '../api/client';
 import type { SourceRoot } from '../api/bindings/SourceRoot';
 import type { SourceRootRejection } from '../api/bindings/SourceRootRejection';
+import { inventory } from './inventory.svelte';
 
 function asApiError(command: string, err: unknown): AtlasApiError {
   return err instanceof AtlasApiError ? err : toApiError(command, err);
@@ -37,7 +38,7 @@ class SourcesState {
     try {
       const result = await atlas.pickAndAddSourceRoots();
       this.rejected = result.rejected;
-      if (result.added.length > 0) await this.refresh();
+      if (result.added.length > 0) await Promise.all([this.refresh(), inventory.refresh()]);
     } catch (err) {
       this.error = asApiError('pick_and_add_source_roots', err);
     } finally {
@@ -52,7 +53,7 @@ class SourcesState {
     } catch (err) {
       this.error = asApiError('remove_source_root', err);
     }
-    await this.refresh();
+    await Promise.all([this.refresh(), inventory.refresh()]);
   }
 
   displayName(id: string | null): string | null {

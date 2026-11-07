@@ -2,17 +2,17 @@
 
 use rusqlite::{ErrorCode as SqliteCode, params};
 
-use super::CatalogWriter;
+use super::writer::CatalogHandle;
 use crate::domain::dto::{DocumentPage, DocumentQuery, FileInstance};
 use crate::domain::traits::{CatalogRepository, SourceRootRecord};
 use crate::error::{AtlasError, AtlasResult};
 
 pub struct SqliteCatalog<'a> {
-    writer: &'a CatalogWriter,
+    writer: &'a CatalogHandle,
 }
 
 impl<'a> SqliteCatalog<'a> {
-    pub fn new(writer: &'a CatalogWriter) -> Self {
+    pub fn new(writer: &'a CatalogHandle) -> Self {
         Self { writer }
     }
 }

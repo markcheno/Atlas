@@ -1,6 +1,6 @@
 # Atlas architecture
 
-Status: Phase 0, Slice 0.4. This document describes what is built, and marks
+Status: Phase 0, Slice 0.5. This document describes what is built, and marks
 what is only planned. Decisions with lasting consequences are recorded as
 ADRs in [adr/](adr/).
 
@@ -46,7 +46,7 @@ commands and added the native multi-folder picker.
 | Settings | `get_settings`, `update_settings` | **0.2 (working)** |
 | Device | `get_device_snapshot`, `get_device_check` | **0.4 (working)** |
 | Source roots | `list_source_roots`, `add_source_root`, `remove_source_root`, `pick_and_add_source_roots` | **0.3 (working)** |
-| Inventory jobs | `start_inventory`, `pause_job`, `resume_job`, `cancel_job`, `get_inventory_status` | 0.5 |
+| Inventory jobs | `start_inventory`, `pause_job`, `resume_job`, `cancel_job`, `get_inventory_status` | **0.5 (working)** |
 | Library | `list_documents`, `open_original`, `reveal_original` | 0.6 |
 | Providers | `list_provider_profiles`, `save_provider_profile`, `test_provider_connection` | 0.7 |
 
@@ -90,7 +90,7 @@ section 9, abstraction budget). They are defined in
 | Trait | Purpose | First adapter |
 | --- | --- | --- |
 | `CatalogRepository` | Source roots, file instances, later scan sessions | **0.3 (`SqliteCatalog`: source roots)**; 0.5 / 0.6 |
-| `InventorySource` | Streamed, read-only directory listing | 0.5 |
+| `InventorySource` | Streamed, read-only directory listing | **0.5 (`LocalFsSource`)** |
 | `VolumeInspector` | Free space, filesystem type, network or cloud-synced | **0.2 (`OsVolumeInspector`)** |
 | `ResourceMonitor` | Device snapshot for the data-root volume | **0.4 (`OsResourceMonitor`, `SimulatedMonitor`)** |
 | `ModelProvider` | Endpoint probe and model listing | 0.7 |
@@ -229,6 +229,41 @@ Rationale in [ADR 0004](adr/0004-resource-policy.md).
   before each batch.
 - **Simulation:** debug builds honor `ATLAS_SIMULATE_POWER` and
   `ATLAS_SIMULATE_FREE_BYTES`, exposed as `just dev-simulate`.
+
+## Inventory
+
+Implemented in `src-tauri/src/services/inventory/`; rationale in
+[ADR 0005](adr/0005-inventory-durability.md).
+
+- **Schema** (migration 0003). `scan_sessions` is the job record and state
+  machine. `scan_directories` is the persisted frontier of folders still to
+  list. `file_instances` holds one row per PDF or EPUB, keyed on
+  `(source_root_id, rel_path)`, with the path relative to the folder and
+  stored as native bytes. Each row also has size, whole-second mtime,
+  `availability` (available or missing), and `storage` (local or
+  cloud_only).
+- **Worker.** One thread per open library, owned by `OpenRoot` and stopped
+  before the catalog closes. It picks a running session, then a
+  policy-paused one, then a queued one, and lists folders in batches of up
+  to 100, one transaction per batch. Every 2 seconds it re-checks the
+  source folder and the resource policy, and it paces itself with a token
+  bucket. Classification is by extension only, and file contents are never
+  opened.
+- **Triggers.** A session starts when a folder is added, on Rescan, or when
+  a library opens with interrupted work or a never-scanned folder. User
+  pauses persist across restarts.
+- **Missing files.** A file is marked missing only when its folder was
+  listed successfully in a session and the file wasn't found. A folder
+  that can't be read protects its whole subtree.
+- **Cloud files.** iCloud dataless files, legacy `.icloud` placeholders,
+  and Windows cloud placeholders are cataloged as `cloud_only` without
+  being downloaded. Listing a dataless folder has a 15 second timeout.
+- **Progress.** The `inventory-status` Tauri event carries an
+  `InventoryOverview`, at most 4 per second plus on every state change.
+  The UI shows counts only, never totals or percentages.
+- **Fixtures.** `just fixtures <dir> [files]` writes a synthetic tree
+  outside the repository (`fixtures/README.md`). `just dev-unthrottled`
+  removes the rate limit in debug builds for benchmarking.
 
 The webview also creates its own website-data and cache folders, on macOS
 `~/Library/WebKit/<bundle>` and `~/Library/Caches/<bundle>`. These are

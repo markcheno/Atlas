@@ -300,6 +300,17 @@ pub enum Availability {
     Unreachable,
 }
 
+/// Where a file's contents are right now.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "snake_case")]
+#[ts(export)]
+pub enum FileStorage {
+    Local,
+    /// Offloaded to a cloud service (an iCloud placeholder or "dataless"
+    /// file, or a Windows cloud-files placeholder). Opening it downloads it.
+    CloudOnly,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]
 #[ts(export)]
@@ -310,10 +321,12 @@ pub struct FileInstance {
     pub display_path: String,
     pub extension: String,
     pub file_type: FileType,
-    #[ts(type = "number")]
-    pub size_bytes: u64,
+    /// `None` when unknown, never a guessed zero.
+    #[ts(type = "number | null")]
+    pub size_bytes: Option<u64>,
     pub modified_at: String,
     pub availability: Availability,
+    pub storage: FileStorage,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
@@ -381,20 +394,59 @@ pub enum PauseReason {
     ThermalPressure,
 }
 
+/// Progress of one scan session. Counts only: Atlas never shows a total or
+/// percentage before traversal finishes (phase0-spec §5.6).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]
 #[ts(export)]
 pub struct InventoryStatus {
-    pub job_id: Option<RecordId>,
-    pub source_root_id: Option<RecordId>,
-    pub state: Option<JobState>,
+    pub job_id: RecordId,
+    pub source_root_id: RecordId,
+    pub source_root_display_path: String,
+    pub state: JobState,
     pub pause_reason: Option<PauseReason>,
+    pub throttle_reason: Option<ThrottleReason>,
     pub discovered_files: u32,
     pub completed_directories: u32,
     pub failures: u32,
     pub skipped_symlinks: u32,
+    pub skipped_entries: u32,
     #[ts(type = "number")]
     pub elapsed_ms: u64,
+    pub started_at: Option<String>,
+    pub finished_at: Option<String>,
+    /// Stable code of the most recent problem, if any.
+    pub last_error: Option<String>,
+}
+
+/// Per-folder catalog summary.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct RootInventorySummary {
+    pub source_root_id: RecordId,
+    pub file_count: u32,
+    pub missing_count: u32,
+    /// Files whose contents live only in iCloud, OneDrive, or a similar
+    /// service; Atlas lists them without downloading them.
+    pub cloud_only_count: u32,
+    pub last_scan_at: Option<String>,
+    pub last_state: Option<JobState>,
+    pub active_job_id: Option<RecordId>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct InventoryOverview {
+    /// The session to show in the status bar: running, then paused, then
+    /// queued. `None` when nothing is scheduled.
+    pub active: Option<InventoryStatus>,
+    pub queued_sessions: u32,
+    pub cataloged_files: u32,
+    pub missing_files: u32,
+    pub cloud_only_files: u32,
+    pub roots: Vec<RootInventorySummary>,
 }
 
 // --------------------------------------------------------- model providers

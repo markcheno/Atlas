@@ -1,6 +1,8 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import type { SourceRoot } from '../api/bindings/SourceRoot';
+  import { rootLine } from '../inventoryCopy';
+  import { inventory } from '../stores/inventory.svelte';
   import { folderName, sources } from '../stores/sources.svelte';
   import ProblemNotice from './ProblemNotice.svelte';
 
@@ -48,10 +50,28 @@
             {#if root.containsDataRoot}
               <span class="muted small">Atlas's own data folder inside it will be skipped.</span>
             {/if}
+            {#if !root.nestedInRootId}
+              <span class="muted small" data-testid="root-line">
+                {rootLine(
+                  inventory.overview?.roots.find((r) => r.sourceRootId === root.id),
+                  inventory.overview,
+                )}
+              </span>
+            {/if}
           </div>
           <span class="badge" data-status={root.nestedInRootId ? 'nested' : root.status}>
             {statusText(root)}
           </span>
+          {#if !root.nestedInRootId && root.status === 'available'}
+            <button
+              type="button"
+              class="button quiet"
+              aria-label={`Rescan ${folderName(root.displayPath)}`}
+              onclick={() => inventory.rescan(root.id)}
+            >
+              Rescan
+            </button>
+          {/if}
           {#if removable}
             {#if confirmingId === root.id}
               <div class="confirm" role="group" aria-label="Confirm removal">

@@ -21,6 +21,11 @@ pub const MIGRATIONS: &[Migration] = &[
         name: "source_roots",
         sql: include_str!("../../../migrations/0002_source_roots.sql"),
     },
+    Migration {
+        version: 3,
+        name: "inventory",
+        sql: include_str!("../../../migrations/0003_inventory.sql"),
+    },
 ];
 
 /// Highest catalog schema version this build can read and write.

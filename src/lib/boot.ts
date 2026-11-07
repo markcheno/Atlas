@@ -4,6 +4,7 @@
  */
 import { atlas } from './api/client';
 import type { DataRootStatus } from './api/bindings/DataRootStatus';
+import { inventory } from './stores/inventory.svelte';
 import { sources } from './stores/sources.svelte';
 import { theme } from './stores/theme.svelte';
 import { view } from './stores/view.svelte';
@@ -17,10 +18,16 @@ import { workspace } from './stores/workspace.svelte';
 export async function applyStatus(status: DataRootStatus, opts: { justChosen?: boolean } = {}) {
   workspace.status = status;
   if (status.state === 'open') {
-    await Promise.all([theme.load(), sources.refresh()]);
+    await Promise.all([
+      theme.load(),
+      sources.refresh(),
+      inventory.refresh(),
+      inventory.subscribe(),
+    ]);
     view.go(opts.justChosen && sources.roots.length === 0 ? 'library-folders' : 'home');
   } else if (status.state === 'not_configured') {
     sources.clear();
+    inventory.clear();
     view.go('welcome');
   } else {
     view.go('unavailable');

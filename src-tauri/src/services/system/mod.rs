@@ -15,6 +15,27 @@ use crate::services::scheduler::policy::ResourcePolicy;
 
 const GIB: u64 = 1024 * 1024 * 1024;
 
+/// The device monitor plus the policy's hysteresis state. One instance is
+/// shared (behind a mutex) by the inventory worker and the device-check
+/// command, so the UI and the worker always agree.
+pub struct ResourceGovernor {
+    pub monitor: Box<dyn ResourceMonitor>,
+    pub policy: ResourcePolicy,
+}
+
+impl ResourceGovernor {
+    pub fn new(monitor: Box<dyn ResourceMonitor>) -> Self {
+        Self {
+            monitor,
+            policy: ResourcePolicy::new(),
+        }
+    }
+
+    pub fn check(&mut self, data_root: Option<&Path>) -> DeviceCheck {
+        device_check(self.monitor.as_ref(), &mut self.policy, data_root)
+    }
+}
+
 /// Samples the device, updates the policy's hysteresis, and assesses.
 pub fn device_check(
     monitor: &dyn ResourceMonitor,

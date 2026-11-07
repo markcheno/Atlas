@@ -49,6 +49,12 @@ pub enum ErrorCode {
     SourceOverlaps,
     /// No library folder has that ID.
     SourceNotFound,
+    /// No cataloging job has that ID.
+    JobNotFound,
+    /// The job has already finished, so it cannot be paused or cancelled.
+    JobNotPausable,
+    /// Only a job paused by the user can be resumed.
+    JobNotResumable,
     IoError,
     DatabaseError,
     Internal,
@@ -125,6 +131,12 @@ pub enum AtlasError {
     SourceOverlaps { conflicting_root_id: String },
     #[error("That library folder no longer exists in Atlas.")]
     SourceNotFound,
+    #[error("That cataloging job no longer exists.")]
+    JobNotFound,
+    #[error("That cataloging job has already finished.")]
+    JobNotPausable,
+    #[error("That cataloging job is not paused.")]
+    JobNotResumable,
     #[error("Atlas could not {context} ({kind}).", kind = source.kind())]
     Io {
         context: &'static str,
@@ -191,6 +203,9 @@ impl AtlasError {
             Self::SourceAlreadyAdded { .. } => ErrorCode::SourceAlreadyAdded,
             Self::SourceOverlaps { .. } => ErrorCode::SourceOverlaps,
             Self::SourceNotFound => ErrorCode::SourceNotFound,
+            Self::JobNotFound => ErrorCode::JobNotFound,
+            Self::JobNotPausable => ErrorCode::JobNotPausable,
+            Self::JobNotResumable => ErrorCode::JobNotResumable,
             Self::Io { .. } => ErrorCode::IoError,
             Self::Database { .. } => ErrorCode::DatabaseError,
             Self::Internal(_) => ErrorCode::Internal,
@@ -236,6 +251,9 @@ impl AtlasError {
                 "Keep the outer folder, or remove it first and add the folders inside it separately."
             }
             Self::SourceNotFound => "Refresh the list of library folders.",
+            Self::JobNotFound | Self::JobNotPausable | Self::JobNotResumable => {
+                "Refresh to see the current cataloging status."
+            }
             Self::Io { .. } | Self::Database { .. } => {
                 "Try again. If this keeps happening, check the drive for problems."
             }

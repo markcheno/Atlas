@@ -4,30 +4,21 @@ use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 
 use crate::domain::dto::{DeviceCheck, DeviceSnapshot};
-use crate::domain::traits::ResourceMonitor;
 use crate::error::{AtlasError, AtlasResult};
-use crate::services::scheduler::policy::ResourcePolicy;
-use crate::services::system;
+use crate::services::system::ResourceGovernor;
 use crate::services::workspace::Workspace;
-
-pub struct Resources {
-    pub monitor: Box<dyn ResourceMonitor>,
-    pub policy: ResourcePolicy,
-}
 
 pub struct AppState {
     pub workspace: Arc<Mutex<Workspace>>,
-    pub resources: Arc<Mutex<Resources>>,
+    /// Shared with the inventory worker so both see the same hysteresis.
+    pub governor: Arc<Mutex<ResourceGovernor>>,
 }
 
 impl AppState {
-    pub fn new(workspace: Workspace, monitor: Box<dyn ResourceMonitor>) -> Self {
+    pub fn new(workspace: Workspace, governor: Arc<Mutex<ResourceGovernor>>) -> Self {
         Self {
             workspace: Arc::new(Mutex::new(workspace)),
-            resources: Arc::new(Mutex::new(Resources {
-                monitor,
-                policy: ResourcePolicy::new(),
-            })),
+            governor,
         }
     }
 
@@ -57,9 +48,9 @@ impl AppState {
 
     pub async fn device_snapshot(&self) -> AtlasResult<DeviceSnapshot> {
         let root = self.open_root_path().await?;
-        let resources = Arc::clone(&self.resources);
+        let governor = Arc::clone(&self.governor);
         tauri::async_runtime::spawn_blocking(move || {
-            let guard = resources
+            let guard = governor
                 .lock()
                 .map_err(|_| AtlasError::Internal("resource state is unavailable"))?;
             Ok(guard.monitor.snapshot(root.as_deref()))
@@ -70,17 +61,12 @@ impl AppState {
 
     pub async fn device_check(&self) -> AtlasResult<DeviceCheck> {
         let root = self.open_root_path().await?;
-        let resources = Arc::clone(&self.resources);
+        let governor = Arc::clone(&self.governor);
         tauri::async_runtime::spawn_blocking(move || {
-            let mut guard = resources
+            let mut guard = governor
                 .lock()
                 .map_err(|_| AtlasError::Internal("resource state is unavailable"))?;
-            let Resources { monitor, policy } = &mut *guard;
-            Ok(system::device_check(
-                monitor.as_ref(),
-                policy,
-                root.as_deref(),
-            ))
+            Ok(guard.check(root.as_deref()))
         })
         .await
         .map_err(|_| AtlasError::Internal("a background task failed"))?

@@ -11,6 +11,8 @@ import type { DataRootStatus } from '../lib/api/bindings/DataRootStatus';
 import type { DeviceCheck } from '../lib/api/bindings/DeviceCheck';
 import type { DeviceSnapshot } from '../lib/api/bindings/DeviceSnapshot';
 import type { ErrorPayload } from '../lib/api/bindings/ErrorPayload';
+import type { InventoryOverview } from '../lib/api/bindings/InventoryOverview';
+import type { InventoryStatus } from '../lib/api/bindings/InventoryStatus';
 import type { AddSourceRootsResult } from '../lib/api/bindings/AddSourceRootsResult';
 import type { Settings } from '../lib/api/bindings/Settings';
 import type { SourceRoot } from '../lib/api/bindings/SourceRoot';
@@ -22,7 +24,7 @@ export const fakeStatus: AppStatus = {
   os: 'macos',
   arch: 'aarch64',
   buildProfile: 'debug',
-  slice: '0.4',
+  slice: '0.5',
   features: [],
 };
 
@@ -102,6 +104,39 @@ export function deviceCheck(overrides: Partial<DeviceCheck> = {}): DeviceCheck {
   };
 }
 
+export function inventoryStatus(overrides: Partial<InventoryStatus> = {}): InventoryStatus {
+  return {
+    jobId: 'job-1',
+    sourceRootId: 'root-books',
+    sourceRootDisplayPath: '/Users/test/Books',
+    state: 'running',
+    pauseReason: null,
+    throttleReason: null,
+    discoveredFiles: 1204,
+    completedDirectories: 37,
+    failures: 0,
+    skippedSymlinks: 2,
+    skippedEntries: 14,
+    elapsedMs: 83_000,
+    startedAt: '2026-11-07T00:00:00Z',
+    finishedAt: null,
+    lastError: null,
+    ...overrides,
+  };
+}
+
+export function overview(overrides: Partial<InventoryOverview> = {}): InventoryOverview {
+  return {
+    active: null,
+    queuedSessions: 0,
+    catalogedFiles: 0,
+    missingFiles: 0,
+    cloudOnlyFiles: 0,
+    roots: [],
+    ...overrides,
+  };
+}
+
 /** Folders the fake picker returns, in order, on each call. */
 export const pickerQueue: AddSourceRootsResult[] = [];
 
@@ -121,6 +156,11 @@ function defaults(): Record<string, Handler> {
   let roots: SourceRoot[] = [];
   return {
     get_device_check: () => deviceCheck(),
+    get_inventory_status: () => overview(),
+    start_inventory: () => 'job-2',
+    pause_job: () => null,
+    resume_job: () => null,
+    cancel_job: () => null,
     list_source_roots: () => roots,
     pick_and_add_source_roots: () => {
       const result = pickerQueue.shift() ?? { added: [], rejected: [] };

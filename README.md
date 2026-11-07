@@ -4,14 +4,13 @@ Atlas is a local-first personal AI librarian for large private collections of
 PDFs, EPUBs, books and papers. *Collect freely. Organize minimally. Retrieve
 intelligently.*
 
-**Status: Phase 0, Slice 0.4.** Atlas launches, asks where to keep its
-library and which folders hold your books and papers, and checks this
-computer's memory, storage, and power. It remembers your choices, shows
-whether each folder is currently available, explains how it will pace
-background work on battery or a full drive, and recovers when a drive is
-unplugged or another Atlas has the library open. It only checks that your
-folders exist and are readable; it does not yet catalog or open your
-documents, and it makes no network requests.
+**Status: Phase 0, Slice 0.5.** Atlas asks where to keep its library and
+which folders hold your books and papers, then catalogs every PDF and EPUB
+in them in the background, read-only. Cataloging slows on battery, pauses
+when the battery is low or the drive is nearly full, survives quitting and
+crashes, and resumes where it left off. Files offloaded to iCloud or
+OneDrive are listed without being downloaded. Browsing and opening the
+cataloged files comes next. Atlas makes no network requests.
 
 | Capability | Status |
 | --- | --- |
@@ -19,7 +18,7 @@ documents, and it makes no network requests.
 | Atlas data location, settings persistence | Working |
 | Library folders | Working |
 | Device check, low-space and battery policy | Working |
-| Background cataloging (pause, resume, recovery) | Slice 0.5 |
+| Background cataloging (pause, resume, recovery) | Working |
 | Browse, filename search, open and reveal originals | Slice 0.6 |
 | AI endpoint connection test | Slice 0.7 |
 | Packaging and cross-platform evidence | Slice 0.8 |
@@ -55,6 +54,8 @@ pnpm script, so pnpm alone also works.
 just setup    # or: rustup toolchain install && pnpm install --frozen-lockfile
 just dev      # or: pnpm tauri dev
 just dev-simulate battery:18   # debug build with simulated power (ac, battery:<pct>, unknown, desktop)
+just dev-unthrottled           # debug build without the cataloging rate limit
+just fixtures ~/atlas-fx 2000  # synthetic test library (see fixtures/README.md)
 ```
 
 `just ui` (`pnpm dev`) serves only the UI in a browser for layout work; native

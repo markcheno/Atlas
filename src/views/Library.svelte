@@ -3,6 +3,8 @@
   import { atlas, AtlasApiError, toApiError } from '../lib/api/client';
   import type { DocumentPage } from '../lib/api/bindings/DocumentPage';
   import NotImplementedNotice from '../lib/components/NotImplementedNotice.svelte';
+  import { count } from '../lib/inventoryCopy';
+  import { inventory } from '../lib/stores/inventory.svelte';
   import { sources } from '../lib/stores/sources.svelte';
   import ViewHeading from '../lib/components/ViewHeading.svelte';
 
@@ -43,12 +45,12 @@
     <div class="empty">
       {#if sources.roots.length === 0}
         <p>Choose a folder to start discovering your library.</p>
-      {:else}
-        <p>
-          Atlas knows about {sources.roots.length}
-          {sources.roots.length === 1 ? 'folder' : 'folders'} but has not cataloged their files yet.
+      {:else if (inventory.overview?.catalogedFiles ?? 0) > 0}
+        <p data-testid="library-count">
+          Atlas has cataloged {count(inventory.overview!.catalogedFiles, 'file')} so far.
         </p>
-        <NotImplementedNotice title="Cataloging your folders" plannedSlice="0.5" />
+      {:else}
+        <p>Atlas hasn't cataloged any files in your folders yet.</p>
       {/if}
       <NotImplementedNotice title="Browsing cataloged files" error={load.error} />
     </div>

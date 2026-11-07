@@ -58,20 +58,29 @@ pub enum EntryKind {
 }
 
 /// One immediate child of a directory, from lightweight metadata only.
+/// One immediate child of a directory, from lightweight metadata only.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DirEntryInfo {
     pub name: OsString,
     pub kind: EntryKind,
     pub size_bytes: Option<u64>,
     pub modified: Option<SystemTime>,
+    /// The file's contents are offloaded to a cloud service. For legacy
+    /// iCloud placeholders (`.Name.pdf.icloud`) the source reports the real
+    /// name and size, so the entry looks like the file it stands for.
+    pub cloud_only: bool,
 }
 
-/// Read-only directory enumeration (local filesystem, Slice 0.5).
-/// Entries are streamed so a huge directory is never buffered in memory.
-/// Implementations must not read file contents or modify anything.
-pub trait InventorySource {
-    type Entries: Iterator<Item = AtlasResult<DirEntryInfo>>;
-    fn read_dir(&self, dir: &Path) -> AtlasResult<Self::Entries>;
+/// Streamed directory entries; errors are per entry.
+pub type DirEntries<'a> = Box<dyn Iterator<Item = std::io::Result<DirEntryInfo>> + Send + 'a>;
+
+/// Read-only directory enumeration (local filesystem adapter:
+/// `infrastructure::local_source`). Entries are streamed so a huge
+/// directory is never buffered in memory. Implementations must not read
+/// file contents, follow symlinks, trigger cloud downloads of files, or
+/// modify anything.
+pub trait InventorySource: Send + Sync {
+    fn read_dir(&self, dir: &Path) -> std::io::Result<DirEntries<'_>>;
 }
 
 /// Facts about the filesystem volume holding a path.

@@ -130,7 +130,7 @@ pub fn list(root: &OpenRoot) -> AtlasResult<Vec<SourceRoot>> {
 }
 
 /// The ID of the outermost other root containing `path`, if any.
-fn outermost_container(
+pub fn outermost_container(
     path: &Path,
     records: &[SourceRootRecord],
     paths: &[Option<PathBuf>],

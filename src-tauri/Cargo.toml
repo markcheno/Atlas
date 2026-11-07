@@ -37,6 +37,8 @@ windows-sys = { version = "0.61.2", features = ["Win32_Storage_FileSystem", "Win
 
 [target.'cfg(target_os = "macos")'.dependencies]
 objc2-foundation = { version = "0.3.2", default-features = false, features = ["std", "NSProcessInfo"] }
+plist = "1.10.3"
 
 [dev-dependencies]
+plist = "1.10.3"
 tempfile = "3.27.0"

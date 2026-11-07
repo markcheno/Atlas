@@ -1,15 +1,18 @@
 import { render, screen, waitFor, within } from '@testing-library/svelte';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import * as events from './test/eventMock';
 import * as tauri from './test/tauriMock';
 
 vi.mock('@tauri-apps/api/core', () => import('./test/tauriMock'));
+vi.mock('@tauri-apps/api/event', () => import('./test/eventMock'));
 
 const { default: App } = await import('./App.svelte');
 const { view } = await import('./lib/stores/view.svelte');
 const { theme } = await import('./lib/stores/theme.svelte');
 const { workspace } = await import('./lib/stores/workspace.svelte');
 const { sources } = await import('./lib/stores/sources.svelte');
+const { inventory } = await import('./lib/stores/inventory.svelte');
 
 const h1 = (name: string | RegExp) => screen.findByRole('heading', { level: 1, name });
 
@@ -32,6 +35,7 @@ function resetAll() {
   view.go('loading');
   workspace.status = null;
   sources.clear();
+  inventory.clear();
   theme.apply('system');
 }
 
@@ -191,7 +195,7 @@ describe('main shell', () => {
     await onboard();
     expect(screen.getByRole('navigation', { name: 'Main' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Home' })).toHaveAttribute('aria-current', 'page');
-    expect(screen.getByText('Not cataloging yet')).toBeInTheDocument();
+    expect(screen.getByTestId('inventory-status')).toHaveTextContent('No library folders yet');
   });
 
   it('Library shows the honest not-implemented state and no fabricated rows', async () => {
@@ -342,14 +346,15 @@ describe('library folders', () => {
     ).not.toHaveLength(0);
   });
 
-  it('Library explains that cataloging comes next when folders exist', async () => {
+  it('Library shows real cataloged counts and still no fabricated rows', async () => {
     tauri.setHandler('list_source_roots', () => [tauri.sourceRoot()]);
+    tauri.setHandler('get_inventory_status', () => tauri.overview({ catalogedFiles: 1204 }));
     const user = await launchOpen();
     await user.click(screen.getByRole('button', { name: 'Library' }));
-    expect(
-      await screen.findByText(/knows about 1\s+folder but has not cataloged/),
-    ).toBeInTheDocument();
-    expect(screen.getByText(/planned for Phase 0 slice 0\.5/)).toBeInTheDocument();
+    expect(await screen.findByTestId('library-count')).toHaveTextContent(
+      'Atlas has cataloged 1,204 files so far.',
+    );
+    expect(screen.getByText(/planned for Phase 0 slice 0\.6/)).toBeInTheDocument();
     expect(screen.queryByRole('table')).not.toBeInTheDocument();
   });
 
@@ -474,5 +479,105 @@ describe('device check', () => {
     const user = await launchOpen();
     await user.click(screen.getByRole('button', { name: 'Settings' }));
     expect(await screen.findByTestId('policy-sentence')).toHaveTextContent(sentence);
+  });
+});
+
+describe('cataloging status', () => {
+  beforeEach(resetAll);
+
+  async function launchWith(ov: ReturnType<typeof tauri.overview>) {
+    tauri.setHandler('list_source_roots', () => [tauri.sourceRoot()]);
+    tauri.setHandler('get_inventory_status', () => ov);
+    return launchOpen();
+  }
+
+  const status = () => screen.getByTestId('inventory-status');
+
+  it.each([
+    [{ state: 'running' }, 'Cataloged 1,204 files · Scanning Books'],
+    [
+      { state: 'running', throttleReason: 'on_battery' },
+      'Cataloged 1,204 files · Scanning Books · Slowed on battery',
+    ],
+    [{ state: 'queued' }, 'Waiting to catalog Books'],
+    [{ state: 'paused_user' }, 'Paused by you · 1,204 files so far'],
+    [
+      { state: 'paused_policy', pauseReason: 'battery_low' },
+      'Paused on battery · Resumes at 25% or when plugged in',
+    ],
+    [
+      { state: 'paused_policy', pauseReason: 'low_disk_space' },
+      "Paused · The drive with Atlas's data is nearly full",
+    ],
+    [
+      { state: 'paused_policy', pauseReason: 'source_root_missing' },
+      "Paused · “Books” isn't available",
+    ],
+  ] as const)('status line %#', async (active, text) => {
+    await launchWith(tauri.overview({ active: tauri.inventoryStatus(active) }));
+    expect(status()).toHaveTextContent(text);
+    expect(status().textContent).not.toMatch(/%(?! or)|percent|of \d/);
+  });
+
+  it('is up to date when nothing is scheduled', async () => {
+    await launchWith(
+      tauri.overview({
+        catalogedFiles: 1204,
+        roots: [
+          {
+            sourceRootId: 'root-books',
+            fileCount: 1204,
+            missingCount: 3,
+            cloudOnlyCount: 12,
+            lastScanAt: new Date(Date.now() - 5 * 60_000).toISOString(),
+            lastState: 'completed',
+            activeJobId: null,
+          },
+        ],
+      }),
+    );
+    expect(status()).toHaveTextContent('Up to date · 1,204 files');
+    expect(screen.getByTestId('root-line')).toHaveTextContent(
+      '1,204 files · Updated 5 min ago · 12 only in the cloud · 3 missing',
+    );
+  });
+
+  it('Pause, Resume, and Cancel call the right commands', async () => {
+    const user = await launchWith(tauri.overview({ active: tauri.inventoryStatus() }));
+    await user.click(screen.getByRole('button', { name: 'Pause' }));
+    expect(tauri.invoke).toHaveBeenCalledWith('pause_job', { jobId: 'job-1' });
+
+    events.emit(
+      'inventory-status',
+      tauri.overview({ active: tauri.inventoryStatus({ state: 'paused_user' }) }),
+    );
+    await user.click(await screen.findByRole('button', { name: 'Resume' }));
+    expect(tauri.invoke).toHaveBeenCalledWith('resume_job', { jobId: 'job-1' });
+
+    await user.click(screen.getByRole('button', { name: 'Cancel' }));
+    expect(tauri.invoke).toHaveBeenCalledWith('cancel_job', { jobId: 'job-1' });
+  });
+
+  it('live events update the status bar', async () => {
+    await launchWith(tauri.overview({ active: tauri.inventoryStatus({ discoveredFiles: 10 }) }));
+    expect(status()).toHaveTextContent('Cataloged 10 files');
+    events.emit(
+      'inventory-status',
+      tauri.overview({ active: tauri.inventoryStatus({ discoveredFiles: 2500 }) }),
+    );
+    await waitFor(() => expect(status()).toHaveTextContent('Cataloged 2,500 files'));
+  });
+
+  it('Rescan starts cataloging a folder', async () => {
+    const user = await launchWith(tauri.overview());
+    await user.click(await screen.findByRole('button', { name: 'Rescan Books' }));
+    expect(tauri.invoke).toHaveBeenCalledWith('start_inventory', { sourceRootId: 'root-books' });
+  });
+
+  it('details show counts and time without any total', async () => {
+    const user = await launchWith(tauri.overview({ active: tauri.inventoryStatus() }));
+    await user.click(screen.getByText('Details'));
+    expect(screen.getByText('37')).toBeInTheDocument();
+    expect(screen.getByText('1 min 23 s')).toBeInTheDocument();
   });
 });

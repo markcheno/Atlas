@@ -13,14 +13,22 @@ pub mod services;
 pub mod state;
 
 use std::path::PathBuf;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
-use tauri::Manager;
+use tauri::{Emitter, Manager};
 
+use domain::dto::InventoryOverview;
+use infrastructure::local_source::LocalFsSource;
 use infrastructure::system_probe::{OsResourceMonitor, SimulatedMonitor, Simulation};
 use infrastructure::volume::OsVolumeInspector;
+use services::inventory::{InventoryConfig, InventoryDeps};
+use services::system::ResourceGovernor;
 use services::workspace::{Workspace, WorkspaceConfig, layout};
 use state::AppState;
+
+/// Tauri event carrying an `InventoryOverview` whenever cataloging
+/// progresses or changes state.
+pub const INVENTORY_EVENT: &str = "inventory-status";
 
 /// Debug builds only: redirects the locator (and the suggested data root)
 /// so tests and smoke runs never touch the real per-user configuration.
@@ -49,15 +57,26 @@ pub fn run() {
         .setup(|app| {
             let config = workspace_config(app.handle())?;
             let volumes = Arc::new(OsVolumeInspector);
-            let mut workspace = Workspace::new(config, volumes.clone());
-            // Reopens the remembered root; problems become status, never a crash.
-            workspace.startup();
             // Debug builds may simulate power and free space for demos.
             let monitor = SimulatedMonitor {
-                inner: OsResourceMonitor::new(volumes),
+                inner: OsResourceMonitor::new(volumes.clone()),
                 simulation: Simulation::from_env(),
             };
-            app.manage(AppState::new(workspace, Box::new(monitor)));
+            let governor = Arc::new(Mutex::new(ResourceGovernor::new(Box::new(monitor))));
+            let emitter = app.handle().clone();
+            let deps = InventoryDeps {
+                governor: governor.clone(),
+                source: Arc::new(LocalFsSource),
+                events: Arc::new(move |overview: &InventoryOverview| {
+                    let _ = emitter.emit(INVENTORY_EVENT, overview);
+                }),
+                config: InventoryConfig::from_env(),
+            };
+            let mut workspace = Workspace::new(config, volumes).with_inventory(deps);
+            // Reopens the remembered root and resumes interrupted cataloging;
+            // problems become status, never a crash.
+            workspace.startup();
+            app.manage(AppState::new(workspace, governor));
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -88,6 +107,15 @@ pub fn run() {
             commands::providers::save_provider_profile,
             commands::providers::test_provider_connection,
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running Atlas");
+        .build(tauri::generate_context!())
+        .expect("error while building Atlas")
+        .run(|app, event| {
+            // Stop the inventory worker cleanly; no scanner outlives the app.
+            if let tauri::RunEvent::Exit = event
+                && let Some(state) = app.try_state::<AppState>()
+                && let Ok(mut workspace) = state.workspace.lock()
+            {
+                workspace.shutdown();
+            }
+        });
 }

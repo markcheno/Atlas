@@ -378,7 +378,7 @@ fn source_commands_need_an_open_library() {
     assert_eq!(code(ws.require_open().map(|_| ())), ErrorCode::NoDataRoot);
 }
 
-/// A library created by Slice 0.2 (schema 1) gains the source_roots table.
+/// A library created by Slice 0.2 (schema 1) migrates to the current schema.
 #[test]
 fn slice_02_libraries_migrate_forward() {
     let env = Env::new();
@@ -389,7 +389,8 @@ fn slice_02_libraries_migrate_forward() {
     {
         let conn = rusqlite::Connection::open(root_path.join("library/catalog.sqlite")).unwrap();
         conn.execute_batch(
-            "DROP TABLE source_roots; DELETE FROM schema_migrations WHERE version = 2;",
+            "DROP TABLE file_instances; DROP TABLE scan_directories; DROP TABLE scan_sessions;
+             DROP TABLE source_roots; DELETE FROM schema_migrations WHERE version >= 2;",
         )
         .unwrap();
     }
@@ -401,7 +402,7 @@ fn slice_02_libraries_migrate_forward() {
     ws.open(&root_path).unwrap();
     assert_eq!(
         manifest::read(&root_path).unwrap().catalog_schema_version,
-        2
+        atlas_lib::services::catalog::SUPPORTED_SCHEMA_VERSION
     );
     let books = env.base.join("Books");
     fs::create_dir_all(&books).unwrap();

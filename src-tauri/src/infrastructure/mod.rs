@@ -3,6 +3,7 @@
 
 pub mod clock;
 pub mod fsutil;
+pub mod local_source;
 pub mod native_path;
 pub mod system_probe;
 pub mod volume;

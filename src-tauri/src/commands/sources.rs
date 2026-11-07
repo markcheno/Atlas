@@ -5,6 +5,7 @@ use tauri_plugin_dialog::DialogExt;
 
 use crate::domain::dto::{AddSourceRootsResult, SourceRoot};
 use crate::error::{AtlasError, AtlasResult};
+use crate::services::inventory::control;
 use crate::services::sources;
 use crate::state::AppState;
 
@@ -16,12 +17,18 @@ pub async fn list_source_roots(state: State<'_, AppState>) -> AtlasResult<Vec<So
         .await
 }
 
-/// Adds one folder by path. Paths over IPC are UTF-8; folders with other
-/// names are added through `pick_and_add_source_roots`.
+/// Adds one folder by path and starts cataloging it. Paths over IPC are
+/// UTF-8; folders with other names are added through
+/// `pick_and_add_source_roots`.
 #[tauri::command]
 pub async fn add_source_root(state: State<'_, AppState>, path: String) -> AtlasResult<SourceRoot> {
     state
-        .with_workspace(move |ws| sources::add(ws.require_open()?, &PathBuf::from(path)))
+        .with_workspace(move |ws| {
+            let root = ws.require_open()?;
+            let added = sources::add(root, &PathBuf::from(path))?;
+            control::enqueue(root, &added.id)?;
+            Ok(added)
+        })
         .await
 }
 
@@ -33,7 +40,8 @@ pub async fn remove_source_root(state: State<'_, AppState>, id: String) -> Atlas
         .await
 }
 
-/// Shows the native multi-folder picker and adds every chosen folder.
+/// Shows the native multi-folder picker, adds every chosen folder, and
+/// starts cataloging each one.
 /// Native paths stay on the Rust side, so any folder name works.
 #[tauri::command]
 pub async fn pick_and_add_source_roots(
@@ -58,6 +66,13 @@ pub async fn pick_and_add_source_roots(
         return Ok(AddSourceRootsResult::default());
     }
     state
-        .with_workspace(move |ws| Ok(sources::add_many(ws.require_open()?, &paths)))
+        .with_workspace(move |ws| {
+            let root = ws.require_open()?;
+            let result = sources::add_many(root, &paths);
+            for added in &result.added {
+                control::enqueue(root, &added.id)?;
+            }
+            Ok(result)
+        })
         .await
 }

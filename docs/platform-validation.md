@@ -187,6 +187,84 @@ Not verified:
 - **macOS "unknown" while holding charge on AC.** Not observed; documented
   in ADR 0004.
 
+## Slice 0.5
+
+| Platform | Build | Cataloging walkthrough | Evidence |
+| --- | --- | --- | --- |
+| macOS arm64 | ✅ | ✅ including a real `kill -9` mid-scan | Below |
+| Windows x64 | ❌ unverified | ❌ unverified | Cloud-placeholder attributes, junction skipping, and `TerminateProcess` in the crash test are untested |
+| Linux x64 | ❌ unverified | ❌ unverified | Untested |
+
+### macOS arm64, Slice 0.5 (2026-11-07)
+
+All runs used scratch `ATLAS_CONFIG_DIR` folders and generated fixtures
+(`just fixtures`); no real documents were read.
+
+- **`just ci` passed.** That covers 95 Rust unit tests and 19 inventory
+  integration tests, which include P0-05/06/07/09/10/11/12/13/20/21/22,
+  rescans, a 20,000-entry folder, cancel, removal mid-scan, iCloud
+  placeholders, and never-scanned folders. It also covers the real-kill
+  P0-08 test, 3 device, 4 contract, 15 source, and 19 data-root tests, and
+  52 Vitest tests. The inventory suite was run 5 times and the crash test
+  3 times, with no flakes.
+- **2,000-file fixture.** Run at simulated AC (`just dev-simulate ac`) and
+  added through the native picker during onboarding. The status bar counted
+  up, then showed "Up to date · 2,006 files", matching the generator's
+  count exactly. A `stat` snapshot of the fixture was identical before and
+  after.
+- **Pause across restart (P0-09).** On the 30,000-file fixture, Pause
+  showed "Paused by you · 1,992 files so far", and the row count stayed at
+  3,998 over 4 s. After quitting and relaunching it was still paused with
+  the same count. Resume continued from there.
+- **Battery policy.** Relaunching with `just dev-simulate battery:18`
+  mid-scan showed "Paused on battery · Resumes at 25% or when plugged in".
+  The session read `paused_policy | battery_low`, and no rows were written
+  over 5 s.
+- **Real crash (P0-08).** A throttled scan of 30,006 files was killed with
+  `kill -9` at 1,796 rows. The session was left `running` and
+  `PRAGMA integrity_check` returned `ok`. After relaunching, it completed
+  with 30,006 rows and 30,006 distinct paths. None of the 1,796 pre-kill
+  rows changed ID, and no frontier rows remained.
+- **Deletion.** After deleting one fixture file and pressing Rescan, exactly
+  that file became `missing`. The status bar showed "1 file missing" and
+  the folder row read "30,005 files · Updated just now · 1 missing". The
+  fixture's unreadable `locked/` folder was retried 3 times and did not
+  block this.
+
+**First measurements** (warm filesystem cache, M-series MacBook on battery,
+debug build):
+
+| Measure | Result |
+| --- | --- |
+| Unthrottled full scan, 30,006 files in 352 folders | 1.0–1.1 s of running time |
+| Throttled rate | 100 metadata ops/s on AC (about 5 min for 30k), 20/s on battery (by policy) |
+| Process RSS, idle and during a 30k rescan | 142 MB and 142 MB (no measurable growth) |
+| Catalog size for 30,006 files | 24 MB database, 5 MB WAL |
+
+Not verified:
+
+- **Real iCloud dataless files and folders.** Atlas didn't read your
+  iCloud Drive, and test files can't be made dataless without a File
+  Provider. The legacy `.icloud` placeholder path is covered by tests.
+- **Cold-cache and external-drive throughput.** Deferred to Slice 0.8.
+- **Wake from sleep mid-scan.**
+
+## Manual checklist additions for Slice 0.5
+
+1. Generate a fixture with `just fixtures <dir> 2000`, add it, and confirm
+   the final count equals `catalogableFiles`.
+2. Pause during a scan, quit, relaunch, and confirm it is still paused.
+   Resume.
+3. Kill the process during a scan (Task Manager, or `kill -9`), relaunch,
+   and confirm it completes with no duplicate rows.
+4. Unplug a drive holding a library folder during a scan. Confirm the
+   status says the folder isn't available and no files show as missing.
+   Plug it back in and confirm it resumes.
+5. Windows: add a OneDrive folder with Files On-Demand. Confirm online-only
+   files are cataloged without being downloaded (the cloud icon stays).
+6. macOS: add an iCloud Drive folder with "Optimize Mac Storage". Confirm
+   offloaded files are cataloged and stay offloaded.
+
 ## Manual checklist additions for Slice 0.4
 
 1. Reach the Device check step during onboarding. Compare memory, cores,

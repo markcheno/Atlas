@@ -7,14 +7,14 @@ use crate::error::AtlasResult;
 use crate::state::AppState;
 
 /// The Phase 0 slice this build implements.
-pub const CURRENT_SLICE: &str = "0.4";
+pub const CURRENT_SLICE: &str = "0.5";
 
 /// (id, label, delivering slice, implemented in this build)
 const FEATURES: &[(&str, &str, &str, bool)] = &[
     ("data_root", "Atlas data location", "0.2", true),
     ("source_folders", "Library folders", "0.3", true),
     ("device_check", "Device check", "0.4", true),
-    ("inventory", "Background cataloging", "0.5", false),
+    ("inventory", "Background cataloging", "0.5", true),
     ("library_browse", "Browse and open files", "0.6", false),
     ("provider_test", "AI endpoint connection test", "0.7", false),
 ];
