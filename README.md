@@ -42,29 +42,36 @@ End users need nothing beyond the installer. Developers need:
     Other distributions: see the
     [Tauri prerequisites](https://v2.tauri.app/start/prerequisites/).
 
+Optional: [just](https://just.systems) (`brew install just`, `winget install Casey.Just`,
+or `cargo install just`) for the shorthand commands below. Every recipe wraps a
+pnpm script, so pnpm alone also works.
+
 ## Run
 
 ```sh
-pnpm install
-pnpm tauri dev
+just setup    # or: rustup toolchain install && pnpm install --frozen-lockfile
+just dev      # or: pnpm tauri dev
 ```
 
-`pnpm dev` alone serves the UI in a browser for layout work; native commands
-then report that they are unavailable outside the desktop app.
+`just ui` (`pnpm dev`) serves only the UI in a browser for layout work; native
+commands then report that they are unavailable outside the desktop app.
 
 ## Check
 
 ```sh
-pnpm check            # rustfmt, clippy -D warnings, cargo test, eslint, prettier, svelte-check, vitest
-pnpm check:bindings   # generated TS bindings match what is committed (run after cargo test)
-pnpm format           # apply prettier and rustfmt
-pnpm license-report   # regenerate docs/dependency-licenses.md
+just check            # rustfmt, clippy -D warnings, cargo test, eslint, prettier, svelte-check, vitest
+just ci               # check plus the bindings drift check, as CI runs it
+just bindings         # regenerate TypeScript bindings from Rust DTOs
+just fmt              # apply prettier and rustfmt
+just licenses         # regenerate docs/dependency-licenses.md
 ```
+
+Run `just` with no arguments to list every recipe.
 
 ## Build
 
 ```sh
-pnpm tauri build --debug   # development bundles under src-tauri/target/debug/bundle/
+just bundle           # debug bundles for this OS under src-tauri/target/debug/bundle/
 ```
 
 Bundles are unsigned and not notarized. macOS Gatekeeper and Windows

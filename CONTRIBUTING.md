@@ -23,11 +23,20 @@ Phase 0 is built in vertical slices (see section 15 of the
 [Phase 0 spec](docs/phase0-spec.md)). For each slice:
 
 1. Implement code, tests, and doc updates for that slice only.
-2. Run `pnpm check`, then `pnpm check:bindings` if you changed DTOs.
-3. Launch the app (`pnpm tauri dev`) and walk through the slice's demo steps.
+2. Run `just check`, then `just check-bindings` if you changed DTOs.
+3. Launch the app (`just dev`) and walk through the slice's demo steps.
 4. Record platform evidence in [docs/platform-validation.md](docs/platform-validation.md).
    Never mark a platform verified unless the app was actually run there.
 5. Commit with the checkpoint name `phase0/slice-NN`.
+
+## Developer commands
+
+The `justfile` is the front door for common commands, and `package.json`
+scripts hold the actual definitions. Keep them in step: when you add, rename,
+or remove a package script, or introduce a workflow people will repeat (a new
+check, generator, bundle target, or fixture script), update the `justfile` in
+the same change. Prefer a recipe that calls the pnpm script over duplicating
+its command line. Run `just --fmt --check --unstable` before committing.
 
 ## Adding an IPC command
 
@@ -37,7 +46,7 @@ Phase 0 is built in vertical slices (see section 15 of the
    `generate_handler!` in `lib.rs`, and add its name to `COMMAND_NAMES`.
 3. Add a method to the facade in `src/lib/api/client.ts`, spelling the
    command name as a single-quoted literal.
-4. Run `cargo test` to regenerate `src/lib/api/bindings/` and commit them.
+4. Run `just bindings` to regenerate `src/lib/api/bindings/` and commit them.
 
 The contract tests in `src-tauri/tests/ipc_contract.rs` fail if steps 2 and 3
 disagree.
@@ -52,5 +61,5 @@ full user file paths.
 
 Prefer maintained, permissively licensed libraries. Pin exact npm versions
 (pnpm is configured with `saveExact`), commit lockfiles, and run
-`pnpm license-report` after adding or upgrading a dependency. Discuss any
+`just licenses` after adding or upgrading a dependency. Discuss any
 GPL, AGPL, or commercial-license dependency before adding it.
