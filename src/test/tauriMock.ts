@@ -10,6 +10,8 @@ import type { DataRootCandidate } from '../lib/api/bindings/DataRootCandidate';
 import type { DataRootStatus } from '../lib/api/bindings/DataRootStatus';
 import type { DeviceCheck } from '../lib/api/bindings/DeviceCheck';
 import type { DeviceSnapshot } from '../lib/api/bindings/DeviceSnapshot';
+import type { DocumentPage } from '../lib/api/bindings/DocumentPage';
+import type { FileInstance } from '../lib/api/bindings/FileInstance';
 import type { ErrorPayload } from '../lib/api/bindings/ErrorPayload';
 import type { InventoryOverview } from '../lib/api/bindings/InventoryOverview';
 import type { InventoryStatus } from '../lib/api/bindings/InventoryStatus';
@@ -24,7 +26,7 @@ export const fakeStatus: AppStatus = {
   os: 'macos',
   arch: 'aarch64',
   buildProfile: 'debug',
-  slice: '0.5',
+  slice: '0.6',
   features: [],
 };
 
@@ -137,6 +139,26 @@ export function overview(overrides: Partial<InventoryOverview> = {}): InventoryO
   };
 }
 
+export function fileInstance(overrides: Partial<FileInstance> = {}): FileInstance {
+  return {
+    id: 'file-1',
+    sourceRootId: 'root-books',
+    displayName: 'book.pdf',
+    displayPath: '/Users/test/Books/book.pdf',
+    extension: 'pdf',
+    fileType: 'pdf',
+    sizeBytes: 1_200_000,
+    modifiedAt: '2026-10-01T00:00:00Z',
+    availability: 'available',
+    storage: 'local',
+    ...overrides,
+  };
+}
+
+export function documentPage(overrides: Partial<DocumentPage> = {}): DocumentPage {
+  return { items: [], page: 0, pageSize: 50, matchedSoFar: 0, scanning: false, ...overrides };
+}
+
 /** Folders the fake picker returns, in order, on each call. */
 export const pickerQueue: AddSourceRootsResult[] = [];
 
@@ -148,7 +170,7 @@ export function apiError(code: ErrorPayload['code'], message: string, recovery?:
 type Handler = (args: Record<string, unknown> | undefined) => unknown;
 
 const plannedSlices: Record<string, string> = {
-  list_documents: '0.6',
+  list_provider_profiles: '0.7',
 };
 
 function defaults(): Record<string, Handler> {
@@ -157,6 +179,9 @@ function defaults(): Record<string, Handler> {
   return {
     get_device_check: () => deviceCheck(),
     get_inventory_status: () => overview(),
+    list_documents: () => documentPage(),
+    open_original: () => null,
+    reveal_original: () => null,
     start_inventory: () => 'job-2',
     pause_job: () => null,
     resume_job: () => null,

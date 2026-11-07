@@ -5,6 +5,7 @@
 
 pub mod catalog;
 pub mod inventory;
+pub mod library;
 pub mod providers;
 pub mod scheduler;
 pub mod source_open;

@@ -1,6 +1,6 @@
 # Atlas architecture
 
-Status: Phase 0, Slice 0.5. This document describes what is built, and marks
+Status: Phase 0, Slice 0.6. This document describes what is built, and marks
 what is only planned. Decisions with lasting consequences are recorded as
 ADRs in [adr/](adr/).
 
@@ -47,7 +47,7 @@ commands and added the native multi-folder picker.
 | Device | `get_device_snapshot`, `get_device_check` | **0.4 (working)** |
 | Source roots | `list_source_roots`, `add_source_root`, `remove_source_root`, `pick_and_add_source_roots` | **0.3 (working)** |
 | Inventory jobs | `start_inventory`, `pause_job`, `resume_job`, `cancel_job`, `get_inventory_status` | **0.5 (working)** |
-| Library | `list_documents`, `open_original`, `reveal_original` | 0.6 |
+| Library | `list_documents`, `open_original`, `reveal_original` | **0.6 (working)** |
 | Providers | `list_provider_profiles`, `save_provider_profile`, `test_provider_connection` | 0.7 |
 
 `get_app_status` returns only facts about the running process, including a
@@ -94,7 +94,7 @@ section 9, abstraction budget). They are defined in
 | `VolumeInspector` | Free space, filesystem type, network or cloud-synced | **0.2 (`OsVolumeInspector`)** |
 | `ResourceMonitor` | Device snapshot for the data-root volume | **0.4 (`OsResourceMonitor`, `SimulatedMonitor`)** |
 | `ModelProvider` | Endpoint probe and model listing | 0.7 |
-| `SourceOpener` | OS-native open and reveal | 0.6 |
+| `SourceOpener` | OS-native open and reveal | **0.6 (`OsOpener` via `tauri-plugin-opener`)** |
 | `DocumentProcessor` | Reserved name for Phase 1 extraction | Phase 1 |
 
 The scheduler is deliberately concrete. With one job kind in Phase 0 there is
@@ -264,6 +264,29 @@ Implemented in `src-tauri/src/services/inventory/`; rationale in
 - **Fixtures.** `just fixtures <dir> [files]` writes a synthetic tree
   outside the repository (`fixtures/README.md`). `just dev-unthrottled`
   removes the rate limit in debug builds for benchmarking.
+
+## Library, search and opening
+
+Implemented in `services/library/` and `services/source_open/`; rationale
+in [ADR 0006](adr/0006-search-keys-and-safe-opening.md).
+
+- **Reads.** `CatalogReader` keeps 2 read-only connections, so UI queries
+  never wait for inventory writes. `OpenRoot` drops it after the worker and
+  before the writer.
+- **Search.** `search_key` (the root-relative path) and `name_key` are
+  folded: NFD, combining marks removed, lowercase, NFC. Each search term
+  becomes an escaped `LIKE` on `search_key`, and terms are ANDed. Filters
+  cover folder, type, and include-missing. Sorting is by name or modified
+  date, and pages are offset-based with a size of 1–200. Measured p95 is
+  33 ms on 30,000 files in a debug build.
+- **Status per row.** Each file is available, missing, or `unreachable`
+  (its folder isn't connected, from a probe cached for 5 seconds), plus
+  local or cloud-only.
+- **Open and reveal.** These work by file ID. The reachable-root, exists,
+  regular-file, inside-root, and dataless checks all run in Rust, and the
+  OS opener receives the native path. A cloud-only file needs
+  `allowDownload: true`. For a legacy iCloud placeholder, Atlas reveals the
+  placeholder instead of opening it.
 
 The webview also creates its own website-data and cache folders, on macOS
 `~/Library/WebKit/<bundle>` and `~/Library/Caches/<bundle>`. These are

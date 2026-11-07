@@ -24,9 +24,11 @@ starship-battery = "0.12.0"
 sysinfo = { version = "0.40.1", default-features = false, features = ["system"] }
 tauri = { version = "2.12.5", features = [] }
 tauri-plugin-dialog = "2.8.4"
+tauri-plugin-opener = "2.7.2"
 thiserror = "2.0.21"
 time = { version = "0.3.55", features = ["formatting", "parsing", "macros"] }
 ts-rs = "12.0.1"
+unicode-normalization = "0.1.26"
 uuid = { version = "1.29.1", features = ["v4"] }
 
 [target."cfg(unix)".dependencies]

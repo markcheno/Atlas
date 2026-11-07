@@ -7,6 +7,8 @@ import * as tauri from './test/tauriMock';
 vi.mock('@tauri-apps/api/core', () => import('./test/tauriMock'));
 vi.mock('@tauri-apps/api/event', () => import('./test/eventMock'));
 
+const { library: libraryStore } = await import('./lib/stores/library.svelte');
+
 const { default: App } = await import('./App.svelte');
 const { view } = await import('./lib/stores/view.svelte');
 const { theme } = await import('./lib/stores/theme.svelte');
@@ -198,17 +200,6 @@ describe('main shell', () => {
     expect(screen.getByTestId('inventory-status')).toHaveTextContent('No library folders yet');
   });
 
-  it('Library shows the honest not-implemented state and no fabricated rows', async () => {
-    const user = await launchOpen();
-    await user.click(screen.getByRole('button', { name: 'Library' }));
-    expect(await screen.findByText(/planned for Phase 0 slice 0\.6/)).toBeInTheDocument();
-    expect(
-      screen.getByText('Choose a folder to start discovering your library.'),
-    ).toBeInTheDocument();
-    expect(screen.queryByRole('table')).not.toBeInTheDocument();
-    expect(screen.queryByText(/files cataloged/)).not.toBeInTheDocument();
-  });
-
   it('keyboard shortcuts switch views', async () => {
     const user = await launchOpen();
     await user.keyboard('{Control>}3{/Control}');
@@ -344,18 +335,6 @@ describe('library folders', () => {
     expect(
       await screen.findAllByText('Choose a folder to start discovering your library.'),
     ).not.toHaveLength(0);
-  });
-
-  it('Library shows real cataloged counts and still no fabricated rows', async () => {
-    tauri.setHandler('list_source_roots', () => [tauri.sourceRoot()]);
-    tauri.setHandler('get_inventory_status', () => tauri.overview({ catalogedFiles: 1204 }));
-    const user = await launchOpen();
-    await user.click(screen.getByRole('button', { name: 'Library' }));
-    expect(await screen.findByTestId('library-count')).toHaveTextContent(
-      'Atlas has cataloged 1,204 files so far.',
-    );
-    expect(screen.getByText(/planned for Phase 0 slice 0\.6/)).toBeInTheDocument();
-    expect(screen.queryByRole('table')).not.toBeInTheDocument();
   });
 
   it('switching to an existing library with folders skips the folders step', async () => {
@@ -579,5 +558,176 @@ describe('cataloging status', () => {
     await user.click(screen.getByText('Details'));
     expect(screen.getByText('37')).toBeInTheDocument();
     expect(screen.getByText('1 min 23 s')).toBeInTheDocument();
+  });
+});
+
+describe('library table', () => {
+  beforeEach(() => {
+    resetAll();
+    libraryStore.reset();
+  });
+
+  const books = [
+    tauri.fileInstance({ id: 'f1', displayName: 'Café crème.pdf', sizeBytes: 48_200_000 }),
+    tauri.fileInstance({
+      id: 'f2',
+      displayName: 'Cosmos.pdf',
+      storage: 'cloud_only',
+      sizeBytes: 48_200_000,
+    }),
+    tauri.fileInstance({
+      id: 'f3',
+      displayName: 'Gone.epub',
+      fileType: 'epub',
+      availability: 'missing',
+    }),
+    tauri.fileInstance({ id: 'f4', displayName: 'Away.pdf', availability: 'unreachable' }),
+  ];
+
+  async function openLibrary(page = tauri.documentPage({ items: books, matchedSoFar: 4 })) {
+    tauri.setHandler('list_source_roots', () => [tauri.sourceRoot()]);
+    tauri.setHandler('get_inventory_status', () => tauri.overview({ catalogedFiles: 4 }));
+    tauri.setHandler('list_documents', () => page);
+    const user = await launchOpen();
+    await user.click(screen.getByRole('button', { name: 'Library' }));
+    await screen.findByRole('table');
+    return user;
+  }
+
+  const lastQuery = () => {
+    const calls = tauri.invoke.mock.calls.filter(([c]) => c === 'list_documents');
+    return (calls.at(-1)![1] as { query: Record<string, unknown> }).query;
+  };
+
+  it('lists files with honest status badges and no invented totals', async () => {
+    await openLibrary();
+    const rows = within(screen.getByRole('table')).getAllByRole('row');
+    expect(rows).toHaveLength(5);
+    expect(screen.getByText('Only in the cloud')).toBeInTheDocument();
+    expect(screen.getByText('Missing')).toBeInTheDocument();
+    expect(screen.getByText('Not connected')).toBeInTheDocument();
+    expect(screen.getByTestId('range')).toHaveTextContent('Showing 1–4 of 4 matches');
+    expect(screen.getByRole('button', { name: 'Open Gone.epub' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Open Away.pdf' })).toBeDisabled();
+  });
+
+  it('says "so far" while cataloging continues', async () => {
+    await openLibrary(tauri.documentPage({ items: books, matchedSoFar: 4, scanning: true }));
+    expect(screen.getByTestId('range')).toHaveTextContent('of 4 matches so far');
+  });
+
+  it('search is debounced and sends the text', async () => {
+    const user = await openLibrary();
+    tauri.invoke.mockClear();
+    await user.type(screen.getByPlaceholderText('Search file names and folders'), 'cafe');
+    await waitFor(() => expect(lastQuery().text).toBe('cafe'));
+    const searches = tauri.invoke.mock.calls.filter(([c]) => c === 'list_documents');
+    expect(searches.length).toBeLessThan(4);
+  });
+
+  it('filters and sorting send the right query', async () => {
+    const user = await openLibrary();
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Type' }), 'epub');
+    expect(lastQuery()).toMatchObject({ fileType: 'epub', page: 0 });
+    await user.click(screen.getByRole('checkbox', { name: 'Include missing files' }));
+    expect(lastQuery()).toMatchObject({ includeMissing: true });
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Folder' }), 'root-books');
+    expect(lastQuery()).toMatchObject({ sourceRootId: 'root-books' });
+
+    const nameHeader = screen.getByRole('columnheader', { name: 'Name' });
+    expect(nameHeader).toHaveAttribute('aria-sort', 'ascending');
+    await user.click(within(nameHeader).getByRole('button'));
+    expect(lastQuery()).toMatchObject({ sort: 'name_desc' });
+    await user.click(
+      within(screen.getByRole('columnheader', { name: 'Modified' })).getByRole('button'),
+    );
+    expect(lastQuery()).toMatchObject({ sort: 'modified_desc' });
+  });
+
+  it('pages through results', async () => {
+    const items = Array.from({ length: 50 }, (_, i) =>
+      tauri.fileInstance({ id: `p${i}`, displayName: `paper ${i}.pdf` }),
+    );
+    const user = await openLibrary(tauri.documentPage({ items, matchedSoFar: 120 }));
+    expect(screen.getByTestId('range')).toHaveTextContent('Showing 1–50 of 120 matches');
+    expect(screen.getByRole('button', { name: 'Previous' })).toBeDisabled();
+    await user.click(screen.getByRole('button', { name: 'Next' }));
+    expect(lastQuery()).toMatchObject({ page: 1 });
+  });
+
+  it('opens and reveals by file ID', async () => {
+    const user = await openLibrary();
+    await user.click(screen.getByRole('button', { name: 'Open Café crème.pdf' }));
+    expect(tauri.invoke).toHaveBeenCalledWith('open_original', {
+      fileId: 'f1',
+      allowDownload: false,
+    });
+    await user.click(screen.getByRole('button', { name: 'Show in Finder: Café crème.pdf' }));
+    expect(tauri.invoke).toHaveBeenCalledWith('reveal_original', { fileId: 'f1' });
+  });
+
+  it('asks before downloading a cloud-only file', async () => {
+    tauri.setHandler('open_original', (args) => {
+      if (!args?.allowDownload) {
+        throw tauri.apiError('file_cloud_only', 'This file is stored only in the cloud.');
+      }
+      return null;
+    });
+    const user = await openLibrary();
+    await user.click(screen.getByRole('button', { name: 'Open Cosmos.pdf' }));
+    expect(
+      await screen.findByText(
+        'This file is stored in the cloud. Opening it will download it (48.2 MB).',
+      ),
+    ).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Download and open' }));
+    expect(tauri.invoke).toHaveBeenCalledWith('open_original', {
+      fileId: 'f2',
+      allowDownload: true,
+    });
+    await waitFor(() =>
+      expect(screen.queryByText(/Opening it will download it/)).not.toBeInTheDocument(),
+    );
+  });
+
+  it('explains a missing file with a recovery step', async () => {
+    tauri.setHandler('open_original', () => {
+      throw tauri.apiError(
+        'file_missing',
+        'That file is no longer where Atlas found it.',
+        'It may have been moved, renamed, or deleted. Rescan its folder to update the library.',
+      );
+    });
+    const user = await openLibrary();
+    await user.click(screen.getByRole('button', { name: 'Open Café crème.pdf' }));
+    expect(await screen.findByText("Couldn't open Café crème.pdf")).toBeInTheDocument();
+    expect(screen.getByText(/Rescan its folder/)).toBeInTheDocument();
+  });
+
+  it('shows a helpful empty state for a search with no matches', async () => {
+    const user = await openLibrary();
+    tauri.setHandler('list_documents', () => tauri.documentPage());
+    await user.type(screen.getByPlaceholderText('Search file names and folders'), 'zebra');
+    expect(await screen.findByText('No files match “zebra”.')).toBeInTheDocument();
+  });
+
+  it('refreshes the page as cataloging progresses, at most once a second', async () => {
+    await openLibrary(tauri.documentPage({ items: books, matchedSoFar: 4, scanning: true }));
+    tauri.invoke.mockClear();
+    for (let i = 0; i < 5; i++) {
+      events.emit('inventory-status', tauri.overview({ catalogedFiles: 10 + i }));
+    }
+    await waitFor(
+      () => expect(tauri.invoke.mock.calls.filter(([c]) => c === 'list_documents').length).toBe(1),
+      { timeout: 2000 },
+    );
+  });
+
+  it('Home search goes to the Library with the query', async () => {
+    tauri.setHandler('list_source_roots', () => [tauri.sourceRoot()]);
+    const user = await launchOpen();
+    await user.type(screen.getByLabelText('Search file names and folders'), 'meteor{Enter}');
+    await screen.findByRole('heading', { level: 1, name: 'Library' });
+    await waitFor(() => expect(lastQuery().text).toBe('meteor'));
   });
 });

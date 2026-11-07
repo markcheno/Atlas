@@ -22,6 +22,7 @@ use infrastructure::local_source::LocalFsSource;
 use infrastructure::system_probe::{OsResourceMonitor, SimulatedMonitor, Simulation};
 use infrastructure::volume::OsVolumeInspector;
 use services::inventory::{InventoryConfig, InventoryDeps};
+use services::source_open::OsOpener;
 use services::system::ResourceGovernor;
 use services::workspace::{Workspace, WorkspaceConfig, layout};
 use state::AppState;
@@ -76,7 +77,7 @@ pub fn run() {
             // Reopens the remembered root and resumes interrupted cataloging;
             // problems become status, never a crash.
             workspace.startup();
-            app.manage(AppState::new(workspace, governor));
+            app.manage(AppState::new(workspace, governor, Arc::new(OsOpener)));
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![

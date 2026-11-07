@@ -1,24 +1,34 @@
 <script lang="ts">
   import LibraryFoldersPanel from '../lib/components/LibraryFoldersPanel.svelte';
   import ViewHeading from '../lib/components/ViewHeading.svelte';
+  import { library } from '../lib/stores/library.svelte';
+  import { view } from '../lib/stores/view.svelte';
+
+  let text = $state('');
+
+  function submit(event: SubmitEvent) {
+    event.preventDefault();
+    library.setText(text, true);
+    view.go('library');
+  }
 </script>
 
 <div class="view">
   <ViewHeading>What are you curious about?</ViewHeading>
 
-  <div class="search">
-    <label for="home-search">Search filenames</label>
+  <form class="search" role="search" onsubmit={submit}>
+    <label for="home-search">Search file names and folders</label>
     <input
       id="home-search"
       type="search"
-      placeholder="Filename search is coming soon"
-      disabled
+      placeholder="For example: meteor, harmonic drive, café"
+      bind:value={text}
       aria-describedby="home-search-help"
     />
     <p id="home-search-help" class="muted small">
-      Phase 0 matches file names and paths only. This is not AI search.
+      Matches file and folder names, ignoring case and accents. This is not AI search yet.
     </p>
-  </div>
+  </form>
 
   <section aria-labelledby="home-library">
     <h2 id="home-library">Your library</h2>
@@ -50,11 +60,6 @@
     border-radius: var(--radius-lg);
     background: var(--surface);
     font-size: 17px;
-  }
-
-  input:disabled {
-    background: var(--surface-muted);
-    cursor: not-allowed;
   }
 
   section {

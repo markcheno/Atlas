@@ -31,8 +31,10 @@ use crate::domain::traits::VolumeInspector;
 use crate::error::{AtlasError, AtlasResult, ErrorPayload};
 use crate::infrastructure::clock::now_rfc3339;
 use crate::infrastructure::fsutil::{clear_dir, sync_dir};
+use crate::services::catalog::reader::CatalogReader;
 use crate::services::catalog::{self, CatalogWriter};
 use crate::services::inventory::{self, InventoryDeps, InventoryRunner};
+use crate::services::library::{self, RootStatusCache};
 use crate::services::system::low_space_threshold;
 use layout::{CATALOG, DIRECTORIES, INIT_MARKER, TMP};
 use lock::RootLock;
@@ -46,10 +48,12 @@ pub struct WorkspaceConfig {
 }
 
 /// An open data root. Field order matters, because Rust drops fields in
-/// declaration order: the inventory worker stops first, then the catalog
-/// closes, then the lock is released.
+/// declaration order: the inventory worker stops first, then the readers
+/// and the writer close, then the lock is released.
 pub struct OpenRoot {
     inventory: Option<InventoryRunner>,
+    reader: CatalogReader,
+    root_status: RootStatusCache,
     catalog: CatalogWriter,
     _lock: RootLock,
     path: PathBuf,
@@ -67,6 +71,14 @@ impl OpenRoot {
     }
     pub fn catalog(&self) -> &CatalogWriter {
         &self.catalog
+    }
+    /// Read-only connections for UI queries.
+    pub fn reader(&self) -> &CatalogReader {
+        &self.reader
+    }
+    /// Briefly cached reachability of library folders.
+    pub fn root_status(&self) -> &RootStatusCache {
+        &self.root_status
     }
     /// The background inventory worker, when this workspace runs one.
     pub fn inventory(&self) -> Option<&InventoryRunner> {
@@ -312,9 +324,13 @@ impl Workspace {
         catalog
             .call(move |c| inventory::db::recover_on_open(c, &now))?
             .map_err(AtlasError::db("recover interrupted cataloging"))?;
+        // Rows cataloged before search keys existed (Slice 0.5).
+        library::backfill_keys(&catalog)?;
 
         Ok(OpenRoot {
             inventory: self.start_inventory(&catalog, path)?,
+            reader: CatalogReader::open(&catalog_path)?,
+            root_status: RootStatusCache::default(),
             catalog,
             _lock: lock,
             path: path.to_path_buf(),
@@ -375,6 +391,8 @@ impl Workspace {
 
         Ok(OpenRoot {
             inventory: self.start_inventory(&catalog, path)?,
+            reader: CatalogReader::open(&path.join(CATALOG))?,
+            root_status: RootStatusCache::default(),
             catalog,
             _lock: lock,
             path: path.to_path_buf(),

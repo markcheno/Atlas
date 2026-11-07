@@ -13,7 +13,7 @@ describe('atlas IPC facade', () => {
 
   it('invokes commands by their Rust names with camelCase arguments', async () => {
     const status = await atlas.getAppStatus();
-    expect(status.slice).toBe('0.5');
+    expect(status.slice).toBe('0.6');
     expect(tauriMock.invoke).toHaveBeenCalledWith('get_app_status', undefined);
 
     await atlas.startInventory('root-1').catch(() => undefined);
@@ -21,25 +21,16 @@ describe('atlas IPC facade', () => {
   });
 
   it('maps a Rust error payload to AtlasApiError', async () => {
-    const err = await atlas
-      .listDocuments({
-        text: null,
-        sourceRootId: null,
-        fileType: null,
-        sort: 'name_asc',
-        page: 0,
-        pageSize: 50,
-      })
-      .then(
-        () => null,
-        (e: unknown) => e,
-      );
+    const err = await atlas.listProviderProfiles().then(
+      () => null,
+      (e: unknown) => e,
+    );
     expect(err).toBeInstanceOf(AtlasApiError);
     const apiErr = err as InstanceType<typeof AtlasApiError>;
     expect(apiErr.code).toBe('not_implemented');
     expect(apiErr.isNotImplemented).toBe(true);
-    expect(apiErr.command).toBe('list_documents');
-    expect(apiErr.plannedSlice).toBe('0.6');
+    expect(apiErr.command).toBe('list_provider_profiles');
+    expect(apiErr.plannedSlice).toBe('0.7');
   });
 
   it('reports ipc_unavailable outside the desktop app without invoking', async () => {

@@ -18,6 +18,7 @@ use crate::infrastructure::clock::now_rfc3339;
 use crate::infrastructure::native_path;
 use crate::services::catalog::repository::SqliteCatalog;
 use crate::services::catalog::writer::CatalogHandle;
+use crate::services::library::fold::fold;
 use crate::services::sources::{self, Relation};
 
 /// Wakes the worker early (user commands) and tells it to stop (shutdown).
@@ -495,9 +496,12 @@ impl Worker {
                         .modified
                         .and_then(|t| t.duration_since(UNIX_EPOCH).ok())
                         .and_then(|d| i64::try_from(d.as_secs()).ok());
+                    let display_name = info.name.to_string_lossy().into_owned();
                     batch.files.push(FileRecord {
                         display_path: native_path::display(&s.root.join(&rel_child)),
-                        display_name: info.name.to_string_lossy().into_owned(),
+                        search_key: fold(&native_path::display(&rel_child)),
+                        name_key: fold(&display_name),
+                        display_name,
                         rel_path: native_path::encode(&rel_child),
                         extension,
                         file_type: db::to_db(&kind),

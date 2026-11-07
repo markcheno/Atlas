@@ -123,7 +123,7 @@ pub trait ModelProvider {
 /// Opens or reveals an original document with OS-native facilities
 /// (Slice 0.6). Callers must pass only paths of cataloged files inside an
 /// authorized root; implementations never build shell command strings.
-pub trait SourceOpener {
+pub trait SourceOpener: Send + Sync {
     fn open_original(&self, path: &Path) -> AtlasResult<()>;
     fn reveal_original(&self, path: &Path) -> AtlasResult<()>;
 }

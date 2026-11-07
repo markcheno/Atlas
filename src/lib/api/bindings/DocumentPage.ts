@@ -6,4 +6,8 @@ export type DocumentPage = { items: Array<FileInstance>, page: number, pageSize:
  * Matching rows known so far. While a scan runs this can grow; it is
  * never presented as a final total.
  */
-matchedSoFar: number, };
+matchedSoFar: number, 
+/**
+ * Cataloging is still in progress, so more matches may appear.
+ */
+scanning: boolean, };

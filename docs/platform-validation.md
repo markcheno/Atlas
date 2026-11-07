@@ -249,6 +249,71 @@ Not verified:
 - **Cold-cache and external-drive throughput.** Deferred to Slice 0.8.
 - **Wake from sleep mid-scan.**
 
+## Slice 0.6
+
+| Platform | Build | Library walkthrough | Evidence |
+| --- | --- | --- | --- |
+| macOS arm64 | ✅ | ✅ search, open in Preview, show in Finder, missing file, iCloud placeholder | Below |
+| Windows x64 | ❌ unverified | ❌ unverified | Explorer reveal (`SHOpenFolderAndSelectItems`) and `ShellExecuteW` untested |
+| Linux x64 | ❌ unverified | ❌ unverified | `xdg-open` and FileManager1 reveal untested |
+
+### macOS arm64, Slice 0.6 (2026-11-07)
+
+All runs used a scratch `ATLAS_CONFIG_DIR` and a fresh 2,000-file fixture
+whose PDFs are now valid one-page documents.
+
+- **`just ci` passed.** That covers 99 Rust unit tests, 7 library tests, 8
+  open/reveal tests, the earlier suites, and 61 Vitest tests. The library
+  tests include P0-15, folding, filters, sorts, paging, backfill, an
+  unplugged folder, and query latency. The open/reveal tests include P0-16
+  shell-hostile names, a missing file, an unplugged folder, a symlink swap,
+  an escape through a parent link, and a legacy placeholder.
+- **Query latency.** On a 30,000-file catalog, 50 mixed queries (text,
+  filters, sort, page 50, no-match) ran at p50 31 ms, p95 33 ms, max 35 ms
+  in a debug build. The target is p95 under 250 ms.
+- **During the scan.** The Library showed "Showing 1–50 of 1,980 matches so
+  far", and after completion "Showing 1–50 of 2,006 matches", equal to the
+  generator's count.
+- **Search.** Typing `cafe` listed the 15 "Café crème …" files, matching the
+  catalog's folded-key count.
+- **Open.** Preview opened "Café crème book 000136.pdf – 1 page". Only that
+  window was closed afterwards.
+- **Show in Finder.** Finder's front window was `level-0-3`, with that file
+  selected. Only that window was closed afterwards.
+- **Missing file.** After deleting a file, Open showed "That file is no
+  longer where Atlas found it." with the advice to rescan its folder.
+- **Legacy iCloud placeholder.** After adding `.Cosmos.pdf.icloud` (size
+  48,213,004) and rescanning, the row read "Cosmos.pdf · 48.2 MB · Only in
+  the cloud". Open explained that the file "is stored only in iCloud and
+  must be downloaded" and suggested showing it in Finder. Show in Finder
+  selected `.Cosmos.pdf.icloud`.
+
+Not verified:
+
+- **Download on open.** The "Download and open" path for a real dataless
+  iCloud file was not observed; Vitest and the Rust checks cover the
+  protocol.
+- **Unplugged-folder rows in the app.** Not repeated by hand; the
+  integration test covers the `unreachable` status and the open refusal.
+- **Accessibility tree duplicates.** WebKit exposes table cells under both
+  rows and columns, so the tree shows content more than once. This is an
+  inspection artifact; the DOM has a single copy, which the tests confirm.
+
+## Manual checklist additions for Slice 0.6
+
+1. With a fixture cataloged, search `cafe` and confirm the "Café crème"
+   files appear. Clear the search with Esc.
+2. Filter by folder and type, toggle "Include missing files", sort by name
+   and modified date, and page with Next and Previous.
+3. Open a PDF: it should open in the default viewer. Then Show in
+   Explorer, Finder, or the file manager: the file should be selected.
+4. Delete a cataloged file and press Open. Confirm the "no longer where
+   Atlas found it" message, and confirm Rescan marks it missing.
+5. Windows: open an online-only OneDrive PDF. Confirm Atlas asks before
+   downloading, and that the file downloads only after you confirm.
+6. Linux: confirm Show in folder opens the file manager with the file
+   selected (FileManager1), or at least opens its folder.
+
 ## Manual checklist additions for Slice 0.5
 
 1. Generate a fixture with `just fixtures <dir> 2000`, add it, and confirm

@@ -55,6 +55,22 @@ pub enum ErrorCode {
     JobNotPausable,
     /// Only a job paused by the user can be resumed.
     JobNotResumable,
+    /// No cataloged file has that ID.
+    FileNotFound,
+    /// The file is no longer where it was cataloged.
+    FileMissing,
+    /// The cataloged path is now a link or something other than a file.
+    FileNotRegular,
+    /// The path now leads outside its library folder.
+    FileOutsideFolder,
+    /// Opening it will download it from a cloud service; ask first.
+    FileCloudOnly,
+    /// Only a legacy iCloud placeholder is present; download it in Finder.
+    FileCloudPlaceholder,
+    /// The library folder holding the file is not connected.
+    SourceUnavailable,
+    /// The operating system could not open or show the file.
+    OpenFailed,
     IoError,
     DatabaseError,
     Internal,
@@ -137,6 +153,22 @@ pub enum AtlasError {
     JobNotPausable,
     #[error("That cataloging job is not paused.")]
     JobNotResumable,
+    #[error("Atlas can't find that file in its catalog.")]
+    FileNotFound,
+    #[error("That file is no longer where Atlas found it.")]
+    FileMissing,
+    #[error("That item is no longer an ordinary file, so Atlas won't open it.")]
+    FileNotRegular,
+    #[error("That file's location now leads outside its library folder, so Atlas won't open it.")]
+    FileOutsideFolder,
+    #[error("This file is stored only in the cloud. Opening it will download it.")]
+    FileCloudOnly,
+    #[error("This file is stored only in iCloud and must be downloaded before it can be opened.")]
+    FileCloudPlaceholder,
+    #[error("The folder that holds this file isn't connected.")]
+    SourceUnavailable,
+    #[error("The system couldn't open that file.")]
+    OpenFailed,
     #[error("Atlas could not {context} ({kind}).", kind = source.kind())]
     Io {
         context: &'static str,
@@ -206,6 +238,14 @@ impl AtlasError {
             Self::JobNotFound => ErrorCode::JobNotFound,
             Self::JobNotPausable => ErrorCode::JobNotPausable,
             Self::JobNotResumable => ErrorCode::JobNotResumable,
+            Self::FileNotFound => ErrorCode::FileNotFound,
+            Self::FileMissing => ErrorCode::FileMissing,
+            Self::FileNotRegular => ErrorCode::FileNotRegular,
+            Self::FileOutsideFolder => ErrorCode::FileOutsideFolder,
+            Self::FileCloudOnly => ErrorCode::FileCloudOnly,
+            Self::FileCloudPlaceholder => ErrorCode::FileCloudPlaceholder,
+            Self::SourceUnavailable => ErrorCode::SourceUnavailable,
+            Self::OpenFailed => ErrorCode::OpenFailed,
             Self::Io { .. } => ErrorCode::IoError,
             Self::Database { .. } => ErrorCode::DatabaseError,
             Self::Internal(_) => ErrorCode::Internal,
@@ -254,6 +294,19 @@ impl AtlasError {
             Self::JobNotFound | Self::JobNotPausable | Self::JobNotResumable => {
                 "Refresh to see the current cataloging status."
             }
+            Self::FileNotFound => "Refresh the library list.",
+            Self::FileMissing => {
+                "It may have been moved, renamed, or deleted. Rescan its folder to update the library."
+            }
+            Self::FileNotRegular | Self::FileOutsideFolder => {
+                "Rescan its folder to update the library."
+            }
+            Self::FileCloudOnly => "Choose Download and open to continue.",
+            Self::FileCloudPlaceholder => {
+                "Show it in Finder and download it there, then open it again."
+            }
+            Self::SourceUnavailable => "Reconnect the drive or folder, then try again.",
+            Self::OpenFailed => "Check that an app that opens this kind of file is installed.",
             Self::Io { .. } | Self::Database { .. } => {
                 "Try again. If this keeps happening, check the drive for problems."
             }

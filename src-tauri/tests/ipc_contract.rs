@@ -7,9 +7,7 @@
 //! (see `workspace.rs`).
 
 use atlas_lib::commands::{self, COMMAND_NAMES};
-use atlas_lib::domain::dto::{
-    ConnectionTestTarget, DocumentQuery, DocumentSort, OsKind, ProviderKind, ProviderProfileInput,
-};
+use atlas_lib::domain::dto::{ConnectionTestTarget, OsKind, ProviderKind, ProviderProfileInput};
 use atlas_lib::error::{AtlasError, ErrorCode};
 use tauri::async_runtime::block_on;
 
@@ -33,7 +31,7 @@ fn assert_not_implemented<T: std::fmt::Debug>(
 fn app_status_reports_only_true_facts() {
     let status = block_on(commands::app::get_app_status()).unwrap();
     assert_eq!(status.app_version, env!("CARGO_PKG_VERSION"));
-    assert_eq!(status.slice, "0.5");
+    assert_eq!(status.slice, "0.6");
     assert_eq!(status.arch, std::env::consts::ARCH);
     if cfg!(target_os = "macos") {
         assert_eq!(status.os, OsKind::Macos);
@@ -46,7 +44,13 @@ fn app_status_reports_only_true_facts() {
         .collect();
     assert_eq!(
         implemented,
-        ["data_root", "source_folders", "device_check", "inventory"]
+        [
+            "data_root",
+            "source_folders",
+            "device_check",
+            "inventory",
+            "library_browse"
+        ]
     );
     assert!(
         status
@@ -59,16 +63,7 @@ fn app_status_reports_only_true_facts() {
 
 #[test]
 fn every_stub_returns_not_implemented() {
-    use commands::{library, providers};
-    let s = || "x".to_owned();
-    let query = DocumentQuery {
-        text: None,
-        source_root_id: None,
-        file_type: None,
-        sort: DocumentSort::NameAsc,
-        page: 0,
-        page_size: 50,
-    };
+    use commands::providers;
     let candidate = ProviderProfileInput {
         id: None,
         kind: ProviderKind::Ollama,
@@ -79,17 +74,6 @@ fn every_stub_returns_not_implemented() {
     };
 
     block_on(async {
-        assert_not_implemented(
-            library::list_documents(query).await,
-            "list_documents",
-            "0.6",
-        );
-        assert_not_implemented(library::open_original(s()).await, "open_original", "0.6");
-        assert_not_implemented(
-            library::reveal_original(s()).await,
-            "reveal_original",
-            "0.6",
-        );
         assert_not_implemented(
             providers::list_provider_profiles().await,
             "list_provider_profiles",

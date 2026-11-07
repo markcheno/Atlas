@@ -5,4 +5,8 @@ import type { FileType } from "./FileType";
 /**
  * Paginated filename/path query. Phase 0 never searches document bodies.
  */
-export type DocumentQuery = { text: string | null, sourceRootId: string | null, fileType: FileType | null, sort: DocumentSort, page: number, pageSize: number, };
+export type DocumentQuery = { text: string | null, sourceRootId: string | null, fileType: FileType | null, sort: DocumentSort, page: number, pageSize: number, 
+/**
+ * Also list files a completed scan no longer found.
+ */
+includeMissing: boolean, };

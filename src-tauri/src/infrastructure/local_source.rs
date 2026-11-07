@@ -86,6 +86,11 @@ fn describe(entry: &DirEntry) -> Option<io::Result<DirEntryInfo>> {
     Some(Ok(info))
 }
 
+/// Whether a file's contents are offloaded to a cloud service right now.
+pub fn is_cloud_only(meta: &fs::Metadata) -> bool {
+    platform::is_cloud_only(meta)
+}
+
 /// `.Name.pdf.icloud` → `Name.pdf`; anything else → `None`.
 pub fn legacy_icloud_target(name: &OsString) -> Option<OsString> {
     let name = name.to_str()?;

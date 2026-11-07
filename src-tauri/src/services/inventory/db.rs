@@ -322,6 +322,9 @@ pub struct FileRecord {
     pub mtime_secs: Option<i64>,
     pub modified_at: Option<String>,
     pub cloud_only: bool,
+    /// Folded root-relative path and file name (`library::fold`).
+    pub search_key: String,
+    pub name_key: String,
 }
 
 #[derive(Debug, Default)]
@@ -370,8 +373,8 @@ pub fn commit_batch(
         let mut upsert = tx.prepare_cached(
             "INSERT INTO file_instances (id, source_root_id, rel_path, display_path, display_name,
                  extension, file_type, size_bytes, mtime_secs, modified_at, availability, storage,
-                 last_seen_session_id, created_at, updated_at)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, 'available', ?11, ?12, ?13, ?13)
+                 last_seen_session_id, created_at, updated_at, search_key, name_key)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, 'available', ?11, ?12, ?13, ?13, ?14, ?15)
              ON CONFLICT (source_root_id, rel_path) DO UPDATE SET
                  updated_at = CASE
                      WHEN size_bytes IS NOT excluded.size_bytes
@@ -386,7 +389,9 @@ pub fn commit_batch(
                  modified_at = excluded.modified_at,
                  availability = 'available',
                  storage = excluded.storage,
-                 last_seen_session_id = excluded.last_seen_session_id",
+                 last_seen_session_id = excluded.last_seen_session_id,
+                 search_key = excluded.search_key,
+                 name_key = excluded.name_key",
         )?;
         for f in &batch.files {
             upsert.execute(params![
@@ -403,6 +408,8 @@ pub fn commit_batch(
                 if f.cloud_only { "cloud_only" } else { "local" },
                 session_id,
                 now,
+                f.search_key,
+                f.name_key,
             ])?;
         }
 

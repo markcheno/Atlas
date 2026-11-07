@@ -122,7 +122,9 @@ export const atlas = {
   getInventoryStatus: () => call<InventoryOverview>('get_inventory_status'),
 
   listDocuments: (query: DocumentQuery) => call<DocumentPage>('list_documents', { query }),
-  openOriginal: (fileId: string) => call<void>('open_original', { fileId }),
+  /** `allowDownload` must be true to open a file stored only in the cloud. */
+  openOriginal: (fileId: string, allowDownload = false) =>
+    call<void>('open_original', { fileId, allowDownload }),
   revealOriginal: (fileId: string) => call<void>('reveal_original', { fileId }),
 
   listProviderProfiles: () => call<ProviderProfile[]>('list_provider_profiles'),

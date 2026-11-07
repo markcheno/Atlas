@@ -4,13 +4,15 @@ Atlas is a local-first personal AI librarian for large private collections of
 PDFs, EPUBs, books and papers. *Collect freely. Organize minimally. Retrieve
 intelligently.*
 
-**Status: Phase 0, Slice 0.5.** Atlas asks where to keep its library and
+**Status: Phase 0, Slice 0.6.** Atlas asks where to keep its library and
 which folders hold your books and papers, then catalogs every PDF and EPUB
 in them in the background, read-only. Cataloging slows on battery, pauses
 when the battery is low or the drive is nearly full, survives quitting and
 crashes, and resumes where it left off. Files offloaded to iCloud or
-OneDrive are listed without being downloaded. Browsing and opening the
-cataloged files comes next. Atlas makes no network requests.
+OneDrive are listed without being downloaded. The Library lets you search
+file and folder names (ignoring case and accents), filter, sort, and open
+files or show them in Finder or Explorer, even while cataloging continues.
+Atlas makes no network requests.
 
 | Capability | Status |
 | --- | --- |
@@ -19,7 +21,7 @@ cataloged files comes next. Atlas makes no network requests.
 | Library folders | Working |
 | Device check, low-space and battery policy | Working |
 | Background cataloging (pause, resume, recovery) | Working |
-| Browse, filename search, open and reveal originals | Slice 0.6 |
+| Browse, filename search, open and reveal originals | Working |
 | AI endpoint connection test | Slice 0.7 |
 | Packaging and cross-platform evidence | Slice 0.8 |
 | Extraction and vector-engine decision | Slice 0.9 |

@@ -324,7 +324,7 @@ pub struct FileInstance {
     /// `None` when unknown, never a guessed zero.
     #[ts(type = "number | null")]
     pub size_bytes: Option<u64>,
-    pub modified_at: String,
+    pub modified_at: Option<String>,
     pub availability: Availability,
     pub storage: FileStorage,
 }
@@ -350,6 +350,9 @@ pub struct DocumentQuery {
     pub sort: DocumentSort,
     pub page: u32,
     pub page_size: u32,
+    /// Also list files a completed scan no longer found.
+    #[serde(default)]
+    pub include_missing: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
@@ -362,6 +365,8 @@ pub struct DocumentPage {
     /// Matching rows known so far. While a scan runs this can grow; it is
     /// never presented as a final total.
     pub matched_so_far: u32,
+    /// Cataloging is still in progress, so more matches may appear.
+    pub scanning: bool,
 }
 
 // ------------------------------------------------------------ inventory jobs

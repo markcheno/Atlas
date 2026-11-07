@@ -4,6 +4,7 @@ use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 
 use crate::domain::dto::{DeviceCheck, DeviceSnapshot};
+use crate::domain::traits::SourceOpener;
 use crate::error::{AtlasError, AtlasResult};
 use crate::services::system::ResourceGovernor;
 use crate::services::workspace::Workspace;
@@ -12,13 +13,20 @@ pub struct AppState {
     pub workspace: Arc<Mutex<Workspace>>,
     /// Shared with the inventory worker so both see the same hysteresis.
     pub governor: Arc<Mutex<ResourceGovernor>>,
+    /// Opens and reveals original files with the OS.
+    pub opener: Arc<dyn SourceOpener>,
 }
 
 impl AppState {
-    pub fn new(workspace: Workspace, governor: Arc<Mutex<ResourceGovernor>>) -> Self {
+    pub fn new(
+        workspace: Workspace,
+        governor: Arc<Mutex<ResourceGovernor>>,
+        opener: Arc<dyn SourceOpener>,
+    ) -> Self {
         Self {
             workspace: Arc::new(Mutex::new(workspace)),
             governor,
+            opener,
         }
     }
 

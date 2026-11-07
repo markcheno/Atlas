@@ -7,4 +7,4 @@ export type FileInstance = { id: string, sourceRootId: string, displayName: stri
 /**
  * `None` when unknown, never a guessed zero.
  */
-sizeBytes: number | null, modifiedAt: string, availability: Availability, storage: FileStorage, };
+sizeBytes: number | null, modifiedAt: string | null, availability: Availability, storage: FileStorage, };
