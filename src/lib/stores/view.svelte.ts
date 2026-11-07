@@ -1,19 +1,25 @@
 /**
- * Which top-level view is showing. A router is unnecessary for four views.
- *
- * Welcome shows on every launch in Slice 0.1 because "first run" can only
- * be remembered once the Atlas data root exists (Slice 0.2).
+ * Which top-level view is showing. A router is unnecessary for this many
+ * views. `loading` covers the moment between launch and learning whether a
+ * data root is open; `boot.ts` decides the first real view.
  */
-export type ViewId = 'welcome' | 'home' | 'library' | 'settings';
+export type ViewId =
+  'loading' | 'welcome' | 'data-location' | 'unavailable' | 'home' | 'library' | 'settings';
 
-export const NAV_VIEWS: ReadonlyArray<{ id: Exclude<ViewId, 'welcome'>; label: string }> = [
+export type MainViewId = 'home' | 'library' | 'settings';
+
+export const NAV_VIEWS: ReadonlyArray<{ id: MainViewId; label: string }> = [
   { id: 'home', label: 'Home' },
   { id: 'library', label: 'Library' },
   { id: 'settings', label: 'Settings' },
 ];
 
+export function isMainView(id: ViewId): id is MainViewId {
+  return id === 'home' || id === 'library' || id === 'settings';
+}
+
 class ViewState {
-  current = $state<ViewId>('welcome');
+  current = $state<ViewId>('loading');
 
   go(next: ViewId) {
     this.current = next;

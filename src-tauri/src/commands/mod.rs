@@ -10,6 +10,7 @@ pub mod app;
 pub mod inventory;
 pub mod library;
 pub mod providers;
+pub mod settings;
 pub mod sources;
 pub mod workspace;
 
@@ -18,8 +19,14 @@ pub mod workspace;
 pub const COMMAND_NAMES: &[&str] = &[
     "get_app_status",
     "get_device_snapshot",
+    "get_data_root_status",
+    "get_default_data_root",
+    "pick_folder",
+    "inspect_data_root",
     "choose_data_root",
     "open_data_root",
+    "get_settings",
+    "update_settings",
     "list_source_roots",
     "add_source_root",
     "remove_source_root",

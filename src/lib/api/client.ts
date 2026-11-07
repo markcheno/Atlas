@@ -11,6 +11,8 @@ import { invoke, isTauri } from '@tauri-apps/api/core';
 import type { AppStatus } from './bindings/AppStatus';
 import type { ConnectionResult } from './bindings/ConnectionResult';
 import type { ConnectionTestTarget } from './bindings/ConnectionTestTarget';
+import type { DataRootCandidate } from './bindings/DataRootCandidate';
+import type { DataRootStatus } from './bindings/DataRootStatus';
 import type { DeviceSnapshot } from './bindings/DeviceSnapshot';
 import type { DocumentPage } from './bindings/DocumentPage';
 import type { DocumentQuery } from './bindings/DocumentQuery';
@@ -19,6 +21,7 @@ import type { ErrorPayload } from './bindings/ErrorPayload';
 import type { InventoryStatus } from './bindings/InventoryStatus';
 import type { ProviderProfile } from './bindings/ProviderProfile';
 import type { ProviderProfileInput } from './bindings/ProviderProfileInput';
+import type { Settings } from './bindings/Settings';
 import type { SourceRoot } from './bindings/SourceRoot';
 
 /** Server codes plus two the client itself can produce. */
@@ -92,8 +95,16 @@ export const atlas = {
   getAppStatus: () => call<AppStatus>('get_app_status'),
   getDeviceSnapshot: () => call<DeviceSnapshot>('get_device_snapshot'),
 
-  chooseDataRoot: (path: string) => call<void>('choose_data_root', { path }),
-  openDataRoot: (path: string) => call<void>('open_data_root', { path }),
+  getDataRootStatus: () => call<DataRootStatus>('get_data_root_status'),
+  getDefaultDataRoot: () => call<string>('get_default_data_root'),
+  /** Native folder picker; resolves to null when the user cancels. */
+  pickFolder: () => call<string | null>('pick_folder'),
+  inspectDataRoot: (path: string) => call<DataRootCandidate>('inspect_data_root', { path }),
+  chooseDataRoot: (path: string) => call<DataRootStatus>('choose_data_root', { path }),
+  openDataRoot: (path: string) => call<DataRootStatus>('open_data_root', { path }),
+
+  getSettings: () => call<Settings>('get_settings'),
+  updateSettings: (settings: Settings) => call<Settings>('update_settings', { settings }),
 
   listSourceRoots: () => call<SourceRoot[]>('list_source_roots'),
   addSourceRoot: (path: string) => call<SourceRoot>('add_source_root', { path }),

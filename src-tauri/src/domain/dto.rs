@@ -325,3 +325,124 @@ pub struct ConnectionResult {
     pub message: String,
     pub tested_at: String,
 }
+
+// ------------------------------------------------------------- data root
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "snake_case")]
+#[ts(export)]
+pub enum DataRootState {
+    /// No data root has been chosen yet (first run).
+    NotConfigured,
+    Open,
+    /// The remembered location is absent, e.g. its drive is disconnected.
+    Missing,
+    InUse,
+    Incompatible,
+    Invalid,
+}
+
+/// Which data root Atlas is using, or why it cannot use the remembered one.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct DataRootStatus {
+    pub state: DataRootState,
+    pub display_path: Option<String>,
+    pub root_id: Option<String>,
+    /// Why the remembered root could not be opened.
+    pub problem: Option<crate::error::ErrorPayload>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "snake_case")]
+#[ts(export)]
+pub enum VolumeKind {
+    Local,
+    Network,
+    CloudSynced,
+    Unknown,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "snake_case")]
+#[ts(export)]
+pub enum CandidateKind {
+    /// Does not exist yet; Atlas will create it.
+    NewFolder,
+    EmptyFolder,
+    ExistingLibrary,
+    /// A previous creation attempt stopped part-way; Atlas can finish it.
+    IncompleteLibrary,
+    /// Contains other files; Atlas will not write into it.
+    NonEmptyFolder,
+    /// A file, not a folder.
+    NotAFolder,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "snake_case")]
+#[ts(export)]
+pub enum CandidateProblem {
+    NotWritable,
+    NetworkVolume,
+    CloudSynced,
+    LowSpace,
+    NewerSchema,
+    InvalidManifest,
+    /// The folder is inside another Atlas library.
+    InsideLibrary,
+}
+
+/// The result of checking a prospective data-root location. Read-only:
+/// inspecting never creates the folder.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct DataRootCandidate {
+    pub display_path: String,
+    pub kind: CandidateKind,
+    pub problems: Vec<CandidateProblem>,
+    /// True when `choose_data_root` on this path is expected to succeed.
+    pub can_use: bool,
+    #[ts(type = "number | null")]
+    pub free_bytes: Option<u64>,
+    #[ts(type = "number | null")]
+    pub total_bytes: Option<u64>,
+    /// Space below which Atlas will not create a new library here.
+    #[ts(type = "number | null")]
+    pub required_free_bytes: Option<u64>,
+    pub volume_kind: VolumeKind,
+    /// For `non_empty_folder`: an "Atlas Library" subfolder to offer instead.
+    pub suggested_subfolder: Option<String>,
+    /// For `existing_library`: the library's ID from its manifest.
+    pub root_id: Option<String>,
+}
+
+// -------------------------------------------------------------- settings
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize, TS)]
+#[serde(rename_all = "snake_case")]
+#[ts(export)]
+pub enum ThemePreference {
+    #[default]
+    System,
+    Light,
+    Dark,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase", default)]
+#[ts(export)]
+pub struct AppearanceSettings {
+    pub theme: ThemePreference,
+}
+
+/// Portable, non-secret preferences stored in `config/settings.json`.
+/// Unknown or missing fields fall back to defaults when read.
+#[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase", default)]
+#[ts(export)]
+pub struct Settings {
+    pub appearance: AppearanceSettings,
+}

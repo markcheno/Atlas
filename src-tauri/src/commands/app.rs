@@ -2,15 +2,16 @@ use crate::domain::dto::{AppStatus, BuildProfile, DeviceSnapshot, FeatureStatus,
 use crate::error::{AtlasError, AtlasResult};
 
 /// The Phase 0 slice this build implements.
-pub const CURRENT_SLICE: &str = "0.1";
+pub const CURRENT_SLICE: &str = "0.2";
 
-const PLANNED_FEATURES: &[(&str, &str, &str)] = &[
-    ("data_root", "Atlas data location", "0.2"),
-    ("source_folders", "Library folders", "0.3"),
-    ("device_check", "Device check", "0.4"),
-    ("inventory", "Background cataloging", "0.5"),
-    ("library_browse", "Browse and open files", "0.6"),
-    ("provider_test", "AI endpoint connection test", "0.7"),
+/// (id, label, delivering slice, implemented in this build)
+const FEATURES: &[(&str, &str, &str, bool)] = &[
+    ("data_root", "Atlas data location", "0.2", true),
+    ("source_folders", "Library folders", "0.3", false),
+    ("device_check", "Device check", "0.4", false),
+    ("inventory", "Background cataloging", "0.5", false),
+    ("library_browse", "Browse and open files", "0.6", false),
+    ("provider_test", "AI endpoint connection test", "0.7", false),
 ];
 
 /// Builds the status from facts about this process only.
@@ -25,13 +26,13 @@ pub fn app_status() -> AppStatus {
             BuildProfile::Release
         },
         slice: CURRENT_SLICE.to_owned(),
-        features: PLANNED_FEATURES
+        features: FEATURES
             .iter()
-            .map(|(id, label, slice)| FeatureStatus {
+            .map(|(id, label, slice, implemented)| FeatureStatus {
                 id: (*id).to_owned(),
                 label: (*label).to_owned(),
-                implemented: false,
-                planned_slice: Some((*slice).to_owned()),
+                implemented: *implemented,
+                planned_slice: (!implemented).then(|| (*slice).to_owned()),
             })
             .collect(),
     }

@@ -16,7 +16,7 @@ use std::time::SystemTime;
 
 use super::dto::{
     ConnectionResult, DeviceSnapshot, DocumentPage, DocumentQuery, FileInstance, FileType,
-    ProviderKind, SourceRoot,
+    ProviderKind, SourceRoot, VolumeKind,
 };
 use crate::error::AtlasResult;
 
@@ -57,6 +57,24 @@ pub struct DirEntryInfo {
 pub trait InventorySource {
     type Entries: Iterator<Item = AtlasResult<DirEntryInfo>>;
     fn read_dir(&self, dir: &Path) -> AtlasResult<Self::Entries>;
+}
+
+/// Facts about the filesystem volume holding a path.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct VolumeInfo {
+    pub free_bytes: Option<u64>,
+    pub total_bytes: Option<u64>,
+    /// Filesystem name as the OS reports it (e.g. "apfs", "exfat"), if known.
+    pub fs_type: Option<String>,
+    pub kind: VolumeKind,
+}
+
+/// Inspects the volume that holds (or would hold) a path. For a path that
+/// does not exist yet, implementations inspect its nearest existing
+/// ancestor. A trait so tests can simulate network, cloud-synced, and
+/// nearly full volumes (Slice 0.2; reused by the 0.4 storage guard).
+pub trait VolumeInspector: Send + Sync {
+    fn inspect(&self, path: &Path) -> AtlasResult<VolumeInfo>;
 }
 
 /// Device and resource readings (OS probe, Slice 0.4). Change notification

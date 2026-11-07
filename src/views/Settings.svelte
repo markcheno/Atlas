@@ -1,14 +1,32 @@
 <script lang="ts">
+  import { onMount } from 'svelte';
+  import { atlas } from '../lib/api/client';
+  import type { DataRootCandidate } from '../lib/api/bindings/DataRootCandidate';
   import NotImplementedNotice from '../lib/components/NotImplementedNotice.svelte';
+  import ProblemNotice from '../lib/components/ProblemNotice.svelte';
   import ViewHeading from '../lib/components/ViewHeading.svelte';
+  import { formatBytes } from '../lib/format';
   import { THEME_OPTIONS, theme } from '../lib/stores/theme.svelte';
+  import { view } from '../lib/stores/view.svelte';
+  import { workspace } from '../lib/stores/workspace.svelte';
 
   const PENDING_SECTIONS = [
     { id: 'folders', title: 'Library Folders', slice: '0.3' },
     { id: 'ai', title: 'AI Models', slice: '0.7' },
-    { id: 'storage', title: 'Storage', slice: '0.2' },
     { id: 'performance', title: 'Performance & Battery', slice: '0.4' },
   ] as const;
+
+  let storage = $state<DataRootCandidate | null>(null);
+
+  onMount(() => {
+    const path = workspace.status?.displayPath;
+    if (workspace.isOpen && path) {
+      atlas.inspectDataRoot(path).then(
+        (result) => (storage = result),
+        () => (storage = null),
+      );
+    }
+  });
 </script>
 
 <div class="view">
@@ -25,13 +43,53 @@
             name="theme"
             value={option.value}
             checked={theme.preference === option.value}
-            onchange={() => theme.set(option.value)}
+            onchange={() => theme.choose(option.value, workspace.isOpen)}
           />
           {option.label}
         </label>
       {/each}
     </fieldset>
-    <p class="muted small">Remembered between launches once the Atlas data location exists.</p>
+    {#if theme.saveError}
+      <ProblemNotice
+        title="Your theme choice could not be saved"
+        message={theme.saveError.message}
+        recovery={theme.saveError.recovery}
+      />
+    {/if}
+  </section>
+
+  <section aria-labelledby="settings-storage">
+    <h2 id="settings-storage">Storage</h2>
+    {#if workspace.isOpen && workspace.status}
+      <dl>
+        <div>
+          <dt>Atlas library location</dt>
+          <dd class="path">{workspace.status.displayPath}</dd>
+        </div>
+        <div>
+          <dt>Free space on that drive</dt>
+          <dd>
+            {storage
+              ? `${formatBytes(storage.freeBytes)} of ${formatBytes(storage.totalBytes)}`
+              : 'Checking…'}
+          </dd>
+        </div>
+        <div>
+          <dt>Library ID</dt>
+          <dd class="path">{workspace.status.rootId?.slice(0, 8)}</dd>
+        </div>
+      </dl>
+      <p class="muted small">
+        Atlas keeps its catalog and generated data here. Your books stay where they are.
+      </p>
+      <div>
+        <button type="button" class="button" onclick={() => view.go('data-location')}>
+          Use a different location…
+        </button>
+      </div>
+    {:else}
+      <p class="muted">No Atlas library is open.</p>
+    {/if}
   </section>
 
   <section aria-labelledby="settings-privacy">
@@ -81,6 +139,27 @@
     gap: var(--space-2);
     min-height: var(--control-height);
     cursor: pointer;
+  }
+
+  dl {
+    display: grid;
+    gap: var(--space-3);
+    margin: 0;
+  }
+
+  dt {
+    color: var(--text-muted);
+    font-size: 13px;
+  }
+
+  dd {
+    margin: 0;
+  }
+
+  .path {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 13px;
+    overflow-wrap: anywhere;
   }
 
   .small {

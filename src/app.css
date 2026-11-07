@@ -15,6 +15,8 @@
   --focus: #2f5fd0;
   --notice-bg: #fff7e0;
   --notice-border: #e8c766;
+  --problem-bg: #fdeeee;
+  --problem-border: #e3a3a3;
 
   --radius: 10px;
   --radius-lg: 14px;
@@ -46,6 +48,8 @@
     --focus: #9db5ff;
     --notice-bg: #2c2615;
     --notice-border: #6b5a22;
+    --problem-bg: #331d1d;
+    --problem-border: #7a3b3b;
   }
 }
 
@@ -62,6 +66,8 @@
   --focus: #9db5ff;
   --notice-bg: #2c2615;
   --notice-border: #6b5a22;
+  --problem-bg: #331d1d;
+  --problem-border: #7a3b3b;
 }
 
 :root[data-theme='light'] {
@@ -153,8 +159,18 @@ select {
   color: var(--accent-text);
 }
 
-.button:hover {
+.button.quiet {
+  border-color: transparent;
+  background: transparent;
+}
+
+.button:hover:not(:disabled) {
   filter: brightness(0.97);
+}
+
+.button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .muted {

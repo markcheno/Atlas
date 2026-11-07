@@ -8,7 +8,7 @@
     <ViewHeading>Explore everything you've collected.</ViewHeading>
     <p class="lede">Atlas catalogs your existing files without moving or changing them.</p>
     <p class="muted small">No account, sign-in, or AI setup needed.</p>
-    <button type="button" class="button primary" onclick={() => view.go('home')}>
+    <button type="button" class="button primary" onclick={() => view.go('data-location')}>
       Get Started
     </button>
   </div>

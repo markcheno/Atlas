@@ -1,8 +1,10 @@
-//! IPC contract tests for Slice 0.1.
+//! IPC contract tests.
 //!
-//! Every command of the Phase 0 contract is registered and either returns
-//! real facts (`get_app_status`) or an explicit `not_implemented` error that
-//! names itself and its planned slice. Nothing returns placeholder data.
+//! Every command of the Phase 0 contract is registered. Commands whose
+//! slice has not shipped return an explicit `not_implemented` error that
+//! names itself and its planned slice; nothing returns placeholder data.
+//! Implemented commands are thin adapters, tested through their services
+//! (see `workspace.rs`).
 
 use atlas_lib::commands::{self, COMMAND_NAMES};
 use atlas_lib::domain::dto::{
@@ -31,21 +33,30 @@ fn assert_not_implemented<T: std::fmt::Debug>(
 fn app_status_reports_only_true_facts() {
     let status = block_on(commands::app::get_app_status()).unwrap();
     assert_eq!(status.app_version, env!("CARGO_PKG_VERSION"));
-    assert_eq!(status.slice, "0.1");
+    assert_eq!(status.slice, "0.2");
     assert_eq!(status.arch, std::env::consts::ARCH);
     if cfg!(target_os = "macos") {
         assert_eq!(status.os, OsKind::Macos);
     }
-    assert!(!status.features.is_empty());
+    let implemented: Vec<&str> = status
+        .features
+        .iter()
+        .filter(|f| f.implemented)
+        .map(|f| f.id.as_str())
+        .collect();
+    assert_eq!(implemented, ["data_root"]);
     assert!(
-        status.features.iter().all(|f| !f.implemented),
-        "no feature is implemented in Slice 0.1"
+        status
+            .features
+            .iter()
+            .all(|f| f.implemented == f.planned_slice.is_none()),
+        "unimplemented features name their slice; implemented ones do not"
     );
 }
 
 #[test]
 fn every_stub_returns_not_implemented() {
-    use commands::{app, inventory, library, providers, sources, workspace};
+    use commands::{app, inventory, library, providers, sources};
     let s = || "x".to_owned();
     let query = DocumentQuery {
         text: None,
@@ -69,16 +80,6 @@ fn every_stub_returns_not_implemented() {
             app::get_device_snapshot().await,
             "get_device_snapshot",
             "0.4",
-        );
-        assert_not_implemented(
-            workspace::choose_data_root(s()).await,
-            "choose_data_root",
-            "0.2",
-        );
-        assert_not_implemented(
-            workspace::open_data_root(s()).await,
-            "open_data_root",
-            "0.2",
         );
         assert_not_implemented(
             sources::list_source_roots().await,

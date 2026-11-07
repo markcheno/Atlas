@@ -4,16 +4,16 @@ Atlas is a local-first personal AI librarian for large private collections of
 PDFs, EPUBs, books and papers. *Collect freely. Organize minimally. Retrieve
 intelligently.*
 
-**Status: Phase 0, Slice 0.1.** This build is an application shell. It
-launches, shows the Welcome, Home, Library and Settings views, and exposes the
-full Phase 0 command contract, but every library, storage, device and AI
-command still reports "not available yet". It does not read, catalog or open
-any of your files, and it makes no network requests.
+**Status: Phase 0, Slice 0.2.** Atlas launches, asks where to keep its
+library, creates that data folder safely, and reopens it on every launch. It
+remembers your theme, and it explains and recovers when the library's drive
+is unplugged or another Atlas has it open. It does not yet read, catalog, or
+open any of your documents, and it makes no network requests.
 
 | Capability | Status |
 | --- | --- |
 | App shell, navigation, light/dark/system theme | Working |
-| Atlas data location, settings persistence | Slice 0.2 |
+| Atlas data location, settings persistence | Working |
 | Library folders | Slice 0.3 |
 | Device check, low-space and battery policy | Slice 0.4 |
 | Background cataloging (pause, resume, recovery) | Slice 0.5 |

@@ -29,20 +29,20 @@ Bundled native binaries (for example PDFium) will be added in Slice 0.9.
 
 ## Summary
 
-### Rust crates (409, all platforms)
+### Rust crates (425, all platforms)
 
 | License expression | Count |
 | --- | --- |
-| MIT OR Apache-2.0 | 186 |
-| MIT | 100 |
-| Apache-2.0 OR MIT | 30 |
+| MIT OR Apache-2.0 | 189 |
+| MIT | 105 |
+| Apache-2.0 OR MIT | 33 |
 | Unicode-3.0 | 18 |
 | Zlib OR Apache-2.0 OR MIT | 17 |
-| MIT/Apache-2.0 | 12 |
+| MIT/Apache-2.0 | 15 |
 | Unlicense OR MIT | 10 |
 | MPL-2.0 | 5 |
+| Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT | 5 |
 | Apache-2.0/MIT | 3 |
-| Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT | 3 |
 | BSD-3-Clause | 2 |
 | Zlib | 2 |
 | MIT OR Zlib OR Apache-2.0 | 2 |
@@ -164,6 +164,9 @@ Bundled native binaries (for example PDFium) will be added in Slice 0.9.
 | embed-resource | 3.0.12 | MIT |
 | equivalent | 1.0.3 | Apache-2.0 OR MIT |
 | erased-serde | 0.4.11 | MIT OR Apache-2.0 |
+| errno | 0.3.14 | MIT OR Apache-2.0 |
+| fallible-iterator | 0.3.0 | MIT/Apache-2.0 |
+| fallible-streaming-iterator | 0.1.9 | MIT/Apache-2.0 |
 | fastrand | 2.5.0 | Apache-2.0 OR MIT |
 | fdeflate | 0.3.7 | MIT OR Apache-2.0 |
 | field-offset | 0.3.6 | MIT OR Apache-2.0 |
@@ -205,6 +208,7 @@ Bundled native binaries (for example PDFium) will be added in Slice 0.9.
 | gtk3-macros | 0.18.2 | MIT |
 | hashbrown | 0.12.3 | MIT OR Apache-2.0 |
 | hashbrown | 0.17.1 | MIT OR Apache-2.0 |
+| hashlink | 0.12.2 | MIT OR Apache-2.0 |
 | heck | 0.4.1 | MIT OR Apache-2.0 |
 | heck | 0.5.0 | MIT OR Apache-2.0 |
 | hex | 0.4.3 | MIT OR Apache-2.0 |
@@ -254,6 +258,8 @@ Bundled native binaries (for example PDFium) will be added in Slice 0.9.
 | libdbus-sys | 0.2.7 | Apache-2.0/MIT |
 | libloading | 0.7.4 | ISC |
 | libredox | 0.1.25 | MIT |
+| libsqlite3-sys | 0.39.1 | MIT |
+| linux-raw-sys | 0.12.1 | Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT |
 | litemap | 0.8.3 | Unicode-3.0 |
 | lock_api | 0.4.14 | MIT OR Apache-2.0 |
 | log | 0.4.35 | MIT OR Apache-2.0 |
@@ -330,8 +336,12 @@ Bundled native binaries (for example PDFium) will be added in Slice 0.9.
 | regex-automata | 0.4.18 | MIT OR Apache-2.0 |
 | regex-syntax | 0.8.11 | MIT OR Apache-2.0 |
 | reqwest | 0.13.5 | MIT OR Apache-2.0 |
+| rfd | 0.17.2 | MIT |
+| rsqlite-vfs | 0.2.0 | MIT |
+| rusqlite | 0.41.1 | MIT |
 | rustc_version | 0.4.1 | MIT OR Apache-2.0 |
 | rustc-hash | 2.1.3 | Apache-2.0 OR MIT |
+| rustix | 1.1.6 | Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT |
 | rustversion | 1.0.23 | MIT OR Apache-2.0 |
 | same-file | 1.0.6 | Unlicense/MIT |
 | schemars | 0.8.22 | MIT |
@@ -365,6 +375,7 @@ Bundled native binaries (for example PDFium) will be added in Slice 0.9.
 | softbuffer | 0.4.8 | MIT OR Apache-2.0 |
 | soup3 | 0.5.0 | MIT |
 | soup3-sys | 0.5.0 | MIT |
+| sqlite-wasm-rs | 0.6.2 | MIT |
 | stable_deref_trait | 1.2.1 | MIT OR Apache-2.0 |
 | static_vcruntime | 3.0.0 | MIT OR Apache-2.0 OR Zlib |
 | string_cache | 0.9.0 | MIT OR Apache-2.0 |
@@ -384,10 +395,14 @@ Bundled native binaries (for example PDFium) will be added in Slice 0.9.
 | tauri-build | 2.7.4 | Apache-2.0 OR MIT |
 | tauri-codegen | 2.7.4 | Apache-2.0 OR MIT |
 | tauri-macros | 2.7.4 | Apache-2.0 OR MIT |
+| tauri-plugin | 2.7.2 | Apache-2.0 OR MIT |
+| tauri-plugin-dialog | 2.8.4 | Apache-2.0 OR MIT |
+| tauri-plugin-fs | 2.7.1 | Apache-2.0 OR MIT |
 | tauri-runtime | 2.12.2 | Apache-2.0 OR MIT |
 | tauri-runtime-wry | 2.12.3 | Apache-2.0 OR MIT |
 | tauri-utils | 2.10.2 | Apache-2.0 OR MIT |
 | tauri-winres | 0.3.7 | MIT |
+| tempfile | 3.27.0 | MIT OR Apache-2.0 |
 | tendril | 0.5.1 | MIT OR Apache-2.0 |
 | termcolor | 1.4.1 | Unlicense OR MIT |
 | thiserror | 1.0.69 | MIT OR Apache-2.0 |
@@ -429,6 +444,7 @@ Bundled native binaries (for example PDFium) will be added in Slice 0.9.
 | utf_types | 1.0.0 | Apache-2.0 OR MIT |
 | utf8_iter | 1.1.0 | Apache-2.0 OR MIT |
 | uuid | 1.29.1 | Apache-2.0 OR MIT |
+| vcpkg | 0.2.15 | MIT/Apache-2.0 |
 | version_check | 0.9.5 | MIT/Apache-2.0 |
 | version-compare | 0.2.1 | MIT |
 | vswhom | 0.1.0 | MIT |

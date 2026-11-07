@@ -8,11 +8,12 @@ const { atlas, AtlasApiError, toApiError } = await import('./client');
 describe('atlas IPC facade', () => {
   beforeEach(() => {
     tauriMock.isTauri.mockReturnValue(true);
+    tauriMock.resetHandlers();
   });
 
   it('invokes commands by their Rust names with camelCase arguments', async () => {
     const status = await atlas.getAppStatus();
-    expect(status.slice).toBe('0.1');
+    expect(status.slice).toBe('0.2');
     expect(tauriMock.invoke).toHaveBeenCalledWith('get_app_status', undefined);
 
     await atlas.startInventory('root-1').catch(() => undefined);
