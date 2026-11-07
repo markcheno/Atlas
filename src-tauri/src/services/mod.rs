@@ -8,5 +8,6 @@ pub mod inventory;
 pub mod providers;
 pub mod scheduler;
 pub mod source_open;
+pub mod sources;
 pub mod system;
 pub mod workspace;

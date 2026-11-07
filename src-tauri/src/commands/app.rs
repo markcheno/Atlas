@@ -2,12 +2,12 @@ use crate::domain::dto::{AppStatus, BuildProfile, DeviceSnapshot, FeatureStatus,
 use crate::error::{AtlasError, AtlasResult};
 
 /// The Phase 0 slice this build implements.
-pub const CURRENT_SLICE: &str = "0.2";
+pub const CURRENT_SLICE: &str = "0.3";
 
 /// (id, label, delivering slice, implemented in this build)
 const FEATURES: &[(&str, &str, &str, bool)] = &[
     ("data_root", "Atlas data location", "0.2", true),
-    ("source_folders", "Library folders", "0.3", false),
+    ("source_folders", "Library folders", "0.3", true),
     ("device_check", "Device check", "0.4", false),
     ("inventory", "Background cataloging", "0.5", false),
     ("library_browse", "Browse and open files", "0.6", false),

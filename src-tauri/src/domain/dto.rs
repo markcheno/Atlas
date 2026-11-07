@@ -116,8 +116,11 @@ pub struct DeviceSnapshot {
 #[ts(export)]
 pub enum SourceRootStatus {
     Available,
-    /// Drive unmounted or permission lost. Its catalog is kept.
+    /// Not present or not responding (for example an unplugged drive or a
+    /// stale network mount). Its catalog entries are kept.
     Unavailable,
+    /// Present, but Atlas is not allowed to read it.
+    NoAccess,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
@@ -126,9 +129,36 @@ pub enum SourceRootStatus {
 pub struct SourceRoot {
     pub id: RecordId,
     pub display_path: String,
+    /// Live availability, checked each time roots are listed.
     pub status: SourceRootStatus,
+    /// The Atlas data root is inside this folder; inventory will skip it.
+    pub contains_data_root: bool,
+    /// Set when this root lies inside another root (possible only in
+    /// imported catalogs). The outermost root owns the subtree, and this
+    /// one is not scanned separately.
+    pub nested_in_root_id: Option<RecordId>,
     pub created_at: String,
     pub last_scan_at: Option<String>,
+}
+
+/// A folder the picker returned that Atlas did not add, and why.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct SourceRootRejection {
+    pub display_path: String,
+    pub error: crate::error::ErrorPayload,
+    /// For `source_overlaps` and `source_already_added`: the existing root.
+    pub conflicting_root_id: Option<RecordId>,
+}
+
+/// Outcome of picking folders. Empty on both sides when the user cancels.
+#[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct AddSourceRootsResult {
+    pub added: Vec<SourceRoot>,
+    pub rejected: Vec<SourceRootRejection>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]

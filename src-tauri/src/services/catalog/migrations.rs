@@ -10,11 +10,18 @@ pub struct Migration {
     pub sql: &'static str,
 }
 
-pub const MIGRATIONS: &[Migration] = &[Migration {
-    version: 1,
-    name: "initial",
-    sql: include_str!("../../../migrations/0001_initial.sql"),
-}];
+pub const MIGRATIONS: &[Migration] = &[
+    Migration {
+        version: 1,
+        name: "initial",
+        sql: include_str!("../../../migrations/0001_initial.sql"),
+    },
+    Migration {
+        version: 2,
+        name: "source_roots",
+        sql: include_str!("../../../migrations/0002_source_roots.sql"),
+    },
+];
 
 /// Highest catalog schema version this build can read and write.
 pub const SUPPORTED_SCHEMA_VERSION: u32 = MIGRATIONS[MIGRATIONS.len() - 1].version;

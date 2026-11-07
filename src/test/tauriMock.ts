@@ -9,7 +9,9 @@ import type { AppStatus } from '../lib/api/bindings/AppStatus';
 import type { DataRootCandidate } from '../lib/api/bindings/DataRootCandidate';
 import type { DataRootStatus } from '../lib/api/bindings/DataRootStatus';
 import type { ErrorPayload } from '../lib/api/bindings/ErrorPayload';
+import type { AddSourceRootsResult } from '../lib/api/bindings/AddSourceRootsResult';
 import type { Settings } from '../lib/api/bindings/Settings';
+import type { SourceRoot } from '../lib/api/bindings/SourceRoot';
 
 export const DEFAULT_ROOT = '/Users/test/Library/Application Support/com.altazlabs.atlas/Library';
 
@@ -18,7 +20,7 @@ export const fakeStatus: AppStatus = {
   os: 'macos',
   arch: 'aarch64',
   buildProfile: 'debug',
-  slice: '0.2',
+  slice: '0.3',
   features: [],
 };
 
@@ -47,6 +49,22 @@ export function candidate(overrides: Partial<DataRootCandidate> = {}): DataRootC
   };
 }
 
+export function sourceRoot(overrides: Partial<SourceRoot> = {}): SourceRoot {
+  return {
+    id: 'root-books',
+    displayPath: '/Users/test/Books',
+    status: 'available',
+    containsDataRoot: false,
+    nestedInRootId: null,
+    createdAt: '2026-11-07T00:00:00Z',
+    lastScanAt: null,
+    ...overrides,
+  };
+}
+
+/** Folders the fake picker returns, in order, on each call. */
+export const pickerQueue: AddSourceRootsResult[] = [];
+
 export function apiError(code: ErrorPayload['code'], message: string, recovery?: string) {
   const payload: ErrorPayload = { code, message, recovery };
   return payload;
@@ -56,12 +74,22 @@ type Handler = (args: Record<string, unknown> | undefined) => unknown;
 
 const plannedSlices: Record<string, string> = {
   list_documents: '0.6',
-  list_source_roots: '0.3',
 };
 
 function defaults(): Record<string, Handler> {
   let settings: Settings = { appearance: { theme: 'system' } };
+  let roots: SourceRoot[] = [];
   return {
+    list_source_roots: () => roots,
+    pick_and_add_source_roots: () => {
+      const result = pickerQueue.shift() ?? { added: [], rejected: [] };
+      roots = [...roots, ...result.added];
+      return result;
+    },
+    remove_source_root: (args) => {
+      roots = roots.filter((r) => r.id !== args?.id);
+      return null;
+    },
     get_app_status: () => fakeStatus,
     get_data_root_status: (): DataRootStatus => ({
       state: 'not_configured',
@@ -86,6 +114,7 @@ let handlers = defaults();
 
 export function resetHandlers() {
   handlers = defaults();
+  pickerQueue.length = 0;
   invoke.mockClear();
 }
 

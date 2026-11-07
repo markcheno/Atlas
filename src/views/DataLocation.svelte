@@ -52,7 +52,7 @@
     busy = true;
     error = null;
     try {
-      await applyStatus(await atlas.chooseDataRoot(candidate.displayPath));
+      await applyStatus(await atlas.chooseDataRoot(candidate.displayPath), { justChosen: true });
     } catch (err) {
       error = asApiError('choose_data_root', err);
     } finally {

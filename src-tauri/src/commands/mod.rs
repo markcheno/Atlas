@@ -30,6 +30,7 @@ pub const COMMAND_NAMES: &[&str] = &[
     "list_source_roots",
     "add_source_root",
     "remove_source_root",
+    "pick_and_add_source_roots",
     "start_inventory",
     "pause_job",
     "resume_job",

@@ -67,6 +67,7 @@ pub fn run() {
             commands::sources::list_source_roots,
             commands::sources::add_source_root,
             commands::sources::remove_source_root,
+            commands::sources::pick_and_add_source_roots,
             commands::inventory::start_inventory,
             commands::inventory::pause_job,
             commands::inventory::resume_job,

@@ -13,98 +13,15 @@ use atlas_lib::domain::dto::{
     AppearanceSettings, CandidateKind, CandidateProblem, DataRootState, Settings, ThemePreference,
     VolumeKind,
 };
-use atlas_lib::domain::traits::{VolumeInfo, VolumeInspector};
-use atlas_lib::error::{AtlasResult, ErrorCode};
+use atlas_lib::error::ErrorCode;
 use atlas_lib::services::catalog;
 use atlas_lib::services::workspace::layout::{
     CATALOG, DIRECTORIES, INIT_MARKER, MANIFEST, SUGGESTED_SUBFOLDER,
 };
-use atlas_lib::services::workspace::{Workspace, WorkspaceConfig, manifest};
+use atlas_lib::services::workspace::manifest;
 
-const GIB: u64 = 1024 * 1024 * 1024;
-
-struct FakeVolumes {
-    kind: VolumeKind,
-    free: u64,
-    total: u64,
-}
-
-impl VolumeInspector for FakeVolumes {
-    fn inspect(&self, _path: &Path) -> AtlasResult<VolumeInfo> {
-        Ok(VolumeInfo {
-            free_bytes: Some(self.free),
-            total_bytes: Some(self.total),
-            fs_type: Some("fake".into()),
-            kind: self.kind,
-        })
-    }
-}
-
-fn local() -> Arc<FakeVolumes> {
-    Arc::new(FakeVolumes {
-        kind: VolumeKind::Local,
-        free: 100 * GIB,
-        total: 500 * GIB,
-    })
-}
-
-struct Env {
-    _tmp: tempfile::TempDir,
-    config: PathBuf,
-    base: PathBuf,
-}
-
-impl Env {
-    fn new() -> Self {
-        let tmp = tempfile::tempdir().unwrap();
-        let config = tmp.path().join("config");
-        let base = tmp.path().join("data");
-        fs::create_dir_all(&base).unwrap();
-        Self {
-            config,
-            base,
-            _tmp: tmp,
-        }
-    }
-
-    fn workspace(&self) -> Workspace {
-        self.workspace_with(local())
-    }
-
-    fn workspace_with(&self, volumes: Arc<dyn VolumeInspector>) -> Workspace {
-        Workspace::new(
-            WorkspaceConfig {
-                config_dir: self.config.clone(),
-                default_root: self.config.join("Library"),
-            },
-            volumes,
-        )
-    }
-
-    /// A second, unrelated Atlas install (its own locator).
-    fn other_workspace(&self) -> Workspace {
-        Workspace::new(
-            WorkspaceConfig {
-                config_dir: self.base.join("other-config"),
-                default_root: self.base.join("other-default"),
-            },
-            local(),
-        )
-    }
-}
-
-fn code(result: AtlasResult<impl std::fmt::Debug>) -> ErrorCode {
-    result.expect_err("expected an error").code()
-}
-
-fn dir_listing(path: &Path) -> Vec<String> {
-    let mut names: Vec<String> = fs::read_dir(path)
-        .unwrap()
-        .map(|e| e.unwrap().file_name().to_string_lossy().into_owned())
-        .collect();
-    names.sort();
-    names
-}
+mod common;
+use common::{Env, FakeVolumes, GIB, code, dir_listing};
 
 #[test]
 fn first_run_is_not_configured() {

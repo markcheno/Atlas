@@ -4,7 +4,14 @@
  * data root is open; `boot.ts` decides the first real view.
  */
 export type ViewId =
-  'loading' | 'welcome' | 'data-location' | 'unavailable' | 'home' | 'library' | 'settings';
+  | 'loading'
+  | 'welcome'
+  | 'data-location'
+  | 'library-folders'
+  | 'unavailable'
+  | 'home'
+  | 'library'
+  | 'settings';
 
 export type MainViewId = 'home' | 'library' | 'settings';
 

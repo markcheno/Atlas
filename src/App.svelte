@@ -6,6 +6,7 @@
   import DataLocation from './views/DataLocation.svelte';
   import Home from './views/Home.svelte';
   import Library from './views/Library.svelte';
+  import LibraryFolders from './views/LibraryFolders.svelte';
   import RootUnavailable from './views/RootUnavailable.svelte';
   import Settings from './views/Settings.svelte';
   import Welcome from './views/Welcome.svelte';
@@ -21,6 +22,8 @@
   <Welcome />
 {:else if view.current === 'data-location'}
   <DataLocation />
+{:else if view.current === 'library-folders'}
+  <LibraryFolders />
 {:else if view.current === 'unavailable'}
   <RootUnavailable />
 {:else}

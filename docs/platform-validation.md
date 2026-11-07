@@ -91,6 +91,71 @@ are covered by integration and component tests instead. Also not verified:
 SMB and NFS shares (no share was available; the fake-inspector tests cover
 the refusal), iCloud Drive in practice, and the signed bundle.
 
+## Slice 0.3
+
+| Platform | Build | Library folders walkthrough | Evidence |
+| --- | --- | --- | --- |
+| macOS arm64 | ✅ dev and `.app` | ✅ including the native picker and an exFAT unplug | Below |
+| Windows x64 | ❌ unverified | ❌ unverified | Path encoding and `same-file` identity untested on Windows |
+| Linux x64 | ❌ unverified | ❌ unverified | The non-UTF-8 folder test exists but runs only on Linux |
+
+### macOS arm64, Slice 0.3 (2026-11-07)
+
+Every run used `ATLAS_CONFIG_DIR` and a scratch source tree; no real
+documents were read.
+
+- `just ci` passed. That covers 58 Rust unit tests, 4 contract tests, 19
+  data-root tests, 15 source-root tests (the Linux-only non-UTF-8 test does
+  not run on macOS), and 29 Vitest tests. The case-insensitive alias test
+  ran, because APFS here is case-insensitive.
+- **Onboarding.** After the data location was created, the Library folders
+  step appeared with the read-only promise and Continue disabled.
+- **Native picker.** It was driven with keystrokes (⌘⇧G, path, ⌘A, Return).
+  Selecting `Books` and `Papers` in one pick added both, each shown as
+  Available. Picking `Books/Astronomy` was refused with "That folder
+  overlaps a folder already in your library. (“Books”)" and the recovery
+  hint. Cancelling the picker changed nothing.
+- **Persistence.** After quitting and relaunching, Home listed both folders.
+- **Removal.** In Settings, Remove showed the inline "Remove from Atlas? Your
+  files stay where they are." confirmation, and confirming deleted only the
+  catalog row. A `stat` snapshot of the source tree (names, sizes, mtimes)
+  was identical before and after.
+- **Unplugged source.** A folder on an exFAT disk image was added through
+  the picker. The image ejected cleanly while Atlas was running, because
+  Atlas holds no handles on source drives. Home then showed the folder as
+  "Not connected" and kept it listed. After reattaching, it showed
+  Available again.
+- **Privacy strings.** `plutil -p Atlas.app/Contents/Info.plist` lists all
+  five usage descriptions.
+
+Not verified on macOS:
+
+- **Data root through the picker.** Picking the data root was not driven
+  manually, because keystroke delivery to the panel was unreliable on that
+  attempt. The refusal is covered by integration tests.
+- **Privacy prompt.** The live prompt for a protected folder was not
+  observed, because that would mean reading the user's real Documents
+  folder.
+- **Network share.** Adding a folder on a network share was not tried.
+
+## Manual checklist additions for Slice 0.3
+
+1. Finish onboarding to the Library folders step. Confirm the read-only text
+   appears, and that Continue stays disabled until a folder is added.
+2. Add two folders in one pick. Then pick a folder inside one of them, and
+   confirm Atlas refuses it and names the outer folder.
+3. Pick the Atlas data folder itself, and confirm it is refused.
+4. Add a folder on a USB drive, then unplug the drive. Confirm it shows "Not
+   connected". Plug it back in and confirm it shows Available.
+5. Remove a folder in Settings and confirm. Check that the folder and its
+   files are unchanged on disk.
+6. Windows: add `C:\Users\<you>\Documents\Books`, then try the same folder
+   with different capitalization, and confirm it is refused as already
+   added.
+7. Linux: add a folder whose name is not valid UTF-8, for example created
+   with `mkdir $'caf\xe9'`. Confirm it is listed with a replacement character
+   and shows Available.
+
 ## Manual checklist additions for Slice 0.2
 
 On each platform, with `ATLAS_CONFIG_DIR` set to a scratch folder for a debug

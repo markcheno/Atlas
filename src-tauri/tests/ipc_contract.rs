@@ -33,7 +33,7 @@ fn assert_not_implemented<T: std::fmt::Debug>(
 fn app_status_reports_only_true_facts() {
     let status = block_on(commands::app::get_app_status()).unwrap();
     assert_eq!(status.app_version, env!("CARGO_PKG_VERSION"));
-    assert_eq!(status.slice, "0.2");
+    assert_eq!(status.slice, "0.3");
     assert_eq!(status.arch, std::env::consts::ARCH);
     if cfg!(target_os = "macos") {
         assert_eq!(status.os, OsKind::Macos);
@@ -44,7 +44,7 @@ fn app_status_reports_only_true_facts() {
         .filter(|f| f.implemented)
         .map(|f| f.id.as_str())
         .collect();
-    assert_eq!(implemented, ["data_root"]);
+    assert_eq!(implemented, ["data_root", "source_folders"]);
     assert!(
         status
             .features
@@ -56,7 +56,7 @@ fn app_status_reports_only_true_facts() {
 
 #[test]
 fn every_stub_returns_not_implemented() {
-    use commands::{app, inventory, library, providers, sources};
+    use commands::{app, inventory, library, providers};
     let s = || "x".to_owned();
     let query = DocumentQuery {
         text: None,
@@ -80,21 +80,6 @@ fn every_stub_returns_not_implemented() {
             app::get_device_snapshot().await,
             "get_device_snapshot",
             "0.4",
-        );
-        assert_not_implemented(
-            sources::list_source_roots().await,
-            "list_source_roots",
-            "0.3",
-        );
-        assert_not_implemented(
-            sources::add_source_root(s()).await,
-            "add_source_root",
-            "0.3",
-        );
-        assert_not_implemented(
-            sources::remove_source_root(s()).await,
-            "remove_source_root",
-            "0.3",
         );
         assert_not_implemented(
             inventory::start_inventory(s()).await,

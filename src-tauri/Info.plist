@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- Merged into the app bundle's Info.plist by Tauri. Shown by macOS when
+     Atlas first reads a protected location the user added as a library
+     folder. -->
+<plist version="1.0">
+<dict>
+    <key>NSDocumentsFolderUsageDescription</key>
+    <string>Atlas reads the documents in folders you add to your library. It never changes, moves, or deletes them.</string>
+    <key>NSDownloadsFolderUsageDescription</key>
+    <string>Atlas reads the documents in folders you add to your library. It never changes, moves, or deletes them.</string>
+    <key>NSDesktopFolderUsageDescription</key>
+    <string>Atlas reads the documents in folders you add to your library. It never changes, moves, or deletes them.</string>
+    <key>NSRemovableVolumesUsageDescription</key>
+    <string>Atlas reads the documents in folders you add to your library. It never changes, moves, or deletes them.</string>
+    <key>NSNetworkVolumesUsageDescription</key>
+    <string>Atlas reads the documents in folders you add to your library. It never changes, moves, or deletes them.</string>
+</dict>
+</plist>

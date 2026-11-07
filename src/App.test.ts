@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/svelte';
+import { render, screen, waitFor, within } from '@testing-library/svelte';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import * as tauri from './test/tauriMock';
@@ -9,17 +9,28 @@ const { default: App } = await import('./App.svelte');
 const { view } = await import('./lib/stores/view.svelte');
 const { theme } = await import('./lib/stores/theme.svelte');
 const { workspace } = await import('./lib/stores/workspace.svelte');
+const { sources } = await import('./lib/stores/sources.svelte');
 
 const h1 = (name: string | RegExp) => screen.findByRole('heading', { level: 1, name });
 
-/** Fresh install: Welcome, then accept the suggested location. */
+/** Fresh install: Welcome, accept the suggested location, skip folders. */
 async function onboard() {
   const user = userEvent.setup();
   render(App);
   await user.click(await screen.findByRole('button', { name: 'Get Started' }));
   await user.click(await screen.findByRole('button', { name: 'Use this location' }));
+  await h1('Add the folders where you keep your books and papers');
+  await user.click(screen.getByRole('button', { name: 'Skip for now' }));
   await h1('What are you curious about?');
   return user;
+}
+
+function resetAll() {
+  tauri.resetHandlers();
+  view.go('loading');
+  workspace.status = null;
+  sources.clear();
+  theme.apply('system');
 }
 
 /** Relaunch with a library already open. */
@@ -32,12 +43,7 @@ async function launchOpen() {
 }
 
 describe('launch routing', () => {
-  beforeEach(() => {
-    tauri.resetHandlers();
-    view.go('loading');
-    workspace.status = null;
-    theme.apply('system');
-  });
+  beforeEach(resetAll);
 
   it('first run opens on Welcome with one action and no sign-in or AI gate', async () => {
     render(App);
@@ -91,12 +97,7 @@ describe('launch routing', () => {
 });
 
 describe('choosing the data location', () => {
-  beforeEach(() => {
-    tauri.resetHandlers();
-    view.go('loading');
-    workspace.status = null;
-    theme.apply('system');
-  });
+  beforeEach(resetAll);
 
   async function toDataLocation() {
     const user = userEvent.setup();
@@ -182,12 +183,7 @@ describe('choosing the data location', () => {
 });
 
 describe('main shell', () => {
-  beforeEach(() => {
-    tauri.resetHandlers();
-    view.go('loading');
-    workspace.status = null;
-    theme.apply('system');
-  });
+  beforeEach(resetAll);
 
   it('shows navigation and status after onboarding', async () => {
     await onboard();
@@ -239,5 +235,127 @@ describe('main shell', () => {
     expect(screen.getByText(/does not move your current one/)).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Back' }));
     await h1('Settings');
+  });
+});
+
+describe('library folders', () => {
+  beforeEach(resetAll);
+
+  async function toFoldersStep() {
+    const user = userEvent.setup();
+    render(App);
+    await user.click(await screen.findByRole('button', { name: 'Get Started' }));
+    await user.click(await screen.findByRole('button', { name: 'Use this location' }));
+    await h1('Add the folders where you keep your books and papers');
+    return user;
+  }
+
+  it('onboarding asks for folders with the read-only promise; Continue needs one', async () => {
+    await toFoldersStep();
+    expect(screen.getByText(/never moves, renames, or changes your files/)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Continue' })).toBeDisabled();
+  });
+
+  it('adds picked folders and explains each refusal', async () => {
+    tauri.pickerQueue.push({
+      added: [tauri.sourceRoot()],
+      rejected: [
+        {
+          displayPath: '/Users/test/Books/Astronomy',
+          error: tauri.apiError(
+            'source_overlaps',
+            'That folder overlaps a folder already in your library.',
+            'Keep the outer folder, or remove it first and add the folders inside it separately.',
+          ),
+          conflictingRootId: 'root-books',
+        },
+      ],
+    });
+    const user = await toFoldersStep();
+    await user.click(screen.getByRole('button', { name: 'Add folders…' }));
+    const list = await screen.findByRole('list', { name: 'Library folders' });
+    expect(within(list).getByText('Books')).toBeInTheDocument();
+    expect(within(list).getByText('Available')).toBeInTheDocument();
+    expect(screen.getByText('Not added: Astronomy')).toBeInTheDocument();
+    expect(
+      screen.getByText(/overlaps a folder already in your library\. \(“Books”\)/),
+    ).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Continue' }));
+    await h1('What are you curious about?');
+    expect(screen.getByText('/Users/test/Books')).toBeInTheDocument();
+  });
+
+  it('cancelling the picker changes nothing', async () => {
+    const user = await toFoldersStep();
+    await user.click(screen.getByRole('button', { name: 'Add folders…' }));
+    expect(tauri.invoke).toHaveBeenCalledWith('pick_and_add_source_roots', undefined);
+    expect(screen.queryByRole('list', { name: 'Library folders' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Continue' })).toBeDisabled();
+  });
+
+  it('shows status for unplugged, permission-blocked, nested, and data-root folders', async () => {
+    tauri.setHandler('list_source_roots', () => [
+      tauri.sourceRoot({ id: 'outer', displayPath: '/Volumes/Archive/Library' }),
+      tauri.sourceRoot({ id: 'gone', displayPath: '/Volumes/Old/Papers', status: 'unavailable' }),
+      tauri.sourceRoot({
+        id: 'tcc',
+        displayPath: '/Users/test/Documents/Scans',
+        status: 'no_access',
+      }),
+      tauri.sourceRoot({
+        id: 'inner',
+        displayPath: '/Volumes/Archive/Library/Math',
+        nestedInRootId: 'outer',
+      }),
+      tauri.sourceRoot({ id: 'home', displayPath: '/Users/test', containsDataRoot: true }),
+    ]);
+    await launchOpen();
+    expect(screen.getByText('Not connected')).toBeInTheDocument();
+    expect(screen.getByText('Atlas needs permission')).toBeInTheDocument();
+    expect(screen.getByText('Inside “Library”')).toBeInTheDocument();
+    expect(screen.getByText(/own data folder inside it will be skipped/)).toBeInTheDocument();
+  });
+
+  it('removing a folder needs confirmation and keeps files', async () => {
+    tauri.setHandler('list_source_roots', () => [tauri.sourceRoot()]);
+    const user = await launchOpen();
+    await user.click(screen.getByRole('button', { name: 'Settings' }));
+    await h1('Settings');
+    await user.click(await screen.findByRole('button', { name: 'Remove Books from Atlas' }));
+    expect(
+      screen.getByText('Remove from Atlas? Your files stay where they are.'),
+    ).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Keep' }));
+    expect(tauri.invoke).not.toHaveBeenCalledWith('remove_source_root', expect.anything());
+
+    await user.click(screen.getByRole('button', { name: 'Remove Books from Atlas' }));
+    tauri.setHandler('list_source_roots', () => []);
+    await user.click(screen.getByRole('button', { name: 'Remove' }));
+    expect(tauri.invoke).toHaveBeenCalledWith('remove_source_root', { id: 'root-books' });
+    expect(
+      await screen.findAllByText('Choose a folder to start discovering your library.'),
+    ).not.toHaveLength(0);
+  });
+
+  it('Library explains that cataloging comes next when folders exist', async () => {
+    tauri.setHandler('list_source_roots', () => [tauri.sourceRoot()]);
+    const user = await launchOpen();
+    await user.click(screen.getByRole('button', { name: 'Library' }));
+    expect(
+      await screen.findByText(/knows about 1\s+folder but has not cataloged/),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/planned for Phase 0 slice 0\.5/)).toBeInTheDocument();
+    expect(screen.queryByRole('table')).not.toBeInTheDocument();
+  });
+
+  it('switching to an existing library with folders skips the folders step', async () => {
+    tauri.setHandler('list_source_roots', () => [tauri.sourceRoot()]);
+    tauri.setHandler('inspect_data_root', () => tauri.candidate({ kind: 'existing_library' }));
+    const user = userEvent.setup();
+    render(App);
+    await user.click(await screen.findByRole('button', { name: 'Get Started' }));
+    await user.click(await screen.findByRole('button', { name: 'Open this library' }));
+    await h1('What are you curious about?');
   });
 });

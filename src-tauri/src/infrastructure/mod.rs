@@ -3,4 +3,5 @@
 
 pub mod clock;
 pub mod fsutil;
+pub mod native_path;
 pub mod volume;

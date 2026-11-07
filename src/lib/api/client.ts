@@ -8,6 +8,7 @@
  * literal below.
  */
 import { invoke, isTauri } from '@tauri-apps/api/core';
+import type { AddSourceRootsResult } from './bindings/AddSourceRootsResult';
 import type { AppStatus } from './bindings/AppStatus';
 import type { ConnectionResult } from './bindings/ConnectionResult';
 import type { ConnectionTestTarget } from './bindings/ConnectionTestTarget';
@@ -109,6 +110,8 @@ export const atlas = {
   listSourceRoots: () => call<SourceRoot[]>('list_source_roots'),
   addSourceRoot: (path: string) => call<SourceRoot>('add_source_root', { path }),
   removeSourceRoot: (id: string) => call<void>('remove_source_root', { id }),
+  /** Native multi-folder picker; adds each chosen folder. Empty when cancelled. */
+  pickAndAddSourceRoots: () => call<AddSourceRootsResult>('pick_and_add_source_roots'),
 
   startInventory: (sourceRootId: string) => call<string>('start_inventory', { sourceRootId }),
   pauseJob: (jobId: string) => call<void>('pause_job', { jobId }),

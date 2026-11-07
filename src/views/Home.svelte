@@ -1,5 +1,5 @@
 <script lang="ts">
-  import NotImplementedNotice from '../lib/components/NotImplementedNotice.svelte';
+  import LibraryFoldersPanel from '../lib/components/LibraryFoldersPanel.svelte';
   import ViewHeading from '../lib/components/ViewHeading.svelte';
 </script>
 
@@ -22,8 +22,7 @@
 
   <section aria-labelledby="home-library">
     <h2 id="home-library">Your library</h2>
-    <p class="muted">Choose a folder to start discovering your library.</p>
-    <NotImplementedNotice title="Adding library folders" plannedSlice="0.3" />
+    <LibraryFoldersPanel />
   </section>
 </div>
 

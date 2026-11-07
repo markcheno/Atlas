@@ -6,6 +6,7 @@
 //! 0.5, read-only query connections in 0.6.
 
 pub mod migrations;
+pub mod repository;
 pub mod writer;
 
 use std::path::Path;

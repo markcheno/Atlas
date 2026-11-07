@@ -37,6 +37,18 @@ pub enum ErrorCode {
     FolderNotEmpty,
     /// The operation needs an open data root and none is open.
     NoDataRoot,
+    /// The chosen library folder does not exist.
+    SourceMissing,
+    SourceNotAFolder,
+    /// Atlas lacks permission to read the folder.
+    SourceUnreadable,
+    /// The folder is the Atlas data root or inside it.
+    SourceIsDataRoot,
+    SourceAlreadyAdded,
+    /// The folder is inside, or contains, a folder already in the library.
+    SourceOverlaps,
+    /// No library folder has that ID.
+    SourceNotFound,
     IoError,
     DatabaseError,
     Internal,
@@ -99,6 +111,20 @@ pub enum AtlasError {
     FolderNotEmpty,
     #[error("No Atlas library is open.")]
     NoDataRoot,
+    #[error("That folder could not be found.")]
+    SourceMissing,
+    #[error("That is a file, not a folder.")]
+    SourceNotAFolder,
+    #[error("Atlas does not have permission to read that folder.")]
+    SourceUnreadable,
+    #[error("That folder is where Atlas keeps its own data, not your documents.")]
+    SourceIsDataRoot,
+    #[error("That folder is already in your library.")]
+    SourceAlreadyAdded { existing_root_id: Option<String> },
+    #[error("That folder overlaps a folder already in your library.")]
+    SourceOverlaps { conflicting_root_id: String },
+    #[error("That library folder no longer exists in Atlas.")]
+    SourceNotFound,
     #[error("Atlas could not {context} ({kind}).", kind = source.kind())]
     Io {
         context: &'static str,
@@ -131,6 +157,17 @@ impl AtlasError {
         move |source| Self::Database { context, source }
     }
 
+    /// The existing library folder an add conflicted with, if any.
+    pub fn conflicting_root_id(&self) -> Option<String> {
+        match self {
+            Self::SourceOverlaps {
+                conflicting_root_id,
+            } => Some(conflicting_root_id.clone()),
+            Self::SourceAlreadyAdded { existing_root_id } => existing_root_id.clone(),
+            _ => None,
+        }
+    }
+
     pub fn code(&self) -> ErrorCode {
         match self {
             Self::NotImplemented { .. } => ErrorCode::NotImplemented,
@@ -147,6 +184,13 @@ impl AtlasError {
             Self::DataRootNested => ErrorCode::DataRootNested,
             Self::FolderNotEmpty => ErrorCode::FolderNotEmpty,
             Self::NoDataRoot => ErrorCode::NoDataRoot,
+            Self::SourceMissing => ErrorCode::SourceMissing,
+            Self::SourceNotAFolder => ErrorCode::SourceNotAFolder,
+            Self::SourceUnreadable => ErrorCode::SourceUnreadable,
+            Self::SourceIsDataRoot => ErrorCode::SourceIsDataRoot,
+            Self::SourceAlreadyAdded { .. } => ErrorCode::SourceAlreadyAdded,
+            Self::SourceOverlaps { .. } => ErrorCode::SourceOverlaps,
+            Self::SourceNotFound => ErrorCode::SourceNotFound,
             Self::Io { .. } => ErrorCode::IoError,
             Self::Database { .. } => ErrorCode::DatabaseError,
             Self::Internal(_) => ErrorCode::Internal,
@@ -179,6 +223,19 @@ impl AtlasError {
             Self::DataRootNested => "Choose a folder outside your existing Atlas library.",
             Self::FolderNotEmpty => "Choose an empty folder, or let Atlas create one inside it.",
             Self::NoDataRoot => "Choose where Atlas should keep its library.",
+            Self::SourceMissing => {
+                "Check that the drive is connected, then choose the folder again."
+            }
+            Self::SourceNotAFolder => "Choose a folder that contains your documents.",
+            Self::SourceUnreadable => {
+                "Allow Atlas to read this folder in your system privacy settings, or choose another folder."
+            }
+            Self::SourceIsDataRoot => "Choose the folders where you keep your books and papers.",
+            Self::SourceAlreadyAdded { .. } => "Nothing to do; it is already listed.",
+            Self::SourceOverlaps { .. } => {
+                "Keep the outer folder, or remove it first and add the folders inside it separately."
+            }
+            Self::SourceNotFound => "Refresh the list of library folders.",
             Self::Io { .. } | Self::Database { .. } => {
                 "Try again. If this keeps happening, check the drive for problems."
             }

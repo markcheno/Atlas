@@ -147,6 +147,11 @@ impl Workspace {
         }
     }
 
+    /// The open root, or `NoDataRoot`.
+    pub fn require_open(&self) -> AtlasResult<&OpenRoot> {
+        self.open_root().ok_or(AtlasError::NoDataRoot)
+    }
+
     pub fn default_root(&self) -> String {
         self.config.default_root.to_string_lossy().into_owned()
     }

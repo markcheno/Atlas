@@ -2,6 +2,7 @@
   import { onMount } from 'svelte';
   import { atlas } from '../lib/api/client';
   import type { DataRootCandidate } from '../lib/api/bindings/DataRootCandidate';
+  import LibraryFoldersPanel from '../lib/components/LibraryFoldersPanel.svelte';
   import NotImplementedNotice from '../lib/components/NotImplementedNotice.svelte';
   import ProblemNotice from '../lib/components/ProblemNotice.svelte';
   import ViewHeading from '../lib/components/ViewHeading.svelte';
@@ -11,7 +12,6 @@
   import { workspace } from '../lib/stores/workspace.svelte';
 
   const PENDING_SECTIONS = [
-    { id: 'folders', title: 'Library Folders', slice: '0.3' },
     { id: 'ai', title: 'AI Models', slice: '0.7' },
     { id: 'performance', title: 'Performance & Battery', slice: '0.4' },
   ] as const;
@@ -55,6 +55,18 @@
         message={theme.saveError.message}
         recovery={theme.saveError.recovery}
       />
+    {/if}
+  </section>
+
+  <section aria-labelledby="settings-folders">
+    <h2 id="settings-folders">Library Folders</h2>
+    {#if workspace.isOpen}
+      <p class="muted small">
+        Atlas only reads these folders. Removing one from Atlas never changes or deletes its files.
+      </p>
+      <LibraryFoldersPanel removable />
+    {:else}
+      <p class="muted">No Atlas library is open.</p>
     {/if}
   </section>
 

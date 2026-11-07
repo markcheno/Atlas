@@ -16,19 +16,34 @@ use std::time::SystemTime;
 
 use super::dto::{
     ConnectionResult, DeviceSnapshot, DocumentPage, DocumentQuery, FileInstance, FileType,
-    ProviderKind, SourceRoot, VolumeKind,
+    ProviderKind, VolumeKind,
 };
 use crate::error::AtlasResult;
 
-/// Persistence for source roots and file instances (SQLite, Slice 0.2/0.3).
-/// Scan-session and frontier methods are added with the frontier schema in
-/// Slice 0.5. All writes go through one dedicated writer connection.
+/// A stored source root. `path_bytes` is the platform-tagged native path
+/// (see `infrastructure::native_path`); it never passes through `String`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SourceRootRecord {
+    pub id: String,
+    pub workspace_id: String,
+    pub path_bytes: Vec<u8>,
+    pub display_path: String,
+    pub created_at: String,
+    pub last_scan_at: Option<String>,
+}
+
+/// Catalog persistence (SQLite adapter: `services::catalog::repository`).
+/// Source roots arrived in Slice 0.3; scan sessions and the directory
+/// frontier are added in 0.5, and document queries are implemented in 0.6.
+/// All writes go through the one dedicated writer connection.
 pub trait CatalogRepository {
-    fn list_source_roots(&self) -> AtlasResult<Vec<SourceRoot>>;
-    /// `path` is the native path; it is stored as bytes, never via `String`.
-    fn add_source_root(&self, path: &Path) -> AtlasResult<SourceRoot>;
-    /// Removes the root from Atlas only. Never touches files on disk.
-    fn remove_source_root(&self, id: &str) -> AtlasResult<()>;
+    /// Ordered by display path.
+    fn list_source_root_records(&self) -> AtlasResult<Vec<SourceRootRecord>>;
+    /// Fails with `SourceAlreadyAdded` if the same native path is stored.
+    fn insert_source_root(&self, record: SourceRootRecord) -> AtlasResult<()>;
+    /// Removes the record only; never touches files on disk. Returns
+    /// whether a record existed.
+    fn delete_source_root(&self, id: &str) -> AtlasResult<bool>;
     fn list_documents(&self, query: &DocumentQuery) -> AtlasResult<DocumentPage>;
     fn file_instance(&self, id: &str) -> AtlasResult<Option<FileInstance>>;
 }

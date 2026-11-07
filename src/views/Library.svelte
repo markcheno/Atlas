@@ -3,6 +3,7 @@
   import { atlas, AtlasApiError, toApiError } from '../lib/api/client';
   import type { DocumentPage } from '../lib/api/bindings/DocumentPage';
   import NotImplementedNotice from '../lib/components/NotImplementedNotice.svelte';
+  import { sources } from '../lib/stores/sources.svelte';
   import ViewHeading from '../lib/components/ViewHeading.svelte';
 
   type LoadState =
@@ -40,8 +41,16 @@
     <p class="muted" role="status">Loading library…</p>
   {:else if load.kind === 'error'}
     <div class="empty">
-      <p>Choose a folder to start discovering your library.</p>
-      <NotImplementedNotice title="Cataloging and browsing files" error={load.error} />
+      {#if sources.roots.length === 0}
+        <p>Choose a folder to start discovering your library.</p>
+      {:else}
+        <p>
+          Atlas knows about {sources.roots.length}
+          {sources.roots.length === 1 ? 'folder' : 'folders'} but has not cataloged their files yet.
+        </p>
+        <NotImplementedNotice title="Cataloging your folders" plannedSlice="0.5" />
+      {/if}
+      <NotImplementedNotice title="Browsing cataloged files" error={load.error} />
     </div>
   {:else if load.page.items.length === 0}
     <div class="empty">

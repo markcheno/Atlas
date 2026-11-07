@@ -1,6 +1,6 @@
 # Atlas architecture
 
-Status: Phase 0, Slice 0.2. This document describes what is built, and marks
+Status: Phase 0, Slice 0.3. This document describes what is built, and marks
 what is only planned. Decisions with lasting consequences are recorded as
 ADRs in [adr/](adr/).
 
@@ -36,7 +36,8 @@ call the same service functions. See
 ## IPC contract
 
 Every Phase 0 command (spec section 9) is registered. Slice 0.2 added the
-data-root and settings commands.
+data-root and settings commands; Slice 0.3 implemented the source-root
+commands and added the native multi-folder picker.
 
 | Command group | Commands | Delivered by |
 | --- | --- | --- |
@@ -44,7 +45,7 @@ data-root and settings commands.
 | Data root | `get_data_root_status`, `get_default_data_root`, `pick_folder`, `inspect_data_root`, `choose_data_root`, `open_data_root` | **0.2 (working)** |
 | Settings | `get_settings`, `update_settings` | **0.2 (working)** |
 | Device | `get_device_snapshot` | 0.4 |
-| Source roots | `list_source_roots`, `add_source_root`, `remove_source_root` | 0.3 |
+| Source roots | `list_source_roots`, `add_source_root`, `remove_source_root`, `pick_and_add_source_roots` | **0.3 (working)** |
 | Inventory jobs | `start_inventory`, `pause_job`, `resume_job`, `cancel_job`, `get_inventory_status` | 0.5 |
 | Library | `list_documents`, `open_original`, `reveal_original` | 0.6 |
 | Providers | `list_provider_profiles`, `save_provider_profile`, `test_provider_connection` | 0.7 |
@@ -88,7 +89,7 @@ section 9, abstraction budget). They are defined in
 
 | Trait | Purpose | First adapter |
 | --- | --- | --- |
-| `CatalogRepository` | Source roots, file instances, later scan sessions | 0.3 / 0.5 |
+| `CatalogRepository` | Source roots, file instances, later scan sessions | **0.3 (`SqliteCatalog`: source roots)**; 0.5 / 0.6 |
 | `InventorySource` | Streamed, read-only directory listing | 0.5 |
 | `VolumeInspector` | Free space, filesystem type, network or cloud-synced | **0.2 (`OsVolumeInspector`)** |
 | `ResourceMonitor` | Device snapshot for the data-root volume | 0.4 |
@@ -169,6 +170,37 @@ Implemented in `src-tauri/src/services/workspace/`. Design rationale is in
   written, so a newer catalog is refused untouched.
 - **Data-root paths** must be absolute and valid Unicode. Source paths in
   later slices are stored as native bytes and are not restricted this way.
+
+## Library folders (source roots)
+
+Implemented in `src-tauri/src/services/sources/`; rationale in
+[ADR 0003](adr/0003-source-root-identity-and-overlap.md).
+
+- **Read-only.** The service only calls `metadata`, `read_dir` (dropped
+  after the first call), `canonicalize`, and read-only directory opens for
+  identity checks. Integration tests snapshot names, sizes and mtimes of a
+  source tree before and after add, list and remove.
+- **Storage.** `source_roots` (migration 0002) keeps the canonical path as
+  platform-tagged native bytes (`infrastructure/native_path.rs`) plus a
+  lossy display string. There is no stored status column: availability is
+  probed live each time the list is shown, with a 2 second budget per call
+  so a hung network mount cannot freeze the UI.
+- **Rules on add.** The folder must exist and be readable. The data root and
+  anything inside it are refused; a folder containing the data root is
+  allowed and flagged (`containsDataRoot`), and inventory (0.5) will skip the
+  data root's subtree. Duplicates and folders inside or containing an
+  existing root are refused, comparing filesystem identity with `same-file`
+  so symlinks and case-insensitive spellings are caught.
+- **Existing overlaps** (possible only in imported catalogs) resolve
+  deterministically: the outermost root owns the subtree, and inner roots
+  report `nestedInRootId`. **Slice 0.5 must scan only roots without
+  `nestedInRootId`**, attributing every file to the outermost root.
+- **Picker.** `pick_and_add_source_roots` runs the native multi-folder
+  picker in Rust, so native paths never cross IPC and folder names that are
+  not valid Unicode still work. `add_source_root(path)` accepts UTF-8 paths.
+- **macOS privacy.** `src-tauri/Info.plist` supplies the usage strings macOS
+  shows before Atlas first reads Documents, Desktop, Downloads, removable
+  or network volumes.
 
 The webview also creates its own website-data and cache folders, on macOS
 `~/Library/WebKit/<bundle>` and `~/Library/Caches/<bundle>`. These are
