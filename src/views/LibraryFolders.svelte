@@ -21,11 +21,11 @@
         class="button"
         class:primary={sources.roots.length > 0}
         disabled={sources.roots.length === 0}
-        onclick={() => view.go('home')}
+        onclick={() => view.go('device-check')}
       >
         Continue
       </button>
-      <button type="button" class="button quiet" onclick={() => view.go('home')}>
+      <button type="button" class="button quiet" onclick={() => view.go('device-check')}>
         Skip for now
       </button>
     </div>

@@ -138,6 +138,68 @@ Not verified on macOS:
   folder.
 - **Network share.** Adding a folder on a network share was not tried.
 
+## Slice 0.4
+
+| Platform | Build | Device check walkthrough | Evidence |
+| --- | --- | --- | --- |
+| macOS arm64 (laptop, on battery) | ✅ | ✅ real readings plus five simulated states | Below |
+| Windows x64 | ❌ unverified | ❌ unverified | Battery probe, desktop detection, and unknown pressure and thermal untested |
+| Linux x64 | ❌ unverified | ❌ unverified | The PSI memory-pressure parser is unit-tested only on Linux |
+
+### macOS arm64, Slice 0.4 (2026-11-07)
+
+All runs used a scratch `ATLAS_CONFIG_DIR`.
+
+- `just ci` passed. That covers 82 Rust unit tests (including the P0-10,
+  P0-11 and P0-12 policy tests), 3 device integration tests, 4 contract
+  tests, 15 source tests, 19 data-root tests, and 40 Vitest tests.
+- **Real readings.** These were compared with OS tools:
+
+  | Reading | Atlas | OS tool |
+  | --- | --- | --- |
+  | Memory | 64 GB | `sysctl hw.memsize` 68,719,476,736 |
+  | Processor | 18 cores | `sysctl hw.logicalcpu` 18 |
+  | Data drive | 710 GB free of 2.0 TB | `df -k` 693,025,504 KiB available of 1,948,404,040 |
+  | Power | On battery · 72% | `pmset -g batt` 72%, discharging |
+
+  The recommendation said the computer "can likely run AI models locally".
+  The on-battery note and the provisional caveat were shown.
+- **Live policy.** Settings › Performance & Battery read: "When Atlas
+  catalogs your folders (coming in slice 0.5), it will run slowly because
+  this computer is on battery."
+- **Simulated states.** Each was launched with `just dev-simulate`:
+
+  | Simulation | Power shown | Policy sentence |
+  | --- | --- | --- |
+  | `battery:18` | On battery · 18% | pause because the battery is at 18%. It resumes at 25% or when you plug in. |
+  | `battery:26` | On battery · 26% | run slowly because this computer is on battery. |
+  | `unknown` | Unknown | run slowly because Atlas can't tell whether this computer is plugged in. |
+  | `desktop` | No battery (desktop) | run normally. |
+  | `ac 1000000` | Plugged in · 100%, "1.0 MB free of 2.0 TB" | pause because the drive holding Atlas's data is nearly full. It resumes when at least 10.7 GB is free. |
+
+Not verified:
+
+- **Real unplug and replug.** No physical power change was made. The
+  hysteresis sequence (19, 20, 21, 24, then 25%) is unit-tested, because
+  readings within one simulated launch are constant.
+- **Thermal and memory pressure transitions.** Only the nominal and normal
+  readings were observed.
+- **macOS "unknown" while holding charge on AC.** Not observed; documented
+  in ADR 0004.
+
+## Manual checklist additions for Slice 0.4
+
+1. Reach the Device check step during onboarding. Compare memory, cores,
+   free space, and power with the OS tools: Activity Monitor or Task Manager,
+   and `df` or Explorer.
+2. On a laptop, unplug the power, open Settings › Performance & Battery, and
+   wait up to 30 seconds. Confirm it says it will "run slowly because this
+   computer is on battery". Plug in again and confirm it says "run normally".
+3. On a desktop with no battery, confirm Power reads "No battery (desktop)"
+   and the policy says "run normally".
+4. Debug build: run `just dev-simulate battery:18`, then `unknown`, then
+   `ac 1000000`. Confirm the pause, slow, and low-space sentences shown above.
+
 ## Manual checklist additions for Slice 0.3
 
 1. Finish onboarding to the Library folders step. Confirm the read-only text

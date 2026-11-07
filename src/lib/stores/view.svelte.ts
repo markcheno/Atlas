@@ -8,6 +8,7 @@ export type ViewId =
   | 'welcome'
   | 'data-location'
   | 'library-folders'
+  | 'device-check'
   | 'unavailable'
   | 'home'
   | 'library'

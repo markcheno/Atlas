@@ -1,18 +1,33 @@
 //! Process-wide state managed by Tauri and shared by commands.
 
+use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 
+use crate::domain::dto::{DeviceCheck, DeviceSnapshot};
+use crate::domain::traits::ResourceMonitor;
 use crate::error::{AtlasError, AtlasResult};
+use crate::services::scheduler::policy::ResourcePolicy;
+use crate::services::system;
 use crate::services::workspace::Workspace;
+
+pub struct Resources {
+    pub monitor: Box<dyn ResourceMonitor>,
+    pub policy: ResourcePolicy,
+}
 
 pub struct AppState {
     pub workspace: Arc<Mutex<Workspace>>,
+    pub resources: Arc<Mutex<Resources>>,
 }
 
 impl AppState {
-    pub fn new(workspace: Workspace) -> Self {
+    pub fn new(workspace: Workspace, monitor: Box<dyn ResourceMonitor>) -> Self {
         Self {
             workspace: Arc::new(Mutex::new(workspace)),
+            resources: Arc::new(Mutex::new(Resources {
+                monitor,
+                policy: ResourcePolicy::new(),
+            })),
         }
     }
 
@@ -30,6 +45,42 @@ impl AppState {
                 .lock()
                 .map_err(|_| AtlasError::Internal("workspace state is unavailable"))?;
             f(&mut guard)
+        })
+        .await
+        .map_err(|_| AtlasError::Internal("a background task failed"))?
+    }
+
+    async fn open_root_path(&self) -> AtlasResult<Option<PathBuf>> {
+        self.with_workspace(|ws| Ok(ws.open_root().map(|r| r.path().to_path_buf())))
+            .await
+    }
+
+    pub async fn device_snapshot(&self) -> AtlasResult<DeviceSnapshot> {
+        let root = self.open_root_path().await?;
+        let resources = Arc::clone(&self.resources);
+        tauri::async_runtime::spawn_blocking(move || {
+            let guard = resources
+                .lock()
+                .map_err(|_| AtlasError::Internal("resource state is unavailable"))?;
+            Ok(guard.monitor.snapshot(root.as_deref()))
+        })
+        .await
+        .map_err(|_| AtlasError::Internal("a background task failed"))?
+    }
+
+    pub async fn device_check(&self) -> AtlasResult<DeviceCheck> {
+        let root = self.open_root_path().await?;
+        let resources = Arc::clone(&self.resources);
+        tauri::async_runtime::spawn_blocking(move || {
+            let mut guard = resources
+                .lock()
+                .map_err(|_| AtlasError::Internal("resource state is unavailable"))?;
+            let Resources { monitor, policy } = &mut *guard;
+            Ok(system::device_check(
+                monitor.as_ref(),
+                policy,
+                root.as_deref(),
+            ))
         })
         .await
         .map_err(|_| AtlasError::Internal("a background task failed"))?

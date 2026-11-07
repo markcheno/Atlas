@@ -4,10 +4,12 @@ Atlas is a local-first personal AI librarian for large private collections of
 PDFs, EPUBs, books and papers. *Collect freely. Organize minimally. Retrieve
 intelligently.*
 
-**Status: Phase 0, Slice 0.3.** Atlas launches, asks where to keep its
-library, and asks which folders hold your books and papers. It remembers both,
-shows whether each folder is currently available, and recovers when a drive
-is unplugged or another Atlas has the library open. It only checks that your
+**Status: Phase 0, Slice 0.4.** Atlas launches, asks where to keep its
+library and which folders hold your books and papers, and checks this
+computer's memory, storage, and power. It remembers your choices, shows
+whether each folder is currently available, explains how it will pace
+background work on battery or a full drive, and recovers when a drive is
+unplugged or another Atlas has the library open. It only checks that your
 folders exist and are readable; it does not yet catalog or open your
 documents, and it makes no network requests.
 
@@ -16,7 +18,7 @@ documents, and it makes no network requests.
 | App shell, navigation, light/dark/system theme | Working |
 | Atlas data location, settings persistence | Working |
 | Library folders | Working |
-| Device check, low-space and battery policy | Slice 0.4 |
+| Device check, low-space and battery policy | Working |
 | Background cataloging (pause, resume, recovery) | Slice 0.5 |
 | Browse, filename search, open and reveal originals | Slice 0.6 |
 | AI endpoint connection test | Slice 0.7 |
@@ -52,6 +54,7 @@ pnpm script, so pnpm alone also works.
 ```sh
 just setup    # or: rustup toolchain install && pnpm install --frozen-lockfile
 just dev      # or: pnpm tauri dev
+just dev-simulate battery:18   # debug build with simulated power (ac, battery:<pct>, unknown, desktop)
 ```
 
 `just ui` (`pnpm dev`) serves only the UI in a browser for layout work; native

@@ -1,6 +1,6 @@
 # Atlas architecture
 
-Status: Phase 0, Slice 0.3. This document describes what is built, and marks
+Status: Phase 0, Slice 0.4. This document describes what is built, and marks
 what is only planned. Decisions with lasting consequences are recorded as
 ADRs in [adr/](adr/).
 
@@ -44,7 +44,7 @@ commands and added the native multi-folder picker.
 | App | `get_app_status` | **0.1 (working)** |
 | Data root | `get_data_root_status`, `get_default_data_root`, `pick_folder`, `inspect_data_root`, `choose_data_root`, `open_data_root` | **0.2 (working)** |
 | Settings | `get_settings`, `update_settings` | **0.2 (working)** |
-| Device | `get_device_snapshot` | 0.4 |
+| Device | `get_device_snapshot`, `get_device_check` | **0.4 (working)** |
 | Source roots | `list_source_roots`, `add_source_root`, `remove_source_root`, `pick_and_add_source_roots` | **0.3 (working)** |
 | Inventory jobs | `start_inventory`, `pause_job`, `resume_job`, `cancel_job`, `get_inventory_status` | 0.5 |
 | Library | `list_documents`, `open_original`, `reveal_original` | 0.6 |
@@ -92,7 +92,7 @@ section 9, abstraction budget). They are defined in
 | `CatalogRepository` | Source roots, file instances, later scan sessions | **0.3 (`SqliteCatalog`: source roots)**; 0.5 / 0.6 |
 | `InventorySource` | Streamed, read-only directory listing | 0.5 |
 | `VolumeInspector` | Free space, filesystem type, network or cloud-synced | **0.2 (`OsVolumeInspector`)** |
-| `ResourceMonitor` | Device snapshot for the data-root volume | 0.4 |
+| `ResourceMonitor` | Device snapshot for the data-root volume | **0.4 (`OsResourceMonitor`, `SimulatedMonitor`)** |
 | `ModelProvider` | Endpoint probe and model listing | 0.7 |
 | `SourceOpener` | OS-native open and reveal | 0.6 |
 | `DocumentProcessor` | Reserved name for Phase 1 extraction | Phase 1 |
@@ -201,6 +201,34 @@ Implemented in `src-tauri/src/services/sources/`; rationale in
 - **macOS privacy.** `src-tauri/Info.plist` supplies the usage strings macOS
   shows before Atlas first reads Documents, Desktop, Downloads, removable
   or network volumes.
+
+## Device check and resource policy
+
+Rationale in [ADR 0004](adr/0004-resource-policy.md).
+
+- **Probe** (`infrastructure/system_probe.rs`). Memory comes from `sysinfo`,
+  cores from `available_parallelism`, the data drive from
+  `OsVolumeInspector`, and power from `starship-battery`. When no batteries
+  are found the computer is treated as a desktop on AC; when the battery
+  probe fails, power is unknown. Memory pressure comes from the macOS
+  `kern.memorystatus_vm_pressure_level` sysctl or Linux PSI. Thermal state
+  comes from macOS `NSProcessInfo.thermalState`. Windows memory pressure and
+  thermal state, and Linux thermal state, are reported as unknown. Each
+  sub-probe fails independently, and a sample takes well under 500 ms.
+- **Policy** (`services/scheduler/policy.rs`) uses a first-match table. It
+  pauses for an unreachable data drive, low space, critical pressure, or
+  battery at or below 20% (resuming at 25% or on AC). It runs slowly on
+  battery, with unknown power, or under elevated pressure, and runs normally
+  otherwise. Rates are 100 and 20 metadata operations per second, as
+  starting values.
+- **Assessment** (`services/system/assessment.rs`) maps memory to library and
+  local-AI fitness at 8, 16 and 32 GiB, plus note codes. The UI owns the
+  wording, in `src/lib/deviceCopy.ts`.
+- **Sampling** is on demand: `get_device_check`, the Device check screen, and
+  Settings every 30 seconds while it is open. The 0.5 scan loop samples
+  before each batch.
+- **Simulation:** debug builds honor `ATLAS_SIMULATE_POWER` and
+  `ATLAS_SIMULATE_FREE_BYTES`, exposed as `just dev-simulate`.
 
 The webview also creates its own website-data and cache folders, on macOS
 `~/Library/WebKit/<bundle>` and `~/Library/Caches/<bundle>`. These are

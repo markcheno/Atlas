@@ -17,6 +17,7 @@ use std::sync::Arc;
 
 use tauri::Manager;
 
+use infrastructure::system_probe::{OsResourceMonitor, SimulatedMonitor, Simulation};
 use infrastructure::volume::OsVolumeInspector;
 use services::workspace::{Workspace, WorkspaceConfig, layout};
 use state::AppState;
@@ -47,15 +48,22 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .setup(|app| {
             let config = workspace_config(app.handle())?;
-            let mut workspace = Workspace::new(config, Arc::new(OsVolumeInspector));
+            let volumes = Arc::new(OsVolumeInspector);
+            let mut workspace = Workspace::new(config, volumes.clone());
             // Reopens the remembered root; problems become status, never a crash.
             workspace.startup();
-            app.manage(AppState::new(workspace));
+            // Debug builds may simulate power and free space for demos.
+            let monitor = SimulatedMonitor {
+                inner: OsResourceMonitor::new(volumes),
+                simulation: Simulation::from_env(),
+            };
+            app.manage(AppState::new(workspace, Box::new(monitor)));
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
             commands::app::get_app_status,
             commands::app::get_device_snapshot,
+            commands::app::get_device_check,
             commands::workspace::get_data_root_status,
             commands::workspace::get_default_data_root,
             commands::workspace::pick_folder,

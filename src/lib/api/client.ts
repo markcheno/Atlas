@@ -13,6 +13,7 @@ import type { AppStatus } from './bindings/AppStatus';
 import type { ConnectionResult } from './bindings/ConnectionResult';
 import type { ConnectionTestTarget } from './bindings/ConnectionTestTarget';
 import type { DataRootCandidate } from './bindings/DataRootCandidate';
+import type { DeviceCheck } from './bindings/DeviceCheck';
 import type { DataRootStatus } from './bindings/DataRootStatus';
 import type { DeviceSnapshot } from './bindings/DeviceSnapshot';
 import type { DocumentPage } from './bindings/DocumentPage';
@@ -95,6 +96,7 @@ async function call<T>(command: string, args?: Record<string, unknown>): Promise
 export const atlas = {
   getAppStatus: () => call<AppStatus>('get_app_status'),
   getDeviceSnapshot: () => call<DeviceSnapshot>('get_device_snapshot'),
+  getDeviceCheck: () => call<DeviceCheck>('get_device_check'),
 
   getDataRootStatus: () => call<DataRootStatus>('get_data_root_status'),
   getDefaultDataRoot: () => call<string>('get_default_data_root'),

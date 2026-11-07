@@ -1,14 +1,19 @@
-use crate::domain::dto::{AppStatus, BuildProfile, DeviceSnapshot, FeatureStatus, OsKind};
-use crate::error::{AtlasError, AtlasResult};
+use tauri::State;
+
+use crate::domain::dto::{
+    AppStatus, BuildProfile, DeviceCheck, DeviceSnapshot, FeatureStatus, OsKind,
+};
+use crate::error::AtlasResult;
+use crate::state::AppState;
 
 /// The Phase 0 slice this build implements.
-pub const CURRENT_SLICE: &str = "0.3";
+pub const CURRENT_SLICE: &str = "0.4";
 
 /// (id, label, delivering slice, implemented in this build)
 const FEATURES: &[(&str, &str, &str, bool)] = &[
     ("data_root", "Atlas data location", "0.2", true),
     ("source_folders", "Library folders", "0.3", true),
-    ("device_check", "Device check", "0.4", false),
+    ("device_check", "Device check", "0.4", true),
     ("inventory", "Background cataloging", "0.5", false),
     ("library_browse", "Browse and open files", "0.6", false),
     ("provider_test", "AI endpoint connection test", "0.7", false),
@@ -43,7 +48,14 @@ pub async fn get_app_status() -> AtlasResult<AppStatus> {
     Ok(app_status())
 }
 
+/// A fresh device reading. Data-drive fields are null when no root is open.
 #[tauri::command]
-pub async fn get_device_snapshot() -> AtlasResult<DeviceSnapshot> {
-    Err(AtlasError::not_implemented("get_device_snapshot", "0.4"))
+pub async fn get_device_snapshot(state: State<'_, AppState>) -> AtlasResult<DeviceSnapshot> {
+    state.device_snapshot().await
+}
+
+/// Reading, plain-language assessment, and what background work may do.
+#[tauri::command]
+pub async fn get_device_check(state: State<'_, AppState>) -> AtlasResult<DeviceCheck> {
+    state.device_check().await
 }

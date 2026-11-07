@@ -29,22 +29,23 @@ Bundled native binaries (for example PDFium) will be added in Slice 0.9.
 
 ## Summary
 
-### Rust crates (425, all platforms)
+### Rust crates (434, all platforms)
 
 | License expression | Count |
 | --- | --- |
 | MIT OR Apache-2.0 | 189 |
-| MIT | 105 |
-| Apache-2.0 OR MIT | 33 |
+| MIT | 108 |
+| Apache-2.0 OR MIT | 35 |
+| Zlib OR Apache-2.0 OR MIT | 18 |
 | Unicode-3.0 | 18 |
-| Zlib OR Apache-2.0 OR MIT | 17 |
-| MIT/Apache-2.0 | 15 |
+| MIT/Apache-2.0 | 16 |
 | Unlicense OR MIT | 10 |
 | MPL-2.0 | 5 |
 | Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT | 5 |
 | Apache-2.0/MIT | 3 |
 | BSD-3-Clause | 2 |
 | Zlib | 2 |
+| ISC | 2 |
 | MIT OR Zlib OR Apache-2.0 | 2 |
 | BSD-3-Clause OR MIT OR Apache-2.0 | 2 |
 | MIT OR Apache-2.0 OR LGPL-2.1-or-later | 2 |
@@ -57,7 +58,7 @@ Bundled native binaries (for example PDFium) will be added in Slice 0.9.
 | Apache-2.0 AND MIT | 1 |
 | CC0-1.0 OR MIT-0 OR Apache-2.0 | 1 |
 | Apache-2.0 / MIT | 1 |
-| ISC | 1 |
+| BSD-2-Clause OR MIT OR Apache-2.0 | 1 |
 | Apache-2.0 WITH LLVM-exception | 1 |
 | (MIT OR Apache-2.0) AND Unicode-3.0 | 1 |
 
@@ -120,6 +121,7 @@ Bundled native binaries (for example PDFium) will be added in Slice 0.9.
 | cc | 1.11.1 | MIT OR Apache-2.0 |
 | cesu8 | 1.1.0 | Apache-2.0/MIT |
 | cfb | 0.14.0 | MIT |
+| cfg_aliases | 0.2.2 | MIT |
 | cfg-expr | 0.15.8 | MIT OR Apache-2.0 |
 | cfg-if | 1.0.5 | MIT OR Apache-2.0 |
 | chrono | 0.4.45 | MIT OR Apache-2.0 |
@@ -252,6 +254,7 @@ Bundled native binaries (for example PDFium) will be added in Slice 0.9.
 | json-patch | 4.2.0 | MIT/Apache-2.0 |
 | jsonptr | 0.7.1 | MIT OR Apache-2.0 |
 | keyboard-types | 0.8.3 | MIT OR Apache-2.0 |
+| lazycell | 1.3.0 | MIT/Apache-2.0 |
 | libappindicator | 0.9.0 | Apache-2.0 OR MIT |
 | libappindicator-sys | 0.9.0 | Apache-2.0 OR MIT |
 | libc | 0.2.191 | MIT OR Apache-2.0 |
@@ -263,6 +266,7 @@ Bundled native binaries (for example PDFium) will be added in Slice 0.9.
 | litemap | 0.8.3 | Unicode-3.0 |
 | lock_api | 0.4.14 | MIT OR Apache-2.0 |
 | log | 0.4.35 | MIT OR Apache-2.0 |
+| mach2 | 0.7.0 | BSD-2-Clause OR MIT OR Apache-2.0 |
 | markup5ever | 0.39.0 | MIT OR Apache-2.0 |
 | memchr | 2.8.3 | Unlicense OR MIT |
 | memoffset | 0.9.1 | MIT |
@@ -275,6 +279,8 @@ Bundled native binaries (for example PDFium) will be added in Slice 0.9.
 | ndk-context | 0.1.1 | MIT OR Apache-2.0 |
 | ndk-sys | 0.6.0+11769913 | MIT OR Apache-2.0 |
 | new_debug_unreachable | 1.0.6 | MIT |
+| nix | 0.31.3 | MIT |
+| ntapi | 0.4.3 | Apache-2.0 OR MIT |
 | num_enum | 0.7.6 | BSD-3-Clause OR MIT OR Apache-2.0 |
 | num_enum_derive | 0.7.6 | BSD-3-Clause OR MIT OR Apache-2.0 |
 | num-conv | 0.2.2 | MIT OR Apache-2.0 |
@@ -291,6 +297,7 @@ Bundled native binaries (for example PDFium) will be added in Slice 0.9.
 | objc2-encode | 4.1.0 | MIT |
 | objc2-exception-helper | 0.1.1 | Zlib OR Apache-2.0 OR MIT |
 | objc2-foundation | 0.3.2 | MIT |
+| objc2-io-kit | 0.3.2 | Zlib OR Apache-2.0 OR MIT |
 | objc2-io-surface | 0.3.2 | Zlib OR Apache-2.0 OR MIT |
 | objc2-quartz-core | 0.3.2 | Zlib OR Apache-2.0 OR MIT |
 | objc2-ui-kit | 0.3.2 | Zlib OR Apache-2.0 OR MIT |
@@ -377,6 +384,7 @@ Bundled native binaries (for example PDFium) will be added in Slice 0.9.
 | soup3-sys | 0.5.0 | MIT |
 | sqlite-wasm-rs | 0.6.2 | MIT |
 | stable_deref_trait | 1.2.1 | MIT OR Apache-2.0 |
+| starship-battery | 0.12.0 | ISC |
 | static_vcruntime | 3.0.0 | MIT OR Apache-2.0 OR Zlib |
 | string_cache | 0.9.0 | MIT OR Apache-2.0 |
 | string_cache_codegen | 0.6.1 | MIT OR Apache-2.0 |
@@ -387,6 +395,7 @@ Bundled native binaries (for example PDFium) will be added in Slice 0.9.
 | syn | 3.0.9 | MIT OR Apache-2.0 |
 | sync_wrapper | 1.0.2 | Apache-2.0 |
 | synstructure | 0.14.0 | MIT |
+| sysinfo | 0.40.1 | MIT |
 | system-deps | 6.2.2 | MIT OR Apache-2.0 |
 | tao | 0.37.2 | Apache-2.0 |
 | tao-macros | 0.1.4 | MIT OR Apache-2.0 |
@@ -439,6 +448,7 @@ Bundled native binaries (for example PDFium) will be added in Slice 0.9.
 | typenum | 1.20.1 | MIT OR Apache-2.0 |
 | unicode-ident | 1.0.27 | (MIT OR Apache-2.0) AND Unicode-3.0 |
 | unicode-segmentation | 1.13.3 | MIT OR Apache-2.0 |
+| uom | 0.38.0 | Apache-2.0 OR MIT |
 | url | 2.5.8 | MIT OR Apache-2.0 |
 | urlpattern | 0.6.0 | MIT |
 | utf_types | 1.0.0 | Apache-2.0 OR MIT |

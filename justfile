@@ -32,6 +32,10 @@ dev:
 ui:
     pnpm dev
 
+# Launch with simulated power (ac, battery:<pct>, unknown, desktop) and optional free bytes, e.g. `just dev-simulate battery:18`
+dev-simulate $ATLAS_SIMULATE_POWER $ATLAS_SIMULATE_FREE_BYTES="":
+    pnpm tauri dev
+
 # -------------------------------------------------------------- checks
 
 # Run every check: Rust fmt/clippy/tests, lint, typecheck, frontend tests

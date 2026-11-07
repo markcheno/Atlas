@@ -2,23 +2,37 @@
   import { onMount } from 'svelte';
   import { atlas } from '../lib/api/client';
   import type { DataRootCandidate } from '../lib/api/bindings/DataRootCandidate';
+  import type { DeviceCheck } from '../lib/api/bindings/DeviceCheck';
+  import DeviceReadings from '../lib/components/DeviceReadings.svelte';
   import LibraryFoldersPanel from '../lib/components/LibraryFoldersPanel.svelte';
   import NotImplementedNotice from '../lib/components/NotImplementedNotice.svelte';
   import ProblemNotice from '../lib/components/ProblemNotice.svelte';
   import ViewHeading from '../lib/components/ViewHeading.svelte';
+  import { PROVISIONAL_NOTE, policySentence } from '../lib/deviceCopy';
   import { formatBytes } from '../lib/format';
   import { THEME_OPTIONS, theme } from '../lib/stores/theme.svelte';
   import { view } from '../lib/stores/view.svelte';
   import { workspace } from '../lib/stores/workspace.svelte';
 
-  const PENDING_SECTIONS = [
-    { id: 'ai', title: 'AI Models', slice: '0.7' },
-    { id: 'performance', title: 'Performance & Battery', slice: '0.4' },
-  ] as const;
+  const PENDING_SECTIONS = [{ id: 'ai', title: 'AI Models', slice: '0.7' }] as const;
+
+  /** How often device readings refresh while Settings is open. */
+  const DEVICE_REFRESH_MS = 30_000;
 
   let storage = $state<DataRootCandidate | null>(null);
+  let device = $state<DeviceCheck | null>(null);
+
+  async function refreshDevice() {
+    try {
+      device = await atlas.getDeviceCheck();
+    } catch {
+      device = null;
+    }
+  }
 
   onMount(() => {
+    refreshDevice();
+    const timer = setInterval(refreshDevice, DEVICE_REFRESH_MS);
     const path = workspace.status?.displayPath;
     if (workspace.isOpen && path) {
       atlas.inspectDataRoot(path).then(
@@ -26,6 +40,7 @@
         () => (storage = null),
       );
     }
+    return () => clearInterval(timer);
   });
 </script>
 
@@ -101,6 +116,25 @@
       </div>
     {:else}
       <p class="muted">No Atlas library is open.</p>
+    {/if}
+  </section>
+
+  <section aria-labelledby="settings-performance">
+    <h2 id="settings-performance">Performance & Battery</h2>
+    {#if device}
+      <DeviceReadings snapshot={device.snapshot} />
+      <p data-testid="policy-sentence">
+        When Atlas catalogs your folders (coming in slice 0.5), it will {policySentence(
+          device.policy,
+          device.snapshot,
+        )}
+      </p>
+      <p class="muted small">
+        Atlas pauses bulk work when the battery reaches 20% and resumes at 25% or when plugged in.
+        {PROVISIONAL_NOTE}
+      </p>
+    {:else}
+      <p class="muted" role="status">Checking this computer…</p>
     {/if}
   </section>
 

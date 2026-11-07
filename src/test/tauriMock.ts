@@ -8,6 +8,8 @@ import { vi } from 'vitest';
 import type { AppStatus } from '../lib/api/bindings/AppStatus';
 import type { DataRootCandidate } from '../lib/api/bindings/DataRootCandidate';
 import type { DataRootStatus } from '../lib/api/bindings/DataRootStatus';
+import type { DeviceCheck } from '../lib/api/bindings/DeviceCheck';
+import type { DeviceSnapshot } from '../lib/api/bindings/DeviceSnapshot';
 import type { ErrorPayload } from '../lib/api/bindings/ErrorPayload';
 import type { AddSourceRootsResult } from '../lib/api/bindings/AddSourceRootsResult';
 import type { Settings } from '../lib/api/bindings/Settings';
@@ -20,7 +22,7 @@ export const fakeStatus: AppStatus = {
   os: 'macos',
   arch: 'aarch64',
   buildProfile: 'debug',
-  slice: '0.3',
+  slice: '0.4',
   features: [],
 };
 
@@ -62,6 +64,44 @@ export function sourceRoot(overrides: Partial<SourceRoot> = {}): SourceRoot {
   };
 }
 
+export function deviceSnapshot(overrides: Partial<DeviceSnapshot> = {}): DeviceSnapshot {
+  return {
+    schemaVersion: 1,
+    os: 'macos',
+    arch: 'aarch64',
+    logicalCores: 18,
+    totalMemoryBytes: 64 * 2 ** 30,
+    availableMemoryBytes: 30 * 2 ** 30,
+    dataVolumeReachable: true,
+    dataVolumeFreeBytes: 712_000_000_000,
+    dataVolumeTotalBytes: 2_000_000_000_000,
+    dataVolumeKind: 'local',
+    requiredFreeBytes: 10_737_418_240,
+    power: 'battery',
+    batteryPresent: true,
+    batteryPercent: 75,
+    charging: false,
+    memoryPressure: 'normal',
+    thermal: 'nominal',
+    sampledAt: '2026-11-07T00:00:00Z',
+    ...overrides,
+  };
+}
+
+export function deviceCheck(overrides: Partial<DeviceCheck> = {}): DeviceCheck {
+  return {
+    snapshot: deviceSnapshot(),
+    assessment: { library: 'comfortable', localAi: 'likely', notes: ['on_battery'] },
+    policy: {
+      mode: 'slow',
+      pauseReason: null,
+      throttleReason: 'on_battery',
+      maxMetadataOpsPerSecond: 20,
+    },
+    ...overrides,
+  };
+}
+
 /** Folders the fake picker returns, in order, on each call. */
 export const pickerQueue: AddSourceRootsResult[] = [];
 
@@ -80,6 +120,7 @@ function defaults(): Record<string, Handler> {
   let settings: Settings = { appearance: { theme: 'system' } };
   let roots: SourceRoot[] = [];
   return {
+    get_device_check: () => deviceCheck(),
     list_source_roots: () => roots,
     pick_and_add_source_roots: () => {
       const result = pickerQueue.shift() ?? { added: [], rejected: [] };

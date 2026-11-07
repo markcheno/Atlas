@@ -86,6 +86,27 @@ pub enum PowerSource {
     Unknown,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "snake_case")]
+#[ts(export)]
+pub enum PressureLevel {
+    Normal,
+    Elevated,
+    Critical,
+    /// This OS does not report it, or the reading failed.
+    Unknown,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "snake_case")]
+#[ts(export)]
+pub enum ThermalLevel {
+    Nominal,
+    Elevated,
+    Critical,
+    Unknown,
+}
+
 /// Versioned, timestamped resource reading. Every measurement is optional:
 /// a missing value means "not reported by this OS", never zero.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
@@ -100,13 +121,112 @@ pub struct DeviceSnapshot {
     pub total_memory_bytes: Option<u64>,
     #[ts(type = "number | null")]
     pub available_memory_bytes: Option<u64>,
+    /// `None` when no data root is open; `Some(false)` when the open root's
+    /// drive cannot be reached.
+    pub data_volume_reachable: Option<bool>,
     #[ts(type = "number | null")]
     pub data_volume_free_bytes: Option<u64>,
     #[ts(type = "number | null")]
     pub data_volume_total_bytes: Option<u64>,
+    pub data_volume_kind: Option<VolumeKind>,
+    /// Free space below which Atlas starts no new heavy work on that drive.
+    #[ts(type = "number | null")]
+    pub required_free_bytes: Option<u64>,
     pub power: PowerSource,
+    /// `Some(false)`: no battery at all (a desktop), which is not "on
+    /// battery". `None`: the probe could not tell.
+    pub battery_present: Option<bool>,
     pub battery_percent: Option<f32>,
+    pub charging: Option<bool>,
+    pub memory_pressure: PressureLevel,
+    pub thermal: ThermalLevel,
     pub sampled_at: String,
+}
+
+// --------------------------------------------------------- resource policy
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "snake_case")]
+#[ts(export)]
+pub enum PolicyMode {
+    Run,
+    Slow,
+    Paused,
+}
+
+/// Why background work runs slower than normal.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "snake_case")]
+#[ts(export)]
+pub enum ThrottleReason {
+    OnBattery,
+    /// Power source unknown; Atlas never assumes AC.
+    PowerUnknown,
+    /// Elevated memory pressure or thermal state.
+    SystemBusy,
+}
+
+/// What background work may do right now (phase0-spec §7.2).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct PolicyDecision {
+    pub mode: PolicyMode,
+    pub pause_reason: Option<PauseReason>,
+    pub throttle_reason: Option<ThrottleReason>,
+    /// Engineering starting value, not a measured guarantee.
+    pub max_metadata_ops_per_second: Option<u32>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "snake_case")]
+#[ts(export)]
+pub enum LibraryFit {
+    Comfortable,
+    Usable,
+    Unknown,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "snake_case")]
+#[ts(export)]
+pub enum LocalAiFit {
+    Likely,
+    Possible,
+    Unlikely,
+    Unknown,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "snake_case")]
+#[ts(export)]
+pub enum AssessmentNote {
+    OnBattery,
+    PowerUnknown,
+    Desktop,
+    LowSpace,
+    MemoryPressure,
+    UnknownMemory,
+}
+
+/// Plain-language guidance derived from a snapshot. Provisional planning
+/// targets (product spec §7), never a hard block.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct DeviceAssessment {
+    pub library: LibraryFit,
+    pub local_ai: LocalAiFit,
+    pub notes: Vec<AssessmentNote>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct DeviceCheck {
+    pub snapshot: DeviceSnapshot,
+    pub assessment: DeviceAssessment,
+    pub policy: PolicyDecision,
 }
 
 // ----------------------------------------------------------- library catalog

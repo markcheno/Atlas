@@ -19,6 +19,7 @@ pub mod workspace;
 pub const COMMAND_NAMES: &[&str] = &[
     "get_app_status",
     "get_device_snapshot",
+    "get_device_check",
     "get_data_root_status",
     "get_default_data_root",
     "pick_folder",

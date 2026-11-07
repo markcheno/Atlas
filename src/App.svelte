@@ -4,6 +4,7 @@
   import AppShell from './lib/components/AppShell.svelte';
   import { view } from './lib/stores/view.svelte';
   import DataLocation from './views/DataLocation.svelte';
+  import DeviceCheck from './views/DeviceCheck.svelte';
   import Home from './views/Home.svelte';
   import Library from './views/Library.svelte';
   import LibraryFolders from './views/LibraryFolders.svelte';
@@ -24,6 +25,8 @@
   <DataLocation />
 {:else if view.current === 'library-folders'}
   <LibraryFolders />
+{:else if view.current === 'device-check'}
+  <DeviceCheck />
 {:else if view.current === 'unavailable'}
   <RootUnavailable />
 {:else}

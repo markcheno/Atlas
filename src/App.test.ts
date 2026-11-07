@@ -21,6 +21,8 @@ async function onboard() {
   await user.click(await screen.findByRole('button', { name: 'Use this location' }));
   await h1('Add the folders where you keep your books and papers');
   await user.click(screen.getByRole('button', { name: 'Skip for now' }));
+  await h1('Checking this computer');
+  await user.click(await screen.findByRole('button', { name: 'Continue' }));
   await h1('What are you curious about?');
   return user;
 }
@@ -282,6 +284,8 @@ describe('library folders', () => {
     ).toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: 'Continue' }));
+    await h1('Checking this computer');
+    await user.click(screen.getByRole('button', { name: 'Continue' }));
     await h1('What are you curious about?');
     expect(screen.getByText('/Users/test/Books')).toBeInTheDocument();
   });
@@ -357,5 +361,118 @@ describe('library folders', () => {
     await user.click(await screen.findByRole('button', { name: 'Get Started' }));
     await user.click(await screen.findByRole('button', { name: 'Open this library' }));
     await h1('What are you curious about?');
+  });
+});
+
+describe('device check', () => {
+  beforeEach(resetAll);
+
+  async function toDeviceCheck() {
+    const user = userEvent.setup();
+    render(App);
+    await user.click(await screen.findByRole('button', { name: 'Get Started' }));
+    await user.click(await screen.findByRole('button', { name: 'Use this location' }));
+    await user.click(await screen.findByRole('button', { name: 'Skip for now' }));
+    await h1('Checking this computer');
+    return user;
+  }
+
+  it('shows readings, a plain recommendation, notes, and the provisional caveat', async () => {
+    await toDeviceCheck();
+    expect(await screen.findByText('64 GB')).toBeInTheDocument();
+    expect(screen.getByText('18 cores')).toBeInTheDocument();
+    expect(screen.getByText('712 GB free of 2.0 TB')).toBeInTheDocument();
+    expect(screen.getByText('On battery · 75%')).toBeInTheDocument();
+    expect(screen.getByText(/can likely run AI models locally/)).toBeInTheDocument();
+    expect(screen.getByText(/catalog slowly to save power/)).toBeInTheDocument();
+    expect(screen.getByText(/early estimates, not tested requirements/)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Continue' })).toBeEnabled();
+  });
+
+  it.each([
+    [{ power: 'ac', charging: true, batteryPercent: 80 }, 'Charging · 80%'],
+    [{ power: 'ac', charging: false, batteryPercent: 100 }, 'Plugged in · 100%'],
+    [
+      { power: 'ac', batteryPresent: false, batteryPercent: null, charging: null },
+      'No battery (desktop)',
+    ],
+    [{ power: 'unknown', batteryPresent: null, batteryPercent: null, charging: null }, 'Unknown'],
+  ] as const)('renders power %#', async (overrides, text) => {
+    tauri.setHandler('get_device_check', () =>
+      tauri.deviceCheck({ snapshot: tauri.deviceSnapshot(overrides) }),
+    );
+    await toDeviceCheck();
+    expect(await screen.findByText(text)).toBeInTheDocument();
+  });
+
+  it('shows Unknown for missing readings instead of guessing', async () => {
+    tauri.setHandler('get_device_check', () =>
+      tauri.deviceCheck({
+        snapshot: tauri.deviceSnapshot({ totalMemoryBytes: null, logicalCores: null }),
+        assessment: { library: 'unknown', localAi: 'unknown', notes: ['unknown_memory'] },
+      }),
+    );
+    await toDeviceCheck();
+    expect(await screen.findAllByText('Unknown')).toHaveLength(2);
+    expect(
+      screen.getByText(/couldn't read this computer's memory, so it will start conservatively/),
+    ).toBeInTheDocument();
+  });
+
+  it('a modest computer gets an honest recommendation', async () => {
+    tauri.setHandler('get_device_check', () =>
+      tauri.deviceCheck({ assessment: { library: 'comfortable', localAi: 'possible', notes: [] } }),
+    );
+    await toDeviceCheck();
+    expect(
+      await screen.findByText(
+        'This computer can comfortably catalog and search your books. Local AI may be slower; you can connect a service instead.',
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it.each([
+    [
+      { mode: 'run', pauseReason: null, throttleReason: null, maxMetadataOpsPerSecond: 100 },
+      {},
+      /it will run normally\./,
+    ],
+    [
+      {
+        mode: 'slow',
+        pauseReason: null,
+        throttleReason: 'on_battery',
+        maxMetadataOpsPerSecond: 20,
+      },
+      {},
+      /run slowly because this computer is on battery/,
+    ],
+    [
+      {
+        mode: 'paused',
+        pauseReason: 'battery_low',
+        throttleReason: null,
+        maxMetadataOpsPerSecond: null,
+      },
+      { batteryPercent: 18 },
+      /battery is at 18%\. It resumes at 25% or when you plug in/,
+    ],
+    [
+      {
+        mode: 'paused',
+        pauseReason: 'low_disk_space',
+        throttleReason: null,
+        maxMetadataOpsPerSecond: null,
+      },
+      {},
+      /nearly full\. It resumes when at least 10\.7 GB is free/,
+    ],
+  ] as const)('Settings explains the policy %#', async (policy, snapshot, sentence) => {
+    tauri.setHandler('get_device_check', () =>
+      tauri.deviceCheck({ policy, snapshot: tauri.deviceSnapshot(snapshot) }),
+    );
+    const user = await launchOpen();
+    await user.click(screen.getByRole('button', { name: 'Settings' }));
+    expect(await screen.findByTestId('policy-sentence')).toHaveTextContent(sentence);
   });
 });

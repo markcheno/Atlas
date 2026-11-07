@@ -92,9 +92,9 @@ pub trait VolumeInspector: Send + Sync {
     fn inspect(&self, path: &Path) -> AtlasResult<VolumeInfo>;
 }
 
-/// Device and resource readings (OS probe, Slice 0.4). Change notification
-/// for power and wake events is added with the first real probe.
-pub trait ResourceMonitor {
+/// Device and resource readings (OS probe: `infrastructure::system_probe`).
+/// Sampled on demand; the 0.5 scan loop re-samples periodically.
+pub trait ResourceMonitor: Send + Sync {
     /// `data_root` selects the volume whose free space is reported.
     fn snapshot(&self, data_root: Option<&Path>) -> DeviceSnapshot;
 }
