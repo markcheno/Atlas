@@ -229,7 +229,7 @@ fn p1_01_upgrade_keeps_a_paused_scan_and_its_frontier() {
 
     // Schema 6 opens as the current schema (7 added jobs; later versions
     // add columns and tables beside them).
-    assert!(SUPPORTED_SCHEMA_VERSION >= 7);
+    const { assert!(SUPPORTED_SCHEMA_VERSION >= 7) };
     assert_eq!(
         manifest::read(&data_root).unwrap().catalog_schema_version,
         SUPPORTED_SCHEMA_VERSION
