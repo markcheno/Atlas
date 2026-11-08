@@ -47,7 +47,8 @@ objc2-foundation = { version = "0.3.2", default-features = false, features = ["s
 plist = "1.10.3"
 
 [target.'cfg(target_os = "linux")'.dependencies]
-zbus-secret-service-keyring-store = "1.0.1"
+# Pure-Rust crypto for the Secret Service session (no OpenSSL to link).
+zbus-secret-service-keyring-store = { version = "1.0.1", features = ["crypto-rust"] }
 
 [[bench]]
 # Phase 0 benchmark harness: `cargo bench --bench inventory -- --help`.

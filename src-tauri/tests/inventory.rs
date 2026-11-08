@@ -434,7 +434,10 @@ fn p0_13_source_disappearing_mid_scan_marks_nothing_missing() {
 
     let (root_id, job) = lib.add(&books);
     assert!(wait_until(LONG, || lib.file_count() > 20));
+    // Unplug between two folder listings, then let the scan carry on.
+    assert!(lib.h.source.hold_next_listing(LONG));
     fs::rename(&drive, lib.env.base.join("unplugged")).unwrap();
+    lib.h.source.release();
     lib.wait_state(&job, JobState::PausedPolicy);
     assert_eq!(
         lib.overview().active.unwrap().pause_reason,
