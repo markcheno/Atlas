@@ -39,13 +39,14 @@ jobs:
           - { name: Linux x64, os: ubuntu-24.04 }
     runs-on: ${{ matrix.os }}
     timeout-minutes: 150
-    env:
-      # LanceDB's build tree is deep; keep Windows paths short.
-      CARGO_TARGET_DIR: ${{ runner.os == 'Windows' && 'C:\t' || '' }}
     steps:
-      - name: Long paths (Windows)
+      # LanceDB's build tree is deep; keep Windows paths short.
+      - name: Long paths and a short target dir (Windows)
         if: runner.os == 'Windows'
-        run: git config --system core.longpaths true
+        shell: bash
+        run: |
+          git config --system core.longpaths true
+          echo 'CARGO_TARGET_DIR=C:\t' >> "$GITHUB_ENV"
 
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
