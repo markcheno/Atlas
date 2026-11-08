@@ -1,0 +1,35 @@
+{
+  "comment": "Pinned tool downloads for the Slice 0.9 spike. fetch-tools.mjs verifies each SHA-256 before unpacking into spikes/.tools/.",
+  "tools": {
+    "pdfium": {
+      "version": "chromium/8125",
+      "license": "BSD-3-Clause (PDFium) plus bundled third-party notices; build scripts Apache-2.0/MIT (bblanchon/pdfium-binaries)",
+      "why": "pdfium-render 0.9.5 binds up to feature pdfium_8125",
+      "assets": {
+        "darwin-arm64": { "url": "https://github.com/bblanchon/pdfium-binaries/releases/download/chromium/8125/pdfium-mac-arm64.tgz", "sha256": "4939bd935ac83ddc09a3a4f038bc43a19cea1660316a3667f26cb07a070e139d" },
+        "linux-x64": { "url": "https://github.com/bblanchon/pdfium-binaries/releases/download/chromium/8125/pdfium-linux-x64.tgz", "sha256": "e1c3ce6e270cb5e0c20816b379ad9f2c1309972697c505f508de92bf5e7d6659" },
+        "win32-x64": { "url": "https://github.com/bblanchon/pdfium-binaries/releases/download/chromium/8125/pdfium-win-x64.tgz", "sha256": "9a964261760cff52570aabf038ab346d3a5034dd8b30d0d5fe8861235d356b8b" }
+      }
+    },
+    "protoc": {
+      "version": "36.2",
+      "license": "BSD-3-Clause",
+      "why": "LanceDB's build scripts compile protobuf definitions",
+      "assets": {
+        "darwin-arm64": { "url": "https://github.com/protocolbuffers/protobuf/releases/download/v36.2/protoc-36.2-osx-aarch_64.zip", "sha256": "9cd98a532c5c5e0c4161314de0225de27e4c8a323917b6ea7b1b714d3ae23466" },
+        "linux-x64": { "url": "https://github.com/protocolbuffers/protobuf/releases/download/v36.2/protoc-36.2-linux-x86_64.zip", "sha256": "121f6c7afe1d4d0e3ea6aab9432038599250134cbf4474cb1167d2c7decd4278" },
+        "win32-x64": { "url": "https://github.com/protocolbuffers/protobuf/releases/download/v36.2/protoc-36.2-win64.zip", "sha256": "f0c128dc0d8492eceece83bb459a4c0e316764b929ffbf1aa416357fd644edd3" }
+      }
+    },
+    "typst": {
+      "version": "0.15.1",
+      "license": "Apache-2.0",
+      "why": "Generates born-digital PDFs with shaped text (real ligatures) and columns; only needed to regenerate the corpus",
+      "assets": {
+        "darwin-arm64": { "url": "https://github.com/typst/typst/releases/download/v0.15.1/typst-aarch64-apple-darwin.tar.xz", "sha256": "48f62ed034aa3a7978309579ac6ca00045e2ef0da73114e8af27cfd8e74dc05a" },
+        "linux-x64": { "url": "https://github.com/typst/typst/releases/download/v0.15.1/typst-x86_64-unknown-linux-musl.tar.xz", "sha256": "a6d077d0a95eed5a2eba715b2dae06be954f624ccbf85758a03f389ded33118c" },
+        "win32-x64": { "url": "https://github.com/typst/typst/releases/download/v0.15.1/typst-x86_64-pc-windows-msvc.zip", "sha256": "19ce3551153c2fe7ee9fa2f95208310c8f4d3209fedb699e0333faf8913f6736" }
+      }
+    }
+  }
+}

@@ -2,3 +2,6 @@
 *.png binary
 *.ico binary
 *.icns binary
+
+# Spike corpus: byte-exact (hashes in the manifest)
+spikes/extraction-bench/corpus/** -text

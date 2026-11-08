@@ -1,0 +1,8 @@
+# Build output and downloaded tools; nothing here is part of the app.
+target/
+.tools/
+out/
+.venv/
+build/
+dist/
+__pycache__/
