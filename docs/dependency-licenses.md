@@ -23,31 +23,41 @@ tools are not redistributed.
 | lightningcss | 1.33.0 | MPL-2.0 | npm (build/test tool only) | copyleft in every alternative |
 | lightningcss-darwin-arm64 | 1.33.0 | MPL-2.0 | npm (build/test tool only) | copyleft in every alternative |
 
+## Native libraries shipped with the app
+
+Not described by Cargo or npm metadata; kept by hand in scripts/license-report.mjs.
+Their notices ship in every bundle under `licenses/`.
+
+| Component | Where | License |
+| --- | --- | --- |
+| PDFium chromium/8125 (158.0.8125.0), bblanchon/pdfium-binaries | shared library loaded by the extraction worker; notices in licenses/pdfium/ | BSD-3-Clause (licenses/pdfium.txt); bundled third-party code under FreeType (FTL), libjpeg-turbo (IJG/BSD-3), OpenJPEG (BSD-2), Little CMS (MIT), libpng, zlib, Abseil (Apache-2.0), HarfBuzz (MIT), ICU (Unicode-3.0), Highway (Apache-2.0), simdutf, fast_float, dragonbox, AGG 2.3 and LLVM libc; the build scripts are MIT (LICENSE) |
+
 Not covered: system libraries the OS provides at runtime (WebKit on macOS,
-WebView2 on Windows, WebKitGTK and GTK on Linux). They are not bundled.
-The libraries and models the Slice 0.9 spike measured (PDFium, Docling and
-its models, vector engines) are in
+WebView2 on Windows, WebKitGTK and GTK on Linux). They are not bundled,
+except that the Linux AppImage carries WebKitGTK and GTK (docs/packaging.md).
+The other libraries and models the Slice 0.9 spike measured (Docling and its
+models, vector engines) are in
 [spike-dependency-licenses.md](spike-dependency-licenses.md); one joins
 this report only when the app adopts it (ADR 0008).
 
 ## Summary
 
-### Rust crates (545, all platforms)
+### Rust crates (554, all platforms)
 
 | License expression | Count |
 | --- | --- |
-| MIT OR Apache-2.0 | 253 |
-| MIT | 123 |
+| MIT OR Apache-2.0 | 258 |
+| MIT | 125 |
 | Apache-2.0 OR MIT | 55 |
 | Zlib OR Apache-2.0 OR MIT | 18 |
 | Unicode-3.0 | 18 |
-| MIT/Apache-2.0 | 16 |
+| MIT/Apache-2.0 | 17 |
 | Unlicense OR MIT | 10 |
 | MPL-2.0 | 5 |
 | Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT | 5 |
+| Apache-2.0/MIT | 4 |
 | ISC | 4 |
 | BSD-3-Clause | 3 |
-| Apache-2.0/MIT | 3 |
 | Apache-2.0 OR ISC OR MIT | 3 |
 | MIT OR Apache-2.0 OR Zlib | 3 |
 | Zlib | 2 |
@@ -157,6 +167,8 @@ this report only when the app adopts it (ADR 0008).
 | cmov | 0.5.4 | Apache-2.0 OR MIT |
 | combine | 4.6.9 | MIT |
 | concurrent-queue | 2.5.0 | Apache-2.0 OR MIT |
+| console_error_panic_hook | 0.1.7 | Apache-2.0/MIT |
+| console_log | 1.1.0 | MIT/Apache-2.0 |
 | const-oid | 0.10.2 | Apache-2.0 OR MIT |
 | cookie | 0.18.2 | MIT OR Apache-2.0 |
 | core-foundation | 0.10.1 | MIT OR Apache-2.0 |
@@ -199,6 +211,7 @@ this report only when the app adopts it (ADR 0008).
 | dtoa-short | 0.3.5 | MPL-2.0 |
 | dunce | 1.0.5 | CC0-1.0 OR MIT-0 OR Apache-2.0 |
 | dyn-clone | 1.0.20 | MIT OR Apache-2.0 |
+| either | 1.19.0 | MIT OR Apache-2.0 |
 | embed_plist | 1.2.2 | MIT OR Apache-2.0 |
 | embed-resource | 3.0.12 | MIT |
 | endi | 1.1.1 | MIT |
@@ -291,6 +304,7 @@ this report only when the app adopts it (ADR 0008).
 | ipnet | 2.12.2 | MIT OR Apache-2.0 |
 | is-docker | 0.2.0 | MIT |
 | is-wsl | 0.4.0 | MIT |
+| itertools | 0.15.0 | MIT OR Apache-2.0 |
 | itoa | 1.0.18 | MIT OR Apache-2.0 |
 | javascriptcore-rs | 1.1.2 | MIT |
 | javascriptcore-rs-sys | 1.1.1 | MIT |
@@ -326,6 +340,7 @@ this report only when the app adopts it (ADR 0008).
 | lru-slab | 0.1.3 | MIT OR Apache-2.0 OR Zlib |
 | mach2 | 0.7.0 | BSD-2-Clause OR MIT OR Apache-2.0 |
 | markup5ever | 0.39.0 | MIT OR Apache-2.0 |
+| maybe-owned | 0.3.4 | MIT OR Apache-2.0 |
 | memchr | 2.8.3 | Unlicense OR MIT |
 | memoffset | 0.9.1 | MIT |
 | mime | 0.3.18 | MIT OR Apache-2.0 |
@@ -377,6 +392,7 @@ this report only when the app adopts it (ADR 0008).
 | parking | 2.2.1 | Apache-2.0 OR MIT |
 | parking_lot | 0.12.5 | MIT OR Apache-2.0 |
 | parking_lot_core | 0.9.12 | MIT OR Apache-2.0 |
+| pdfium-render | 0.9.5 | MIT OR Apache-2.0 |
 | percent-encoding | 2.3.2 | MIT OR Apache-2.0 |
 | phf | 0.13.1 | MIT |
 | phf_codegen | 0.13.1 | MIT |
@@ -385,6 +401,7 @@ this report only when the app adopts it (ADR 0008).
 | phf_shared | 0.13.1 | MIT |
 | pin-project-lite | 0.2.17 | Apache-2.0 OR MIT |
 | piper | 0.2.5 | MIT OR Apache-2.0 |
+| piston-float | 1.0.1 | MIT |
 | pkg-config | 0.3.34 | MIT OR Apache-2.0 |
 | plist | 1.10.3 | MIT |
 | png | 0.18.1 | MIT OR Apache-2.0 |
@@ -550,9 +567,11 @@ this report only when the app adopts it (ADR 0008).
 | url | 2.5.8 | MIT OR Apache-2.0 |
 | urlpattern | 0.6.0 | MIT |
 | utf_types | 1.0.0 | Apache-2.0 OR MIT |
+| utf16string | 0.2.0 | MIT OR Apache-2.0 |
 | utf8_iter | 1.1.0 | Apache-2.0 OR MIT |
 | uuid | 1.29.1 | Apache-2.0 OR MIT |
 | vcpkg | 0.2.15 | MIT/Apache-2.0 |
+| vecmath | 1.0.0 | MIT |
 | version_check | 0.9.5 | MIT/Apache-2.0 |
 | version-compare | 0.2.1 | MIT |
 | vswhom | 0.1.0 | MIT |

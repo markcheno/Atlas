@@ -17,10 +17,15 @@ default:
 
 # ---------------------------------------------------------------- setup
 
-# Install the pinned Rust toolchain and locked npm dependencies
+# Install the pinned Rust toolchain, locked npm dependencies, and the pinned PDFium (needed before any Rust build)
 setup:
     rustup toolchain install
     pnpm install --frozen-lockfile
+    node scripts/fetch-pdfium.mjs
+
+# Download and verify the pinned PDFium (tools.lock.json) into src-tauri/vendor/pdfium/; kept when already verified
+fetch-pdfium:
+    node scripts/fetch-pdfium.mjs
 
 # ------------------------------------------------------------------ run
 
@@ -108,6 +113,11 @@ fixtures dir files="1000" flat="0":
     node scripts/generate-fixtures.mjs {{ dir }} --files {{ files }} --flat {{ flat }}
 
 # ------------------------------------------------- benchmarks and smoke
+
+# Start the extraction worker 10 times and check it says hello, e.g. `just worker-hello` or `just worker-hello src-tauri/target/debug/bundle/macos/Atlas.app/Contents/MacOS/atlas`
+worker-hello exe="src-tauri/target/debug/atlas":
+    cargo build --manifest-path {{ manifest }} --locked
+    node scripts/worker-hello.mjs {{ exe }}
 
 # Benchmark suite (1k and 30k fixtures, release build); results in the temp dir unless `out` is given
 bench out="":
