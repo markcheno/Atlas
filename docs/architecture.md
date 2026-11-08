@@ -264,7 +264,9 @@ Implemented in `src-tauri/src/services/inventory/`; rationale in
   `InventoryOverview`, at most 4 per second plus on every state change.
   The UI shows counts only, never totals or percentages. The counts come
   from a covering index (migration 0006), so building an overview stays
-  cheap as the catalog grows ([benchmarks](benchmarks.md)).
+  cheap as the catalog grows. `get_inventory_status` reads on the
+  read-only pool, so it never waits behind batch commits
+  ([benchmarks](benchmarks.md)).
 - **Fixtures.** `just fixtures <dir> [files] [flat]` writes a synthetic
   tree outside the repository (`fixtures/README.md`). `just dev-unthrottled`
   removes the rate limit in debug builds.

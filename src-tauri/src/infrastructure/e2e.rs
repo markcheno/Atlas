@@ -31,6 +31,21 @@ fn var(name: &str) -> Option<std::ffi::OsString> {
     std::env::var_os(name).filter(|v| !v.is_empty())
 }
 
+/// WebView2's default extra arguments in wry (`webview2/mod.rs`).
+pub const WRY_DEFAULT_WEBVIEW2_ARGS: &str =
+    "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection";
+
+/// Windows smoke tests: msedgedriver asks WebView2 for a remote-debugging
+/// port through `WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS`, but wry always
+/// passes its own arguments, which take precedence, so the driver can never
+/// attach ("DevToolsActivePort file doesn't exist"). In a debug build with
+/// that variable set, the main window passes wry's defaults plus the
+/// driver's arguments. Release builds and normal runs are unchanged.
+pub fn webview2_driver_args() -> Option<String> {
+    var("WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS")
+        .map(|extra| format!("{WRY_DEFAULT_WEBVIEW2_ARGS} {}", extra.to_string_lossy()))
+}
+
 /// The scripted data-root pick, if any.
 pub fn scripted_data_root() -> Option<PathBuf> {
     var(PICK_DATA_ROOT_ENV).map(PathBuf::from)

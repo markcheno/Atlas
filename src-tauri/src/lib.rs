@@ -52,6 +52,27 @@ fn workspace_config(app: &tauri::AppHandle) -> tauri::Result<WorkspaceConfig> {
     })
 }
 
+/// Creates the main window from its `tauri.conf.json` entry (which has
+/// `"create": false`), after the app state exists.
+fn main_window(app: &tauri::App) -> tauri::Result<()> {
+    let config = app
+        .config()
+        .app
+        .windows
+        .iter()
+        .find(|w| w.label == "main")
+        .cloned()
+        .ok_or_else(|| tauri::Error::WindowNotFound)?;
+    #[allow(unused_mut)]
+    let mut builder = tauri::WebviewWindowBuilder::from_config(app.handle(), &config)?;
+    #[cfg(windows)]
+    if let Some(args) = infrastructure::e2e::webview2_driver_args() {
+        builder = builder.additional_browser_args(&args);
+    }
+    builder.build()?;
+    Ok(())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -90,6 +111,7 @@ pub fn run() {
                 infrastructure::e2e::opener(),
                 vault,
             ));
+            main_window(app)?;
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
