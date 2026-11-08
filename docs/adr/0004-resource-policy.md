@@ -48,10 +48,10 @@ protection, and the telemetry gap is reported in the snapshot.
 `batteryPresent` is `false` and power is `ac`. When the battery manager
 fails, power is `unknown`. The two cases are never conflated.
 
-**Rates are starting values.** Full rate is 100 metadata operations per
-second and slow rate is 20, the spec's engineering starting points. They are
-labelled as such in the DTO and the UI, and Slice 0.8 benchmarks will tune
-them.
+**Rates come from measurements.** Full rate is 500 metadata operations per
+second and the slow rate is one fifth of that, 100. Phase 0 began at 100 and
+20, the spec's engineering starting points. Slice 0.8 replaced them with
+measured values (amendment below).
 
 **User pause is separate.** The policy never knows about the user's Pause
 button. The 0.5 job state machine keeps `paused_user` and `paused_policy`
@@ -80,3 +80,31 @@ every policy state can be demonstrated on real hardware
   slowly. A platform power-source API could refine this later.
 - Thresholds such as 20%, 25%, the rates, and the memory-pressure cutoffs
   can be changed in one place.
+
+## Amendment: measured rates (Slice 0.8, 2026-11-07)
+
+Spec §13 asks for the throttle to be revisited from measurements. The
+benchmark harness (`src-tauri/benches/inventory.rs`, release build, real
+filesystem and SQLite) cataloged the 30,006-file fixture at fixed rates on
+an Apple M5 Pro (18 cores, 64 GB, macOS 27.0.1, on AC):
+
+| Rate (entries/s) | Wall time | Scan CPU, % of one core | Peak RSS |
+| ---: | ---: | ---: | ---: |
+| unthrottled | 1.3 s | 76.3 | 15 MiB |
+| 1,000 | 30 s | 11.1 | 19 MiB |
+| 500 | 61 s | 6.8 | 20 MiB |
+| 250 | 122 s | 4.5 | 20 MiB |
+| 100 (old full rate) | 304 s | 2.4 | 20 MiB |
+
+The rule was the fastest rate that keeps average CPU at or below 25% of one
+core, with browsing p95 under 250 ms while scanning. 1,000 passes on this
+machine, but only by about 2×, and the minimum supported hardware is
+unknown. **500 was chosen**: 3.7× headroom, 30,000 files in about a
+minute, and browsing latency unaffected (see
+[benchmarks](../benchmarks.md)). Slowed work (battery, unknown power, a
+busy system) runs at 100, which is 30,000 files in about 5 minutes.
+
+The CI runners' numbers (shared VMs on all three OSes) are recorded in
+[benchmarks](../benchmarks.md) as a check that 500 stays within the rule on
+slower machines. Revisit when real users' hardware reports arrive, or when
+Phase 1 adds per-file reading, which has a very different cost.

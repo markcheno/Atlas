@@ -351,85 +351,54 @@ Not verified:
 - **Hosted HTTPS services** (OpenAI and others), and the keychain
   access prompt that an installed (signed) build may show.
 
-## Manual checklist additions for Slice 0.7
+## Manual checklist for Windows and Linux
 
-1. In Settings › AI Models, press "Look for AI services on this computer".
-   Confirm local services are listed, and that nothing is contacted
-   before you press it.
-2. Add Ollama and press Test. You should see either a model list or the
-   "no models installed" message.
-3. Add an OpenAI-compatible service with a key and press Test. Confirm the
-   key is stored (macOS: Keychain Access, service `com.altazlabs.atlas`;
-   Windows: Credential Manager; Linux: Seahorse) and is not in any file
-   under the Atlas library folder.
-4. Enter an `http://` address on another computer. Confirm Atlas blocks it
-   until you tick the acknowledgement.
-5. Linux without a Secret Service (for example a minimal window manager):
-   confirm the key shows as "kept for this session only".
+CI runs an automated smoke test on Windows and Linux (Slice 0.8, below),
+but it can't exercise native folder dialogs, opening files in the OS
+default app, the OS keychain, removable drives, or real batteries. This
+checklist covers those parts. Run it on a real machine with a CI-built
+installer or a local build, and record the OS version, architecture, and
+outcome of each step. Debug builds should use a scratch `ATLAS_CONFIG_DIR`.
 
-## Manual checklist additions for Slice 0.6
+### Installers (Slice 0.8)
 
-1. With a fixture cataloged, search `cafe` and confirm the "Café crème"
-   files appear. Clear the search with Esc.
-2. Filter by folder and type, toggle "Include missing files", sort by name
-   and modified date, and page with Next and Previous.
-3. Open a PDF: it should open in the default viewer. Then Show in
-   Explorer, Finder, or the file manager: the file should be selected.
-4. Delete a cataloged file and press Open. Confirm the "no longer where
-   Atlas found it" message, and confirm Rescan marks it missing.
-5. Windows: open an online-only OneDrive PDF. Confirm Atlas asks before
-   downloading, and that the file downloads only after you confirm.
-6. Linux: confirm Show in folder opens the file manager with the file
-   selected (FileManager1), or at least opens its folder.
+1. Download the release artifact for the OS from a green CI run.
+2. Windows: run the `-setup.exe`. Confirm SmartScreen's "Windows protected
+   your PC", then More info › Run anyway, and that it installs without an
+   administrator prompt. Launch Atlas from the Start menu.
+3. Linux: `chmod +x` and run the AppImage; then `sudo apt install ./Atlas_*.deb`
+   and launch from the application menu. Record the distribution, desktop
+   environment, display server (X11 or Wayland), and WebKitGTK version.
+4. Uninstall (Windows: Settings › Apps; Linux: `sudo apt remove atlas`) and
+   confirm the library folder you chose is left untouched.
 
-## Manual checklist additions for Slice 0.5
+### App shell (Slice 0.1)
 
-1. Generate a fixture with `just fixtures <dir> 2000`, add it, and confirm
-   the final count equals `catalogableFiles`.
-2. Pause during a scan, quit, relaunch, and confirm it is still paused.
-   Resume.
-3. Kill the process during a scan (Task Manager, or `kill -9`), relaunch,
-   and confirm it completes with no duplicate rows.
-4. Unplug a drive holding a library folder during a scan. Confirm the
-   status says the folder isn't available and no files show as missing.
-   Plug it back in and confirm it resumes.
-5. Windows: add a OneDrive folder with Files On-Demand. Confirm online-only
-   files are cataloged without being downloaded (the cloud icon stays).
-6. macOS: add an iCloud Drive folder with "Optimize Mac Storage". Confirm
-   offloaded files are cataloged and stay offloaded.
+Run on a clean checkout and record the OS version, architecture, and outcome
+of each step.
 
-## Manual checklist additions for Slice 0.4
+1. Install the prerequisites listed in the README for the platform.
+2. `pnpm install --frozen-lockfile`
+3. `pnpm check`, which must pass with no failures.
+4. `pnpm tauri dev`, then confirm a window titled "Atlas" opens on Welcome.
+5. Press Tab, and confirm focus is visible. Activate Get Started with Enter or
+   Space.
+6. Confirm the status bar shows "Atlas 0.1.0 · Phase 0 slice 0.8", followed
+   by "· development build" for debug builds only. This proves IPC works.
+7. Press Ctrl+2 and confirm the Library view opens (empty until a folder is
+   cataloged).
+8. Press Ctrl+3, choose Dark, then Light, then Match system. Confirm the
+   theme follows, and that Match system tracks the OS setting.
+9. Close the window. Confirm no `atlas` process remains (Task Manager, or
+   `pgrep atlas`).
+10. Windows: `pnpm tauri build --debug --bundles nsis`, then install the setup
+    `.exe`, launch Atlas from the Start menu, and repeat steps 4–9. Note any
+    SmartScreen prompt.
+11. Linux: `pnpm tauri build --debug --bundles appimage,deb`, then run the
+    AppImage and install the `.deb`, repeating steps 4–9 for each. Record the
+    distribution, desktop environment, and WebKitGTK version.
 
-1. Reach the Device check step during onboarding. Compare memory, cores,
-   free space, and power with the OS tools: Activity Monitor or Task Manager,
-   and `df` or Explorer.
-2. On a laptop, unplug the power, open Settings › Performance & Battery, and
-   wait up to 30 seconds. Confirm it says it will "run slowly because this
-   computer is on battery". Plug in again and confirm it says "run normally".
-3. On a desktop with no battery, confirm Power reads "No battery (desktop)"
-   and the policy says "run normally".
-4. Debug build: run `just dev-simulate battery:18`, then `unknown`, then
-   `ac 1000000`. Confirm the pause, slow, and low-space sentences shown above.
-
-## Manual checklist additions for Slice 0.3
-
-1. Finish onboarding to the Library folders step. Confirm the read-only text
-   appears, and that Continue stays disabled until a folder is added.
-2. Add two folders in one pick. Then pick a folder inside one of them, and
-   confirm Atlas refuses it and names the outer folder.
-3. Pick the Atlas data folder itself, and confirm it is refused.
-4. Add a folder on a USB drive, then unplug the drive. Confirm it shows "Not
-   connected". Plug it back in and confirm it shows Available.
-5. Remove a folder in Settings and confirm. Check that the folder and its
-   files are unchanged on disk.
-6. Windows: add `C:\Users\<you>\Documents\Books`, then try the same folder
-   with different capitalization, and confirm it is refused as already
-   added.
-7. Linux: add a folder whose name is not valid UTF-8, for example created
-   with `mkdir $'caf\xe9'`. Confirm it is listed with a replacement character
-   and shows Available.
-
-## Manual checklist additions for Slice 0.2
+### Data location (Slice 0.2)
 
 On each platform, with `ATLAS_CONFIG_DIR` set to a scratch folder for a debug
 build:
@@ -449,30 +418,83 @@ build:
    press Try again.
 6. If a network share is available, confirm it is refused as a data location.
 
-## Manual checklist for Windows and Linux (Slice 0.1)
+### Library folders (Slice 0.3)
 
-Run on a clean checkout and record the OS version, architecture, and outcome
-of each step.
+1. Finish onboarding to the Library folders step. Confirm the read-only text
+   appears, and that Continue stays disabled until a folder is added.
+2. Add two folders in one pick. Then pick a folder inside one of them, and
+   confirm Atlas refuses it and names the outer folder.
+3. Pick the Atlas data folder itself, and confirm it is refused.
+4. Add a folder on a USB drive, then unplug the drive. Confirm it shows "Not
+   connected". Plug it back in and confirm it shows Available.
+5. Remove a folder in Settings and confirm. Check that the folder and its
+   files are unchanged on disk.
+6. Windows: add `C:\Users\<you>\Documents\Books`, then try the same folder
+   with different capitalization, and confirm it is refused as already
+   added.
+7. Linux: add a folder whose name is not valid UTF-8, for example created
+   with `mkdir $'caf\xe9'`. Confirm it is listed with a replacement character
+   and shows Available.
 
-1. Install the prerequisites listed in the README for the platform.
-2. `pnpm install --frozen-lockfile`
-3. `pnpm check`, which must pass with no failures.
-4. `pnpm tauri dev`, then confirm a window titled "Atlas" opens on Welcome.
-5. Press Tab, and confirm focus is visible. Activate Get Started with Enter or
-   Space.
-6. Confirm the status bar shows "Atlas 0.1.0 · Phase 0 slice 0.1 · development build".
-   This proves IPC works.
-7. Press Ctrl+2 and confirm Library shows "planned for Phase 0 slice 0.6".
-8. Press Ctrl+3, choose Dark, then Light, then Match system. Confirm the
-   theme follows, and that Match system tracks the OS setting.
-9. Close the window. Confirm no `atlas` process remains (Task Manager, or
-   `pgrep atlas`).
-10. Windows: `pnpm tauri build --debug --bundles nsis`, then install the setup
-    `.exe`, launch Atlas from the Start menu, and repeat steps 4–9. Note any
-    SmartScreen prompt.
-11. Linux: `pnpm tauri build --debug --bundles appimage,deb`, then run the
-    AppImage and install the `.deb`, repeating steps 4–9 for each. Record the
-    distribution, desktop environment, and WebKitGTK version.
+### Device check (Slice 0.4)
+
+1. Reach the Device check step during onboarding. Compare memory, cores,
+   free space, and power with the OS tools: Activity Monitor or Task Manager,
+   and `df` or Explorer.
+2. On a laptop, unplug the power, open Settings › Performance & Battery, and
+   wait up to 30 seconds. Confirm it says it will "run slowly because this
+   computer is on battery". Plug in again and confirm it says "run normally".
+3. On a desktop with no battery, confirm Power reads "No battery (desktop)"
+   and the policy says "run normally".
+4. Debug build: run `just dev-simulate battery:18`, then `unknown`, then
+   `ac 1000000`. Confirm the pause, slow, and low-space sentences shown above.
+
+### Cataloging (Slice 0.5)
+
+1. Generate a fixture with `just fixtures <dir> 2000`, add it, and confirm
+   the final count equals `catalogableFiles`.
+2. Pause during a scan, quit, relaunch, and confirm it is still paused.
+   Resume.
+3. Kill the process during a scan (Task Manager, or `kill -9`), relaunch,
+   and confirm it completes with no duplicate rows.
+4. Unplug a drive holding a library folder during a scan. Confirm the
+   status says the folder isn't available and no files show as missing.
+   Plug it back in and confirm it resumes.
+5. Windows: add a OneDrive folder with Files On-Demand. Confirm online-only
+   files are cataloged without being downloaded (the cloud icon stays).
+6. macOS: add an iCloud Drive folder with "Optimize Mac Storage". Confirm
+   offloaded files are cataloged and stay offloaded.
+
+### Library, search, open (Slice 0.6)
+
+1. With a fixture cataloged, search `cafe` and confirm the "Café crème"
+   files appear. Clear the search with Esc.
+2. Filter by folder and type, toggle "Include missing files", sort by name
+   and modified date, and page with Next and Previous.
+3. Open a PDF: it should open in the default viewer. Then Show in
+   Explorer, Finder, or the file manager: the file should be selected.
+4. Delete a cataloged file and press Open. Confirm the "no longer where
+   Atlas found it" message, and confirm Rescan marks it missing.
+5. Windows: open an online-only OneDrive PDF. Confirm Atlas asks before
+   downloading, and that the file downloads only after you confirm.
+6. Linux: confirm Show in folder opens the file manager with the file
+   selected (FileManager1), or at least opens its folder.
+
+### AI services (Slice 0.7)
+
+1. In Settings › AI Models, press "Look for AI services on this computer".
+   Confirm local services are listed, and that nothing is contacted
+   before you press it.
+2. Add Ollama and press Test. You should see either a model list or the
+   "no models installed" message.
+3. Add an OpenAI-compatible service with a key and press Test. Confirm the
+   key is stored (macOS: Keychain Access, service `com.altazlabs.atlas`;
+   Windows: Credential Manager; Linux: Seahorse) and is not in any file
+   under the Atlas library folder.
+4. Enter an `http://` address on another computer. Confirm Atlas blocks it
+   until you tick the acknowledgement.
+5. Linux without a Secret Service (for example a minimal window manager):
+   confirm the key shows as "kept for this session only".
 
 ## Known platform notes
 

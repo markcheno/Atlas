@@ -22,7 +22,8 @@ use atlas_lib::services::workspace::Workspace;
 mod common;
 use common::{Env, GIB, InventoryHarness, code, fast_config, wait_until};
 
-const LONG: Duration = Duration::from_secs(20);
+/// Bounds a failure, not a performance claim: shared CI runners are slow.
+const LONG: Duration = Duration::from_secs(120);
 
 struct Lib {
     env: Env,

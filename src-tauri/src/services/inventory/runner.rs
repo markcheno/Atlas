@@ -541,7 +541,10 @@ impl Worker {
             .catalog
             .call(move |c| db::commit_batch(c, &id, &root_id, &committed, &ts))
         {
-            Ok(Ok(())) => {}
+            Ok(Ok(db::Committed::Yes)) => {}
+            // Paused or cancelled while this batch was listed: drop it. The
+            // directory stays pending and is listed again on resume.
+            Ok(Ok(db::Committed::NotRunning)) => return Some(DirOutcome::Interrupted),
             // Most likely the folder was removed while scanning (cascade).
             _ => {
                 if self.state_of(&s.id).is_some()

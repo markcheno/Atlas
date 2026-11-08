@@ -4,10 +4,16 @@ Atlas never ships or commits real books or papers. Test libraries are
 generated on demand from tiny synthetic stubs:
 
 ```sh
-just fixtures ~/atlas-fixtures/small            # 1,000 PDF/EPUB stubs
-just fixtures ~/atlas-fixtures/large 30000      # benchmark size
-node scripts/generate-fixtures.mjs <dir> --files 2000 --flat 20000   # plus one 20,000-entry folder
+just fixtures ~/atlas-fixtures/small                 # 1,000 PDF/EPUB stubs (1,006 catalogable)
+just fixtures ~/atlas-fixtures/large 10000 20000     # the 30k benchmark set: 10,000 nested files
+                                                     # plus one flat folder of 20,000 (30,006 catalogable)
 ```
+
+`--flat N` adds N files in one folder on top of `--files`. The benchmark
+suite (`just bench`, [docs/benchmarks.md](../docs/benchmarks.md)) and the
+smoke test (`just e2e`) generate their own copies in a temporary folder.
+The 30k set is a permanent benchmark asset (phase0-spec §11): later phases
+add synthetic body text and chunk counts without changing its layout.
 
 The output folder must be empty or new, outside this repository, and not
 inside an Atlas data root; the generator refuses otherwise. It prints a JSON

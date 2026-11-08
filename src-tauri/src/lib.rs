@@ -24,7 +24,6 @@ use infrastructure::system_probe::{OsResourceMonitor, SimulatedMonitor, Simulati
 use infrastructure::volume::OsVolumeInspector;
 use services::inventory::{InventoryConfig, InventoryDeps};
 use services::providers::secrets::{SecretStore, SecretVault};
-use services::source_open::OsOpener;
 use services::system::ResourceGovernor;
 use services::workspace::{Workspace, WorkspaceConfig, layout};
 use state::AppState;
@@ -86,7 +85,8 @@ pub fn run() {
             app.manage(AppState::new(
                 workspace,
                 governor,
-                Arc::new(OsOpener),
+                // Debug builds may record opens instead (smoke tests).
+                infrastructure::e2e::opener(),
                 vault,
             ));
             Ok(())

@@ -8,6 +8,6 @@ import type { ThrottleReason } from "./ThrottleReason";
  */
 export type PolicyDecision = { mode: PolicyMode, pauseReason: PauseReason | null, throttleReason: ThrottleReason | null, 
 /**
- * Engineering starting value, not a measured guarantee.
+ * Measured on one development machine (docs/benchmarks.md); not a guarantee.
  */
 maxMetadataOpsPerSecond: number | null, };

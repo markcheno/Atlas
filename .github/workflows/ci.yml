@@ -3,6 +3,7 @@ name: CI
 on:
   push:
     branches: [main]
+    tags: ['phase*/**']
   pull_request:
   workflow_dispatch:
 
@@ -13,8 +14,13 @@ concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
 
+env:
+  TAURI_DRIVER_VERSION: 2.1.0
+
 # Actions are pinned to full commit SHAs; the comment records the release.
+# Shared setup lives in .github/actions/setup.
 jobs:
+  # Checks, tests, debug bundles, and (Windows, Linux) the WebDriver smoke test.
   check-and-build:
     name: ${{ matrix.name }}
     strategy:
@@ -31,32 +37,13 @@ jobs:
             os: ubuntu-24.04
             bundles: appimage,deb
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 60
+    timeout-minutes: 75
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - name: Install Linux system dependencies
-        if: runner.os == 'Linux'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.1-dev libayatana-appindicator3-dev \
-            librsvg2-dev libxdo-dev libssl-dev patchelf file
-
-      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
-
-      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+      - uses: ./.github/actions/setup
         with:
-          node-version: 24
-          cache: pnpm
-
-      - name: Install Rust toolchain from rust-toolchain.toml
-        run: rustup toolchain install
-
-      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
-        with:
-          workspaces: src-tauri
-
-      - run: pnpm install --frozen-lockfile
+          linux-extra-packages: webkit2gtk-driver xvfb
 
       - name: Rust format, clippy, tests
         run: pnpm check:rust
@@ -81,3 +68,97 @@ jobs:
             src-tauri/target/debug/bundle/**/*.deb
           if-no-files-found: error
           retention-days: 14
+
+      - name: Install tauri-driver
+        if: runner.os != 'macOS'
+        shell: bash
+        run: |
+          if ! tauri-driver --help >/dev/null 2>&1; then
+            cargo install tauri-driver --version "$TAURI_DRIVER_VERSION" --locked
+          fi
+
+      - name: Smoke test (Linux, virtual display)
+        if: runner.os == 'Linux'
+        run: xvfb-run -a node e2e/smoke.mjs --out "$RUNNER_TEMP/e2e"
+
+      - name: Smoke test (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $driver = Join-Path $env:EDGEWEBDRIVER 'msedgedriver.exe'
+          & $driver --version
+          $wv = Get-ItemProperty 'HKLM:\SOFTWARE\WOW6432Node\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}' -ErrorAction SilentlyContinue
+          Write-Host "WebView2 runtime: $($wv.pv)"
+          node e2e/smoke.mjs --native-driver $driver --out "$env:RUNNER_TEMP/e2e"
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: always() && runner.os != 'macOS'
+        with:
+          name: e2e-${{ runner.os }}
+          path: ${{ runner.temp }}/e2e
+          if-no-files-found: warn
+          retention-days: 30
+
+  # Measurements only; never fails on numbers (docs/benchmarks.md).
+  bench:
+    name: Benchmarks ${{ matrix.name }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { name: macOS arm64, os: macos-latest }
+          - { name: Windows x64, os: windows-latest }
+          - { name: Linux x64, os: ubuntu-24.04 }
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: ./.github/actions/setup
+        with:
+          cache-key: release
+      - name: Run benchmarks
+        shell: bash
+        run: node scripts/bench.mjs --out "$RUNNER_TEMP/bench"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: always()
+        with:
+          name: bench-${{ runner.os }}
+          path: |
+            ${{ runner.temp }}/bench/*.json
+            ${{ runner.temp }}/bench/*.md
+          if-no-files-found: warn
+          retention-days: 90
+
+  # Release bundles: unsigned development builds (docs/packaging.md).
+  package:
+    name: Release bundle ${{ matrix.name }}
+    if: github.event_name != 'pull_request'
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { name: macOS arm64, os: macos-latest, bundles: 'app,dmg' }
+          - { name: Windows x64, os: windows-latest, bundles: nsis }
+          - { name: Linux x64, os: ubuntu-24.04, bundles: 'appimage,deb' }
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: ./.github/actions/setup
+        with:
+          cache-key: release
+      - name: Build release bundles
+        run: pnpm tauri build --ci --bundles ${{ matrix.bundles }}
+      - name: Bundle sizes
+        shell: bash
+        run: node scripts/bundle-sizes.mjs src-tauri/target/release | tee -a "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: atlas-${{ runner.os }}-${{ runner.arch }}-release
+          path: |
+            src-tauri/target/release/bundle/**/*.dmg
+            src-tauri/target/release/bundle/**/*-setup.exe
+            src-tauri/target/release/bundle/**/*.AppImage
+            src-tauri/target/release/bundle/**/*.deb
+          if-no-files-found: error
+          retention-days: 30

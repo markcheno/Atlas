@@ -24,7 +24,13 @@ from spec §7.3 and the counters. There is no generic jobs table until a
 second job kind exists. All state changes are conditional updates
 (`… WHERE state IN (…)`), so the worker and the user can never overwrite
 each other. A policy pause can't replace a user pause, and a cancel can't
-be undone by the worker.
+be undone by the worker. A batch commits only while its session is still
+`running`: the commit's own counter update is conditional, so a batch
+listed while the user paused or cancelled is dropped instead of landing
+afterwards, and its folder is listed again on resume. Transitions and
+commits share the single writer connection, so the check cannot race a
+state change. (Added in Slice 0.8, after the first CI run on slower
+hardware caught a late batch after a pause.)
 
 **A persisted directory frontier.** `scan_directories` lists folders still
 to scan for a session. Atlas lists a folder's entries in batches of up to
@@ -99,6 +105,7 @@ for cloud-offloaded files it would trigger a download.
   is replayed.
 - An iCloud folder that is offline shows as a folder failure, not as
   deleted files.
-- Throughput is bounded by the policy rate: about 100 files per second
-  plugged in and 20 on battery. Unthrottled, a warm 30,000-file tree takes
-  about one second on an M-series Mac. Slice 0.8 retunes the rates.
+- Throughput is bounded by the policy rate: 500 entries per second
+  plugged in and 100 when slowed (ADR 0004, retuned in Slice 0.8).
+  Unthrottled, a warm 30,000-file tree takes about 1.3 seconds on an M5
+  Pro ([benchmarks](../benchmarks.md)).
