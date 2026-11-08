@@ -1,4 +1,4 @@
-# Packaging and installation (Phase 0)
+# Packaging and installation
 
 Phase 0 builds are **development distributions**: unsigned, not notarized,
 and not production-ready (phase0-spec §14). They exist to prove that Atlas
@@ -39,6 +39,27 @@ The app needs none of Python, Docker, a database server, Ollama, or an
 LLM to start. It is one executable with the UI embedded. SQLite is compiled
 in, and the catalog lives in the data folder the user chooses.
 
+## PDFium in the bundles (Slice 1.2)
+
+Every bundle ships PDFium (bblanchon/pdfium-binaries chromium/8125, pinned
+with SHA-256 in `tools.lock.json`) for the extraction worker, plus its
+notices in `licenses/pdfium/` (PDFium's BSD-3-Clause `pdfium.txt`, the 17
+third-party notices, and `LICENSE-pdfium-binaries.txt`, the build scripts'
+MIT licence). Nothing is downloaded at run time.
+
+| OS | Where the library goes | Configured in |
+| --- | --- | --- |
+| macOS | `Atlas.app/Contents/Frameworks/libpdfium.dylib`, signed with the app | `src-tauri/tauri.macos.conf.json` (`bundle.macOS.frameworks`) |
+| Windows | `pdfium.dll` next to `atlas.exe` in the install folder | `src-tauri/tauri.windows.conf.json` (`bundle.resources`) |
+| Linux | `/usr/lib/Atlas/libpdfium.so` (`.deb`); `usr/lib/Atlas/` inside the AppImage | `src-tauri/tauri.linux.conf.json` (`bundle.resources`) |
+
+The library is 7.0 MiB on macOS (7.2 MiB on Windows, 7.7 MiB on Linux).
+The macOS release DMG grew from 6.8 to 10.4 MiB (17 to 26 MiB installed)
+on the M5 Pro. CI checks that the extraction worker loads the library and
+passes its self-test from every format: the signed `.app` (debug and
+release), the unpacked `.deb`, the AppImage, and a silent per-user NSIS
+install (`scripts/worker-hello.mjs`).
+
 ## Expected security prompts
 
 ### macOS
@@ -52,7 +73,16 @@ browser, including a CI artifact zip, is quarantined. Gatekeeper then
 blocks the first launch with its standard dialog for unnotarized apps
 (*"Atlas" Not Opened. Apple could not verify "Atlas" is free of malware…*).
 `codesign --verify --deep --strict` passes on the CI-built bundle, and
-`spctl --assess` rejects it, as expected without notarization. The dialog
+`spctl --assess` rejects it, as expected without notarization.
+
+Since Slice 1.2 the app is signed with one entitlement,
+`com.apple.security.cs.disable-library-validation`
+(`src-tauri/Entitlements.plist`). Under the hardened runtime, library
+validation only lets a process load libraries signed by the same team, and
+an ad-hoc signature has no Team ID, so the bundled PDFium was refused
+("mapping process and mapped file (non-platform) have different Team
+IDs"). With a Developer ID, the app and PDFium would share a Team ID and
+the entitlement should be dropped; review it before notarization. The dialog
 itself was not triggered during validation: launching through Finder
 would have run Atlas against the tester's real profile.
 
@@ -102,6 +132,8 @@ tested, and Atlas makes no claim of working on every distribution.
 ## Not done in Phase 0
 
 - Code signing and notarization (Apple Developer ID, Windows Authenticode).
+  Notarization must review the `disable-library-validation` entitlement
+  added for PDFium in Phase 1.
 - Auto-update.
 - Microsoft Store, Mac App Store, Flatpak, Snap, or RPM.
 - A portable single-file executable (not required, §14).
@@ -124,4 +156,9 @@ See [dependency licenses](dependency-licenses.md). In short:
   bundles none of them.
 - **Windows:** WebView2 is a Microsoft system component, distributed under
   Microsoft's WebView2 runtime terms by its own bootstrapper.
-- **macOS:** uses the system WebKit; nothing extra is bundled.
+- **macOS:** uses the system WebKit; nothing else is bundled.
+- **PDFium, every OS:** BSD-3-Clause plus permissive third-party notices
+  (FreeType, libjpeg-turbo, OpenJPEG, Little CMS, libpng, zlib, Abseil,
+  HarfBuzz, ICU and others). They ship in `licenses/pdfium/` in every
+  bundle, which meets their notice requirements. The library is
+  unmodified.

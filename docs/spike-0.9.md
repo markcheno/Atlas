@@ -60,6 +60,12 @@ from a second pass with all text documents in one process.
 | Docling (frozen) | 0.992 (0.967) | 1.000 | 0.969 / 0.868 | 0.826 / 1.000 | 3/3 | 0/18 | 0 | 33/33 | 7 | 3,139 | 3.8 GB | 2.06 GB folder |
 | **rbook** + html2text | – | – | – | 0.996 / 1.000 | – | 0/5 | 0 | 10/10 | – | 2 | 7 MiB | 4.4 MiB |
 
+*Corrected 2026-11-08 (Slice 1.2):* the start times were measured with no
+input files, so pdfium's 3 ms excludes loading the library. As the app's
+extraction worker, loading PDFium and reading a small PDF before the first
+reply takes about 15–20 ms on the M5 Pro
+([benchmarks](benchmarks.md#extraction-worker-start)).
+
 "Unreadable text" is the two scans plus the PDF without ToUnicode maps.
 Sizes are unstripped binaries that already contain the app's libraries
 (SQLite, Tokio); see Build cost for deltas. The lowest born-digital F1 is
@@ -299,7 +305,9 @@ All candidates are permissive. The details are in
 
 - **PDFium** is BSD-3-Clause and ships third-party code (FreeType,
   libjpeg-turbo, OpenJPEG, Little CMS, zlib and others) whose notices must
-  ship with it.
+  ship with it. *Corrected 2026-11-08 (Slice 1.2):* in the archive, PDFium's
+  licence is `licenses/pdfium.txt`; the root `LICENSE`, which the spike's
+  scripts recorded, is the MIT licence of bblanchon's build scripts.
 - **Docling's** code is MIT. Its layout model is Apache-2.0, and TableFormer
   is CDLA-Permissive-2.0. Its Python environment includes three MPL-2.0
   packages (`certifi`, `tqdm`) and PyInstaller, which is GPL with an

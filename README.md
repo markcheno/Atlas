@@ -4,7 +4,7 @@ Atlas is a local-first personal AI librarian for large private collections of
 PDFs, EPUBs, books and papers. *Collect freely. Organize minimally. Retrieve
 intelligently.*
 
-**Status: Phase 1, Slice 1.1 (general jobs); Phase 0 complete.** Atlas asks where to keep its library and
+**Status: Phase 1, Slice 1.2 (foundations for text extraction); Phase 0 complete.** Atlas asks where to keep its library and
 which folders hold your books and papers, then catalogs every PDF and EPUB
 in them in the background, read-only. Cataloging slows on battery, pauses
 when the battery is low or the drive is nearly full, survives quitting and
@@ -56,7 +56,8 @@ None of this is in the app yet.
 | CI, installers, cross-platform smoke test, benchmarks | Working (development builds, unsigned) |
 | Extraction and vector-engine decision | Decided ([ADR 0008](docs/adr/0008-extraction-and-vector-engines.md)); built in Phase 1 and 2 |
 | Background jobs of several kinds (scans now, text extraction next) | Working (Phase 1, Slice 1.1) |
-| Text extraction, duplicates, full-text search | Phase 1, in progress ([spec](docs/phase1-spec.md)): Slice 1.1 of 1.8 built |
+| PDFium bundled on all three OSes; extraction worker process | Foundations only (Slice 1.2): the worker loads PDFium and passes a self-test; it reads no library files yet |
+| Text extraction, duplicates, full-text search | Phase 1, in progress ([spec](docs/phase1-spec.md)): Slices 1.1–1.2 of 1.8 built |
 
 Specifications: [product](docs/product-spec.md), [Phase 0](docs/phase0-spec.md),
 [Phase 1](docs/phase1-spec.md), [architecture](docs/architecture.md),
@@ -84,6 +85,12 @@ End users need nothing beyond the installer. Developers need:
   `rust-toolchain.toml` (1.95.0, with rustfmt and clippy) installs on first use.
 - Node.js 22 or newer (CI uses 24) and pnpm 11 (`corepack enable` picks up the
   version pinned in `package.json`).
+- The pinned PDFium library, which every Rust build needs because the app
+  bundles it: `just setup` (or `just fetch-pdfium`, or
+  `node scripts/fetch-pdfium.mjs`) downloads it from bblanchon/pdfium-binaries,
+  checks its SHA-256 against `tools.lock.json`, and unpacks it into
+  `src-tauri/vendor/pdfium/` (gitignored). It is pinned for macOS on Apple
+  silicon, Windows x64 and Linux x64, the platforms Atlas builds on.
 - Platform build tools:
   - **macOS:** Xcode Command Line Tools (`xcode-select --install`).
   - **Windows:** Visual Studio Build Tools with "Desktop development with C++",
@@ -100,12 +107,13 @@ pnpm script, so pnpm alone also works.
 ## Run
 
 ```sh
-just setup    # or: rustup toolchain install && pnpm install --frozen-lockfile
+just setup    # or: rustup toolchain install && pnpm install --frozen-lockfile && node scripts/fetch-pdfium.mjs
 just dev      # or: pnpm tauri dev
 just dev-simulate battery:18   # debug build with simulated power (ac, battery:<pct>, unknown, desktop)
 just dev-unthrottled           # debug build without the cataloging rate limit
 just fixtures ~/atlas-fx 2000  # synthetic test library (see fixtures/README.md)
 just fixtures ~/atlas-fx30k 10000 20000   # the 30k benchmark set (with a 20k-file folder)
+just fixtures ~/atlas-fxtext 1000 0 20    # with about 20 KiB of body text per file
 ```
 
 `just ui` (`pnpm dev`) serves only the UI in a browser for layout work; native
@@ -122,6 +130,7 @@ just licenses         # regenerate docs/dependency-licenses.md
 just bench            # benchmark suite on 1k and 30k fixtures (release build; a few minutes)
 just bench-full       # plus the 30k throttle sweep
 just e2e              # WebDriver smoke test of the debug build (Windows/Linux; needs tauri-driver)
+just worker-hello     # start the extraction worker and check it loads PDFium (time to hello)
 just ci-remote        # run CI on GitHub for this pushed branch: full (default) or `just ci-remote quick`
 just ci-status        # recent CI runs for this branch
 ```

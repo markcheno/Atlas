@@ -57,8 +57,9 @@ export async function fetchPdfium(platform, log = console.log) {
   fs.mkdirSync(dir, { recursive: true });
   const archive = path.join(dir, path.basename(new URL(asset.url).pathname));
   fs.writeFileSync(archive, bytes);
-  // bsdtar (macOS, Windows) and GNU tar (Linux) both read .tgz.
-  execFileSync('tar', ['-xf', archive, '-C', dir]);
+  // bsdtar (macOS, Windows) and GNU tar (Linux, and Git's on Windows) both
+  // read .tgz. Relative names, because GNU tar reads "D:\\…" as a remote host.
+  execFileSync('tar', ['-xf', path.basename(archive)], { cwd: dir });
   fs.rmSync(archive);
 
   // The notices the bundles ship as licenses/pdfium/. The archive's root

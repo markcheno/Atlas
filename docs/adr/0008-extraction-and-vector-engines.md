@@ -126,6 +126,13 @@ second mode of the Atlas executable, started per batch. The reasons:
 
 Starting a worker costs about 3 ms.
 
+*Amended 2026-11-08 (Phase 1, Slice 1.2):* that 3 ms was measured with no
+files, so PDFium was never loaded. Started as `atlas --extract-worker`, a
+worker that loads PDFium and reads a small PDF before saying hello takes
+about 15–20 ms on the M5 Pro
+([benchmarks](../benchmarks.md#extraction-worker-start)), still far below
+what would justify a separate binary ([ADR 0009](0009-jobs-and-extraction.md)).
+
 *Amended 2026-11-08:* the second reason originally read "pdfium-render
 serializes every call". The spike's `Cargo.toml` sets
 `default-features = false`, which turns `thread_safe` off, so every number
@@ -219,6 +226,14 @@ can't be adopted anyway.
     a checked hash, as `spikes/tools.lock.json` does now.
   - pdfium-render's `pdfium_NNNN` feature must match that release.
   - It has to be included in macOS signing.
+  - *Amended 2026-11-08 (Slice 1.2), as built:* the pin moved to the root
+    `tools.lock.json` and `scripts/fetch-pdfium.mjs`; the library is in
+    `Contents/Frameworks` on macOS (signed with the app, which needs the
+    `disable-library-validation` entitlement while the signature is ad hoc)
+    and a bundle resource on Windows and Linux. PDFium's own licence is the
+    archive's `licenses/pdfium.txt`; the archive's root `LICENSE`, which the
+    spike recorded, is the MIT licence of bblanchon's build scripts. Both,
+    with the 17 other notices, ship in `licenses/pdfium/`.
 - **Phase 1 adds the extraction helper process and its job type.** This is
   the second job kind, which triggers the planned migration of
   `scan_sessions` into a general jobs table (phase0-spec §6).

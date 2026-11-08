@@ -230,7 +230,7 @@ Semantics:
 - **Caps.** `maxChars` is 20,000,000 per document; past it the worker stops with `too_large`. Per-page text over 1,000,000 characters is truncated with a reason recorded.
 - **Supervision.** One worker by default (`ATLAS_EXTRACT_WORKERS`, debug builds, up to 2). A 30-second **inactivity** timeout per request (a frame resets it), so a 3,000-page book is fine and a hung parser is not. RSS cap `min(1 GiB, 15% of total memory)`, polled with `sysinfo` every 250 ms. On timeout or cap: kill (SIGKILL / `TerminateProcess`), mark the file's attempt, restart the worker. Two crashes on the same file → document `worker_crashed`; ten worker restarts within one job → job `failed_retryable` with backoff. Quitting the app kills the worker before the catalog closes (P1-22).
 - **Startup cost.** Measured in Slice 1.2. If the GUI executable in worker mode takes more than about 300 ms to reach `hello` on any OS, Phase 1 falls back to a separate `[[bin]] atlas-extract` sidecar; the protocol does not change.
-- **Locating PDFium.** macOS: `Contents/Frameworks/libpdfium.dylib` next to the executable; Windows and Linux: the Tauri resource directory. Development builds and tests use `ATLAS_PDFIUM_LIBRARY`. A missing or unloadable library fails the job with `extractor_unavailable` and a visible message; it never crashes the app.
+- **Locating PDFium.** macOS: `Contents/Frameworks/libpdfium.dylib` next to the executable; Windows and Linux: the Tauri resource directory. Debug builds honour `ATLAS_PDFIUM_LIBRARY` (as the only candidate) and otherwise fall back to the fetched `src-tauri/vendor/pdfium/<platform>/`, so `cargo test` needs no setup beyond `just setup`; release builds ignore the variable. A missing or unloadable library fails the job with `extractor_unavailable` and a visible message; it never crashes the app.
 
 ### 7.3 Policy
 
@@ -298,8 +298,8 @@ Phase 0's generator (`scripts/generate-fixtures.mjs`) and its layout stand, as �
 
 - `--text-kb N` (default 0 keeps the Phase 0 output byte for byte). Each file gets deterministic pseudo-text from a seeded word list, about N KB, with a unique marker phrase per file (`"<subject> marker <n>"`) and a few shared topic phrases, so questions over the fixture are derivable and repeatable.
 - PDFs become multi-page documents (about 3,000 characters a page, Helvetica, WinAnsi `Tj` strings, a correct cross-reference table), so pages and page numbers mean something.
-- EPUBs become **valid** zips: `mimetype` first and stored, `META-INF/container.xml`, an OPF with `dc:title`, `dc:creator` and `dc:language`, and N XHTML chapters.
-- 30,000 files × 100 KB ≈ 3 GB locally; CI uses `--text-kb 20` (about 600 MB) because of runner disk. The 1,000-file set uses the same options. Note: without `--text-kb`, every PDF is byte-identical and the whole fixture collapses to one document by hash; the extraction gate is only meaningful with text.
+- EPUBs become **valid** zips: `mimetype` first and stored, `META-INF/container.xml`, an OPF with `dc:title`, `dc:creator` and `dc:language`, and XHTML chapters (as built: four chapters, entries stored rather than deflated so the bytes are the same on every machine; see `fixtures/README.md`).
+- 30,000 files × 100 KB ≈ 3 GB locally (measured: 3.6 GiB in 49 s); CI uses `--text-kb 20` (measured: 808 MiB in 12 s) because of runner disk. The 1,000-file set uses the same options. Note: without `--text-kb`, every PDF is byte-identical and the whole fixture collapses to one document by hash; the extraction gate is only meaningful with text.
 - The spike corpus (`spikes/extraction-bench/corpus/`, 33 documents, 9.4 MiB, every file with source, license and SHA-256) is the extraction test input; `just spike-corpus` keeps verifying it. It covers born-digital, two- and three-column, ligatures and accents, a scanned book, a PDF without ToUnicode maps, owner- and user-password PDFs, DRM, zip bombs and zip-slip, broken cross-reference tables and empty files.
 - The rule stands: never commit personal books or papers; fixtures must never mutate a user's collection.
 
@@ -350,7 +350,7 @@ Provisional targets, to report against and not to publish as requirements: **sea
 
 - **PDFium delivery.** `tools.lock.json` at the repository root pins the bblanchon/pdfium-binaries release (chromium/8125) per platform with SHA-256; `scripts/fetch-pdfium.mjs` verifies and unpacks it into gitignored `src-tauri/vendor/pdfium/<platform>/` with its `LICENSE` and `licenses/` folder. `just setup` and `.github/actions/setup` run it (cached by hash) because `tauri-build` copies bundle resources at compile time.
 - **Bundling.** macOS: `tauri.macos.conf.json` lists the dylib under `bundle.macOS.frameworks`, so Tauri places it in `Contents/Frameworks` and signs it with the app's identity (ad-hoc in CI), which hardened-runtime library validation requires. Windows and Linux: `tauri.windows.conf.json` / `tauri.linux.conf.json` ship `pdfium.dll` / `libpdfium.so` as `bundle.resources`. The notices ship as `licenses/pdfium/` resources on every OS.
-- **Signing gate (Slice 1.2).** The CI-built macOS `.app` passes `codesign --verify --deep --strict` with the dylib inside, and its worker reaches `hello` and extracts one PDF when launched from the bundle. If the ad-hoc build fails library validation, add `com.apple.security.cs.disable-library-validation` through `bundle.macOS.entitlements`, and record that notarization will later need the same entitlement reviewed.
+- **Signing gate (Slice 1.2).** The CI-built macOS `.app` passes `codesign --verify --deep --strict` with the dylib inside, and its worker reaches `hello` when launched from the bundle, after extracting the two-page self-test PDF built into the binary (as built; see the Slice 1.2 revision note). If the ad-hoc build fails library validation, add `com.apple.security.cs.disable-library-validation` through `bundle.macOS.entitlements`, and record that notarization will later need the same entitlement reviewed.
 - **CI.** The full tier (docs/architecture.md, "Build, CI and measurement") carries everything below; the quick tier for slice branches runs only the Linux checks and tests. The smoke test gains "search finds a passage" (after extraction finishes on the 1k text fixture) and "quit leaves no worker process". The bench job adds the 30k text scenario (`--text-kb 20`). The spike workflow is unchanged.
 - **Licenses.** `docs/dependency-licenses.md` gains `pdfium-render`, `rbook`, `html2text`, `zip`, `blake3` and the hand-kept native row for PDFium (BSD-3-Clause plus FreeType, libjpeg-turbo, OpenJPEG, Little CMS, zlib, Abseil, HarfBuzz, ICU and the rest of its `licenses/` folder). GPL/AGPL findings are flagged as before.
 - **Linux dependencies** are unchanged: PDFium is bundled, not a system package. Document the AppImage's bundled PDFium with the other bundled libraries.
@@ -429,6 +429,17 @@ Do **not** start extraction, FTS, or the search UI before Slice 1.1's gate passe
 - `jobs.kind` has no CHECK constraint, so a future kind needs no table rebuild (which would cascade-delete the scan frontier under the migration runner's foreign keys).
 - The `JobProcessor` signature in §9 is the as-built one.
 - CI has tiers (added at the product owner's request). Pushes to `slice-*` branches run a quick Linux-only tier (checks and tests), and docs-only branch pushes run lint only. `main`, tags, pull requests and `just ci-remote` run the full matrix that §14 extends. A slice is still merged only after a full run passes.
+
+**2026-11-08, amended during Slice 1.2:**
+
+- The signing gate's "extracts one PDF" is met by a self-test: before `hello`, the worker extracts a two-page PDF compiled into the binary and checks its marker, and `hello` carries the result (`selfTest {pages, chars}`). Product-owner decision; the `extract` request still arrives in Slice 1.3.
+- Ad-hoc signing with the hardened runtime failed library validation for the bundled PDFium ("different Team IDs"), so the planned fallback entitlement `com.apple.security.cs.disable-library-validation` is in `src-tauri/Entitlements.plist`. Notarization must review it.
+- The worker stays a mode of the app executable: it reaches `hello` in about 15–20 ms on the M5 Pro and on the CI runners (`docs/benchmarks.md`), far below the 300 ms threshold for a sidecar.
+- The spike's 3 ms worker start never loaded PDFium; corrected in ADR 0008 and `spike-0.9.md`.
+- PDFium's licence is the archive's `licenses/pdfium.txt`; its root `LICENSE` is the MIT licence of bblanchon's build scripts. Both ship in `licenses/pdfium/` with the other notices.
+- `ATLAS_PDFIUM_LIBRARY` is honoured only in debug builds, like the other `ATLAS_*` overrides.
+- Because tauri-build checks the bundled library on every compile, every Rust build needs the fetched PDFium (`just setup`); development is supported on the three pinned platforms only.
+- Fixture EPUB entries are stored, not deflated, so fixtures are byte-identical on every machine (Node's zlib output differs between CPUs). The flat folder also gets body text, so the 30k text fixture doesn't collapse to one document.
 
 ### Primary reference documentation (verify current versions at implementation time)
 
