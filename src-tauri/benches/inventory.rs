@@ -32,7 +32,7 @@ use atlas_lib::infrastructure::volume::OsVolumeInspector;
 use atlas_lib::services::inventory::{InventoryConfig, InventoryDeps, control};
 use atlas_lib::services::library;
 use atlas_lib::services::scheduler::policy::{AC_OPS_PER_SECOND, SLOW_OPS_PER_SECOND};
-use atlas_lib::services::sources;
+use atlas_lib::services::sources::{self, probe};
 use atlas_lib::services::system::ResourceGovernor;
 use atlas_lib::services::workspace::{Workspace, WorkspaceConfig, layout};
 
@@ -244,6 +244,15 @@ fn query() -> DocumentQuery {
         include_missing: false,
     }
 }
+
+const MIX_NAMES: [&str; 6] = [
+    "firstPage",
+    "search",
+    "deepSortedPage",
+    "filteredSearch",
+    "noMatchSearch",
+    "status",
+];
 
 /// The browse mix: first page, search, a deep sorted page, a filtered
 /// search, a search with no matches, and the indexing status.
@@ -496,11 +505,27 @@ fn scan_run(args: &Args, rate: Rate) -> Value {
                     let w = ws.lock().unwrap();
                     let t = Instant::now();
                     run_query(&w, &mix[i % mix.len()]);
-                    times.push(t.elapsed());
+                    times.push((i % mix.len(), t.elapsed()));
                 }
                 let t = started;
                 i += 1;
                 std::thread::sleep(gap.saturating_sub(t.elapsed()));
+            }
+            times
+        })
+    });
+
+    // The folder reachability probe that browsing refreshes every 5 s,
+    // timed on its own once a second.
+    let probing = (args.browse_per_sec > 0).then(|| {
+        let (scanning, fixture) = (scanning.clone(), args.fixture.clone());
+        std::thread::spawn(move || {
+            let mut times = Vec::new();
+            while scanning.load(Ordering::Relaxed) {
+                let t = Instant::now();
+                probe::probe_all(&[Some(fixture.clone())]);
+                times.push(t.elapsed());
+                std::thread::sleep(Duration::from_secs(1));
             }
             times
         })
@@ -545,7 +570,21 @@ fn scan_run(args: &Args, rate: Rate) -> Value {
     }
     let wall = started.elapsed();
     scanning.store(false, Ordering::Relaxed);
-    let browse_times = browse.map(|h| h.join().unwrap()).unwrap_or_default();
+    let browse_samples = browse.map(|h| h.join().unwrap()).unwrap_or_default();
+    let probe_times = probing.map(|h| h.join().unwrap()).unwrap_or_default();
+    let browse_times: Vec<Duration> = browse_samples.iter().map(|(_, d)| *d).collect();
+    let by_query: serde_json::Map<String, Value> = MIX_NAMES
+        .iter()
+        .enumerate()
+        .map(|(k, name)| {
+            let times = browse_samples
+                .iter()
+                .filter(|(i, _)| *i == k)
+                .map(|(_, d)| *d)
+                .collect();
+            ((*name).to_owned(), percentiles(times))
+        })
+        .collect();
     let (cpu_ms, peak_rss, peak_cpu) = sampler.finish();
 
     let files = file_count(&ws.lock().unwrap());
@@ -609,6 +648,8 @@ fn scan_run(args: &Args, rate: Rate) -> Value {
         "createLibraryMs": create_ms,
         "firstRowsMs": first_rows.map(|d| round(d.as_secs_f64() * 1000.0, 1)),
         "browseWhileScanning": percentiles(browse_times),
+        "browseByQuery": by_query,
+        "rootProbeWhileScanning": percentiles(probe_times),
         "warmQueries": percentiles(warm),
         "statusQuery": percentiles(status),
         "reopenMs": round(reopen_ms, 1),

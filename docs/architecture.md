@@ -303,8 +303,9 @@ Implemented in `services/providers/`, `infrastructure/http_probe.rs`, and
   the catalog.
 - **Keys** go to the OS keychain under service `com.altazlabs.atlas`, or
   `….debug` in debug builds, with account `provider:<id>`. If the keychain
-  is unavailable, they are kept in memory for the session only. A
-  redacting `Secret` type keeps keys out of `Debug` output.
+  is unavailable, they are kept in memory for the session only. The
+  keychain is opened on first use (`LazyKeychain`, at most 5 s), never at
+  startup. A redacting `Secret` type keeps keys out of `Debug` output.
 - **Address rules:** http(s) only, no credentials, query, or fragment; plain
   HTTP silently to loopback only, otherwise per-profile acknowledgement.
 - **Tests** are bodiless GETs of the model list, with no redirects, no

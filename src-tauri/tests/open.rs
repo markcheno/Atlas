@@ -112,12 +112,23 @@ impl Lib {
 /// is interpreted by a shell.
 #[test]
 fn p0_16_hostile_names_are_passed_through_exactly() {
+    // Windows forbids `"`, `|`, `<`, `>`, `*`, `?` and `:` in names; its set
+    // uses the characters cmd.exe treats specially instead.
+    #[cfg(not(windows))]
     let names = [
         "; rm -rf ~.pdf",
         "$(touch pwned).pdf",
         "quote ' \" `whoami`.pdf",
         "-n leading dash.pdf",
         "pipe | and & ampersand.pdf",
+    ];
+    #[cfg(windows)]
+    let names = [
+        "; rm -rf ~.pdf",
+        "$(touch pwned).pdf",
+        "quote ' `whoami`.pdf",
+        "-n leading dash.pdf",
+        "and & ampersand %PATH% ^caret.pdf",
     ];
     let lib = Lib::with_files(&names);
     for name in names {

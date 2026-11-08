@@ -18,7 +18,7 @@ use std::sync::{Arc, Mutex};
 use tauri::{Emitter, Manager};
 
 use domain::dto::InventoryOverview;
-use infrastructure::keychain::KeychainStore;
+use infrastructure::keychain::LazyKeychain;
 use infrastructure::local_source::LocalFsSource;
 use infrastructure::system_probe::{OsResourceMonitor, SimulatedMonitor, Simulation};
 use infrastructure::volume::OsVolumeInspector;
@@ -78,10 +78,11 @@ pub fn run() {
             // Reopens the remembered root and resumes interrupted cataloging;
             // problems become status, never a crash.
             workspace.startup();
-            // Keys go to the OS keychain; if it's unavailable, they are kept
-            // for this session only and never written to disk.
-            let keychain = KeychainStore::open().map(|k| Arc::new(k) as Arc<dyn SecretStore>);
-            let vault = Arc::new(SecretVault::new(keychain));
+            // Keys go to the OS keychain, opened on first use so startup
+            // never waits for it. If it's unavailable, keys are kept for
+            // this session only and never written to disk.
+            let keychain: Arc<dyn SecretStore> = Arc::new(LazyKeychain::default());
+            let vault = Arc::new(SecretVault::new(Some(keychain)));
             app.manage(AppState::new(
                 workspace,
                 governor,

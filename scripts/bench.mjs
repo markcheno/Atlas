@@ -175,5 +175,21 @@ function summarize(all) {
         `| ${p.id} | ${p.rate} | ${p.filesWrittenAfterPause} | ${p.resumeToNextWriteMs} |`,
       );
   }
+  const browsed = all.flatMap((r) =>
+    r.runs.filter((x) => x.browseByQuery).map((x) => ({ id: r.id, rate: x.rate, ...x })),
+  );
+  if (browsed.length) {
+    const kinds = Object.keys(browsed[0].browseByQuery);
+    lines.push(
+      '',
+      `| Browse p95 / max ms while scanning | Rate | ${kinds.join(' | ')} | folder probe |`,
+      `| --- | --- | ${kinds.map(() => '---:').join(' | ')} | ---: |`,
+    );
+    const cell = (p) => (p ? `${p.p95Ms} / ${p.maxMs}` : '–');
+    for (const b of browsed)
+      lines.push(
+        `| ${b.id} | ${b.rate} | ${kinds.map((k) => cell(b.browseByQuery[k])).join(' | ')} | ${cell(b.rootProbeWhileScanning)} |`,
+      );
+  }
   return `${lines.join('\n')}\n`;
 }
