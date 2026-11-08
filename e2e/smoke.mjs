@@ -78,6 +78,35 @@ const report = {
 const t0 = Date.now();
 let shot = 0;
 
+// Preflight: launch the app directly (no WebDriver) with its own scratch
+// configuration, and check it is still running after 15 s. This tells an
+// app that crashes on start apart from a driver that can't attach.
+report.preflight = await new Promise((resolve) => {
+  const started = Date.now();
+  const child = spawn(app, [], {
+    env: { ...env, ATLAS_CONFIG_DIR: path.join(scratch, 'preflight-config') },
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
+  let output = '';
+  const keep = (b) => (output = (output + b.toString()).slice(-4000));
+  child.stdout.on('data', keep);
+  child.stderr.on('data', keep);
+  const timer = setTimeout(() => {
+    child.kill();
+    resolve({ alive: true, ms: Date.now() - started, output });
+  }, 15_000);
+  child.on('error', (err) => {
+    clearTimeout(timer);
+    resolve({ alive: false, error: err.message, output });
+  });
+  child.on('exit', (code, signal) => {
+    clearTimeout(timer);
+    resolve({ alive: false, code, signal, ms: Date.now() - started, output });
+  });
+});
+console.log(`smoke: preflight ${JSON.stringify(report.preflight)}`);
+await sleep(1_000);
+
 const driverArgs = [];
 const native = opt('native-driver', null);
 if (native) driverArgs.push('--native-driver', native);

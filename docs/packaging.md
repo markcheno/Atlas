@@ -20,13 +20,16 @@ days, debug bundles for 14).
 | Windows x64 (`windows-latest`) | NSIS `-setup.exe` (per-user install) | `atlas-Windows-X64-release` |
 | Linux x64 (`ubuntu-24.04`) | `.AppImage`, `.deb` | `atlas-Linux-X64-release` |
 
-Sizes from the run recorded in [platform validation](platform-validation.md#slice-08-ci-packaging-smoke-and-benchmarks):
+| Bundle | Size | Notes |
+| --- | ---: | --- |
+| `Atlas_0.1.0_aarch64.dmg` | 6.8 MiB | 17 MiB app once installed |
+| `Atlas_0.1.0_x64-setup.exe` | 4.7 MiB | Uses the system WebView2 |
+| `Atlas_0.1.0_amd64.deb` | 8.4 MiB | Uses the distribution's WebKitGTK |
+| `Atlas_0.1.0_amd64.AppImage` | 82.7 MiB | Bundles WebKitGTK, GTK and their libraries |
 
-<!-- sizes:start -->
-| Bundle | Size |
-| --- | ---: |
-| _filled in from CI run_ | |
-<!-- sizes:end -->
+Release builds from CI run
+[42444312761](https://github.com/markcheno/Atlas/actions/runs/42444312761)
+(2026-11-08).
 
 Locally: `just bundle-release` (release) or `just bundle` (debug) builds
 the formats for the current OS and prints their sizes.
@@ -39,10 +42,18 @@ in, and the catalog lives in the data folder the user chooses.
 
 ### macOS
 
-The bundles carry only an ad-hoc signature and are not notarized. A DMG
-downloaded from a browser or a CI artifact is quarantined, so the first
-launch shows a dialog: *"Atlas" Not Opened. Apple could not verify "Atlas"
-is free of malware…*
+The app bundle is ad-hoc signed (`"signingIdentity": "-"` in
+`tauri.conf.json`), with sealed resources and the hardened runtime, but no
+Developer ID and no notarization. (Without the ad-hoc bundle signature,
+only the binary carries the linker's signature, and macOS tends to call a
+downloaded copy "damaged" with no way to open it.) A DMG downloaded with a
+browser, including a CI artifact zip, is quarantined. Gatekeeper then
+blocks the first launch with its standard dialog for unnotarized apps
+(*"Atlas" Not Opened. Apple could not verify "Atlas" is free of malware…*).
+`codesign --verify --deep --strict` passes on the CI-built bundle, and
+`spctl --assess` rejects it, as expected without notarization. The dialog
+itself was not triggered during validation: launching through Finder
+would have run Atlas against the tester's real profile.
 
 To open it anyway:
 

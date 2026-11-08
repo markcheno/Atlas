@@ -43,7 +43,7 @@ jobs:
 
       - uses: ./.github/actions/setup
         with:
-          linux-extra-packages: webkit2gtk-driver xvfb
+          linux-extra-packages: webkit2gtk-driver xvfb dbus
 
       - name: Rust format, clippy, tests
         run: pnpm check:rust
@@ -77,9 +77,11 @@ jobs:
             cargo install tauri-driver --version "$TAURI_DRIVER_VERSION" --locked
           fi
 
+      # A session bus, as on a real desktop: without one, GTK and WebKit wait
+      # about 25 s for the accessibility bus on every launch.
       - name: Smoke test (Linux, virtual display)
         if: runner.os == 'Linux'
-        run: xvfb-run -a node e2e/smoke.mjs --out "$RUNNER_TEMP/e2e"
+        run: dbus-run-session -- xvfb-run -a node e2e/smoke.mjs --out "$RUNNER_TEMP/e2e"
 
       - name: Smoke test (Windows)
         if: runner.os == 'Windows'
