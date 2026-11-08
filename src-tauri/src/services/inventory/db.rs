@@ -203,6 +203,20 @@ pub fn commit_batch(
                  last_seen_session_id, created_at, updated_at, search_key, name_key)
              VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, 'available', ?11, ?12, ?13, ?13, ?14, ?15)
              ON CONFLICT (source_root_id, rel_path) DO UPDATE SET
+                 -- Changed content needs reading again (phase1-spec §6.1).
+                 -- SET expressions see the old row, so order doesn't matter.
+                 extract_state = CASE
+                     WHEN size_bytes IS NOT excluded.size_bytes
+                       OR mtime_secs IS NOT excluded.mtime_secs
+                     THEN 'pending' ELSE extract_state END,
+                 document_id = CASE
+                     WHEN size_bytes IS NOT excluded.size_bytes
+                       OR mtime_secs IS NOT excluded.mtime_secs
+                     THEN NULL ELSE document_id END,
+                 extract_attempts = CASE
+                     WHEN size_bytes IS NOT excluded.size_bytes
+                       OR mtime_secs IS NOT excluded.mtime_secs
+                     THEN 0 ELSE extract_attempts END,
                  updated_at = CASE
                      WHEN size_bytes IS NOT excluded.size_bytes
                        OR mtime_secs IS NOT excluded.mtime_secs
