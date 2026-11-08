@@ -182,7 +182,9 @@ Implemented in `src-tauri/src/services/sources/`; rationale in
   source tree before and after add, list and remove.
 - **Storage.** `source_roots` (migration 0002) keeps the canonical path
   (`dunce::canonicalize`, so Windows paths keep their ordinary `C:\…` form
-  rather than the verbatim `\\?\C:\…` one) as platform-tagged native bytes (`infrastructure/native_path.rs`) plus a
+  rather than the verbatim `\\?\C:\…` one where that is safe; names that
+  aren't valid Unicode stay verbatim, so path comparisons go through
+  `native_path::comparable`) as platform-tagged native bytes (`infrastructure/native_path.rs`) plus a
   lossy display string. There is no stored status column: availability is
   probed live each time the list is shown, with a 2 second budget per call
   so a hung network mount cannot freeze the UI.

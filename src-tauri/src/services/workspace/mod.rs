@@ -31,6 +31,7 @@ use crate::domain::traits::VolumeInspector;
 use crate::error::{AtlasError, AtlasResult, ErrorPayload};
 use crate::infrastructure::clock::now_rfc3339;
 use crate::infrastructure::fsutil::{clear_dir, sync_dir};
+use crate::infrastructure::native_path;
 use crate::services::catalog::reader::CatalogReader;
 use crate::services::catalog::{self, CatalogWriter};
 use crate::services::inventory::{self, InventoryDeps, InventoryRunner};
@@ -252,7 +253,7 @@ impl Workspace {
             return false;
         };
         match (dunce::canonicalize(path), dunce::canonicalize(&root.path)) {
-            (Ok(a), Ok(b)) => a == b,
+            (Ok(a), Ok(b)) => native_path::comparable(&a) == native_path::comparable(&b),
             _ => false,
         }
     }

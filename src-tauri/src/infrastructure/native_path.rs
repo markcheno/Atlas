@@ -70,6 +70,44 @@ pub fn display(path: &Path) -> String {
     path.to_string_lossy().into_owned()
 }
 
+/// The same path in a form that compares equal however it was produced.
+///
+/// On Windows a canonical path comes back plain (`C:\x`) or verbatim
+/// (`\\?\C:\x`): `dunce::canonicalize` keeps the verbatim form when a name
+/// isn't valid Unicode (an unpaired surrogate). Comparing the two forms
+/// fails, so this rewrites the verbatim disk and UNC prefixes to their plain
+/// forms. Lexical only: use it to compare paths, never to open them.
+#[cfg(windows)]
+pub fn comparable(path: &Path) -> PathBuf {
+    use std::ffi::OsString;
+    use std::path::{Component, Prefix};
+    let mut components = path.components();
+    let Some(Component::Prefix(prefix)) = components.next() else {
+        return path.to_path_buf();
+    };
+    let head = match prefix.kind() {
+        Prefix::VerbatimDisk(drive) => PathBuf::from(format!("{}:\\", drive as char)),
+        Prefix::VerbatimUNC(server, share) => {
+            let mut s = OsString::from(r"\\");
+            s.push(server);
+            s.push(r"\");
+            s.push(share);
+            s.push(r"\");
+            PathBuf::from(s)
+        }
+        _ => return path.to_path_buf(),
+    };
+    let rest: PathBuf = components
+        .filter(|c| !matches!(c, Component::RootDir))
+        .collect();
+    head.join(rest)
+}
+
+#[cfg(not(windows))]
+pub fn comparable(path: &Path) -> PathBuf {
+    path.to_path_buf()
+}
+
 /// Exposed for tests that simulate a catalog from another platform.
 pub fn foreign_tag() -> u8 {
     if cfg!(windows) { TAG_UNIX } else { TAG_WINDOWS }
@@ -78,6 +116,26 @@ pub fn foreign_tag() -> u8 {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[cfg(windows)]
+    #[test]
+    fn verbatim_and_plain_paths_compare_equal() {
+        let plain = Path::new(r"C:\Books\Astronomy");
+        assert_eq!(comparable(Path::new(r"\\?\C:\Books\Astronomy")), plain);
+        assert_eq!(comparable(plain), plain);
+        assert!(comparable(Path::new(r"\\?\C:\Books\Astronomy\x.pdf")).starts_with(plain));
+        assert_eq!(
+            comparable(Path::new(r"\\?\UNC\server\share\Books")),
+            Path::new(r"\\server\share\Books")
+        );
+    }
+
+    #[cfg(not(windows))]
+    #[test]
+    fn comparable_is_identity_off_windows() {
+        let p = Path::new("/Users/someone/Books");
+        assert_eq!(comparable(p), p);
+    }
 
     #[test]
     fn round_trips_ordinary_paths() {
