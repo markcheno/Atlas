@@ -1,0 +1,1653 @@
+The Generative AI Gold Rush in Theoretical and Computational Research
+
+Xiaoshn Nee
+††thanks: Corresponding author. Email: nixsh3@gmail.com
+Affiliation: Independent researchers
+
+Haobo Zhong
+
+Affiliation: HSBC Business School, Peking University, Shenzhen City, Guangdong 518055, China
+
+Xiaomin Ni
+
+Affiliation: Artificial Intelligence Research Institute, Shenzhen University of Advanced Technology, Shenzhen, China
+
+3 September 2026
+
+Abstract
+
+Generative AI is changing the production conditions of theoretical and computational research, but its system level effects require measures that separate platform growth, field specific divergence, and production structure. We assemble 2,080 monthly observations for twenty arXiv archives from January 2018 through August 2026 and a separate pseudonymized Mathematics author panel. A regularized convex synthetic control fitted through December 2025 identifies the January–August 2026 anomaly, while spatial placebos, prior year pseudo holdouts, donor refits, and alternative preperiods assess comparative robustness. Mathematics recorded 47,127 list entries, 33.5% above 2025 and 11.9% above a synthetic counterfactual of 42,113 entries. Qualified donor and preperiod designs yield 9.6% to 14.9%, and Mathematics has the largest RMSPE ratio among fifteen eligible placebo archives. Subfield growth is broad, with 29 of 30 primary math.* categories expanding. The author panel shows a marked thickening of the repeated output tail. The share of active author units producing at least five submissions rose from 2.45% to 3.80%, while the ten submission tail rose from 0.21% to 0.49%. These results document a new and unusually large 2026 Mathematics production regime shift. Its timing and production structure, combined with independent evidence on AI diffusion and verifiable research tasks, are consistent with delayed diffusion and capability threshold mechanisms. The comparative design identifies the anomaly, and separate triangulation evaluates AI related explanations. The findings locate verification, selection, and attention as central constraints for research governance.
+
+Keywords generative AI; mathematics; theoretical physics; computational research; scientific publishing; synthetic control; causal inference; human agency; arXiv
+
+1  Introduction
+
+The most visible scientific use of a large language model is textual, yet its deepest effects reach the research process itself. A model can translate a question into code, propose a lemma, search a literature, produce a symbolic derivation, construct a numerical experiment, and turn intermediate results into a manuscript. These functions lower several production costs at once. Their scientific value rises sharply when outputs can be checked and the resulting questions remain worth asking. This advantage is especially consequential in mathematics and theoretical or computational physics, where formal proofs, executable code, limiting cases, conservation laws, and reproducible environments provide powerful validators. Broad syntheses now organize AI assisted discovery around hypothesis generation, experimental design, simulation, and interpretation, while recent work on scientific practice emphasizes task specific evaluation and human responsibility [53, 10]. In this study, a research gold rush denotes a rapid and broad expansion of entry and repeated output as production costs fall and perceived research opportunities widen.
+
+The empirical debate has moved faster than its measurement. Global article production grew well before the public release of ChatGPT, with the estimated annual total rising from roughly 1.92 million articles in 2016 to 2.82 million in 2022 [20]. Bibliometric mapping also finds widespread growth in the direct use and potential benefits of AI across science since 2015, together with marked disciplinary and demographic disparities [18]. A credible assessment therefore benefits from distinct measures of information flow, field exposure, linguistic influence, disclosed adoption, substantive task use, and knowledge value. Their joint movement supplies a stronger mechanism test than any single undifferentiated “AI share.”
+
+This paper uses the 2026 mathematics preprint surge as an empirical anchor for studying how generative AI is changing theoretical and computational research. The surge is treated as both a substantive phenomenon and a comparative identification problem. The empirical contribution is a monthly panel covering Mathematics, thirteen physics related archives, and six additional comparison archives, together with official global submission totals. The methodological contribution is a ladder of counterfactual tests comprising year over year comparisons, seasonal historical extrapolation, a regularized convex synthetic control method, spatial placebos, prior year pseudo holdouts, alternative donor pools, alternative preperiods, and leave one donor out refits. The conceptual contribution connects changing information flow to the emerging verification bottleneck and to human agency in research. A capability threshold denotes the point at which model performance and available checks make a research task reliable enough for routine workflow adoption.
+
+Three findings organize the paper. First, the 2026 surge is a major platform information flow event. Mathematics had 47,127 list entries through August, a 33.5% year over year rise; broad physics and unique global submissions rose by 16.5% and 26.8%, respectively. Second, the counterfactual ladder separates platform acceleration from Mathematics specific divergence. Mathematics stands 36.8% above continuation of its own pre-2022 trend and 11.9% above the preferred weighted 2026 counterfactual. Qualified alternative donor and preperiod designs give 9.6% to 14.9%. Third, the controlled divergence emerges in 2026 after small fitted gaps through 2025. This timing is consistent with delayed diffusion, accumulated workflow expertise, and a capability threshold rather than an immediate one time response to the public release of ChatGPT.
+
+The author panel reveals a concurrent change in production structure. Single author submissions rose 54.7% from 2025, author units with at least five submissions rose 81.6%, and author units with at least ten submissions rose 170.1%. These increases remain pronounced after normalizing by the expanding active author population. The 2026 surge therefore combines broader entry with a pronounced thickening of the repeated output tail.
+
+The central estimand is the January–August 2026 divergence of the Mathematics archive list relative to a weighted set of other archive lists fitted through December 2025. This comparative quantity absorbs the broad evolution shared by donor fields and estimates the Mathematics specific anomaly that remains in the holdout period. December 2022 serves only as a public availability marker for generative AI. Independent population, author composition, subfield, and capability evidence then evaluates whether AI diffusion has the timing and task structure expected under the proposed mechanisms. In short, the synthetic control identifies the 2026 anomaly and triangulation evaluates AI related mechanisms.
+
+Sections 2–4 define the estimands, data, and methods. Sections 5–7 present the empirical results and mechanism evidence. Sections 8–10 examine publishing, human agency, and institutional responses. Sections 11 and 12 give falsifiable interpretations and study boundaries.
+
+2  Conceptual framework and estimands
+
+2.1  Distinct empirical objects
+
+The phrase “AI is producing more papers” can refer to at least four different objects. They require different data and support different conclusions.
+
+Table 1: Measurement hierarchy for AI and scientific output
+
+Object
+
+Observable measure
+
+What it supports
+
+Interpretive scope
+
+Information flow
+
+Archive list entries, unique submissions, versions
+
+Workload, visibility, and platform pressure
+
+Field exposure including cross lists
+
+AI shaped language
+
+Corpus level lexical mixture or excess vocabulary
+
+Population level diffusion of stylistic influence
+
+Population inference from textual distributions
+
+Disclosed AI use
+
+Author statements or manuscript classification
+
+Observable adoption under current norms
+
+Disclosure based adoption under evolving norms
+
+Substantive AI contribution
+
+Reported proof, formalization, coding, analysis, or problem formulation
+
+Scientific task involvement
+
+Task involvement paired with separate validation
+
+Knowledge value
+
+Correctness, novelty, robustness, reuse, and explanatory gain
+
+Scientific contribution
+
+Longitudinal and field specific evaluation
+
+• 
+
+The rows are not stages of one estimator. They are distinct constructs that may move at different rates.
+
+The first row is our directly measured outcome. Archive list entries represent what readers, moderators, and field communities encounter. They are therefore consequential measures of field exposure even when cross listing separates them from unique paper counts. The remaining rows provide triangulation evidence for mechanisms and governance.
+
+2.2  A causal graph and the target of the empirical design
+
+Figure 1 summarizes the mechanisms connecting model capability to scientific information flow. Causal diagrams make the assumed pathways and adjustment target explicit [44]. Model capability and access influence researcher adoption; adoption changes research production and manuscript preparation; both affect submissions. Existing growth, field shocks, labor market incentives, collaboration, and platform policies shape the same pathway. Disclosure and language markers provide downstream measurements of adoption through separate measurement processes.
+
+Figure 1: Causal structure motivating the analysis. The synthetic control uses pre-2026 weighted donor trajectories to identify the 2026 Mathematics anomaly. Disclosures, linguistic markers, author structure, subfields, and capability evidence separately evaluate AI related mechanisms.
+
+Using potential outcome notation [47], let Y_{Mt} denote the seasonally adjusted log count for the Mathematics archive list in month t , and let Y_{Mt}(0) denote the unobserved 2026 path that follows the weighted donor archive evolution learned from 2018–2025. Our comparative estimand for the January–August holdout period T is
+
+ \Delta_{T}^{\mathrm{rel}}=\frac{\sum_{t\in T}N_{Mt}}{\sum_{t\in T}\widehat{N}_{Mt}(0)}-1, 
+
+(1)
+
+where N is the count scale and \widehat{N}_{Mt}(0) is the synthetic counterfactual. The estimand identifies the 2026 Mathematics list anomaly relative to the evolving donor archive system. We call it a comparative counterfactual because it quantifies the field specific component that remains after common archive dynamics are absorbed.
+
+3  Data and evidence architecture
+
+3.1  Official arXiv monthly counts
+
+The data window is January 2018 through August 2026. We queried twenty top level archives comprising math, thirteen physics related archives (astro-ph, cond-mat, gr-qc, hep-ex, hep-lat, hep-ph, hep-th, math-ph, nlin, nucl-ex, nucl-th, physics, and quant-ph), and six additional comparison archives (cs, econ, eess, q-bio, q-fin, and stat). The balanced panel contains 20\times 104=2{,}080 archive month observations.
+
+Each archive page reports “Total of N entries.” The list can include manuscripts listed from another primary archive [7]. Within one archive month, it measures exposures or records processed by that field list. Summing archives can count a manuscript in multiple lists. The broad physics sum therefore approximates physics facing information and moderation load.
+
+The official global monthly statistics provide unique submissions [8]. We use that series for descriptive context and reserve the archive panel for synthetic control because the global total mechanically contains the target and donor archives. A limited primary category audit checks the list semantics and is reported in Appendix A, while the balanced historical design uses the consistently available archive list series.
+
+Figure 2: Monthly arXiv information flows. Panels (a), (b), and (c) show the Mathematics archive list, the broad physics archive list sum, and unique platform submissions. Thin lines give monthly values and thick lines give 12 month moving means. Archive list counts include cross lists, so the physics sum can count one manuscript in multiple lists; the global series counts unique submissions. The dashed line marks December 2022 as a public availability reference for generative AI.
+
+3.2  Pseudonymized author output panel
+
+We retrieved every unique first submission with at least one math.* category in January–August of 2023 through 2026 from the official Atom API [5]. The API published field supplies the first submission date and ordered author elements supply author counts. Author display names were Unicode normalized and converted immediately to truncated SHA256 digests. The stored panel contains only pseudonymized author and paper digests, author position, author count, month, and category metadata.
+
+For each matched eight month window, author output is the number of distinct participating submissions. High output denotes at least five submissions. Prior activity is the total in the two preceding matched January–August windows, grouped as none, one or two, and at least three. Exact normalized display name matching defines the longitudinal unit. Name variants remain separate and exact homonyms can merge, so the estimates characterize platform visible display name units. Definitions, privacy controls, and the full annual table appear in Appendix B.
+
+3.3  Literature corpus and evidence standards
+
+Mechanism evidence comes from peer reviewed articles, preprints, and official platform and policy records on AI assisted writing, mathematics adoption, scientific capability, publishing pressure, and researcher or collective outcomes. Claims about new models, policies, and 2026 statistics are tied directly to their reporting sources.
+
+This architecture turns measurement differences into an inferential advantage. Corpus language, author disclosure, substantive task involvement, archive volume, and later knowledge value arise through different measurement processes. Compatible movement across them strengthens mechanism inference while preserving a clear denominator for every reported percentage.
+
+4  Empirical strategy
+
+4.1  Descriptive comparisons and seasonal historical extrapolation
+
+For each focal series we first report January–August 2026 counts and their change relative to January–August 2025. We then fit a log linear historical trend to January 2018–November 2022,
+
+ \log N_{t}=\alpha+\beta t+\sum_{m=2}^{12}\gamma_{m}\mathbb{1}\{\mathrm{month}(t)=m\}+\varepsilon_{t}. 
+
+(2)
+
+The fitted model is extrapolated through August 2026. Confidence bands quantify uncertainty in the conditional historical mean. We also fit an interrupted time series specification with a post indicator and postperiod slope, using heteroskedasticity and autocorrelation consistent standard errors with twelve lags [41]. These regressions establish each series’ departure from its own history, while the synthetic control identifies comparative divergence across archives.
+
+The historical model supplies a transparent baseline for the widely used “excess above trend” calculation. The comparative synthetic control is the main design. Changing the preperiod start from 2018 to 2020 moves the mathematics estimate from 36.8% to 62.1%, which quantifies the leverage that modest slope differences acquire over several years.
+
+4.2  Regularized convex synthetic control
+
+Synthetic control constructs a weighted combination of comparison units that reproduces a target series before a held out period [2, 1, 3]. January 2018 through December 2025 forms the preperiod, and January–August 2026 is held out from fitting. We first remove seasonality from log counts using calendar month means estimated exclusively in the preperiod. Let Y_{it}^{*} be the resulting series for archive i . For the target M and donor set \mathcal{D} , weights solve
+
+ \displaystyle\widehat{\boldsymbol{w}}_{\lambda}=\arg\min_{\boldsymbol{w}} 
+
+ \displaystyle\frac{1}{T_{0}}\sum_{t<T_{H}}\left(Y_{Mt}^{*}-\sum_{j\in\mathcal{D}}w_{j}Y_{jt}^{*}\right)^{2} 
+
+(3)
+
+ \displaystyle+\lambda\lVert\boldsymbol{w}\rVert_{2}^{2}, 
+
+ \displaystyle\text{subject to} 
+
+ \displaystyle w_{j}\geq 0,\qquad\sum_{j}w_{j}=1. 
+
+where T_{H} is January 2026. The ridge term follows the regularization principle introduced for correlated predictors [23]. It reduces unstable concentration while preserving nonnegative convex weights. We select \lambda from a fixed grid by expanding window validation with 12 month validation blocks. The selected value is 0.01 ; its validation mean squared error is 1.54\times 10^{-3} , compared with 1.78\times 10^{-3} for the unregularized fit.
+
+The primary donor set contains eighteen archives comprising all observed archives except Mathematics and math-ph. Conceptual overlap and cross listing connect math-ph directly to the target, so it enters a sensitivity analysis. The global total is reserved for descriptive context. Back transformation to counts uses the preperiod Mathematics seasonal factors. The primary preperiod log RMSE is 0.034 and the effective donor count, 1/\sum_{j}w_{j}^{2} , is 12.09.
+
+Augmented synthetic control can combine balancing weights with an outcome model to correct residual preperiod imbalance [9]; Bayesian structural time series models provide a probabilistic alternative [12]. We retain the convex baseline because it is transparent and the prefit is already close. These alternatives provide useful extensions for richer covariates and a longer holdout period.
+
+4.3  Design diagnostics
+
+We use spatial placebos, prior year pseudo holdouts, donor pool and preperiod sensitivity, and leave one donor out refits recommended in the synthetic control literature [3]. Placebo archives with preperiod RMSE above five times the Mathematics value are screened before empirical ranking. For sensitivity analysis, a candidate specification s with preperiod starting in year y_{0} is classified as qualified when
+
+ \mathrm{RMSE}^{\mathrm{pre}}_{s,y_{0}}\leq 2\,\mathrm{RMSE}^{\mathrm{pre}}_{\mathrm{primary},y_{0}}. 
+
+(4)
+
+This prespecified relative fit rule excludes counterfactuals that do not adequately reproduce Mathematics before the 2026 holdout and keeps the reported sensitivity range tied to credible preperiod comparability. Together the diagnostics establish exceptionalness relative to other archives, temporal specificity, donor and preperiod stability, and resistance to individual donor leverage. Full implementation details appear in Appendices D and E.
+
+5  Results of the 2026 divergence
+
+5.1  Raw changes and the choice of denominator
+
+Table 2 reports the main descriptive changes. Mathematics increased from 35,307 list entries in January–August 2025 to 47,127 in the same months of 2026, a 33.5% increase. The broad physics list sum rose 16.5%, while unique global submissions rose 26.8%. The global rise establishes a platform wide acceleration, and the much larger Mathematics increase establishes a field specific amplification within it.
+
+Table 2: January–August arXiv volume under three measurement conventions
+
+Series
+
+2025
+
+2026
+
+Change
+
+Mathematics archive list
+
+35,307
+
+47,127
+
+33.5%
+
+Broad physics archive list sum
+
+81,647
+
+95,089
+
+16.5%
+
+Unique arXiv submissions
+
+181,595
+
+230,322
+
+26.8%
+
+• 
+
+Archive list counts measure field exposure and can include cross lists. The broad physics sum can count the same paper in multiple archives. The global series counts unique submissions.
+
+Growth within physics is heterogeneous. The largest absolute 2026 increases occur in quantum physics (+3,026; +30.2%), condensed matter (+2,470; +15.8%), astronomy and astrophysics (+2,014; +14.7%), the general physics archive (+1,839; +11.1%), high energy theory (+1,030; +20.3%), and mathematical physics (+1,019; +31.1%). Nuclear experiment entries rise 2.6%, while electrical engineering and systems decline 8.6% outside the physics sum. This heterogeneity motivates archive level weights.
+
+The single series extrapolation assigns excesses of 36.8% for Mathematics, 18.3% for broad physics, and 36.8% for unique global submissions. Their joint rise quantifies the platform wide acceleration, while the comparative design below extracts the additional Mathematics divergence.
+
+5.2  The comparative counterfactual
+
+Figure 3 shows the preferred synthetic control. The monthly fit is close through December 2025, after which January–August 2026 is evaluated as a genuine holdout. Actual Mathematics has 47,127 entries and synthetic Mathematics has 42,113 in the holdout, implying a 11.9% relative gap.
+
+Figure 3: Comparative counterfactual for Mathematics. Panel (a) shows observed archive list entries and the seasonally adjusted convex synthetic control. Panel (b) shows the monthly observed to synthetic gap. The dashed line marks the January 2026 holdout boundary. The subsequent separation quantifies the Mathematics specific component beyond the weighted evolution of donor archives.
+
+Table 3: Actual and synthetic Mathematics around the 2026 holdout
+
+Period
+
+Actual
+
+Synthetic
+
+Gap
+
+2022
+
+45,310
+
+45,399
+
+-0.2%
+
+2023
+
+47,789
+
+47,462
+
+0.7%
+
+2024
+
+52,081
+
+51,248
+
+1.6%
+
+2025
+
+55,753
+
+56,834
+
+-1.9%
+
+January–August 2026
+
+47,127
+
+42,113
+
+11.9%
+
+The fitted annual gaps are -0.2% in 2022, 0.7% in 2023, 1.6% in 2024, and -1.9% in 2025, followed by 11.9% in the 2026 holdout. The break is therefore concentrated in 2026 rather than spread across the years following public access to ChatGPT. This timing is consistent with delayed diffusion and capability threshold mechanisms. Accumulated workflow expertise, changing author composition, submission behavior, policy anticipation, and topical shocks supply additional testable channels for the amplification.
+
+5.3  Placebos and robustness
+
+In the spatial placebo exercise, Mathematics has the largest holdout to preperiod RMSPE ratio among the 15 archives meeting the fit criterion. The finite sample empirical placebo probability is 1/15=0.067 . The rank establishes Mathematics as the strongest proportional break in the eligible archive system.
+
+Figure 4: Spatial placebo distribution. Four archives with preperiod RMSE above five times the Mathematics value are screened, leaving 15 units that meet the fit criterion. Mathematics is highlighted and ranks first. The empirical probability includes the target archive under the finite placebo ranking convention.
+
+Prior year pseudo holdouts reinforce the temporal specificity of the result. Reestimating the model before each matched January–August window gives gaps of 1.1% in 2023, 1.9% in 2024, and -6.6% in 2025, compared with 11.9% in 2026. Across every donor pool and 2018, 2019, or 2020 preperiod start that meets the fit criterion, the 2026 estimate ranges from 9.6% to 14.9%. The six nonphysics specifications have prefit RMSE more than twice the corresponding primary fit and are shown as hollow markers outside the qualified set. Thus the 2026 anomaly persists when early preperiod years are removed as well as when donor composition changes.
+
+Figure 5: Temporal, donor pool, and preperiod robustness. Panel (a) gives January–August gaps from prior year pseudo holdouts and the 2026 holdout. Panel (b) gives 2026 estimates for four donor pools with preperiods beginning in 2018, 2019, or 2020. Filled markers meet the prespecified fit threshold; hollow markers do not.
+
+Leave one donor out refits place the 2026 gap between 11.3% and 13.4%. This compact range demonstrates that the headline result is distributed across the donor combination rather than driven by one weighted archive.
+
+5.4  What the quantitative evidence licenses
+
+The evidence supports three cumulative claims.
+
+1. 
+
+Volume result. The Mathematics archive list experienced a sharp information flow increase in 2026, larger than its 2025 level and larger than broad physics growth.
+
+2. 
+
+Comparative result. Mathematics diverged positively from a weighted combination of other archive lists in 2026. The preferred magnitude is 11.9%, and qualified donor and preperiod alternatives range from 9.6% to 14.9%.
+
+3. 
+
+Mechanism evidence. The late timing, population evidence of AI diffusion, broad subfield growth, a thicker repeated output tail, and expansion of verifiable model capabilities are jointly consistent with delayed AI diffusion and a capability threshold.
+
+The first two levels establish the scale and comparative exceptionalness of the divergence. The third triangulates its timing, production structure, and task capability. The synthetic control identifies the anomaly rather than the share caused by AI. Manuscript level linkage between disclosure, task use, version history, and validation outcomes offers the next direct estimate of the AI contribution.
+
+6  AI diffusion and author output dynamics
+
+Three recent measurement strategies document rapid diffusion through distinct constructs. A mixture model applied to roughly 1.12 million papers estimated that, by September 2024, large language model modification reached approximately 22% in computer science and 9% in a Mathematics and Nature grouping [32]. Excess vocabulary analysis of 14 million PubMed abstracts placed a lower bound near 10% in 2024, with higher estimates in some subcorpora [27]. A 2026 analysis of approximately 7.3 million full texts from four large publishers reported an increase in broadly defined LLM influenced text from about 12% in 2023 to 57% in 2025 [48]. Together these population measures establish broad and rapidly increasing linguistic diffusion.
+
+Official author metadata show that the 2026 volume change also altered the composition of mathematical production. Unique submissions with at least one Mathematics category increased from 31,613 in January–August 2025 to 42,236 in the matched 2026 window, a 33.6% rise. This API total is a distinct denominator from the archive list total. It counts unique first submissions carrying any Mathematics category, whereas the archive series follows regular list exposure. The close agreement between the 33.6% unique submission increase and the 33.5% list increase shows that the surge is present under both denominators. Active author units increased from 50,302 to 58,930, or 17.2%, so submissions grew nearly twice as fast as participating units. Single author submissions rose from 8,450 to 13,070, a 54.7% increase, and their share rose from 26.7% to 30.9%.
+
+Figure 6: Pseudonymized author output dynamics in official arXiv metadata [5]. Panel (a) gives the number of author units at or above each submission threshold during January–August. Panel (b) classifies author units with at least five submissions by activity in the two preceding matched eight month windows. Each plotted unit is a pseudonymized exact normalized display name.
+
+The repeated output tail thickened strongly. Author units with at least five submissions increased from 1,234 to 2,241, and units with at least ten increased from 107 to 289. The shift is not only a scale effect. The share of active author units producing at least five submissions rose from 2.45% to 3.80%, while the ten submission tail more than doubled from 0.21% to 0.49%. The maximum rose from 20 to 44. The author output Gini increased from 0.272 to 0.313, while the top one percent share of author paper participations increased from 5.4% to 6.5%. We operationalize a mining like pattern as this aggregate combination of rapid entry, repeated production, and a thicker extreme tail. The label applies to the measured production configuration rather than individual identity or scientific merit.
+
+Primary category decomposition shows that the surge is broad rather than a single topic shock. Among 30 primary math.* categories, 29 grew between the matched 2025 and 2026 windows. math.CO contributed the largest absolute increment with 1,593 additional submissions, or 17.7% of the total increase, and grew 57.4%, the fastest rate among categories with at least 1,000 submissions in 2025. The ten largest contributors account for 74.3% of the increase. This combination of near universal direction and heterogeneous magnitude supports general diffusion with subfield specific amplification. Appendix Figure 9 reports the full decomposition.
+
+Historical activity profiles locate the source of the new tail. Among high output author units, the group with no matched activity in the preceding two windows increased from 90 in 2025 to 267 in 2026. Its share rose from 7.3% to 11.9%. The number with no more than two prior submissions increased from 318 to 696. These movements show that the 2026 expansion combines continued production by established platform visible units with a substantially larger inflow of units that had low prior window arXiv visibility.
+
+Other observational evidence shows that output and measured quality can move separately. A study combining 2.1 million preprints, roughly 28,000 reviews, and readership data reports output increases of 23.7–89.3% among inferred adopters across fields and backgrounds, together with more complex language and declines in several quality proxies [29]. Its classifier and matching design support a strong association between adoption, greater production, and a redistribution of measured quality.
+
+Population estimates of AI shaped text establish rapid diffusion across science. The author panel independently establishes a change in Mathematics production structure. Their temporal alignment with the late comparative divergence, together with the capability evidence in Section 7, is consistent with a diffusion process in which broadly available tools lower entry and repetition costs after workflows mature. Linking stable arXiv identifiers, version histories, task level disclosures, and later verification outcomes can estimate the mediated contribution of documented AI assisted workflows.
+
+7  Capability frontiers in mathematics and theoretical physics
+
+7.1  Verification changes the production function
+
+Research tasks vary in how cheaply their outputs can be checked. This difference helps explain why progress can be fast in some parts of mathematics and computation while open ended theory remains verification intensive. A candidate program can be executed; a formal theorem can be checked by a kernel; and a numerical result can be rerun when code and environments are preserved. Novelty, explanatory significance, a physical approximation’s domain of validity, and literature completeness require deeper expert evaluation. Work on scientific understanding accordingly distinguishes successful prediction from explanations that expose mechanisms, representations, and relations that scientists can use [28].
+
+The capability record illustrates this gradient. AI guided analysis of mathematical data helped human mathematicians form and prove conjectures in knot theory and representation theory [16]. FunSearch combined model generated programs with an automatic evaluator and evolutionary selection to produce new, checkable constructions in problems including cap sets [46]. AlphaGeometry paired a neural language component with symbolic deduction and solved 25 of 30 olympiad geometry problems in its reported evaluation [51]. DeepMind later reported a gold medal level score for a natural language system at the 2025 International Mathematical Olympiad [35]. The sequence traces a frontier moving from machine assisted pattern discovery toward complete, externally checked solutions.
+
+Research level formalization provides a demanding frontier. RLMEval covers 613 theorems from six Lean projects and reports a best pass@128 of 10.3% for normal mode proof autoformalization [45]. The First Proof project tested four systems on ten previously unseen research problems in its second batch. Seven problems received at least one passing expert grade among the submitted solutions [4]. Problem secrecy, interaction logs, proof checking, conflicts of interest, and expert review criteria make these outcomes auditable. Together they show that increasingly open research tasks become tractable when generation is paired with structured verification.
+
+Figure 7: Selected capability landmarks from mathematical intuition to expert reviewed solutions of unpublished problems [16, 46, 51, 43, 35, 45, 4]. The lower scale marks calendar years. Distinct task and validation regimes show how executable evaluation, symbolic checking, formal proof, and expert review progressively expand the frontier of verifiable machine contribution.
+
+The emerging mathematical workflow has a characteristic division of labor. Machines generate candidates, search combinatorial spaces, translate informal statements into formal ones, and attempt proof repair. Humans decide which representation is meaningful, identify missing assumptions, construct discriminating examples, connect a formal certificate to an explanatory argument, and judge why a theorem matters. Machine assistance can therefore increase human agency when it expands the set of testable options. It reduces agency when researchers accept an opaque proposal because producing an independent understanding is too expensive. Contemporary reflections on mathematics in the age of AI similarly emphasize coexistence among machine assistance, proof, explanation, and mathematical culture [50, 26].
+
+7.2  Theoretical and computational physics
+
+Physics already contains mature forms of machine assistance. Neural network quantum states represent interacting many body wave functions [15], and broad reviews document machine learning across physical modeling [14]. More recent reviews extend this landscape to physics informed learning and to data driven discovery, reduction, and solution operators for partial differential equations [25, 13]. Symbolic regression systems such as AI Feynman search for compact formulas under structured constraints [52]. At materials scale, graph networks paired with density functional calculations have expanded the search space to millions of candidate crystals while retaining a computational verification layer [36]. generative AI adds a natural language interface across symbolic manipulation, literature, and code, making physical validation an organizing element of the workflow.
+
+In one structured study, stepwise prompting enabled GPT-4 to reconstruct Hartree–Fock models from fifteen published cases; thirteen final Hamiltonians were correct and average step scores were 87.5/100 [43]. Templates, intermediate representations, and correction loops produced the strongest performance. Language agent experiments in theoretical physics likewise combine retrieval, reasoning, code execution, and feedback into longer workflows, with error detection and benchmark coverage serving as central design requirements [34].
+
+Evidence retrieval is itself a scientific constraint. A high temperature superconductivity evaluation constructed a curated corpus of 1,726 papers and 67 expert questions. Curated retrieval augmented systems outperformed general closed models on key criteria [19]. Their remaining errors in figures, conflicting claims, and evidential sufficiency identify where expert judgment adds greatest value, including phase assignment, sample condition, pressure path, and experimental artifacts.
+
+For computational physics, four validation layers organize the workflow.
+
+1. 
+
+Formal validity. Equations, units, symmetries, and code syntax.
+
+2. 
+
+Numerical validity. Convergence, conditioning, discretization, and stochastic uncertainty.
+
+3. 
+
+Physical validity. Limiting cases, conservation laws, parameter regimes, and comparison with observation.
+
+4. 
+
+Epistemic validity. Provenance, novelty, negative results, and competing explanations.
+
+Automation is strongest at the first layer and often useful at the second. The third and fourth remain deeply dependent on domain judgment and on evidence not fully represented in text corpora.
+
+8  How the publication mechanism changes
+
+8.1  From a production bottleneck to a verification bottleneck
+
+Traditional publishing evolved when preparing a coherent manuscript was expensive and therefore provided a weak signal of effort and selectivity. As drafting, translation, formatting, coding, and literature summarization become cheaper, that signal erodes. In a randomized experiment on bounded professional writing tasks, access to ChatGPT reduced completion time by 40% and increased assessed output quality by 18%, demonstrating the scale of the supply side shift that generative assistance can produce [42]. The scarce resources become expert attention, reliable replication, dataset and code inspection, and the capacity to decide which questions deserve community time.
+
+This change creates a verification multiplier. If one researcher can produce k times as many plausible manuscripts while reviewer capacity remains fixed, the average verification budget per manuscript falls roughly as 1/k unless institutions add screening or validation resources. The risk is not merely false papers. Large volumes of superficially adequate work can make important results harder to find, fragment claims across minimally distinct papers, and increase the cost of establishing priority and consensus.
+
+The expansion of candidate supply is now technically concrete. An end to end system reported in 2026 generated research ideas, wrote and executed code, analyzed experiments, prepared manuscripts, and performed automated review in bounded machine learning settings [33]. Such systems make verification capacity a direct determinant of whether faster generation produces cumulative knowledge or additional screening load.
+
+arXiv provides a revealing case because moderated preprint dissemination precedes journal peer review. Bibliometric analysis of the complete archive and the Web of Science has established systematic timing and impact relationships between arXiv e-prints and their journal versions [30]. The platform’s current policy requires disclosure of significant generative text use, holds human authors responsible, rejects AI systems as authors, and permits restrictions on excessive submissions [6]. In late 2025 and January 2026 the platform expanded endorsement requirements in response to an unsustainable increase in nonscientific submissions, higher rejection rates, and staff burden [11]. The policy change supplies direct institutional evidence that intake and moderation capacity had become binding.
+
+Endorsement can reduce abuse while increasing barriers for independent scholars, researchers in weakly connected institutions, and entrants from new fields. Platform response should therefore be evaluated through moderator time per accepted item, false acceptance and false rejection rates, author concentration, and appeal outcomes. This outcome set rewards scientific value and procedural fairness alongside screening volume.
+
+8.2  Peer review, disclosure, and credibility debt
+
+AI is also entering review. Corpus level estimates for four AI conferences found LLM modification in as much as approximately 17% of some review sets [31]. The immediate risks are confidentiality, fabricated critique, synchronized stylistic bias, and responsibility gaps. AI can assist a reviewer by locating an inconsistency or checking a calculation, while the reviewer retains a fully defensible judgment and auditable reasoning path.
+
+A study of 5,114 journals and more than 5.2 million papers reports that roughly 70% of sampled journals had an AI policy, while detected AI writing trends were similar in journals with and without such policies [22]. This evidence supports a decisive distinction between policy presence and operational transparency. Recent editorial guidance likewise identifies transparency, human accountability, fact checking, and review confidentiality as operational requirements for responsible use [39]. Effective governance requires auditable disclosure, enforcement records, and measurable verification outcomes.
+
+We use credibility debt to describe unverifiable labor shifted downstream. An undisclosed generated derivation, an unpinned environment, an unchecked citation list, or an AI produced review can save minutes for the producer and impose hours on readers. Like technical debt, credibility debt compounds when later work relies on the unverified result. Publication systems should make that debt observable and assign its cost closer to the point of production.
+
+8.3  The paper as an expanded evidence unit
+
+The paper will remain useful for narrative, priority, and synthesis. Its minimum credible unit is likely to expand from prose plus static figures to a structured evidence package comprising claims, provenance, executable code, formal certificates where appropriate, robustness tests, model and prompt disclosure when scientifically material, and a human readable explanation of failure conditions.
+
+This shift may separate functions now bundled in one article. A result can be rapidly registered as a preprint, formally certified later, replicated independently, and integrated into a living synthesis. Journals and platforms should preserve links among these objects and position the PDF within a larger durable record. Version history then becomes evidence rather than noise.
+
+9  Human agency and researcher adaptation
+
+Human agency extends beyond performing every operation manually. It is the capacity to select goals, understand constraints, contest outputs, change course, and remain responsible for consequences. A scientist exercises agency when AI expands the hypothesis set while the scientist explains the selection rule, reconstructs consequential inferences, knows what information entered the model context, and rejects attractive failures. Human aware models that incorporate the distribution of expertise can improve predictions of future discoveries and search for valuable hypotheses outside crowded trajectories, providing a concrete design route for complementarity [49].
+
+The distinction matters because individual and collective incentives can diverge. Large scale observational work reports that AI augmented researchers are associated with 3.02 times as many annual papers, 4.84 times as many total citations, and becoming principal investigators 1.37 years earlier, while scientific topic space contracts 4.63%, follow on engagement declines 22%, and average team size is 1.33 researchers smaller [21]. The matched and modeled estimates reveal a strong pattern of private productivity gains coexisting with public knowledge externalities.
+
+Figure 8: The individual and collective pattern estimated from 41.3 million natural science papers [21]. The left card reports matched individual associations with output, citations, and earlier principal investigator status. The right card reports model based changes in topic space, follow on engagement, and team size. Together the estimates support coexistence between private productivity gains and collective knowledge externalities.
+
+One plausible mechanism is model mediated convergence. Models interpolate most effectively within abundant, digitized, and well evaluated domains. Adopters can enter those domains efficiently, while questions requiring new instruments, unusual data, tacit knowledge, or long periods without publishable output become relatively less attractive. The result can be more work per person alongside less exploration by the collective. A randomized writing experiment exhibits the same micro level pattern: generative AI improved individual evaluations while making outputs more similar to one another [17]. The “illusions of understanding” framework similarly shows how universal productivity, objectivity, and understanding narratives can reinforce monocultures and conceal epistemic limits [37].
+
+Researchers can respond with a task ledger that records the delegated task, model, retrieval corpus, toolchain, information sent, output retained, independent check, and responsible human decision. The ledger scales with scientific risk. Translating a paragraph requires less detail than generating a theorem statement, choosing a physical approximation, or modifying analysis code.
+
+A practical six checkpoint protocol combines question ownership, an explicit assumption inventory, adversarial generation, independent verification, provenance, and risk calibrated disclosure. The operational details are placed in Appendix G so that the main argument remains focused on measured institutional change.
+
+Survey evidence from nearly 5,000 researchers across more than 70 countries suggests that AI assistance in manuscripts, grants, and review will become more accepted while demand for training and institutional support remains high [38]. The adaptation problem is therefore organizational as well as individual. Early career researchers need opportunities to learn derivations, debugging, and critical reading alongside productivity. Senior researchers need incentives to document negative checks and mentor conceptual understanding.
+
+10  Institutional design and a monitoring dashboard
+
+10.1  Risk based use
+
+Policies should regulate scientific risk and information flow across changing product names. ICMJE and Nature Portfolio policies place authorship responsibility on humans, require transparent use and content verification, and protect confidential review material [24, 40, 39]. A practical implementation is shown in Table 4.
+
+Table 4: A risk based framework for AI assisted research
+
+Tier
+
+Examples
+
+Minimum control
+
+Publication disclosure
+
+Low
+
+Grammar, formatting, nonsubstantive translation
+
+Human reading; no confidential data
+
+Brief tool and purpose statement where required
+
+Moderate
+
+Literature triage, code completion, algebra, plotting, outline generation
+
+Source verification; unit tests; environment capture; sampling of rejected output
+
+Task level description and material model or tool versions
+
+High
+
+Proof construction, model selection, physical interpretation, data exclusion, reviewer recommendation
+
+Independent method or expert; full provenance; adversarial tests; conflict and confidentiality review
+
+Detailed contribution and validation record
+
+Unacceptable without redesign
+
+Invented citations, unreviewed autonomous decisions, upload of confidential manuscripts to unauthorized systems
+
+Stop workflow; contain and report exposure; repeat analysis from trusted inputs
+
+Correction or incident disclosure as applicable
+
+10.2  Budget verification explicitly
+
+Funding and project plans should include a verification budget alongside compute and personnel. Relevant line items include formalization, replication, independent code review, benchmark creation, expert reading of figures and source data, and maintenance of curated corpora. Total research cost includes both generation and verification. Review panels should reward reusable validators, negative evidence, and high value manuscripts.
+
+Platforms can use staged friction. New or unusually high volume submitters may face enhanced provenance checks, while quality controls apply consistently across career stages. Automated triage should be monitored for field, language, institution, and country disparities. Appeals need a human path. Rate limits should be paired with mechanisms for legitimate large collaborations or linked result packages.
+
+10.3  A quantitative dashboard
+
+The dashboard in Table 10 separates volume, process, quality, diversity, and distribution. Its indicators also supply outcomes for policy evaluation. If an endorsement rule is introduced at a known date, a controlled interrupted design can compare affected domains and jointly examine rejected volume, accepted quality, moderator load, appeals, and representation. The complete indicator set is reported in Appendix F.
+
+11  Discussion and falsifiable mechanisms
+
+11.1  Mechanisms for the 2026 divergence
+
+At least five mechanisms are consistent with the timing.
+
+1. 
+
+Delayed capability threshold. Improvements in long context reasoning, tool use, formal systems, and coding made substantive mathematical assistance viable after several model generations.
+
+2. 
+
+Diffusion and workflow accumulation. Researchers needed time to build trust, prompts, retrieval systems, and local validation practices. Adoption then accelerated nonlinearly.
+
+3. 
+
+Composition change. AI tools reduced entry costs for authors outside established mathematics networks or encouraged interdisciplinary authors to submit to Mathematics categories.
+
+4. 
+
+Strategic submission and policy response. Expectations about moderation or endorsement changes may have shifted the timing and number of submissions.
+
+5. 
+
+Other field shocks. New topics, conferences, evaluation practices, labor market pressure, or other changes could have increased Mathematics submissions through an additional channel.
+
+These mechanisms generate distinguishable predictions. A capability threshold account predicts stronger growth in task types with cheap validators, such as formalization, coding, and enumerative search. A diffusion account predicts repeated use by the same authors and institutions followed by broader dispersion. A composition account predicts changes in first time submitters, geographic origin, prior field, and relations between primary and secondary categories. A policy timing account predicts bunching around announced enforcement dates. Other topical shocks predict concentration in particular subfields without corresponding AI disclosures or task signatures.
+
+The author panel already separates two parts of the composition prediction. High output units with no matched activity in the two preceding windows increased from 90 to 267, while the larger group with at least three prior submissions also expanded. The 2026 tail therefore reflects both entry or recomposition and intensified output among established platform visible units.
+
+11.2  Three system level scenarios
+
+Productivity diffusion with successful quality adaptation. Submission volume remains high while reproducibility artifacts, formal checking, and reviewer capacity rise. Correction and retraction rates remain stable after accounting for cohort age. Topic diversity is maintained. In this scenario, AI expands the feasible research frontier.
+
+Manuscript inflation and attention scarcity. Submissions and versions rise faster than verification. Review latency, desk rejection, citation error, and unresolved competing claims increase. Important work receives less expert attention. The paper remains abundant while reliable consensus becomes slower.
+
+Individual augmentation with collective contraction. Adopters publish more and advance faster, but research concentrates around data rich and benchmark friendly questions. Topic entropy, team diversity, and follow on engagement decline. This scenario is compatible with strong private incentives and weak collective welfare.
+
+The scenarios can coexist across fields. Mathematics may experience rapid formalization gains alongside an influx of unverified open problem claims; computational physics may gain reliable code assistance while theoretical interpretation converges. Evaluation should therefore operate at the level of tasks and validation regimes.
+
+12  Scope, limitations, and next tests
+
+The analysis is designed around archive list information flow. Cross listing makes this the appropriate measure of field exposure and moderation load, while unique global submissions provide the platform level denominator. The new primary category decomposition establishes broad 2026 growth across Mathematics subfields and supplies a sharper account of field attribution for the matched eight month window.
+
+December 2022 supplies a public availability reference for a technology whose capabilities, prices, institutional permissions, and norms evolved continuously. It is not the treatment date in the comparative design. The synthetic control instead uses all observations through December 2025 to identify the 2026 anomaly, and mechanism triangulation interprets its timing.
+
+The synthetic control estimates Mathematics specific divergence relative to an evolving scientific system in which donor archives can share platform and technology changes. The placebo rank of 1 among 15 and the 9.6% to 14.9% range across qualified donor and preperiod designs summarize comparative exceptionalness and design sensitivity. Extending the panel beyond the first eight months of 2026 will sharpen both quantities.
+
+Population studies contribute complementary language and adoption measures. Linking them to stable manuscript identifiers, task disclosures, and later proof verification, reproducibility, correction, citation, and reuse outcomes is the decisive next step for estimating scientific quality and mechanism magnitude. Stratification by access, language, geography, seniority, field culture, and local infrastructure can then identify how gains are distributed across researchers and institutions.
+
+13  Conclusion
+
+The 2026 mathematics preprint surge is quantitatively large. Mathematics recorded 47,127 archive list entries through August, 33.5% above 2025. Three complementary comparisons reveal its structure. The raw year over year increase is 33.5%; continuation of the archive’s own pre-2022 trend gives a 36.8% excess; and the preferred 2026 comparative counterfactual gives a 11.9% Mathematics specific gap. Qualified donor and preperiod designs yield 9.6% to 14.9%. Mathematics ranks first among 15 eligible archive placebos, with a finite sample empirical probability of 0.067. Growth across 29 of 30 primary subfields establishes that the shift is broad. The evidence therefore identifies a large and comparatively unusual 2026 Mathematics production regime within a wider platform expansion.
+
+Population language evidence shows rapid AI diffusion. The pseudonymized author panel independently shows a thicker repeated output tail and stronger entry from low prior activity profiles. Capability studies show expanding performance when search is paired with execution, formal proof, curated retrieval, or expert review. Their joint timing and task structure are consistent with delayed diffusion and capability threshold mechanisms. The comparative design identifies the 2026 anomaly, while this independent triangulation evaluates the AI related explanation. The central transformation is that the cost of producing candidates is falling faster than the cost of establishing trust. Verification, attention, and problem choice therefore become the binding constraints.
+
+Human agency becomes more valuable as machines become more capable. Researchers must own the objective, assumptions, tests, interpretation, and decision to publish. Institutions can amplify this agency through risk based disclosure, verification budgets, linked evidence artifacts, fair moderation, and monitoring that values diversity and reliability alongside throughput. Building the infrastructure for checking and understanding alongside the infrastructure for generation will convert the present productivity shock into a durable expansion of the scientific frontier.
+
+Data, code, and materials availability
+
+The public archive panel, official global monthly statistics, pseudonymized author paper records, processed counterfactual series, estimator diagnostics, analysis code, figure generation materials, and editable figure sources are maintained separately from the arXiv compilation source and are available from the corresponding author upon reasonable request. No author names, manuscript titles, abstracts, or arXiv identifiers are retained in the author panel.
+
+AI assistance disclosure
+
+Generative AI assisted literature discovery, code implementation, diagnostic design, figure preparation, and language editing under human direction. The human authors conceived the research questions and core ideas, established the analytical framework, selected the data and methods, directed and reviewed all code development, evaluated robustness, interpreted the results, designed the figures and tables, structured the manuscript logic, formulated the conclusions, verified the sources and references, and determined the final scientific expression. The human authors take full responsibility for the research and the submitted manuscript.
+
+Acknowledgments
+
+No external funding or conflicts of interest are declared.
+
+Appendix A Archive definitions and measurement semantics
+
+Table 5: Archive units in the monthly panel
+
+Role
+
+Archives
+
+Target
+
+math
+
+Physics related
+
+astro-ph, cond-mat, gr-qc, hep-ex, hep-lat, hep-ph, hep-th, math-ph, nlin, nucl-ex, nucl-th, physics, quant-ph
+
+Additional comparison
+
+cs, econ, eess, q-bio, q-fin, stat
+
+Descriptive context
+
+Official all arXiv unique monthly submissions
+
+The query records the number printed by the official archive month list endpoint. Collection checks require exactly 104 months for each of twenty archives, unique archive month pairs, strictly positive counts, and dates from 2018-01 through 2026-08. The official export host supplied the same archive listing content when the main host imposed request throttling.
+
+A limited audit of the first 100 records in the March 2026 Mathematics list found 95 with a Mathematics primary archive, three with a Computer Science primary archive, and two with a Mathematical Physics primary archive. This audit verifies that regular list exposure includes cross listed records. It is not extrapolated as an estimate of the historical cross list share.
+
+Archive list and unique submission counts answer different questions. Let manuscript p appear in set A_{pt} of archive lists in month t . The global unique count is \sum_{p}1 , whereas the sum of archive lists is \sum_{p}|A_{pt}| . For a specific field f , the archive list count \sum_{p}\mathbb{1}\{f\in A_{pt}\} measures exposure to that field. The denominator follows the scientific question.
+
+Appendix B Pseudonymized author output definitions
+
+The author panel uses unique first submissions carrying at least one Mathematics category. Exact normalized display names are linked within and across matched January–August windows, then stored only as twenty character SHA256 digests. A person using multiple display names appears as multiple pseudonymized units, while identical display names may combine people. Name variant splitting tends to lower measured individual output and homonym merging tends to raise it. The reported quantities therefore describe platform visible author strings under a fixed reproducible rule.
+
+Table 6: Pseudonymized author output in matched January–August windows
+
+Year
+
+Submissions
+
+Author units
+
+Single author
+
+Five plus
+
+Ten plus
+
+Maximum
+
+Gini
+
+Top one percent
+
+2023
+
+27,703
+
+44,432
+
+7,402 (26.7%)
+
+974
+
+70
+
+29
+
+0.264
+
+5.2%
+
+2024
+
+30,146
+
+47,993
+
+7,906 (26.2%)
+
+1,150
+
+82
+
+27
+
+0.271
+
+5.3%
+
+2025
+
+31,613
+
+50,302
+
+8,450 (26.7%)
+
+1,234
+
+107
+
+20
+
+0.272
+
+5.4%
+
+2026
+
+42,236
+
+58,930
+
+13,070 (30.9%)
+
+2,241
+
+289
+
+44
+
+0.313
+
+6.5%
+
+Single author counts and affiliation status are distinct. The optional API affiliation field appeared in 702 of the 42,236 submissions in 2026, and 4 records explicitly used an independent or unaffiliated label. The latter is a conservative lower bound on explicit self identification. The main analysis therefore uses fully observed single authorship and prior activity rather than imputing institutional status from missing fields.
+
+The Gini coefficient summarizes concentration over each active author unit’s submission count. The top one percent statistic is the share of all author paper participations attached to the most active one percent of pseudonymized author units. Prior activity for year y is counted in years y-2 and y-1 over the same eight months. The categories in Figure 6 are no prior activity, one or two prior submissions, and at least three. High output denotes five or more submissions in the current window.
+
+Appendix C Mathematics subfield decomposition
+
+For this decomposition, each unique paper is assigned to its recorded primary math.* category, which prevents cross category double counting. The matched January–August totals are 27,102 in 2025 and 36,126 in 2026, an increase of 9,024 or 33.3%. This primary category total is narrower than the author panel denominator because the latter includes any submission carrying a Mathematics category. The category codes and primary category metadata come from the official arXiv Atom API [5].
+
+Figure 9: Primary Mathematics subfield decomposition for January–August 2025 and 2026 using unique submissions. Panel (a) reports growth for all 30 math.* primary categories; the dashed line is the overall 33.3% increase. Panel (b) reports the ten largest absolute contributions to the 9,024 additional submissions. The direction is broad across categories and the magnitude is heterogeneous.
+
+Appendix D Synthetic control implementation details
+
+Seasonal adjustment uses calendar month means of log counts calculated on January 2018–December 2025. The same preperiod seasonal factors transform fitted Mathematics logs back to counts. The optimization uses nonnegative weights summing to one and the sequential least squares programming numerical solver, abbreviated SLSQP. Candidate ridge penalties are \{0,10^{-6},10^{-5},10^{-4},10^{-3},3\times 10^{-3},10^{-2},3\times 10^{-2},10^{-1}\} . Six expanding window folds with 12 month validation windows choose the penalty.
+
+The design diagnostics are implemented as follows.
+
+1. 
+
+Spatial placebos. Each comparison archive is assigned the January 2026 holdout boundary in turn and ranked by its holdout to preperiod RMSPE ratio after the prefit screen.
+
+2. 
+
+Prior year pseudo holdouts. The design is reestimated before January–August 2023, 2024, and 2025, with each matched eight month window held out in turn.
+
+3. 
+
+Specification sensitivity. The preperiod starts in 2018, 2019, or 2020 under the primary donor pool, a pool including math-ph, a distant field set, and six nonphysics fields.
+
+4. 
+
+Leave one donor out refits. Every donor receiving at least one percent weight is excluded in turn and the model is reestimated.
+
+Table 7: Validation results for the primary synthetic control
+
+Penalty \lambda 
+
+Validation MSE
+
+Folds
+
+0.010
+
+0.001537
+
+6
+
+0.030
+
+0.001580
+
+6
+
+0.003
+
+0.001607
+
+6
+
+0.100
+
+0.001682
+
+6
+
+0.001
+
+0.001685
+
+6
+
+0.0001
+
+0.001759
+
+6
+
+ 10^{-5} 
+
+0.001781
+
+6
+
+ 10^{-6} 
+
+0.001783
+
+6
+
+0
+
+0.001784
+
+6
+
+The empirical spatial statistic for unit i is
+
+ R_{i}=\frac{\sqrt{|T_{1}|^{-1}\sum_{t\in T_{1}}(Y_{it}^{*}-\widehat{Y}_{it}^{*})^{2}}}{\sqrt{|T_{0}|^{-1}\sum_{t\in T_{0}}(Y_{it}^{*}-\widehat{Y}_{it}^{*})^{2}}}. 
+
+(5)
+
+After the prefit screen, the finite sample empirical placebo probability is
+
+ \widehat{p}=\frac{1}{|\mathcal{P}|}\sum_{i\in\mathcal{P}}\mathbb{1}\{R_{i}\geq R_{M}\}=\frac{1}{15}=0.067. 
+
+(6)
+
+This exact finite placebo diagnostic has fifteen eligible units and a corresponding probability resolution of 1/15 .
+
+Appendix E Weights and sensitivity tables
+
+Table 8: Weights in the primary synthetic Mathematics control
+
+Archive
+
+Weight   
+
+Archive
+
+Weight
+
+astro-ph
+
+0.1278   
+
+cond-mat
+
+0.1140
+
+hep-th
+
+0.1002   
+
+hep-ph
+
+0.0918
+
+gr-qc
+
+0.0868   
+
+quant-ph
+
+0.0811
+
+physics
+
+0.0716   
+
+nucl-th
+
+0.0712
+
+nucl-ex
+
+0.0538   
+
+nlin
+
+0.0521
+
+stat
+
+0.0487   
+
+q-bio
+
+0.0316
+
+q-fin
+
+0.0272   
+
+hep-ex
+
+0.0216
+
+cs
+
+0.0204   
+
+Other donors
+
+ <10^{-5} 
+
+Table 9: Donor pool and preperiod sensitivity
+
+Pool and start
+
+Prefit RMSE
+
+Fit ratio
+
+2026 gap
+
+Primary 2018
+
+0.0339
+
+1.00
+
+11.9%
+
+Primary 2019
+
+0.0309
+
+1.00
+
+10.6%
+
+Primary 2020
+
+0.0293
+
+1.00
+
+11.6%
+
+Include math-ph 2018
+
+0.0323
+
+0.95
+
+11.2%
+
+Include math-ph 2019
+
+0.0288
+
+0.93
+
+9.6%
+
+Include math-ph 2020
+
+0.0262
+
+0.89
+
+9.9%
+
+Distant 2018
+
+0.0334
+
+0.99
+
+14.7%
+
+Distant 2019
+
+0.0330
+
+1.07
+
+14.5%
+
+Distant 2020
+
+0.0307
+
+1.05
+
+14.9%
+
+Six nonphysics 2018
+
+0.1264
+
+3.73
+
+-3.4%†
+
+Six nonphysics 2019
+
+0.1027
+
+3.32
+
+-0.7%†
+
+Six nonphysics 2020
+
+0.0688
+
+2.34
+
+11.3%†
+
+†Prefit RMSE exceeds twice the primary value with the same start year.
+
+The distant field pool excludes cs, quant-ph, stat, and math-ph; the six nonphysics pool consists of cs, econ, eess, q-bio, q-fin, and stat. The six nonphysics results demonstrate the identifying role of the prespecified preperiod fit criterion.
+
+Appendix F Institutional monitoring details
+
+Table 10 pairs each governance objective with an indicator, cadence, and interpretation rule.
+
+Table 10: Proposed monitoring dashboard for AI mediated scientific production
+
+Dimension
+
+Indicator, cadence, and interpretation
+
+Volume
+
+Unique submissions, archive list exposures, and versions per item. Measure monthly by primary and secondary field; separate growth from cross listing and resubmission.
+
+AI process
+
+Disclosed use by task and risk tier. Measure monthly or quarterly among submitted and accepted items; track disclosure norms and detection changes.
+
+Verification
+
+Formal check coverage, code execution success, independent replication, and time to resolve flags. Measure quarterly by article type and validation regime.
+
+Review load
+
+Moderator minutes, invitations per completed report, latency, withdrawals, and rejection reasons. Report monthly medians and tails; interpret latency jointly with review depth.
+
+Reliability
+
+Corrections, retractions, citation verification failures, benchmark leakage, and reproducibility failures. Follow annual cohorts to accommodate long lags.
+
+Diversity
+
+Topic entropy, semantic distance, new question share, and null result share. Measure annually within field and report sensitivity to the embedding choice.
+
+Distribution
+
+Author and institution concentration, geographic access, early career entry, and appeal outcomes. Measure quarterly or annually and pair aggregates with individual level study.
+
+Knowledge value
+
+Reuse of code, data, and proofs, together with replication and downstream confirmation. Follow multiyear cohorts and combine citations with reuse.
+
+The indicators should be interpreted jointly. Higher submission volume represents scientific expansion when verification coverage, reliability, diversity, and later reuse rise with it. Cohort tracking connects current process measures to corrections, replication, and downstream confirmation after the relevant publication lags.
+
+Announced policy changes create evaluable interventions. Controlled interrupted designs can compare affected and less affected domains around implementation dates while jointly estimating accepted quality, moderator load, appeals, and representation. Prespecified outcome families and subgroup analyses make productivity and procedural fairness part of the same institutional objective.
+
+Appendix G Researcher adaptation protocol
+
+The task ledger can be implemented through six checkpoints.
+
+1. 
+
+Question ownership. State why the problem matters before asking the model how to solve it.
+
+2. 
+
+Assumption inventory. Record definitions, regimes, symmetries, priors, and exclusion criteria in a human auditable form.
+
+3. 
+
+Adversarial generation. Request counterexamples, incompatible interpretations, and tests that could refute the proposed result.
+
+4. 
+
+Independent verification. Apply a different method, implementation, model family, proof checker, limiting case, or human expert.
+
+5. 
+
+Provenance. Preserve sources, code versions, seeds, environments, material prompts, and rejected alternatives.
+
+6. 
+
+Stopping and disclosure. Define sufficient evidence and disclose AI involvement at the level required to reproduce or audit the claim.
+
+Appendix H Evidence map and next tests
+
+Table 11 connects each central claim to its supporting evidence and the next discriminating test.
+
+Table 11: Evidence supporting the central claims and their next empirical tests
+
+Claim
+
+Evidence and next test
+
+Mathematics information flow surged in 2026
+
+Official monthly archive lists and year over year counts. The next test uses primary category panels and later quality outcomes.
+
+Mathematics diverged from weighted donors
+
+Close synthetic prefit, spatial rank, prior year pseudo holdouts, and leave one donor out stability. The next test adds a longer holdout period and enriched archive covariates.
+
+The divergence is concentrated in 2026
+
+Fitted annual gaps remain within two percent through 2025 and reach 11.9% in 2026. The next test extends the holdout and measures monthly author composition.
+
+The surge is broad across subfields
+
+Primary category counts increase in 29 of 30 math.* categories with heterogeneous magnitudes. The next test links category growth to task and validation regimes.
+
+The repeated output tail thickened in 2026
+
+Pseudonymized official metadata show increases in single author, five plus, and ten plus submission counts and shares. The next test links production profiles to version and validation outcomes.
+
+AI contributes to verifiable research steps
+
+Formal proof, executable search, structured calculations, and expert evaluations. The next test applies common research task protocols across systems.
+
+AI changes researcher and collective outcomes
+
+Large matched and modeled observational studies. The next test uses prospective adoption designs and institutional variation.
+
+Publishing governance is becoming operational
+
+Endorsement expansion, disclosure policy, and monitoring proposals. The next test measures moderator load, audit compliance, appeals, and representation.
+
+The evidence map defines a staged empirical program. Stable manuscript identifiers can connect category histories, submission timing, disclosures, author trajectories, verification artifacts, review outcomes, and later reuse. This linkage directly estimates how much of the 2026 comparative gap is concentrated in documented AI assisted workflows and how those workflows differ in validation intensity.
+
+Institutional variation supplies additional causal leverage. Staggered access to approved tools, training, compute, and endorsement rules can support difference in differences, event studies, and synthetic controls. Mediation analysis can then separate capability, adoption, author composition, and verification pathways, while heterogeneous treatment effects reveal which tasks and researchers gain most from the new production technology.
+
+References
+
+[1]
+A. Abadie, A. Diamond, and J. Hainmueller (2010)
+
+Synthetic control methods for comparative case studies: estimating the effect of California’s tobacco control program.
+
+Journal of the American Statistical Association 105 (490), pp. 493–505.
+
+External Links: Document
+
+Cited by: §4.2.
+
+[2]
+A. Abadie and J. Gardeazabal (2003)
+
+The economic costs of conflict: a case study of the Basque Country.
+
+American Economic Review 93 (1), pp. 113–132.
+
+External Links: Document
+
+Cited by: §4.2.
+
+[3]
+A. Abadie (2021)
+
+Using synthetic controls: feasibility, data requirements, and methodological aspects.
+
+Journal of Economic Literature 59 (2), pp. 391–425.
+
+External Links: Document
+
+Cited by: §4.2,
+§4.3.
+
+[4]
+M. Abouzaid, N. Srivastava, R. Ward, and L. Williams (2026)
+
+First proof: second batch.
+
+arXiv preprint arXiv:2606.18119.
+
+External Links: Document
+
+Cited by: Figure 7,
+Figure 7,
+§7.1.
+
+[5]
+arXiv (2026)ArXiv api user’s manual(Website)
+
+Cited by: Appendix C,
+§3.2,
+Figure 6,
+Figure 6.
+
+[6]
+arXiv (2026)Content moderation: policy for authors’ use of generative ai language tools(Website)
+
+Cited by: §8.1.
+
+[7]
+arXiv (2026)Mathematics: authors and titles for march 2026(Website)
+
+Cited by: §3.1.
+
+[8]
+arXiv (2026)Monthly submissions(Website)
+
+Cited by: §3.1.
+
+[9]
+E. Ben-Michael, A. Feller, and J. Rothstein (2021)
+
+The augmented synthetic control method.
+
+Journal of the American Statistical Association 116 (536), pp. 1789–1803.
+
+External Links: Document
+
+Cited by: §4.2.
+
+[10]
+M. Binz, S. Alaniz, A. Roskies, B. Aczel, C. T. Bergstrom, C. Allen, D. Schad, D. Wulff, J. D. West, Q. Zhang, R. M. Shiffrin, S. J. Gershman, V. Popov, E. M. Bender, M. Marelli, M. M. Botvinick, Z. Akata, and E. Schulz (2025)
+
+How should the advancement of large language models affect the practice of science?.
+
+Proceedings of the National Academy of Sciences 122 (5).
+
+External Links: Document
+
+Cited by: §1.
+
+[11]
+K. Boboris (2026)Attention authors: updated endorsement policy(Website)
+
+ arXiv.
+
+Cited by: §8.1.
+
+[12]
+K. H. Brodersen, F. Gallusser, J. Koehler, N. Remy, and S. L. Scott (2015)
+
+Inferring causal impact using Bayesian structural time-series models.
+
+The Annals of Applied Statistics 9 (1), pp. 247–274.
+
+External Links: Document
+
+Cited by: §4.2.
+
+[13]
+S. L. Brunton and J. N. Kutz (2024)
+
+Promising directions of machine learning for partial differential equations.
+
+Nature Computational Science 4 (7), pp. 483–494.
+
+External Links: Document
+
+Cited by: §7.2.
+
+[14]
+G. Carleo, I. Cirac, K. Cranmer, L. Daudet, M. Schuld, N. Tishby, L. Vogt-Maranto, and L. Zdeborová (2019)
+
+Machine learning and the physical sciences.
+
+Reviews of Modern Physics 91 (4).
+
+External Links: Document
+
+Cited by: §7.2.
+
+[15]
+G. Carleo and M. Troyer (2017)
+
+Solving the quantum many-body problem with artificial neural networks.
+
+Science 355 (6325), pp. 602–606.
+
+External Links: Document
+
+Cited by: §7.2.
+
+[16]
+A. Davies, P. Veličković, L. Buesing, S. Blackwell, D. Zheng, N. Tomašev, R. Tanburn, P. Battaglia, C. Blundell, A. Juhász, M. Lackenby, G. Williamson, D. Hassabis, and P. Kohli (2021)
+
+Advancing mathematics by guiding human intuition with ai.
+
+Nature 600 (7887), pp. 70–74.
+
+External Links: Document
+
+Cited by: Figure 7,
+Figure 7,
+§7.1.
+
+[17]
+A. R. Doshi and O. P. Hauser (2024)
+
+Generative ai enhances individual creativity but reduces the collective diversity of novel content.
+
+Science Advances 10 (28).
+
+External Links: Document
+
+Cited by: §9.
+
+[18]
+J. Gao and D. Wang (2024)
+
+Quantifying the use and potential benefits of artificial intelligence in scientific research.
+
+Nature Human Behaviour 8 (12), pp. 2281–2292.
+
+External Links: Document
+
+Cited by: §1.
+
+[19]
+H. Guo, M. Tikhanovskaya, P. Raccuglia, A. Vlaskin, C. Co, D. J. Liebling, S. Ellsworth, M. Abraham, E. Dorfman, N. P. Armitage, C. Feng, A. Georges, O. Gingras, D. Kiese, S. A. Kivelson, V. Oganesyan, B. J. Ramshaw, S. Sachdev, T. Senthil, J. M. Tranquada, M. P. Brenner, S. Venugopalan, and E. Kim (2026)
+
+Expert evaluation of LLM world models: a high- T_{\mathrm{c}} superconductivity case study.
+
+Proceedings of the National Academy of Sciences 123 (11).
+
+External Links: Document
+
+Cited by: §7.2.
+
+[20]
+M. A. Hanson, P. G. Barreiro, P. Crosetto, and D. Brockington (2024)
+
+The strain on scientific publishing.
+
+Quantitative Science Studies 5 (4), pp. 823–843.
+
+External Links: Document
+
+Cited by: §1.
+
+[21]
+Q. Hao, F. Xu, Y. Li, and J. Evans (2026)
+
+Artificial intelligence tools expand scientists’ impact but contract science’s focus.
+
+Nature 649 (8099), pp. 1237–1243.
+
+External Links: Document
+
+Cited by: Figure 8,
+Figure 8,
+§9.
+
+[22]
+Y. He and Y. Bu (2026)
+
+Academic journals’ ai policies fail to curb the surge in ai-assisted academic writing.
+
+Proceedings of the National Academy of Sciences 123 (9).
+
+External Links: Document
+
+Cited by: §8.2.
+
+[23]
+A. E. Hoerl and R. W. Kennard (1970)
+
+Ridge regression: biased estimation for nonorthogonal problems.
+
+Technometrics 12 (1), pp. 55–67.
+
+External Links: Document
+
+Cited by: §4.2.
+
+[24]
+International Committee of Medical Journal Editors (2026)Use of artificial intelligence in publishing(Website)
+
+Cited by: §10.1.
+
+[25]
+G. E. Karniadakis, I. G. Kevrekidis, L. Lu, P. Perdikaris, S. Wang, and L. Yang (2021)
+
+Physics-informed machine learning.
+
+Nature Reviews Physics 3 (6), pp. 422–440.
+
+External Links: Document
+
+Cited by: §7.2.
+
+[26]
+T. Klowden and T. Tao (2026)
+
+Mathematical methods and human thought in the age of AI.
+
+arXiv preprint arXiv:2603.26524.
+
+External Links: Document
+
+Cited by: §7.1.
+
+[27]
+D. Kobak, R. González-Márquez, E. Horvát, and J. Lause (2025)
+
+Delving into llm-assisted writing in biomedical publications through excess vocabulary.
+
+Science Advances 11 (27).
+
+External Links: Document
+
+Cited by: §6.
+
+[28]
+M. Krenn, R. Pollice, S. Y. Guo, M. Aldeghi, A. Cervera-Lierta, P. Friederich, G. dos Passos Gomes, F. Häse, A. Jinich, A. Nigam, Z. Yao, and A. Aspuru-Guzik (2022)
+
+On scientific understanding with artificial intelligence.
+
+Nature Reviews Physics 4 (12), pp. 761–769.
+
+External Links: Document
+
+Cited by: §7.1.
+
+[29]
+K. Kusumegi, X. Yang, P. Ginsparg, M. de Vaan, T. Stuart, and Y. Yin (2026)
+
+Scientific production in the era of large language models.
+
+arXiv preprint arXiv:2601.13187.
+
+External Links: Document
+
+Cited by: §6.
+
+[30]
+V. Larivière, C. R. Sugimoto, B. Macaluso, S. Milojević, B. Cronin, and M. Thelwall (2014)
+
+arXiv e-prints and the journal of record: an analysis of roles and relationships.
+
+Journal of the Association for Information Science and Technology 65 (6), pp. 1157–1169.
+
+External Links: Document
+
+Cited by: §8.1.
+
+[31]
+W. Liang, Z. Izzo, Y. Zhang, H. Lepp, H. Cao, X. Zhao, L. Chen, H. Ye, S. Liu, Z. Huang, D. Mcfarland, and J. Y. Zou (2024)
+
+Monitoring AI-modified content at scale: a case study on the impact of ChatGPT on AI conference peer reviews.
+
+In Proceedings of the 41st International Conference on Machine Learning,
+
+Proceedings of Machine Learning Research, Vol. 235, pp. 29575–29620.
+
+Cited by: §8.2.
+
+[32]
+W. Liang, Y. Zhang, Z. Wu, H. Lepp, W. Ji, X. Zhao, H. Cao, S. Liu, S. He, Z. Huang, D. Yang, C. Potts, C. D. Manning, and J. Zou (2025)
+
+Quantifying large language model usage in scientific papers.
+
+Nature Human Behaviour 9 (12), pp. 2599–2609.
+
+External Links: Document
+
+Cited by: §6.
+
+[33]
+C. Lu, C. Lu, R. T. Lange, Y. Yamada, S. Hu, J. Foerster, D. Ha, and J. Clune (2026)
+
+Towards end-to-end automation of ai research.
+
+Nature 651 (8107), pp. 914–919.
+
+External Links: Document
+
+Cited by: §8.1.
+
+[34]
+S. Lu, Z. Jin, T. J. Zhang, P. Kos, J. I. Cirac, and B. Schölkopf (2025)
+
+Can theoretical physics research benefit from language agents?.
+
+arXiv preprint arXiv:2506.06214.
+
+External Links: Document
+
+Cited by: §7.2.
+
+[35]
+T. Luong and E. Lockhart (2025)Advanced version of gemini with deep think officially achieves gold-medal standard at the international mathematical olympiad(Website)
+
+ Google DeepMind.
+
+Cited by: Figure 7,
+Figure 7,
+§7.1.
+
+[36]
+A. Merchant, S. Batzner, S. S. Schoenholz, M. Aykol, G. Cheon, and E. D. Cubuk (2023)
+
+Scaling deep learning for materials discovery.
+
+Nature 624 (7990), pp. 80–85.
+
+External Links: Document
+
+Cited by: §7.2.
+
+[37]
+L. Messeri and M. J. Crockett (2024)
+
+Artificial intelligence and illusions of understanding in scientific research.
+
+Nature 627 (8002), pp. 49–58.
+
+External Links: Document
+
+Cited by: §9.
+
+[38]
+M. Naddaf (2025)
+
+How are researchers using AI? survey reveals pros and cons for science.
+
+Nature.
+
+External Links: Document
+
+Cited by: §9.
+
+[39]
+Nature Methods (2026)
+
+Using ai responsibly in scientific publishing.
+
+Nature Methods 23 (2), pp. 271–271.
+
+External Links: Document
+
+Cited by: §10.1,
+§8.2.
+
+[40]
+Nature Portfolio (2026)Artificial intelligence (AI)(Website)
+
+Cited by: §10.1.
+
+[41]
+W. K. Newey and K. D. West (1987)
+
+A simple, positive semi-definite, heteroskedasticity and autocorrelation consistent covariance matrix.
+
+Econometrica 55 (3), pp. 703–708.
+
+External Links: Document
+
+Cited by: §4.1.
+
+[42]
+S. Noy and W. Zhang (2023)
+
+Experimental evidence on the productivity effects of generative artificial intelligence.
+
+Science 381 (6654), pp. 187–192.
+
+External Links: Document
+
+Cited by: §8.1.
+
+[43]
+H. Pan, N. Mudur, W. Taranto, M. Tikhanovskaya, S. Venugopalan, Y. Bahri, M. P. Brenner, and E. Kim (2025)
+
+Quantum many-body physics calculations with large language models.
+
+Communications Physics 8 (1).
+
+External Links: Document
+
+Cited by: Figure 7,
+Figure 7,
+§7.2.
+
+[44]
+J. Pearl (1995)
+
+Causal diagrams for empirical research.
+
+Biometrika 82 (4), pp. 669–688.
+
+External Links: Document
+
+Cited by: §2.2.
+
+[45]
+A. Poiroux, A. Bosselut, and V. Kunčak (2025)
+
+RLMEval: evaluating research-level neural theorem proving.
+
+arXiv preprint arXiv:2510.25427.
+
+External Links: Document
+
+Cited by: Figure 7,
+Figure 7,
+§7.1.
+
+[46]
+B. Romera-Paredes, M. Barekatain, A. Novikov, M. Balog, M. P. Kumar, E. Dupont, F. J. R. Ruiz, J. S. Ellenberg, P. Wang, O. Fawzi, P. Kohli, and A. Fawzi (2024)
+
+Mathematical discoveries from program search with large language models.
+
+Nature 625 (7995), pp. 468–475.
+
+External Links: Document
+
+Cited by: Figure 7,
+Figure 7,
+§7.1.
+
+[47]
+D. B. Rubin (1974)
+
+Estimating causal effects of treatments in randomized and nonrandomized studies.
+
+Journal of Educational Psychology 66 (5), pp. 688–701.
+
+External Links: Document
+
+Cited by: §2.2.
+
+[48]
+K. Siler (2026)
+
+The diffusion of large language models in published academic articles.
+
+Proceedings of the National Academy of Sciences 123 (22).
+
+External Links: Document
+
+Cited by: §6.
+
+[49]
+J. Sourati and J. A. Evans (2023)
+
+Accelerating science with human-aware artificial intelligence.
+
+Nature Human Behaviour 7 (10), pp. 1682–1696.
+
+External Links: Document
+
+Cited by: §9.
+
+[50]
+T. Tao (2026)
+
+Mathematics in the age of AI.
+
+arXiv preprint arXiv:2608.16753.
+
+External Links: Document
+
+Cited by: §7.1.
+
+[51]
+T. H. Trinh, Y. Wu, Q. V. Le, H. He, and T. Luong (2024)
+
+Solving olympiad geometry without human demonstrations.
+
+Nature 625 (7995), pp. 476–482.
+
+External Links: Document
+
+Cited by: Figure 7,
+Figure 7,
+§7.1.
+
+[52]
+S. Udrescu and M. Tegmark (2020)
+
+AI feynman: a physics-inspired method for symbolic regression.
+
+Science Advances 6 (16).
+
+External Links: Document
+
+Cited by: §7.2.
+
+[53]
+H. Wang, T. Fu, Y. Du, W. Gao, K. Huang, Z. Liu, P. Chandak, S. Liu, P. Van Katwyk, A. Deac, A. Anandkumar, K. Bergen, C. P. Gomes, S. Ho, P. Kohli, J. Lasenby, J. Leskovec, T. Liu, A. Manrai, D. Marks, B. Ramsundar, L. Song, J. Sun, J. Tang, P. Veličković, M. Welling, L. Zhang, C. W. Coley, Y. Bengio, and M. Zitnik (2023)
+
+Scientific discovery in the age of artificial intelligence.
+
+Nature 620 (7972), pp. 47–60.
+
+External Links: Document
+
+Cited by: §1.

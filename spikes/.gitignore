@@ -6,3 +6,4 @@ out/
 build/
 dist/
 __pycache__/
+build-log.txt

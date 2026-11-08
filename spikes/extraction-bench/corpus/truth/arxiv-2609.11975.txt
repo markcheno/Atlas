@@ -1,0 +1,10180 @@
+AI-Research Agents in the Wild.
+
+From GitHub and arXiv to Regularities and Gaps.
+
+Aleksey Komissarov
+††thanks: Neapolis University, Pafos, Cyprus.
+Corresponding author; email to be finalised at submission.
+
+Andrey Ustyuzhanin
+††thanks: Constructor Labs, Bremen, Campus Ring˜1,
+28759, Germany; Constructor University, Bremen, Campus Ring˜1,
+28759, Germany; Institute for Functional Intelligent Materials,
+National University of Singapore, 4 Science Drive˜2, Singapore
+117544, Singapore. Email to be finalised at submission.
+
+15 July 2026
+
+Abstract
+
+AI-research agents, also described as autoresearch systems, combine
+language models with tools, search, evaluation, and iterative modification of
+research artifacts. Their public software ecology remains difficult to compare
+because repositories, papers, benchmarks, libraries, and companion artifacts
+are often counted as one population. We connect two agent-drafted and
+human-adjudicated registries frozen on 10 June 2026: 139 canonical public
+repository records and 101 papers about AI-assisted research systems, each
+record carrying an evidence card anchored to its primary sources. Nine promoted design lineages
+contain 59 canonical memberships among 52 repositories, with seven
+repositories assigned to two lineages. We use this evidence to examine six
+time-stamped candidate regularities about structural compatibility, iteration
+cost, empty design cells, pattern strength, cross-lineage transfer, and pattern
+growth. A prospective audit of 25 newly ingested repositories observed zero of
+six specified trigger events. The outcome supplies bounded support for R1–R4.
+Broader corpus evidence contradicted the original scope of R5, and a failed
+directional prediction leaves R6 exploratory. The paper–repository graph
+contains 212 distinct curator-assigned relatedness edges, each recording a
+repository our curation coded as related to a paper: 64 of 101 papers carry at
+least one such edge, those edges reach 23 of 139 repositories, and the six
+most frequently linked repositories carry 120 of the 212 edges (56.6%). A
+full-text check of seven of those papers located a mention of the credited
+repository for 3 of the 29 edges they carry, so the relation measures our
+curation and not the papers’ citation behavior. An identity audit
+adjudicated against repository commit histories and public contributor records
+confirms at least 18 paper authors who also author a canonical registry
+repository, across 20 of 63 candidate author slots in 13 of 101 papers. A
+byline-matched tier reaches 58 identities and 63 slots in 15 of 101 papers; it
+is reported separately and more weakly, because 40 of those 63 slots come from
+registry records that transcribe the paper’s own author list, and the commit
+histories of the repositories concerned cannot support at least 24 of the 63. These results
+provide a source-grounded theory under prospective test, a curator-assigned
+map of paper–repository relatedness, and explicit limits on claims about
+public visibility and community structure.
+
+Keywords: AI research agents; autoresearch; research
+automation; repository mining; software ecosystems; prospective audit;
+scientific discovery.
+
+1 Introduction
+
+Language-model systems now participate in research workflows by retrieving
+literature, proposing hypotheses, generating or modifying code, running
+experiments, evaluating outputs, and assembling reports. MLAgentBench
+[1], The AI Scientist [2], ResearchAgent
+[3], and Agent Laboratory [4] illustrate
+different units of work and evaluation regimes. Their mechanisms combine
+reasoning–action loops [5], self-critique [6], search
+over reasoning paths [7], and declarative optimization
+[8, 9] with research-specific artifacts and acceptance criteria.
+
+We use autoresearch as an umbrella term for public software and
+associated artifacts that implement, support, or evaluate
+language-model-mediated research workflows. The public record includes
+runnable agents, benchmarks, evaluation harnesses, libraries, coordination
+substrates, curated lists, paper companions, and boundary artifacts. This
+heterogeneity creates three measurement problems. First, repository counts
+provide a public-artifact denominator; a runnable-agent denominator requires
+role coding. Second, recurring
+design decisions require a coding vocabulary that can be tested on later
+cases. Third, a paper coded as related to a repository, a paper with
+companion code, and a paper author who maintains a repository represent
+different relations.
+
+The study addresses three research questions:
+
+RQ1.
+
+What design regularities recur in the public repository ecology,
+and how do nine promoted lineages relate to the 139-record registry?
+
+RQ2.
+
+What happens when six candidate regularities, with trigger
+conditions fixed before inspection, are applied to 25 newly ingested
+repositories?
+
+RQ3.
+
+How do curator-assigned relatedness, companion code, and
+confirmed authorship relations connect 101 papers to the repository
+registry?
+
+The theory under test is concrete. R1 links structural compatibility to the
+failure modes available to a system. R2 links rapid iteration to bounded,
+programmatically scored artifacts. R3 concerns a persistent empty design cell
+combining a vector signal with a language-model judge inside an optimization
+loop. R4 asks why failure patterns lead the internal evidence ranking. R5
+links unit of work to architecture lineage and tests how design patterns cross
+lineages. R6 asks whether small pattern clusters grow quickly or remain small.
+The time-stamped audit differentiates their current status: R1–R4 receive
+bounded support, the broad form of R5 is contradicted, and R6 remains
+exploratory after its directional companion prediction failed.
+
+The paper makes three contributions:
+
+(C1) 
+
+a design theory stated as six candidate regularities with explicit
+trigger observations and a prospective case-level audit;
+
+(C2) 
+
+an evidence-grounded map that separates repository-registry size,
+lineage membership, artifact role, and recurring antipatterns; and
+
+(C3) 
+
+distinct measurements of curator-assigned relatedness, companion code,
+and authorship overlap, including a corrected lower bound on participation
+across software and papers.
+
+For system builders, the regularities identify design constraints and
+evaluation risks. For reviewers, the cross-corpus relations provide explicit
+denominators for code-availability and community claims. For empirical
+research on AI-assisted science, the prospective protocol records where the
+theory survived, where its scope changed, and which questions remain open.
+
+Figure 1: Study overview. The repository and paper registries support three
+connected analyses: lineage coverage, a 25-case prospective audit of six
+candidate regularities, and three paper–repository relations. The final
+panel distinguishes bounded support, a post-hoc restriction, and a failed
+directional prediction. Counts refer to the 10 June 2026 analytic freeze.
+
+2 Corpus and Method
+
+The two registries were produced by the same procedure, which is
+agent-drafted, human-adjudicated, and source-anchored. Each repository record
+and each paper record received an evidence card written by a language-model
+coding agent that was invoked once per record, worked from the primary
+artifact, and filled a fixed card schema whose categorical fields draw on a
+controlled vocabulary. The human authors set the admission scope, adjudicated
+contested and unresolved cases, and reviewed the registries; they did not
+hand-write the cards. The aggregate counts reported below are regenerated from
+the structured fields of these cards, not from their prose. This is the
+procedure disclosed in the “Use of Generative AI” section.
+
+2.1 Repository registry
+
+The repository registry contains 139 canonical public GitHub records after
+three aliases are folded into their targets. Every admitted record carries a
+recorded discovery channel, and the channels are unequal in yield. Of the 139
+canonical records, 83 came from two existing curated lists (75 from the larger
+seed list and 8 from a second list), 30 from synthesis passes that combined
+snowball search over already inspected repositories with targeted GitHub
+search, 15 from references in papers, 9 from a public benchmark leaderboard, 1
+from a pull request opened against a curated list, and 1 from a direct
+recommendation. No record entered through undirected GitHub search alone;
+GitHub search is recorded as a technique used inside the synthesis passes and
+not as a channel in its own right. Every admitted record received a
+structured evidence card based on repository files, documentation, and linked
+papers. The analytic freeze is 10 June 2026; later changes to live repositories
+fall outside the reported counts.
+
+The registry is an engineered discovery sample. Its records span research
+agents, benchmarks, libraries, substrates, meta-resources, paper companions,
+and artifacts that mark the category boundary. The count 139 therefore
+describes a public artifact registry. Estimating the prevalence of runnable
+agents requires a separate role-coding pass and an explicit sampling frame.
+
+Repository inspection records canonical identity, discovery source, unit of
+work, selection signal, judge type, loop structure, lineage evidence,
+recurring patterns, and recurring failure modes. Source-derived observations
+retain revision-pinned evidence in the public compendium. Aggregate counts are
+regenerated from structured records.
+
+The compendium holds 141 repository evidence cards against these 139 registry
+records, and the two extra cards are enumerable. One documents a personal
+development fork of MLAgentBench that was inspected to confirm redundancy and
+then folded into its canonical target, so it keeps a card and no separate
+registry row. The other documents AutoScientists, a repository inspected on 30
+May 2026 whose registry row was never created; its evidence card is public, and
+it is absent from every registry-derived count, including the 139-row
+cost-versus-ambition matrix of Appendix A.3 and
+Supplementary Table S1. The first difference is deliberate; the second is a
+registry-maintenance error, stated here so that a reader comparing the two
+lists finds exactly these two cards and no others. Neither affects a reported
+number, because every count in this paper is computed over the 139 canonical
+records.
+
+2.2 Paper registry and relation types
+
+The paper registry contains 101 curated records representing 98 unique
+bibliographic artifacts. Three pairs share an arXiv identifier and retain
+separate record IDs for provenance. The records contain bibliographic
+metadata, authors, code-availability status, an optional companion-code URL,
+and the canonical repositories our curation coded as related to it.
+Twenty-five
+records lacked accessible full text during curation, so paper-side link
+coverage is an observed lower bound under the available-material protocol.
+
+We distinguish three relations:
+
+1. 
+
+A corpus-relatedness edge connects a paper to a canonical
+repository that our curation coded as related to that paper. The field was
+introduced to cross-link the two registries, and the recorded basis for an
+edge ranges from an explicit citation in the paper to a curator’s judgment
+that the paper and the repository occupy the same position in this corpus.
+These edges form a curator-assigned relatedness graph. We do not read them
+as a citation or naming graph, and the sample behind that decision is
+reported in the limitations.
+
+2. 
+
+A companion-code edge connects a paper to the canonical
+repository resolved from its own code URL. This relation measures associated
+public code.
+
+3. 
+
+An authorship edge connects a paper author to a canonical
+repository author. A byline-matched edge requires only that the
+repository’s registry record list the same name, on evidence from a companion
+repository, a project-author record, an adjudicated handle, or an equivalent
+identity source. A commit-adjudicated edge additionally requires an
+author or committer identity in the repository’s complete commit history.
+Only the commit-adjudicated class enters a lower bound: where a registry
+record’s author field transcribes the byline of the paper being matched, the
+two sides of the comparison have one source and the match carries no
+repository-side information.
+
+Canonicalization resolves explicit aliases first and bare repository names
+only when the basename identifies one canonical record. All current
+relatedness labels resolve. Paper identifiers remain literal three-digit
+strings, which preserves the 001–101 provenance range. One reproducibility
+detail changes the headline counts and is therefore stated here: 100 of the
+101 paper records store the relatedness field as an inline list and one stores
+it as a block sequence, so a parser that accepts only the inline form returns
+63 linked papers and 208 edges in place of 64 and 212. Our regeneration
+accepts both forms.
+
+2.3 Lineages and coding primitives
+
+Nine promoted lineage records describe recurring relations among repositories.
+Their membership lists declare 61 relations across 54 labels. Two labels are
+external substrate anchors. Canonicalization leaves 59 memberships among 52
+registry repositories, and seven repositories occur in two lineages. Lineage
+membership is therefore a multi-label relation over a subset of the registry.
+The recorded evidence combines code ancestry, shared infrastructure,
+intellectual influence, and structural convergence.
+
+Five coding primitives organize the design theory:
+
+A1. Unit of work.
+
+The artifact produced or modified by one iteration.
+
+A2. Selection signal.
+
+The signal used to compare candidates. The
+coding vocabulary fixes five positions: a strict scalar, a band-tolerant
+scalar that admits a tolerance margin on secondary quantities, a vector
+compared on a frontier without scalarization, a relational score derived from
+pairwise comparison between candidates, and none for records that run no
+candidate comparison.
+
+A3. Judge.
+
+The acceptance mechanism. The coding vocabulary fixes four
+positions: programmatic, language-model, hybrid (a deterministic outer gate
+with an opt-in language-model inner check), and absent.
+
+A4. Pattern.
+
+A recurring design decision promoted to its own record
+under the compendium’s recorded promotion rule. That rule fixes a minimum
+number of independently inspected artifacts, and every promoted record states
+the minimum it was promoted under.
+
+A5. Antipattern.
+
+A recurring implementation or evaluation failure with
+a named mechanism, promoted under the same rule as A4.
+
+A2 and A3 are coded for every record, and their distributions are uneven
+enough to state here. Over the 139 canonical records A2 is strict scalar in
+85, none in 47, relational in 4, vector in 2, and band-tolerant in 1; A3 is
+programmatic in 48, absent in 39, language-model in 33, and hybrid in 19. The
+null position is the second most common value on both axes, and 38 of the 139
+records take it on both at once. That is one concrete measure of the point
+above: the registry counts public artifacts, and a substantial part of it runs
+neither a candidate comparison nor an acceptance gate. The hybrid position
+carries weight for R1 and R5 below, which both turn on whether a record’s
+acceptance gate is programmatic or language-model; 19 of 139 records are coded
+as both, and a four-way scheme without a hybrid position would have forced
+each of them silently onto one side. The vocabulary fixes no position for a
+human acceptance mechanism, so human review is not separable in these counts.
+
+The promotion rule behind A4 and A5 is not a single floor, and stating it
+exactly changes how the pattern counts should be read. The compendium holds 54
+promoted records: 22 architectures, 7 components, 16 coding patterns, and 9
+antipatterns. Of those 54, 38 rest on two or more independently inspected
+artifacts, and two of the 38 are recorded as promoted under a three-artifact
+threshold. The remaining 16 rest on exactly one artifact and were promoted for
+structural distinctness or for portability into a new system: 5 of the 22
+architectures, 2 of the 7 components, 4 of the 16 coding patterns, and 5 of
+the 9 antipatterns. Fifteen of those 16 declare the single-artifact status in
+their own text, and one component record states the deviation outright,
+recording that it was promoted on portability and utility merits and not at
+the two-artifact threshold. Single-artifact promotion is a recorded policy of
+the compendium and not a bookkeeping slip, and it has one direct consequence
+for this paper: the pattern and antipattern totals reported below are counts
+of promoted records and not counts of twice-confirmed regularities.
+
+The two additions to the earlier seven antipattern records are mutable
+evaluation code as a gaming surface and calibration claimed but not
+shipped. The first is one of the 16 single-artifact records: it rests on a
+single case study, a repository whose own documentation reports both the
+gaming failure and the structural fix that ended it. Announcement-only paper
+companions are coded as an artifact pattern, and tournament replacement of an
+experiment remains a candidate observation.
+
+2.4 Time-stamped prospective protocol
+
+Six candidate regularities and their minimum trigger observations were
+recorded on 17 May 2026 before the prospective batch was inspected. The
+baseline registry contained 76 canonical records. Growth from 76 to 139
+includes material accumulated outside the prospective batch; the explicit
+case-level audit covers 25 repositories collected during June 2026.
+
+The audit asks whether at least one qualifying trigger observation occurs in
+those 25 cases. A trigger count of zero describes the finite audit batch.
+Broader corpus evidence can still contradict a regularity, and a directional
+prediction can fail when its paired trigger remains unobserved. We therefore
+report trigger outcome, corpus-wide counterevidence, and post-hoc restrictions
+as separate evidence layers.
+
+Code
+
+Candidate regularity
+
+Minimum trigger observation
+
+Audit result
+
+P1
+
+Structural compatibility constrains failure modes
+
+One seed-line case with an uncalibrated language-model judge
+
+0 observed
+
+P2
+
+Iteration cost increases with artifact openness
+
+One sub-10-minute iteration producing an open-ended artifact
+
+0 observed under measurements; 2 under configured bounds
+
+P3
+
+The vector-signal/language-model-judge optimization cell remains empty
+
+One clean implementation of that cell: a per-candidate language-model judge, a retained vector with no reduction to a scalar before selection, and an iterated loop gated on the result
+
+0 observed
+
+P4
+
+Failure patterns lead the internal evidence ranking
+
+An architecture pattern displaces them at the top of the ranking, scored under the imported four-lineage relation
+
+0 observed
+
+P5
+
+Unit of work constrains architecture lineage
+
+One repository migrates between lineages across observation rounds
+
+0 observed
+
+P6
+
+Long-stagnant patterns rarely jump abruptly
+
+One pattern stable at two instances for six rounds rises to at least five
+
+0 observed
+
+Table 1: Trigger conditions fixed before the 25-case audit. The result
+column reports observations in the audited batch. P4 is evaluated on the
+imported ranking, whose lineage term counts a four-lineage subset; under the
+nine promoted lineage records an architecture pattern holds the top position
+in two of the four weightings (Appendix A.1).
+
+2.5 Artifact-level verification of the codings
+
+Every count in this paper aggregates per-artifact codings recorded in the
+evidence cards, so the codings themselves were checked against the artifacts
+they describe. The check has two layers. The first resolves every
+revision-pinned anchor: each owner/repo@sha:path:line reference
+carried by the repository evidence cards was fetched at its pinned revision
+and the cited line recorded verbatim. The second binds a load-bearing subset
+of the codings to facts. A coding is load-bearing when a headline number, a
+candidate regularity, or a printed table depends on it. Each such coding was
+paired with a verbatim fact taken from the repository or the paper itself; the
+evidence card was never accepted as evidence for its own coding. A negative
+coding, for example uncalibrated or no language-model judge,
+required a stated exhaustive search: the revision searched, the paths and
+patterns covered, and the result that nothing came back. A negative coding
+with no stated search was recorded as not demonstrated. Every binding carries
+one of five verdicts: demonstrated by a verbatim fact, demonstrated in a
+weaker form, contradicted by the artifact, not demonstrated by the
+discoverable evidence, or undecidable from the artifact.
+
+The anchor layer resolves 3547 pinned references carried by the 141 repository
+evidence cards, two of which lie outside the 139-record canonical registry. Of
+those 3547 anchors, 3306 resolve to a verbatim source line at the pinned
+revision, 132 name a file with no line number, 7 name a line past the end of
+their file, and 102 name a path that does not resolve there. Twenty-seven of
+those 102 are aimed at objects the anchor form cannot address at all: 15
+commit-message fragments, 6 notebook cells, and 6 commit dates. One coverage
+fact limits what the anchor layer establishes: 230 of the 3547 anchors are
+cited inline beside the claim they support, and the remaining 3317 sit in a
+page-level list, so the convention pins evidence to a card and not to a
+sentence.
+
+The binding layer covers 538 load-bearing codings over 54 artifacts, 44 of the
+139 repository records and 10 of the 101 papers. Its outcome is asymmetric
+across coding families. Contradicted bindings number 0 of 34 for judge
+calibration, 0 of 44 for judge type, 0 of 44 for loop topology, 0 of 44 for
+tool category, 0 of 44 for selection signal, 1 of 44 for mutability, 2 of 48
+for lineage membership, 10 of 64 for pattern membership, and 10 of 59 for
+iteration-cost coordinates. The four axes that supply every cell count,
+lineage table, and candidate regularity in this paper, selection signal, judge
+type, loop topology, and tool category, carry zero contradictions across their
+176 bindings, and the empty-cell result of R3 is coded from two of them. The
+calibration coding behind the leading failure pattern also survives: all 34
+judge-calibration bindings resolve without contradiction, and 30 of the 34 are
+demonstrated by a verbatim artifact fact or by a stated exhaustive search,
+including the version split the finding depends on, in which The AI Scientist
+[2] is coded validated on a shipped benchmark of 500
+conference papers whose judge scores are compared with human ratings, and its
+successor version is coded uncalibrated after that benchmark was dropped. The
+two families that do not hold are the two that feed the weakest results
+reported here: pattern membership supplies the supporting-repository counts of
+the composite ranking (Appendix A.1), and the
+iteration-cost coordinates supply the coverage matrix
+(Appendix A.3).
+
+2.6 Authorship audit and reproducibility
+
+The authorship analysis begins with 718 author slots across 101 papers and 661
+distinct normalized display names. Display-name equality nominates a case for
+review. Confirmation requires an explicit evidence source. Common names,
+handle-only candidates, and affiliation conflicts remain unresolved.
+
+Confirmed cases are then separated into two tiers, because the evidence behind
+them is of two kinds. A byline-matched case pairs a paper author with a
+canonical registry record whose own author field carries the same name. A
+commit-adjudicated case additionally matches that person to an author or
+committer identity in the repository’s complete commit history, read across all
+refs. Adjudication was run twice by different routes, once against public
+contributor records and once against the histories themselves, and both results
+are reported. Handle resemblance with no corroborating email or profile
+evidence is recorded and counted separately.
+
+We report lower bounds at three levels: confirmed identities, author slots,
+and papers containing at least one confirmed repository author. A person on
+several papers contributes one identity and several slots; a paper with
+several confirmed repository authors contributes one paper. Lower-bound
+language applies to the commit-adjudicated tier only. The byline-matched tier
+is a count of attributed credit and bounds repository authorship in neither
+direction, for the reason given with the result.
+
+All graph counts use distinct paper–canonical-repository pairs. Percentages
+retain their denominators. Supplementary Tables S1–S3 enumerate all 139
+repositories, all 101 papers, and every observed named-tool, companion-code,
+and confirmed-author relation, so each of those three relation counts can be
+recounted from the article itself. The registries, evidence cards,
+adjudication ledger, analysis programs, generated tables, figure source, and
+manuscript source are deposited as the archival snapshot described under
+“Data and Code Availability” [21].
+
+3 A Theory of Autoresearch Design
+
+The theory describes empirical regularities in the observed public artifact
+ecology. Each regularity has a mechanism, baseline evidence, a minimum trigger
+observation, and a current status. The prospective protocol tests specified
+events in 25 later cases. Corpus-wide descriptive evidence supplies context
+and can expose counterexamples outside a narrow trigger.
+
+3.1 Six candidate regularities
+
+R1: structural compatibility.
+
+Structural commitments can remove specific failure modes from the available
+design surface. The baseline records four zero co-occurrence pairs formed by
+two structural conditions and two evaluation failures. P1 prospectively tests
+one pair: seed-line systems combined with an uncalibrated language-model
+judge. The only new seed-line case in the audit used a programmatic acceptance
+mechanism, leaving that trigger unobserved. This is evidence for one observed
+pair in one finite batch.
+
+R2: iteration cost and artifact openness.
+
+Fast iteration is associated with bounded artifacts and programmatic scoring;
+open-ended artifacts require more expensive judgment. P2 specifies a
+sub-10-minute iteration that produces an open-ended artifact. Under manual
+per-case coding, no audited case in the 25-repository batch combined the two
+properties. Iteration cost and artifact openness lack independent double
+coding, which limits the current inference.
+
+Extending the coding to all 139 canonical repositories makes R2’s status
+conditional on a choice the earlier coding left implicit. Wall-clock evidence
+divides into observed durations and configured bounds, and the two are not
+interchangeable. Fourteen repositories publish a measurement; 56 publish only a
+ceiling such as a timeout or a guard rail; 69 publish neither. If only
+measurements count, the forbidden quadrant (iteration {<}600 s and artifact
+open-ended) is empty, but the open-ended column then contains no measurement at
+all across its 17 repositories, so the cell is empty for want of measurement
+and not by measured absence. If configured bounds also count, as they must
+if the bounded column is allowed to use them, two open-ended repositories bound
+an iteration below ten minutes and P2 would have fired. We report both readings; adopting
+the one that favours the hypothesis would be the easier move and the wrong one.
+Appendix A.3 states the coding rule, both matrices, and the
+unit recorded for every bound.
+
+R3: persistent empty design cell.
+
+The coded corpus contains no clean optimization loop that retains a vector
+signal and a language-model judge. At least 23 candidate systems landed in
+adjacent designs. A common route reduces multiple judgments to a relational or
+scalar tournament score. P3 observed no clean landing among the 25 audited
+cases. The recorded trigger wording has three clauses, restated in
+Table 1: a per-candidate language-model judge, a
+retained vector with no reduction to a scalar before selection, and an
+iterated loop gated on the result. A re-test run after the freeze found one
+repository that satisfies the first two clauses and fails only the third, so
+the third clause now carries the claim; Section 3.4 reports
+that re-test, its protocol, and its other outcomes. The repeated adjacent
+landings motivate a structural hypothesis that can be tested through
+controlled scalar, vector, and tournament variants.
+
+R4: pattern-strength asymmetry.
+
+Failure patterns lead the internal composite evidence ranking. The score
+combines supporting repositories, papers, and lineages as
+ s=3\sqrt{n_{\text{tools}}}+n_{\text{papers}}+2\,n_{\text{schools}} ,
+with the top five patterns forming Tier S ( s\geq 12 ). The rationale for the
+three terms is stated here so that it does not depend on an external deposit:
+the square root on n_{\text{tools}} makes the step from one supporting
+repository to four count for more than the step from nine to thirteen, because
+the first question a replication count answers is whether the pattern recurs
+at all; n_{\text{papers}} enters linearly as corroboration from outside our
+own reading of the code; and n_{\text{schools}} carries weight two because
+presence in more than one lineage is what separates a general pattern from an
+idiomatic one. The weighting is one of several defensible choices. No architecture pattern displaced them
+during the audit. Several supporting strength-increase thresholds were unmet,
+so the stable rank is the bounded result. Appendix A.1
+reports Tier S membership stability under three alternative weightings.
+The ranking describes this corpus and coding system; independent data are
+required to test generality.
+
+R5: unit of work and cross-lineage transfer.
+
+The original theory proposed that design patterns would remain local to one or
+two lineages. Broader corpus evidence contradicts that scope:
+judge uncalibrated occurs in four lineages. Architecture patterns
+currently appear in at most two. Restricting R5 to architecture patterns
+followed observation of the counterexample and is therefore post hoc. The
+contrast between transferable evaluation failures and lineage-local
+architectures remains a testable hypothesis.
+
+R6: pattern-growth stability.
+
+The original heuristic proposed two growth modes: rapid accumulation of
+instances or prolonged stagnation near the promotion threshold. P6 observed no
+jump from a long-stagnant two-instance pattern to five instances. Its
+directional companion prediction G1 expected the runtime-contract cluster to
+gain a fourth instance; the count remained three across 15 recorded
+observations. G1 failed, and R6 remains exploratory.
+
+Code
+
+Baseline evidence
+
+Prospective observation
+
+Current status
+
+R1
+
+Four recorded zero co-occurrence pairs
+
+Sole new seed-line case lacked a language-model judge
+
+Bounded support for one prospectively observed pair
+
+R2
+
+Fast cases use bounded artifacts; open-ended cases use costly evaluation
+
+0/25 combined both trigger properties; corpus-wide outcome depends on the evidence rule
+
+Conditional: holds under measurements only, has two counterexamples under configured bounds
+
+R3
+
+At least 23 recorded adjacent or refused landings
+
+0/25 clean landings
+
+Bounded support with tournament aggregation as an observed alternative; the closest post-freeze case fails only the loop clause
+
+R4
+
+A failure pattern leads the internal composite ranking under the imported four-lineage relation
+
+No top-rank flip from a case observed in the audit
+
+Conditional on the lineage relation: an architecture pattern leads under the nine promoted lineage records in two of the four weightings
+
+R5
+
+Unit of work proposed to constrain cross-lineage patterns
+
+No migration trigger; one failure mode spans four lineages
+
+Broad form contradicted; architecture-only form is post hoc
+
+R6
+
+Long-stagnant patterns proposed to remain small
+
+No jump trigger; runtime-contract stayed at three
+
+Exploratory; finite non-event and failed companion prediction
+
+Table 2: Current evidential status after separating the 25-case audit from
+broader corpus observations.
+
+3.2 Prospective outcomes
+
+None of the six specified trigger events occurred among the 25 audited
+repositories. The case-level interpretation is:
+
+P1.
+
+One new seed-line case used programmatic acceptance; the
+uncalibrated language-model judge trigger was absent.
+
+P2.
+
+No audited case in the 25-repository batch combined sub-10-minute
+iteration with an open-ended artifact under manual coding. Coding all 139
+repositories afterwards makes the corpus-wide result rule-dependent: the
+forbidden quadrant is empty if only observed durations count, and holds two
+open-ended repositories if configured bounds count as well
+(Appendix A.3).
+
+P3.
+
+No clean vector-signal/language-model-judge optimization loop was
+found; tournament aggregation occupied an adjacent design.
+
+P4.
+
+A failure pattern retained the leading position in the internal
+ranking under the imported four-lineage relation, which was computed at the
+76-record baseline and whose ranks two through five were not recomputed
+after the audit; several prespecified strength increases were unmet. Under
+the nine promoted lineage records an architecture pattern leads in two of
+the four weightings (Appendix A.1).
+
+P5.
+
+No lineage migration occurred in the audit. Independent corpus
+evidence contradicted the broad cross-lineage statement.
+
+P6.
+
+No long-stagnant pattern jumped to five instances. G1 failed after
+the runtime-contract count remained three across 15 observations.
+
+The reproducible aggregate is zero observed trigger events among six tests in
+25 cases. R1–R4 receive varying degrees of bounded support. R5 required a
+post-hoc domain restriction. R6 remains exploratory. A statement of six
+confirmations would exceed this evidence.
+
+3.3 What the theory currently explains
+
+Three mechanisms remain scientifically useful. Structural commitments appear
+to constrain the failure surface. Rapid iteration currently co-occurs with
+bounded, measurable artifacts. Evaluation failures can spread across lineages
+that share no architecture. The persistent empty cell adds a fourth target:
+tournament aggregation may provide the mechanism by which systems avoid
+retaining vector judgments inside every optimization step, whether via
+Elo-based co-evolution [17, 18] or
+social-choice ordinal aggregation [16]. The
+post-freeze re-test in Section 3.4 adds two further routes to
+the same outcome, selection code shipped in a state no live path reaches and a
+front constructed without an iteration that consumes it, so the mechanism is a
+set of three routes and not one escape.
+
+The theory also records its current boundary. The internal ranking measures
+corpus support, with system performance outside its scope. R5’s architecture
+restriction is post hoc, and R6 has no successful directional prediction.
+These limits turn the regularities
+into an executable research program: future cases can populate a cell,
+reverse a rank, cross a lineage boundary, or change a growth trajectory.
+
+3.4 Post-freeze re-test of the empty design cell
+
+R3 asserts a structural absence, and the registries that support it are frozen
+on 10 June 2026. A structural claim invites a later check, so the empty cell
+was re-tested on 26 July 2026 outside the frozen sample. The re-test collected
+962 public repositories created after the freeze, retained 319 of them under a
+mechanical filter, and passed those to ten language-model triage agents, each
+required to quote a fact from the repository behind its verdict. The sweep is a
+sample and not a census: the search queries return only their most recently
+updated results. Sixty-nine of the 319 triaged candidates carried a trigger
+flag. The highest-stakes of those flags were given to fifteen independent
+re-checks, each instructed to reach the selection step by a different route and
+to default to refutation, and 11 of the 15 refuted the claim they were given.
+That ratio is the calibration figure to attach to any single-agent trigger
+report, including the two that survived. This evidence is later than, and
+separate from, the 25-case prospective audit, whose result is unchanged.
+
+Four results follow. First, the closest recorded approach to the empty cell
+satisfies two of the trigger’s three clauses without qualification. In
+jackysiupuichung/virtual-biotech-scientist, six single-axis
+language-model judges score each candidate against the incumbent, their
+verdicts are retained as a six-element vector, and membership of the front is
+gated on a conservative unanimity dominance predicate with no reduction to a
+scalar before selection. The Copeland-style tally the repository also computes
+runs strictly after selection and changes no membership. The third clause
+fails: the front is constructed once, and its feedback signal is never
+consumed. The trigger’s phrase “gates a loop” therefore decides the case in a
+way it did not at the freeze, because the case satisfies each of the trigger’s
+other clauses in the recorded wording. The next adjudication must state whether
+a single-pass dominance selection over language-model-judged vectors fills the
+cell, or whether the front must feed a later generation. The two readings
+return opposite verdicts on the same repository.
+
+Second, the emptiness has a third mechanism. The repository
+smileformylove/XScientist ships a complete and correct seven-dimension
+Pareto pool that no live path reaches: its reviewer emits a flat score object
+while the pool’s only writer expects a nested one, so no candidate is ever
+admitted. This was confirmed by executing the repository’s own chain with its
+feature flag forced on and observing zero admitted candidates and an empty
+front. The cell therefore stays empty by three distinct routes: refused on
+evaluation cost, escaped through tournament aggregation, and shipped
+unreachable.
+
+Third, the candidate recorded in advance as the one most likely to fill the
+cell remains untestable. The AgenticOperator system described in one registry
+paper was re-probed on 26 July 2026 across five repository-name variants and
+the author’s homepage; no code release was found.
+
+Fourth, the same sweep produced one surviving case bearing on R1. The
+repository arm00pv/nexus-swarm accepts a mutated prompt on an
+uncalibrated language-model judge’s self-reported integer score, with no
+programmatic co-gate, and an exhaustive search of its files finds no
+calibration artifact. One question is open before the case can be counted
+against R1’s trigger: whether the mutated artifact lies on the causal path of
+the scored scalar. If it does not, the case records a different failure, a gate
+that fires while the mutation is inert, and not an instance of the R1 trigger.
+
+The net effect on R3 is to raise its evidential standing. A structural claim
+that was re-attacked after its freeze under a protocol built to refute it, and
+that survived on one explicit clause, carries more information than the same
+claim left frozen. What needs widening is the mechanism statement, from one
+escape route to three. The emptiness itself stands, now with a named case that
+shows what filling the cell would require.
+
+4 Public Artifact Ecology and Paper Links
+
+4.1 Repository ecology and lineage coverage
+
+The nine promoted lineages cover 52 of 139 canonical repository records
+(37.4%). Their 59 memberships exceed the number of covered records because
+seven repositories have two memberships. Eighty-seven registry records have
+no promoted-lineage membership. The result is a structured, overlapping map
+of a subset of the public registry.
+
+The mixed artifact roles determine which corpus-wide claims are meaningful.
+Repository ecology and the coded relatedness relation can use all 139
+records. Runtime behavior, iteration cost, judge calibration, and agent
+architecture require
+role-specific denominators and case-level coding.
+
+4.2 Curator-assigned relatedness graph
+
+Sixty-four of 101 paper records carry at least one corpus-relatedness edge to
+a canonical repository (63.4%; nonparametric bootstrap 95% CI
+ [53.5,72.3] , B=10{,}000 , seed 20260725). These edges reach 23 of 139
+repository records (16.5%; 95% CI [10.8,23.0] ) and form 212 distinct
+paper–repository pairs. Paper-side incidence and repository-side reach have
+different denominators. Under adversarial imputation of the 25 paper records
+whose full text was not retrievable, the paper-side rate is bounded in
+ [63.4,88.1] ; the observed value is a lower bound on the coded relation.
+
+The coded relation is concentrated. Agent Laboratory [4]
+appears in 24 paper records, The AI Scientist [2] in 21,
+MLAgentBench [1] in 20, AI-Researcher
+[19] in 19, NanoResearch [20] in 18,
+and ResearchAgent [3] in 18. Together, these six
+repositories contribute 120 of 212 edges (56.6%). The identity of the
+top-six set is stable under paper-level resampling: at least five of the
+six members are retained in 91.5\% of B=10{,}000 replicates (mean
+Jaccard 0.797 ); the exact set recurs in 35.3\% . The concentration is a
+property of our coding. Its leading explanation is our own curation: which
+repositories the registry admitted, and which repositories our curators knew
+well enough to use as comparison anchors. Scientific influence, citation
+inheritance, and annotation effort remain compatible secondary explanations;
+the present coding does not separate them from curator familiarity.
+
+4.3 Companion code and authorship overlap
+
+Fifteen paper records have a companion-code URL that resolves to a canonical
+repository. At least ten of those papers contain an author confirmed on the
+companion repository.
+
+The evidence ledger confirms at least 58 distinct paper authors who also
+author one or more canonical registry repositories. They occupy 63 author
+slots in 15 papers. Within the 64 papers that carry a relatedness edge, the
+corresponding lower bounds are 57 identities, 62 slots, and 14 papers. In one
+linked paper the coded relation points at a repository maintained by one of
+its own authors, and six contain authors confirmed on other registry
+repositories. Fifty linked
+papers have no confirmed registry-author identity under the current ledger;
+their cited-repository alignment remains unresolved.
+
+Quantity
+
+Value
+
+Interpretation
+
+Papers with at least one corpus-relatedness edge
+
+64/101
+
+observed paper-side incidence
+
+Repositories reached by relatedness edges
+
+23/139
+
+observed repository-side reach
+
+Distinct relatedness edges
+
+212
+
+curator-assigned; not citation-derived
+
+Edges incident on the six most linked repositories
+
+120/212
+
+56.6% concentration
+
+Papers with a canonical companion-code edge
+
+15/101
+
+associated code resolved
+
+Papers with a byline-matched author of that companion
+
+at least 10/15
+
+companion authorship, byline-matched
+
+Paper authors adjudicated against a repository commit history
+
+at least 18
+
+identity-level lower bound
+
+Author slots so adjudicated
+
+at least 20/63
+
+slot-level lower bound
+
+Papers with a commit-adjudicated registry author
+
+at least 13/101
+
+paper-level lower bound
+
+Byline-matched paper authors on a registry record
+
+58
+
+weaker tier; not a bound
+
+Byline-matched author slots
+
+63
+
+40 of them from four byline-transcribing records
+
+Byline-matched slots excluded by commit histories
+
+at least 24/63
+
+ceiling on the weaker tier
+
+Papers with a byline-matched registry author
+
+15/101
+
+weaker tier; not a bound
+
+Table 3: Three paper–repository relations at the analytic freeze.
+Authorship is reported in two tiers: commit-adjudicated rows are lower
+bounds; byline-matched rows count attributed credit and bound repository
+authorship in neither direction.
+
+4.4 Interpretation
+
+The paper and repository registries overlap through curator-assigned
+relatedness, companion artifacts, and people. Their strongest measured
+structure is a concentrated relatedness graph: 64 of 101 curated papers are
+coded as related to at least one canonical repository, and those edges reach
+23 of 139 registry records. The graph is a real object and the concentration
+is a real result; what it describes is our curation. Converting it into a
+citation graph is a defined piece of work: a mention extraction over the 76
+paper records with retrievable full text, admitting only edges with a
+locatable mention in the paper, would yield a second graph that can be
+compared against this one. The confirmed authorship
+lower bound demonstrates direct participation across software and papers.
+This revision reports lower bounds for that participation. Estimates of
+overall prevalence and community structure require adjudicating the remaining
+identity candidates and stratifying repositories by artifact role.
+
+Private use lies outside both sampling frames. Its size and behavior are
+unmeasured. Surveys, consent-based telemetry, or institutional sampling would
+be required to study that population.
+
+5 Discussion
+
+5.1 Scientific value and novelty
+
+The study advances empirical analysis of AI-assisted research systems in three
+ways. It connects source-level repository evidence to a paper registry at the
+level of canonical artifacts. It tests candidate design regularities against
+cases whose triggers were fixed before inspection. It treats authorship as an
+evidence-resolution problem with explicit lower bounds.
+
+The coding scheme is reported together with a check of itself. That check is a
+result and not only quality control: it establishes which aggregates in this
+paper rest on codings a reader can verify at the source, and it names the two
+coding families where that verification fails
+(Section 2.5). An aggregate over a coding family
+with no contradicted binding and an aggregate over a family with ten
+contradictions in 64 bindings are different kinds of number, and this paper
+prints which is which.
+
+The original theoretical contribution survives in a more precise form. The
+regularities specify mechanisms and future observations. The prospective
+result is mixed: R1–R4 remain viable within a finite audit, R5 loses its broad
+scope, and R6 loses its directional companion prediction. Reporting those
+different outcomes preserves the theory’s falsifiability.
+
+The cross-corpus contribution also changes. The data support a concentrated
+curator-assigned relatedness relation and confirmed author overlap. They leave
+the magnitude and structure of community participation open, and they leave
+the field’s own citation behavior unmeasured. Separating relatedness,
+companion-code, and authorship edges makes those boundaries explicit.
+
+5.2 Implications for system design
+
+R1 and R2 suggest that the acceptance mechanism and unit of work should be
+designed together. Programmatic acceptance enables rapid iteration by
+restricting the artifact to measurable outcomes. Open-ended artifacts require
+additional judgment and calibration. Systems using language-model judges
+should report calibration data, agreement, and sensitivity to prompt and
+model choice.
+
+R3 suggests a controlled experiment. Scalar, vector, relational, and
+tournament variants can be compared on evaluation cost, ranking stability,
+and search performance. Such a study would test whether tournament aggregation
+is the structural escape route inferred from the observed adjacent designs.
+Ordinal social-choice aggregation [16]
+provides a candidate mechanism for populating the empty cell without
+retaining cardinal vector judgments; whether it does so at competitive
+evaluation cost is an open empirical question.
+
+R4 and R5 place evaluation infrastructure at the center of architecture
+review. Judge-related failures occur across four lineages, whereas architecture
+patterns currently remain within one or two. Shared evaluation components can
+therefore transfer failure mechanisms across otherwise different systems.
+Immutable evaluation code and shipped calibration artifacts are concrete
+preventive measures.
+
+R6 should be studied through a sequence of frozen snapshots. Survival or
+event-history analysis could estimate time to promotion, stagnation, and
+extinction without converting one failed prediction into confirmation.
+
+5.3 Implications for reviews of the field
+
+Repository and paper reviews should declare their unit of analysis. Counts of
+repositories, runnable agents, papers, paper–repository edges, and people
+answer different questions. Canonicalization and artifact-role coding should
+precede prevalence estimates. Companion-code edges measure associated code. A
+relatedness field assigned by curators measures the curators’ map of the
+field; a claim about intellectual visibility requires a mention extraction
+from paper full text.
+
+Authorship analyses require an explicit unresolved category, and they require
+the evidence class to be named beside the count. A matcher built from a partial
+collaborator directory measures that directory’s coverage; the hit count
+reported for one such matcher earlier in this project is not reproducible from
+the current sources, it was never a measurement of overlap, and it is withdrawn
+here. It is not comparable with the counts reported above, which are taken over
+a different population under an explicit evidence policy, so the two must not
+be read as before-and-after values of one quantity. What the present evidence
+supports is a doubly adjudicated lower bound of 18 identities and a
+byline-matched tier of 58 that the same commit histories cap from above. The
+conclusion therefore depends strongly on the identity model and its evidence
+policy, which is why both tiers are printed.
+
+5.4 Open problems
+
+The revised evidence changes the five main open problems:
+
+Q1.
+
+The vector-signal/language-model-judge cell remains empty after at
+least 23 adjacent or refused landings. The post-freeze re-test in
+Section 3.4 narrows the question: one repository satisfies
+every clause of the recorded trigger except the iterated loop, so the answer
+now turns on whether a single-pass dominance selection over
+language-model-judged vectors counts as filling the cell. A controlled
+landing under an agreed reading of that clause would answer the
+structural-mechanism question.
+
+Q2.
+
+Symmetric multi-agent debate remains a separate empty-cell
+question and lacks a completed prospective test in this paper.
+
+Q3.
+
+Runtime-contract remained at three across 15 observations. The
+directional graduation prediction failed; the general growth heuristic
+remains open.
+
+Q4.
+
+Judge calibration failures recur across lineages. Cost, culture,
+deadlines, and tooling remain undistinguished as possible causes.
+
+Q5.
+
+The coded graph shows relatedness concentration and author
+overlap. A mention extraction over the 76 paper records with retrievable
+full text, complete entity resolution, and role-stratified denominators are
+needed for a community-structure estimate.
+
+5.5 Relation to prior work
+
+Surveys of agentic scientific discovery and deep-research agents organize
+papers by planning, retrieval, tool use, synthesis, evaluation, research
+stage, and human involvement
+[10, 11, 12, 14, 15].
+Scientific-language-model surveys broaden the scope to
+specialized models, multimodal scientific data, and process-oriented
+evaluation [13].
+Point-system reports provide detailed accounts of individual architectures,
+including MLAgentBench [1], The AI Scientist
+[2], ResearchAgent [3], and Agent Laboratory
+[4]; MLR-Copilot [G032] is a canonical exemplar
+of the mlagentbench-derived lineage in our corpus.
+
+The present study uses the public artifact and its recorded relations as the
+unit of analysis. Repository inspection supplies implementation evidence;
+canonicalization supplies stable identities; the paper registry supplies
+curator-assigned relatedness, companion-code, and authorship relations; and
+the prospective audit adds a temporal test of design claims. Together, these
+elements complement capability-centered surveys with an evidence-grounded map.
+
+5.6 Limitations
+
+The repository registry is an engineered discovery sample shaped by search
+terms, curated lists, snowballing, GitHub availability, and English-language
+metadata. Global prevalence lies outside the design.
+
+Artifact roles and several design variables lack independent double coding
+across all records. The lineage relation combines ancestry, shared substrate,
+intellectual influence, and structural similarity. A future ontology should
+separate those relations and report inter-rater agreement.
+
+The artifact-level check of the codings covered a load-bearing subset: 538
+codings over 44 of the 139 repository records and 10 of the 101 papers. It is
+not a re-coding of the corpus, and coding remained single-coder throughout, so
+the check reports whether a coding is demonstrable from its source and not
+whether a second coder would have assigned it. Two coding families produced
+contradictions, and the results that depend on them are identified in
+Section 2.5.
+
+The paper registry is curated and includes 25 records without accessible full
+text at the time of coding. Relatedness edges may be missed, annotation effort
+may vary across papers, and an edge may also be recorded where the paper does
+not mention the repository at all. The last direction was sampled directly.
+Full text was retrieved for seven linked papers that carry 29 of the 212
+edges, and each of the 29 credited repositories was searched for in the text
+of the paper that credits it. Three of the 29 are locatable, one in prose and
+two as reference-list entries; the remaining 26 have no locatable mention. On
+that sample the relation is not a citation or naming relation, and the
+concentration result is descriptive of our own coding.
+
+The prospective audit contains 25 non-random cases. Its protocol was
+time-stamped in project history; external preregistration governance was
+absent. Several variables required judgment and lacked
+independent double coding.
+
+Authorship counts are lower bounds. Identity resolution remains incomplete for
+common names, handle-only records, and ambiguous affiliations. The confirmed
+cases establish overlap; prevalence and community structure remain open.
+
+Repositories evolve after inspection. Revision-pinned evidence supports the
+reproducibility of coded observations at the freeze. Later versions can change
+architecture, documentation, and code availability. R3 asserts a structural
+absence and was therefore re-tested outside the frozen sample;
+Section 3.4 reports that re-test and its outcome.
+
+6 Conclusion
+
+This study maps 139 canonical public repository records and 101 papers in the
+ecology of AI-assisted research. Nine promoted lineages account for 59
+memberships among 52 repositories and overlap on seven of them. The resulting
+map separates the broad artifact registry from the smaller design-lineage
+relation.
+
+The six candidate regularities preserve the original paper’s central
+scientific program. Structural design choices constrain observed failure
+modes; fast iteration co-occurs with bounded, programmatically scored
+artifacts; the vector-signal/language-model-judge cell remains empty; and
+failure patterns retain the leading internal evidence ranks. The broad
+cross-lineage claim was contradicted, and the pattern-growth heuristic remains
+exploratory after a failed directional prediction. These outcomes define the
+next prospective tests.
+
+The paper–repository graph contains 212 curator-assigned relatedness edges.
+Sixty-four of 101 papers carry at least one, the graph reaches 23 of 139
+repositories, and six repositories account for 56.6% of its edges. A
+full-text sample of 29 of those edges located a mention for three, so the
+graph is a map of our curation and not a citation graph. The authorship audit
+confirms
+at least 58 paper authors who also author a registry repository. The public
+record therefore combines a concentrated curator-assigned relatedness map
+with direct participation across software and papers.
+
+The scientific contribution lies in the conjunction of theory and evidence
+discipline: regularities have explicit triggers, population claims have
+declared denominators, and unresolved cases remain visible. This structure
+supports future revisions without converting missing observations into
+positive evidence.
+
+Use of Generative AI
+
+Generative-AI coding agents, including Claude Code and OpenAI Codex, assisted
+with candidate triage, source navigation, analysis-code development,
+consistency checks, prose revision, and production of the vector overview
+figure. They also drafted the corpus itself. Each of the 101 paper records was
+produced by a scripted language-model pass over the paper, and each repository
+record was drafted by a coding subagent reading the repository at a pinned
+revision. Agent participation is recorded in the compendium’s own commit
+history: as of 26 July 2026, 63 of its 144 commits carry a co-authorship
+trailer naming the assisting model, and two commits are authored by the bot
+identity copilot-swe-agent[bot].
+
+The corpus was not read in a single pass. It grew through a sequence of
+ingestion waves, each reading a small batch of repositories at a pinned
+revision and writing per-tool records whose claims resolve to an
+owner/repo@sha:path:line anchor. The registries reached 139 repository records
+and 101 paper records and were frozen for analysis on 10 June 2026. Two later
+exercises were built to stress the frozen findings rather than to enlarge the
+corpus. The first was a prospective audit: the six specified triggers were
+applied to 25 newly ingested repositories, and none of the six events was
+observed. The second re-opened the one structural finding, the persistently
+empty design cell reported as R3, after the freeze. It collected 962
+repositories created since the freeze, retained 319 under a mechanical filter,
+and passed those to ten language-model triage agents, each required to quote a
+repository fact behind its verdict. Sixty-nine of the 319 carried a trigger
+flag; the highest-stakes flags went to fifteen independent re-checks, each
+instructed to reach the selection step by a different route and to default to
+refutation, and eleven of the fifteen refuted the claim they were given. That
+eleven-of-fifteen rate is the calibration a reader should attach to any
+single-agent trigger report, including the two flags that survived it. The
+re-test is reported in full in Section 3.4. The sweep is a
+sample and not a census, and its result is later than and separate from the
+25-case audit, which it leaves unchanged.
+
+Every headline count in this paper is recomputed from those agent-drafted
+fields and from no independent second source: the 212 named-tool edges from
+the related_corpus_tools field of the 101 paper records, the 718
+author slots and 661 distinct author names from the authors field,
+and the 59 lineage memberships from the tools field of the nine
+lineage records. The pinned evidence anchors establish that a cited source
+line says what it is quoted as saying; they do not make the coding built on
+that line independent of the agent that wrote it, and no coding was
+double-coded by a second annotator when it was written. The claim we defend is
+therefore not that generated text and classifications were excluded as
+evidence. It is that every coding was shipped as an auditable evidence card
+carrying the anchor a reader can resolve, and that the codings have since been
+re-derived against the artifacts they describe, with the outcome of that check
+reported in this paper, including the coding families where the artifact
+contradicts the coding. The human authors selected the research questions,
+adjudicated scientific interpretations, reviewed the manuscript, and retain
+responsibility for its content, including the parts an agent drafted first.
+
+Data and Code Availability
+
+The repository registry, paper registry, evidence cards,
+identity-adjudication ledger, analysis programs, generated tables, figure
+source, supplementary relation tables, and manuscript source are collected in
+the companion compendium [21]. The identifier of record for
+that material is a versioned archival snapshot with a persistent identifier,
+deposited with the submitted version. The development repository from which
+the snapshot is cut is a working mirror, and its public reachability on any
+given date is not part of what this paper claims; the snapshot, and not a
+repository URL, is the citation a reader should resolve. Supplementary
+Tables S1–S3 reproduce the full 139-repository registry, the full 101-paper
+registry, and every named-tool, companion-code, and confirmed-author relation,
+so the population and relation counts reported in this paper can be recounted
+from the article alone.
+
+Three artifacts that a reader is most likely to want are stated in the article
+itself, so that no reported result depends on reaching the deposit. The
+composite pattern-strength weighting and the rationale for each of its three
+terms are given with R4 in Section 3. The bootstrap procedure
+is fully specified in Appendix A.2 by its replicate count,
+its two resampling units, and its random seed, which is sufficient to
+regenerate the intervals from the supplementary tables. The iteration-cost
+coding rule, its coverage denominator, and the resulting matrix are given in
+Appendix A.3; the deposit adds the per-repository
+evidence quotes.
+
+Appendix A Metric Definitions and Provenance
+
+Result
+
+Numerator
+
+Denominator
+
+Evidence object
+
+Canonical repository registry
+
+139 records
+
+142 completed rows
+
+canonical registry after three aliases are folded
+
+Promoted-lineage coverage
+
+52 repositories
+
+139 canonical repositories
+
+membership relation from nine lineage records
+
+Promoted-lineage memberships
+
+59 memberships
+
+52 covered repositories
+
+same relation; seven repositories have two memberships
+
+Prospective trigger outcomes
+
+0 events
+
+6 triggers applied to 25 cases
+
+case-level prospective audit
+
+Post-freeze re-test of R3
+
+0 clean landings, 1 two-clause case
+
+319 candidates retained from 962 post-freeze repositories
+
+discovery sweep with ten triage agents and 15 adversarial re-checks
+
+Papers with a relatedness edge
+
+64 papers
+
+101 paper records
+
+curator-assigned paper–repository edge table
+
+Repositories reached
+
+23 repositories
+
+139 canonical repositories
+
+same edge table
+
+Relatedness concentration
+
+120 edges
+
+212 distinct edges
+
+top-six repository edge counts
+
+Commit-adjudicated repository-author identities
+
+at least 18 identities
+
+58 byline-matched identities
+
+complete commit history of each implicated repository, two passes
+
+Commit-adjudicated repository-author slots
+
+at least 20 slots
+
+63 byline-matched slots
+
+same two passes
+
+Papers with a commit-adjudicated registry author
+
+at least 13 papers
+
+101 paper records
+
+same two passes
+
+Byline-matched repository-author identities
+
+58 identities
+
+661 normalized paper-author names
+
+registry-record author fields; not a bound
+
+Byline-matched repository-author slots
+
+63 slots
+
+718 paper-author slots
+
+registry-record author fields joined to paper authors
+
+Byline-matched slots from records transcribing a paper byline
+
+40 slots
+
+63 byline-matched slots
+
+four registry records
+
+Byline-matched slots excluded by commit histories
+
+at least 24 slots
+
+63 byline-matched slots
+
+distinct non-bot committer identities per repository
+
+Papers with a byline-matched registry author
+
+15 papers
+
+101 paper records
+
+registry-record author fields joined to papers
+
+Canonical companion-code edges
+
+15 papers
+
+101 paper records
+
+resolved companion-code URLs
+
+Byline-matched companion authorship
+
+at least 10 papers
+
+15 canonical companions
+
+companion-record author fields
+
+Table 4: Denominators and evidence objects for headline results.
+
+A.1 Pattern-strength weighting sensitivity
+
+The ranking summarised here carries two properties that bound its reading.
+First, it was computed at the 76-record baseline registry and not at the 139
+canonical repositories reported in the rest of the paper. A later spot check
+against the enlarged corpus re-scored two of the five patterns, moving
+judge-uncalibrated from 16.5 to about 17.95 on at least 11 supporting
+repositories instead of 8, and keep-or-revert from 12.8 to about 13.22
+on 14 instead of 13; the compendium records a full re-walk of the ranking
+against the current corpus as deferred, so ranks two through five have not
+been recomputed. Everything below is a sensitivity analysis on the 76-record
+snapshot.
+
+Second, the third input is not the lineage relation used elsewhere in this
+paper. The imported score counts c over a four-lineage subset (seed-line,
+multi-agent-scientist, the Clune-lab open-endedness line, and the
+benchmark-harness line), while every other lineage result reported here counts
+membership over the nine promoted lineage records. The two relations give the
+same c for four of the five Tier S patterns. They differ for
+keep-or-revert: the imported score records one lineage at the 76-record
+baseline, and the nine promoted records place its supporting repositories in
+three, namely seed-line, the benchmark-harness line, and the
+reinforcement-learning post-training line.
+
+Table 5 shows Tier S membership under four defensible
+weightings of the same three inputs (tools t , papers p , lineages c ).
+Tier S is defined by the top-cluster gap in each variant. The baseline score
+is s_{0}=3\sqrt{t}+p+2c . Alternatives: linear tools
+ s_{1}=t+p+2c ; unweighted lineages s_{2}=2\sqrt{t}+p+c ;
+paper-heavy s_{3}=3\sqrt{t}+2p+2c . The inputs are printed with the
+scores so that every row can be recomputed.
+
+Pattern
+
+ t 
+
+ p 
+
+ c 
+
+ s_{0} 
+
+ s_{1} 
+
+ s_{2} 
+
+ s_{3} 
+
+judge-uncalibrated
+
+8
+
+4
+
+2
+
+16.5
+
+16.0
+
+11.7
+
+20.5
+
+staged-validation-before-judge
+
+2
+
+7
+
+1
+
+13.2
+
+11.0
+
+10.8
+
+20.2
+
+scoreboard
+
+9
+
+2
+
+1
+
+13.0
+
+13.0
+
+9.0
+
+15.0
+
+eval-discipline-regression
+
+4
+
+3
+
+2
+
+13.0
+
+11.0
+
+9.0
+
+16.0
+
+keep-or-revert
+
+13
+
+0
+
+1
+
+12.8
+
+15.0
+
+8.2
+
+12.8
+
+same pattern, c recounted over the nine promoted lineages
+
+13
+
+0
+
+3
+
+16.8
+
+19.0
+
+10.2
+
+16.8
+
+Table 5: Top-five pattern scores under four weightings, printed with the
+three inputs each score is computed from. The first five rows are the
+imported ranking at the 76-record baseline, with c counted over the
+four-lineage subset. The final row recounts c for the fifth pattern over
+the nine promoted lineage records and is not a sixth pattern. The identity
+of the top five is invariant across all four weightings and under both
+lineage relations; the within-cluster ordering and the leading position are
+not. Unweighted lineages rescales the whole tier and would require a
+proportionally lower threshold.
+
+Under the imported four-lineage relation an antipattern leads under all four
+weightings. Under the nine promoted-lineage relation an architecture pattern
+leads under the baseline weighting, 16.8 against 16.5, and under linear tools,
+19.0 against 16.0, while the antipattern keeps the lead under unweighted
+lineages, 11.7 against 10.2, and under the paper-heavy weighting, 20.5 against
+16.8. Both relations are defensible; we report both and treat neither as a
+settled ranking.
+
+The movement comes from one supporting repository. Of the 13 repositories
+credited to keep-or-revert, nine are seed-line members, three belong to
+no promoted lineage, and one, ML-Agent, supplies both the benchmark-harness
+membership and the reinforcement-learning post-training membership. Counting
+the same four-lineage subset against the current lineage records, in place of
+the 76-record baseline, also raises c from one to two through that one
+repository and gives 14.8 under the baseline weighting, so part of the movement
+is the snapshot and part is the choice of relation. The compendium page for
+the pattern lists ML-Agent under refutations, with the note that it updates a
+single policy in place by gradient descent and keeps no candidate pool to keep
+or revert; the artifact-level re-check of pattern membership against primary
+sources agrees, and it identifies NanoResearch as a repository that implements
+the pattern and is absent from the supporting list. Adjudicating the contested
+repository out and the missing one in leaves 13 supporting repositories
+spanning two lineages under either relation, scoring 14.8 under the baseline
+weighting and 17.0 under linear tools: the antipattern regains the lead under
+the baseline weighting and the architecture pattern keeps it under linear
+tools.
+
+The top cluster contains two antipatterns, two architecture patterns, and one
+component. That composition is preserved under all four weightings and under
+both lineage relations. The leading position is not, and the composite is
+presented as evidence-ranking within the corpus, not as an objective to be
+optimised.
+
+A.2 Relatedness-graph uncertainty estimates
+
+Confidence intervals on the paper- and repository-side relatedness rates use
+nonparametric bootstrap with replacement, B{=}10{,}000 replicates and
+random seed 20260725. Paper-side resamples 101 paper records;
+repository-side resamples 139 canonical repositories. Top- 6 stability
+counts, for each paper-level replicate, how many members of the observed
+top- 6 repository set (Agent Laboratory, The AI Scientist, MLAgentBench,
+AI-Researcher, NanoResearch, ResearchAgent) reappear when incidences are
+recounted from the resample. The adversarial imputation bound treats all
+ 25 paper records whose full text was not retrievable as carrying either
+zero or at least one relatedness edge, yielding a floor equal to
+the observed rate ( 63.4\% ) and a ceiling of 88.1\% . The parameters given above, B{=}10{,}000 replicates, the paper-side and
+repository-side resampling units, and seed 20260725, are the complete
+specification of the procedure: the intervals can be regenerated from
+Supplementary Tables S1–S3 with no code from the deposit. The driver that
+produced the printed numbers and its outputs are in the archival
+deposit [21] under the data supplement described in the
+“Data and Code Availability” section.
+
+Quantity
+
+Point
+
+95% CI
+
+Notes
+
+Paper-side incidence
+
+ 63.4\% 
+
+ [53.5,72.3] 
+
+resample 101 papers
+
+Repository-side reach
+
+ 16.5\% 
+
+ [10.8,23.0] 
+
+resample 139 repositories
+
+Top-6 exact-set recurrence
+
+ 35.3\% 
+
+—
+
+mean Jaccard 0.797 
+
+Top-6 {\geq}5/6 retained
+
+ 91.5\% 
+
+—
+
+paper-level resample
+
+Top-6 {\geq}4/6 retained
+
+ 99.8\% 
+
+—
+
+paper-level resample
+
+Paywalled imputation range
+
+ 63.4\% 
+
+ [63.4,88.1] 
+
+25 records
+
+Table 6: Bootstrap-derived uncertainty for the curator-assigned relatedness
+graph reported in the results section, B{=}10{,}000 , seed 20260725 .
+
+A.3 Cost-versus-ambition coverage matrix
+
+Regularity 2 asserts that no canonical repository combines sub-ten-minute
+iteration with an open-ended artifact. This appendix reports the coverage of
+that claim across the 139 canonical repositories. An iteration is one
+candidate-generation to acceptance-decision cycle within the tool’s inner
+loop.
+
+The coding rule matters more than the coordinate, so it is stated first. Every
+wall-clock coordinate falls into exactly one of three classes. A
+measurement is an observed duration: a results table, a run write-up, a
+benchmark log, a README sentence reporting what a run took. A ceiling is
+a configured bound: a timeout default, a guard-rail rejection threshold, a kill
+limit, a budget cap. The number describes a limit imposed, not a duration
+observed. Everything else is unavailable. Two auxiliary codes classify the
+artifact as bounded, mixed, or open-ended and record the unit the source
+actually uses, because a per-step, per-query or per-experiment figure bounds an
+iteration only when that unit contains one. No numeric imputation is performed.
+
+An earlier coding of this matrix did not separate the two classes, and applied
+them asymmetrically: configured timeouts were accepted as wall-clock numbers in
+the bounded column while the same class of evidence was recorded as unavailable
+in the open-ended column. Re-coding all 139 rows against their pinned revisions
+changes the picture in three ways. Fourteen rows carry a measurement, not the
+six previously reported, and four of those six earlier anchors were ceilings or
+values absent from the source they cited. Fifty-six rows carry a ceiling. The
+open-ended column holds 17 repositories, not 7, so the previous coding
+under-counted open-ended artifacts by more than half, which made the quadrant
+look emptier than the evidence supports.
+
+Iteration bucket
+
+Bounded
+
+Mixed
+
+Open-ended
+
+Unavailable
+
+(a) Measurements only
+
+Under 600 s
+
+10
+
+1
+
+0
+
+0
+
+ 600 s to 1 hour
+
+0
+
+1
+
+0
+
+0
+
+ 1 hour to 1 day
+
+0
+
+1
+
+0
+
+0
+
+Over 1 day
+
+1
+
+0
+
+0
+
+0
+
+Iteration cost unavailable
+
+61
+
+24
+
+17
+
+23
+
+(b) Measurements and configured ceilings, unit respected
+
+Under 600 s
+
+23
+
+4
+
+2
+
+0
+
+ 600 s to 1 hour
+
+8
+
+3
+
+1
+
+1
+
+ 1 hour to 1 day
+
+11
+
+6
+
+1
+
+1
+
+Over 1 day
+
+2
+
+0
+
+1
+
+0
+
+Iteration cost unavailable
+
+28
+
+14
+
+12
+
+21
+
+Table 7: Cost-versus-ambition coverage matrix over 139 canonical
+repositories, under the two evidence rules. Rows partition by wall-clock
+iteration cost; columns partition by artifact openness. The
+under- 600 -second, open-ended cell is the forbidden quadrant predicted by
+Regularity 2: empty under (a), occupied by two repositories under (b). Each
+panel sums to 139 . The bottom bucket and the rightmost column are shown so
+that unavailable data stays visible.
+
+Under rule (a) the forbidden quadrant is empty, but the open-ended column
+contains no measurement at all: 0 of its 17 rows. The emptiness of that cell is
+therefore an absence of measurement, not a measured absence, and the same
+holds for the mixed column, which carries three measurements across 27 rows.
+Rule (a) leaves the regularity consistent with every primary source and
+supported by none of them in the region where it makes its prediction.
+
+Under rule (b) the quadrant is occupied. Four open-ended repositories carry a
+sub- 600 -second configured bound, and respecting the unit removes two of them:
+one bound is a timeout on a single language-model API call and another on one
+parallel branch, and neither constrains the duration of an iteration containing
+it. Two survive. A deep-research agent sets a 500 -second default timeout on
+one whole agent execution, so every iteration inside that execution completes
+within it; a second sets a 270 -second query time limit over the whole run. Both
+produce open-ended artifacts. Under this reading the prospective trigger P2 in
+Table 1 would have fired.
+
+The honest statement of R2’s status is therefore conditional, and we report it
+that way; picking the rule that favours the hypothesis would be the easier move
+and the wrong one. If only
+observed durations count as evidence, the quadrant is empty and uninformative.
+If configured bounds count, as they must if the bounded column is allowed to use
+them, then two open-ended repositories bound an iteration below ten minutes and
+the regularity has a counterexample. Converting this from a rule-dependent to a
+settled result requires measured per-iteration durations in the open-ended
+column, which no repository currently publishes. The per-repository coding, its
+evidence quotes, the unit recorded for each bound, and the regeneration driver
+are in the archival deposit [21] under the data supplement
+described in the “Data and Code Availability” section.
+
+Appendix B Authorship Evidence Policy
+
+The identity audit accepts four evidence classes: authorship of a canonical
+companion repository, an explicit contributor or project-author record, an
+adjudicated repository profile or contribution identity, and a documented
+cross-paper mapping with compatible affiliation evidence. A fifth path is
+excluded: a registry record whose author field transcribes the byline of the
+paper being matched. Where that field is an order-preserving prefix of the
+paper’s own author list, the match is uninformative, because both sides of the
+comparison have one source. Four records of the current registry are of this
+kind, and they carry 40 of the 63 byline-matched slots. Cases resting on that
+path are counted in the byline-matched tier and are excluded from every lower
+bound.
+
+Each accepted case is adjudicated a second time against the complete commit
+history of the repository, read across all refs and including history not
+reachable from the default branch. A case is commit-adjudicated when the person
+matches an author or committer identity in that history. Handle resemblance
+with no corroborating email or profile evidence is reported separately and does
+not enter a bound. The same histories supply an upper check on the
+byline-matched tier: a repository with fewer distinct non-bot committer
+identities than the slots charged to it cannot support the surplus.
+
+Exact display-name equality nominates a case for review; confirmation requires
+an explicit source. Conflicting affiliations, common names, and unresolved
+handles remain open. The commit-adjudicated lower bound can increase as
+evidence is added. The byline-matched count bounds repository authorship in
+neither direction. Unresolved cases remain unclassified with respect to
+community alignment.
+
+References
+
+[1]
+
+Huang, Q., Vora, J., Liang, P., and Leskovec, J.
+
+MLAgentBench: Evaluating language agents on machine
+learning experimentation.
+
+arXiv:2310.03302, 2023.
+
+Code: https://github.com/snap-stanford/MLAgentBench.
+
+[2]
+
+Lu, C., Lu, C., Lange, R. T., Foerster, J., Clune, J., and Ha, D.
+
+The AI Scientist: Towards fully automated open-ended
+scientific discovery.
+
+arXiv:2408.06292, 2024.
+
+Code: https://github.com/SakanaAI/AI-Scientist.
+
+[3]
+
+Baek, J. et al.
+
+ResearchAgent: Iterative research idea generation over
+scientific literature with large language models.
+
+arXiv:2404.07738, 2024. NAACL 2025.
+
+Code: https://github.com/JinheonBaek/ResearchAgent.
+
+[4]
+
+Schmidgall, S. et al.
+
+Agent Laboratory: Using LLM agents as research assistants.
+
+arXiv:2501.04227, 2025.
+
+Code: https://github.com/SamuelSchmidgall/AgentLaboratory.
+
+[5]
+
+Yao, S., Zhao, J., Yu, D., Du, N., Shafran, I., Narasimhan, K., and Cao, Y.
+
+ReAct: Synergizing reasoning and acting in language models.
+
+arXiv:2210.03629, 2022. ICLR 2023.
+
+[6]
+
+Shinn, N., Cassano, F., Berman, E., Gopinath, A., Narasimhan, K., and Yao, S.
+
+Reflexion: Language agents with verbal reinforcement learning.
+
+arXiv:2303.11366, 2023. NeurIPS 2023.
+
+[7]
+
+Yao, S., Yu, D., Zhao, J., Shafran, I., Griffiths, T. L., Cao, Y., and
+Narasimhan, K.
+
+Tree of thoughts: Deliberate problem solving with large language
+models.
+
+arXiv:2305.10601, 2023. NeurIPS 2023.
+
+[8]
+
+Khattab, O., Singhvi, A., Maheshwari, P., Zhang, Z., Santhanam, K.,
+Vardhamanan, S., Haq, S., Sharma, A., Joshi, T. T., Moazam, H., Miller, H.,
+Zaharia, M., and Potts, C.
+
+DSPy: Compiling declarative language model calls into self-improving
+pipelines.
+
+arXiv:2310.03714, 2023. ICLR 2024.
+
+[9]
+
+Opsahl-Ong, K., Ryan, M. J., Purtell, J., Broman, D., Potts, C., Zaharia, M.,
+and Khattab, O.
+
+Optimizing instructions and demonstrations for multi-stage language
+model programs (MIPROv2).
+
+arXiv:2406.11695, 2024. EMNLP 2024.
+
+[10]
+
+Gridach, M., Nanavati, J., Zine El Abidine, K., Mendes, L., and Mack, C.
+
+Agentic AI for scientific discovery: A survey of progress,
+challenges, and future directions.
+
+ICLR 2025 Workshop on Agentic AI for Science, 2025.
+arXiv:2503.08979.
+
+[11]
+
+Huang, Y., Chen, Y., Zhang, H., Li, K., Zhou, H., Fang, M., Yang, L., Li, X.,
+Shang, L., Xu, S., Hao, J., Shao, K., and Wang, J.
+
+Deep research agents: A systematic examination and roadmap.
+
+arXiv:2506.18096, 2025.
+
+[12]
+
+Zhang, W., Li, X., Zhang, Y., Jia, P., Wang, Y., Guo, H., Liu, Y., and Zhao, X.
+
+Deep research: A survey of autonomous research agents.
+
+arXiv:2508.12752, 2025.
+
+[13]
+
+Hu, M. et al.
+
+A survey of scientific large language models: From data foundations
+to agent frontiers.
+
+arXiv:2508.21148, 2025.
+
+[14]
+
+Zheng, T., Deng, Z., Tsang, H.T., Wang, W., Bai, J., Wang, Z., and Song, Y.
+
+From automation to autonomy: A survey on large language models in
+scientific discovery.
+
+arXiv:2505.13259, 2025. EMNLP 2025 Main.
+
+[15]
+
+Wei, J., Yang, Y., Zhang, X., Chen, Y., Zhuang, X., Gao, Z., Zhou, D.,
+Wang, G., Gao, Z., Cao, J., Qiu, Z., Hu, M., Ma, C., Tang, S., He, J.,
+Song, C., He, X., Zhang, Q., You, C., Zheng, S., Ding, N., Ouyang, W.,
+Dong, N., Cheng, Y., Sun, S., Bai, L., and Zhou, B.
+
+From AI for science to agentic science: A survey on autonomous
+scientific discovery.
+
+arXiv:2508.14111, 2025.
+
+[16]
+
+Lanctot, M., Larson, K., Kaisers, M., Berthet, Q., Gemp, I., Diaz, M.,
+Maura-Rivero, R.-R., Bachrach, Y., Koop, A., and Precup, D.
+
+Soft Condorcet Optimization for ranking of general agents.
+
+arXiv:2411.00119, 2024. AAMAS 2025.
+
+[17]
+
+Zhao, J., Zhen, T., Bao, J., Jiang, H., and Song, Y.
+
+Elo-Evolve: A co-evolutionary framework for language model
+alignment.
+
+arXiv:2602.13575, 2026.
+
+[18]
+
+Nair, A., Banerjee, A., Mombaerts, L., Hagen, M., and Borogovac, T.
+
+Tournament of prompts: Evolving LLM instructions through
+structured debates and Elo ratings.
+
+arXiv:2506.00178, 2025.
+
+[19]
+
+HKUDS Lab.
+
+AI-Researcher: agentic autonomous research pipeline.
+
+GitHub, 2025.
+
+https://github.com/HKUDS/AI-Researcher.
+
+[20]
+
+OpenRaiser.
+
+NanoResearch: minimal autoresearch harness.
+
+GitHub, 2025.
+
+https://github.com/OpenRaiser/NanoResearch.
+
+[21]
+
+Komissarov, A. and Ustyuzhanin, A.
+
+metareview-autoresearch: open registries, evidence
+compendium, analysis code, and manuscript.
+
+GitHub, 2026.
+
+https://github.com/ad3002/metareview-autoresearch.
+
+Supplementary Material
+
+AI-Research Agents in the Wild:
+
+From GitHub and arXiv to Regularities and Gaps
+
+Aleksey Komissarov     Andrey Ustyuzhanin
+
+Analytic freeze: 10 June 2026
+
+Scope and relation definitions
+
+This supplement enumerates every record used in the repository and paper
+registries: 139 canonical public GitHub repositories and 101 paper records.
+The paper records resolve to 98 unique bibliographic artifacts. Three pairs
+share an arXiv identifier: P031/P033, P061/P068, and P081/P088. Both record
+identifiers remain visible to preserve the curated provenance.
+Repository identifiers G001–G139 are assigned
+lexicographically within this analytic freeze. Paper identifiers
+P001–P101 preserve the curated paper-record identifiers.
+
+Three relations are reported separately. A named-tool relation means
+that a paper names, cites, or discusses a canonical repository. A
+companion-code relation means that the paper’s own code URL resolves to
+a canonical repository. A confirmed-author relation requires explicit
+evidence that at least one paper author also authors the repository. Blank
+cells record an unobserved or unresolved relation under the stated protocol;
+they provide no evidence of population separation.
+
+The tables are generated from the frozen registries and adjudicated identity
+ledger. Each repository and paper row carries a citation. The corpus-source
+bibliography follows the tables, and machine-readable versions accompany the
+article.
+
+Appendix S1 Complete canonical repository registry
+
+Table S1: All 139 canonical public repository records at the analytic freeze. Paper identifiers in the last three columns refer to named-tool, companion-code, and confirmed-author relations, respectively.
+
+ID
+
+Canonical repository
+
+Promoted lineage(s)
+
+Named by papers
+
+Companion of
+
+Author overlap
+
+G001
+
+ac-rad/organa [G001]
+
+physical-robotic-automation
+
+—
+
+—
+
+—
+
+G002
+
+activeloopai/autoresearch_deeplake_swarm [G002]
+
+—
+
+—
+
+—
+
+—
+
+G003
+
+affaan-m/everything-claude-code [G003]
+
+—
+
+—
+
+—
+
+—
+
+G004
+
+Agent-Analytics/autoresearch-growth [G004]
+
+—
+
+—
+
+—
+
+—
+
+G005
+
+agent-on-the-fly/InfoSeeker [G005]
+
+dr-deep-research-agent
+
+—
+
+P062
+
+P062
+
+G006
+
+Agent-RL/ReCall [G006]
+
+rl-post-training-as-autoresearch
+
+—
+
+—
+
+—
+
+G007
+
+agentmemoryworld/awesome-agent-memory [G007]
+
+—
+
+—
+
+P049
+
+—
+
+G008
+
+ai-agents-2030/awesome-deep-research-agent [G008]
+
+—
+
+—
+
+—
+
+P001, P062
+
+G009
+
+aibuildai/AI-Build-AI [G009]
+
+—
+
+—
+
+—
+
+—
+
+G010
+
+AIDC-AI/Marco-DeepResearch [G010]
+
+dr-deep-research-agent; rl-post-training-as-autoresearch
+
+—
+
+P028
+
+P028
+
+G011
+
+aiming-lab/AutoResearchClaw [G011]
+
+multi-agent-scientist
+
+P012, P018, P019, P048, P053, P054, P070, P097, P100
+
+—
+
+—
+
+G012
+
+alfonsograziano/auto-agent [G012]
+
+—
+
+—
+
+—
+
+—
+
+G013
+
+algorithmicsuperintelligence/openevolve [G013]
+
+—
+
+—
+
+—
+
+—
+
+G014
+
+alibaba-nlp/DeepResearch [G014]
+
+dr-deep-research-agent; rl-post-training-as-autoresearch
+
+—
+
+—
+
+—
+
+G015
+
+Alpha-Innovator/InternAgent [G015]
+
+—
+
+—
+
+—
+
+P018
+
+G016
+
+antgroup/Research-Venus [G016]
+
+—
+
+—
+
+—
+
+—
+
+G017
+
+ArchishmanSengupta/autovoiceevals [G017]
+
+seed-line
+
+—
+
+—
+
+—
+
+G018
+
+ArmanJR-Lab/autoautoresearch [G018]
+
+seed-line
+
+—
+
+—
+
+—
+
+G019
+
+baidubce/FM-Agent [G019]
+
+—
+
+—
+
+—
+
+—
+
+G020
+
+buildoak/tennis-xgboost-autoresearch [G020]
+
+—
+
+—
+
+—
+
+—
+
+G021
+
+bytedance/deer-flow [G021]
+
+—
+
+—
+
+—
+
+—
+
+G022
+
+camel-ai/eigent_search [G022]
+
+camel-ai-line
+
+—
+
+P067
+
+P067
+
+G023
+
+camel-ai/owl [G023]
+
+camel-ai-line
+
+—
+
+—
+
+—
+
+G024
+
+CBaquero/BTCautoresearch [G024]
+
+—
+
+—
+
+—
+
+—
+
+G025
+
+chchenhui/mlrbench [G025]
+
+—
+
+—
+
+—
+
+—
+
+G026
+
+ChrisHayduk/SimplexFold [G026]
+
+—
+
+—
+
+—
+
+—
+
+G027
+
+chrisworsey55/atlas-gic [G027]
+
+seed-line
+
+—
+
+—
+
+—
+
+G028
+
+cxcscmu/AgentWebBench [G028]
+
+—
+
+—
+
+P052
+
+—
+
+G029
+
+davebcn87/pi-autoresearch [G029]
+
+—
+
+—
+
+—
+
+—
+
+G030
+
+dorukardahan/ZeroAPI [G030]
+
+—
+
+—
+
+—
+
+—
+
+G031
+
+drivelineresearch/autoresearch-claude-code [G031]
+
+seed-line
+
+—
+
+—
+
+—
+
+G032
+
+du-nlp-lab/MLR-Copilot [G032]
+
+mlagentbench-derived
+
+P007, P008, P025, P034, P039, P049, P053, P064, P067, P084, P093
+
+—
+
+—
+
+G033
+
+du-nlp-lab/nlp-coresearcher [G033]
+
+—
+
+—
+
+—
+
+—
+
+G034
+
+eimenhmdt/autoresearcher [G034]
+
+—
+
+—
+
+—
+
+—
+
+G035
+
+Entrpi/autoresearch-everywhere [G035]
+
+—
+
+—
+
+—
+
+—
+
+G036
+
+evigbyen/drbench [G036]
+
+—
+
+—
+
+P015
+
+—
+
+G037
+
+evo-hq/evo [G037]
+
+—
+
+—
+
+—
+
+—
+
+G038
+
+facebookresearch/aira-dojo [G038]
+
+—
+
+—
+
+—
+
+—
+
+G039
+
+FoundationAgents/MetaGPT [G039]
+
+—
+
+—
+
+—
+
+—
+
+G040
+
+FractalAIResearchLabs/PiEvolve [G040]
+
+—
+
+—
+
+—
+
+—
+
+G041
+
+future-house/paper-qa [G041]
+
+—
+
+—
+
+—
+
+—
+
+G042
+
+GAIR-NLP/DeepResearcher [G042]
+
+dr-deep-research-agent; rl-post-training-as-autoresearch
+
+—
+
+—
+
+—
+
+G043
+
+GAIR-NLP/OpenResearcher [G043]
+
+—
+
+—
+
+—
+
+—
+
+G044
+
+gepa-ai/gepa [G044]
+
+dspy-line
+
+P059, P074
+
+—
+
+—
+
+G045
+
+gersteinlab/ML-Bench [G045]
+
+—
+
+—
+
+—
+
+—
+
+G046
+
+gianfrancopiana/openclaw-autoresearch [G046]
+
+seed-line
+
+—
+
+—
+
+—
+
+G047
+
+GliteTech/glite-arf [G047]
+
+—
+
+—
+
+—
+
+—
+
+G048
+
+gomesgroup/coscientist [G048]
+
+physical-robotic-automation
+
+—
+
+—
+
+—
+
+G049
+
+greyhaven-ai/autocontext [G049]
+
+—
+
+—
+
+—
+
+—
+
+G050
+
+hjyao00/awesome-agentic-mllms [G050]
+
+—
+
+—
+
+P008
+
+P008
+
+G051
+
+HKUDS/AI-Researcher [19]
+
+multi-agent-scientist
+
+P001, P012, P018, P022, P025, P028, P039, P046, P048, P053, P058, P059, P060, P063, P064, P065, P067, P071, P080
+
+—
+
+P063
+
+G052
+
+HKUDS/AutoAgent [G052]
+
+—
+
+—
+
+—
+
+P063
+
+G053
+
+HKUDS/ClawTeam [G053]
+
+—
+
+P047, P052, P063, P076, P081, P088, P100
+
+—
+
+P063
+
+G054
+
+HKUST-KnowComp/Awesome-LLM-Scientific-Discovery [G054]
+
+—
+
+—
+
+—
+
+—
+
+G055
+
+Human-Agent-Society/CORAL [G055]
+
+—
+
+P022, P025, P045, P047, P052, P062, P079, P081, P083, P086, P088
+
+—
+
+—
+
+G056
+
+hyperspaceai/agi [G056]
+
+—
+
+P047, P076
+
+—
+
+—
+
+G057
+
+iii-hq/iii [G057]
+
+—
+
+P047
+
+—
+
+—
+
+G058
+
+iii-hq/n-autoresearch [G058]
+
+seed-line
+
+—
+
+—
+
+—
+
+G059
+
+InternScience/MLEvolve [G059]
+
+—
+
+—
+
+—
+
+—
+
+G060
+
+InternScience/ResearchClawBench [G060]
+
+—
+
+—
+
+—
+
+—
+
+G061
+
+james-s-tayler/lazy-developer [G061]
+
+seed-line
+
+—
+
+—
+
+—
+
+G062
+
+jennyzzt/dgm [G062]
+
+clune-lab-open-endedness
+
+—
+
+—
+
+—
+
+G063
+
+jeongph/autospec [G063]
+
+—
+
+—
+
+—
+
+—
+
+G064
+
+JinheonBaek/ResearchAgent [3]
+
+—
+
+P001, P005, P012, P017, P031, P033, P034, P042, P045, P049, P051, P058, P059, P065, P079, P080, P083, P093
+
+—
+
+—
+
+G065
+
+jmilinovich/goal-md [G065]
+
+—
+
+—
+
+—
+
+—
+
+G066
+
+jsegov/autoresearch-win-rtx [G066]
+
+seed-line
+
+—
+
+—
+
+—
+
+G067
+
+karpathy/autoresearch [G067]
+
+seed-line
+
+—
+
+—
+
+—
+
+G068
+
+kayba-ai/recursive-improve [G068]
+
+seed-line
+
+P093
+
+—
+
+—
+
+G069
+
+kortix-ai/suna [G069]
+
+—
+
+—
+
+—
+
+—
+
+G070
+
+Leeroo-AI/kapso [G070]
+
+—
+
+—
+
+—
+
+—
+
+G071
+
+leo-lilinxiao/codex-autoresearch [G071]
+
+—
+
+—
+
+—
+
+—
+
+G072
+
+LitLLM/LitLLM [G072]
+
+—
+
+—
+
+—
+
+—
+
+G073
+
+Liu-Hy/GenoMAS [G073]
+
+—
+
+—
+
+—
+
+—
+
+G074
+
+llnl/open-ai-co-scientist [G074]
+
+—
+
+—
+
+—
+
+—
+
+G075
+
+lucasgelfond/autoresearch-webgpu [G075]
+
+seed-line
+
+—
+
+—
+
+—
+
+G076
+
+mangopy/deep-research-survey [G076]
+
+—
+
+—
+
+P013
+
+—
+
+G077
+
+mannaandpoem/OpenManus [G077]
+
+—
+
+—
+
+—
+
+—
+
+G078
+
+masamasa59/ai-agent-papers [G078]
+
+—
+
+—
+
+—
+
+—
+
+G079
+
+MASWorks/ML-Agent [G079]
+
+mlagentbench-derived; rl-post-training-as-autoresearch
+
+P008, P010, P030, P038, P050, P060, P074
+
+—
+
+—
+
+G080
+
+MatthewZMD/agent-digivolve-harness [G080]
+
+—
+
+—
+
+—
+
+—
+
+G081
+
+mattprusak/autoresearch-genealogy [G081]
+
+seed-line
+
+—
+
+—
+
+—
+
+G082
+
+MaximeRobeyns/self_improving_coding_agent [G082]
+
+—
+
+—
+
+—
+
+—
+
+G083
+
+Memento-Teams/Memento [G083]
+
+dr-deep-research-agent
+
+—
+
+P001
+
+P001
+
+G084
+
+metauto-ai/HGM [G084]
+
+clune-lab-open-endedness
+
+—
+
+—
+
+—
+
+G085
+
+microsoft/RD-Agent [G085]
+
+—
+
+—
+
+—
+
+—
+
+G086
+
+microsoft/UFO [G086]
+
+—
+
+—
+
+P047
+
+P047
+
+G087
+
+miolini/autoresearch-macos [G087]
+
+seed-line
+
+—
+
+—
+
+—
+
+G088
+
+MiroMindAI/MiroRL [G088]
+
+dr-deep-research-agent; rl-post-training-as-autoresearch
+
+—
+
+—
+
+—
+
+G089
+
+MoonshotAI/Kimi-Researcher [G089]
+
+—
+
+—
+
+—
+
+—
+
+G090
+
+MrTsepa/autoevolve [G090]
+
+—
+
+—
+
+—
+
+—
+
+G091
+
+mutable-state-inc/autoresearch-at-home [G091]
+
+seed-line
+
+—
+
+—
+
+—
+
+G092
+
+nickscamara/open-deep-research [G092]
+
+dr-deep-research-agent
+
+—
+
+P080
+
+—
+
+G093
+
+open-sciencelab/awesome-scientific-datasets-and-llms [G093]
+
+—
+
+—
+
+P006
+
+P006
+
+G094
+
+openags/Auto-Research [G094]
+
+multi-agent-scientist
+
+—
+
+—
+
+—
+
+G095
+
+openags/Awesome-AI-Scientist-Papers [G095]
+
+—
+
+—
+
+—
+
+P035
+
+G096
+
+openai/mle-bench [G096]
+
+mlagentbench-derived
+
+—
+
+—
+
+—
+
+G097
+
+OpenRaiser/NanoResearch [20]
+
+multi-agent-scientist
+
+P001, P005, P007, P017, P019, P022, P032, P033, P039, P048, P053, P054, P061, P062, P067, P070, P071, P100
+
+—
+
+—
+
+G098
+
+OPPO-PersonalAI/FINDER_DEFT [G098]
+
+—
+
+—
+
+P017
+
+P017
+
+G099
+
+OPPO-PersonalAI/OAgents [G099]
+
+dr-deep-research-agent
+
+—
+
+—
+
+—
+
+G100
+
+Orchestra-Research/AI-Research-SKILLs [G100]
+
+—
+
+P076
+
+—
+
+—
+
+G101
+
+peterskoett/self-improving-agent [G101]
+
+—
+
+—
+
+—
+
+—
+
+G102
+
+PouriaRouzrokh/LatteReview [G102]
+
+—
+
+P015, P017, P023, P024, P027, P037, P041, P042, P061, P063, P083, P086, P100
+
+—
+
+—
+
+G103
+
+raktim-mondol/co-scientist [G103]
+
+—
+
+—
+
+—
+
+—
+
+G104
+
+RightNow-AI/autokernel [G104]
+
+seed-line
+
+P084
+
+—
+
+—
+
+G105
+
+rivirside/cft [G105]
+
+—
+
+—
+
+—
+
+—
+
+G106
+
+Rkcr7/autoresearch-sudoku [G106]
+
+seed-line
+
+—
+
+—
+
+—
+
+G107
+
+RUC-NLPIR/Search-o1 [G107]
+
+—
+
+—
+
+—
+
+—
+
+G108
+
+RUC-NLPIR/WebThinker [G108]
+
+dr-deep-research-agent
+
+—
+
+—
+
+P044
+
+G109
+
+SakanaAI/AI-Scientist [2]
+
+clune-lab-open-endedness; multi-agent-scientist
+
+P015, P017, P019, P023, P026, P027, P034, P035, P038, P039, P041, P042, P046, P048, P049, P051, P059, P060, P064, P065, P097
+
+—
+
+—
+
+G110
+
+SakanaAI/AI-Scientist-v2 [G110]
+
+clune-lab-open-endedness; multi-agent-scientist
+
+P005, P012, P013, P017, P018, P019, P025, P026, P028, P041, P046, P054, P065, P097
+
+—
+
+—
+
+G111
+
+SamuelSchmidgall/AgentLaboratory [4]
+
+multi-agent-scientist
+
+P001, P005, P006, P007, P017, P019, P022, P027, P035, P038, P042, P048, P049, P053, P058, P065, P067, P079, P080, P081, P086, P088, P094, P097
+
+—
+
+—
+
+G112
+
+ShengranHu/ADAS [G112]
+
+clune-lab-open-endedness
+
+—
+
+—
+
+—
+
+G113
+
+Sibyl-Research-Team/AutoResearch-SibylSystem [G113]
+
+—
+
+P012, P045, P071, P079
+
+—
+
+—
+
+G114
+
+sipyourdrink-ltd/bernstein [G114]
+
+—
+
+—
+
+—
+
+—
+
+G115
+
+sjtu-sai-agents/ML-Master [G115]
+
+—
+
+—
+
+—
+
+—
+
+G116
+
+snap-stanford/MLAgentBench [1]
+
+mlagentbench-derived
+
+P007, P008, P013, P015, P023, P024, P025, P030, P034, P037, P038, P041, P042, P058, P061, P063, P064, P070, P074, P084
+
+—
+
+—
+
+G117
+
+supratikpm/gemini-autoresearch [G117]
+
+—
+
+—
+
+—
+
+—
+
+G118
+
+Tencent/CognitiveKernel-Pro [G118]
+
+dr-deep-research-agent
+
+—
+
+—
+
+—
+
+G119
+
+The-Swarm-Corporation/AI-CoScientist [G119]
+
+—
+
+—
+
+—
+
+—
+
+G120
+
+THUDM/AgentBench [G120]
+
+—
+
+—
+
+—
+
+—
+
+G121
+
+THUDM/AgentRL [G121]
+
+rl-post-training-as-autoresearch
+
+—
+
+—
+
+—
+
+G122
+
+tmgthb/Autonomous-Agents [G122]
+
+—
+
+—
+
+—
+
+—
+
+G123
+
+tonitangpotato/autoresearch-engram [G123]
+
+seed-line
+
+P093
+
+—
+
+—
+
+G124
+
+trevin-creator/autoresearch-mlx [G124]
+
+seed-line
+
+—
+
+—
+
+—
+
+G125
+
+uditgoenka/autoresearch [G125]
+
+—
+
+—
+
+—
+
+—
+
+G126
+
+vivekvkashyap/autoresearch-rl [G126]
+
+rl-post-training-as-autoresearch
+
+—
+
+—
+
+—
+
+G127
+
+VoltAgent/awesome-ai-agent-papers [G127]
+
+—
+
+—
+
+—
+
+—
+
+G128
+
+VoltAgent/awesome-codex-subagents [G128]
+
+—
+
+—
+
+—
+
+—
+
+G129
+
+vukrosic/auto-research [G129]
+
+—
+
+P005, P047, P054
+
+—
+
+—
+
+G130
+
+wanshuiyin/Auto-claude-code-research-in-sleep [G130]
+
+—
+
+—
+
+—
+
+—
+
+G131
+
+WecoAI/aideml [G131]
+
+—
+
+P028, P038, P049, P084
+
+—
+
+—
+
+G132
+
+WecoAI/awesome-autoresearch [G132]
+
+—
+
+—
+
+—
+
+—
+
+G133
+
+XiangKeYiNTU/flowsearcher [G133]
+
+—
+
+—
+
+P093
+
+P093
+
+G134
+
+YoungDubbyDu/LLM-Agent-Optimization [G134]
+
+—
+
+—
+
+—
+
+—
+
+G135
+
+Zandereins/schliff [G135]
+
+—
+
+—
+
+—
+
+—
+
+G136
+
+zjunlp/xKG [G136]
+
+—
+
+—
+
+P034
+
+P034, P038
+
+G137
+
+zkarimi22/autoresearch-anything [G137]
+
+seed-line
+
+—
+
+—
+
+—
+
+G138
+
+zou-group/avatar [G138]
+
+dspy-line
+
+—
+
+—
+
+—
+
+G139
+
+zou-group/virtual-lab [G139]
+
+—
+
+—
+
+—
+
+—
+
+Appendix S2 Complete paper registry
+
+Table S2: All 101 paper records at the analytic freeze. Repository IDs resolve through Table S1. The author column lists repositories with at least one evidence-confirmed paper author; bracketed values give the number of confirmed author slots for that paper–repository pair.
+
+ID
+
+Paper title
+
+Year / arXiv
+
+Code / access status
+
+Named repositories
+
+Companion
+
+Author links
+
+P001
+
+Memento: Fine-tuning LLM Agents without Fine-tuning LLMs [P001]
+
+2025
+
+code shipped
+
+G051, G064, G097, G111
+
+G083
+
+G083 [11]; G008 [1]
+
+P002
+
+DeepResearchArena [P002]
+
+—
+
+full text unavailable
+
+—
+
+—
+
+—
+
+P003
+
+MoNaCo [P003]
+
+—
+
+full text unavailable
+
+—
+
+—
+
+—
+
+P004
+
+DRA-MedicalAI [P004]
+
+—
+
+full text unavailable
+
+—
+
+—
+
+—
+
+P005
+
+DeepResearch: A Survey of Autonomous Research Agents [12]
+
+2025
+
+paper only
+
+G064, G097, G110, G111, G129
+
+—
+
+—
+
+P006
+
+A Survey of Scientific Large Language Models: From Data Foundations to Agent Frontiers [13]
+
+2025; 2508.21148
+
+code cited
+
+G111
+
+G093
+
+G093 [10]
+
+P007
+
+FutureX: An Advanced Live Benchmark for LLM Agents in Future Prediction [P007]
+
+2025; 2508.11987
+
+demo only
+
+G097, G111, G032, G116
+
+—
+
+—
+
+P008
+
+A Survey on Agentic Multimodal Large Language Models [P008]
+
+2025; 2510.10991
+
+code cited
+
+G079, G032, G116
+
+G050
+
+G050 [10]
+
+P009
+
+Information Retrieval Meets Large Language Models: A Comprehensive Survey [P009]
+
+2026; 2502.14822
+
+paper only
+
+—
+
+—
+
+—
+
+P010
+
+Large Language Models for Next-Generation Wireless Network Management: A Survey and Tutorial [P010]
+
+2025
+
+paper only
+
+G079
+
+—
+
+—
+
+P011
+
+DocResearcher [P011]
+
+—
+
+full text unavailable
+
+—
+
+—
+
+—
+
+P012
+
+Co-Sight: Enhancing LLM-Based Agents via Conflict-Aware Meta-Verification and Trustworthy Reasoning with Structured Facts [P012]
+
+2025; 2510.21557
+
+code cited
+
+G051, G064, G110, G113, G011
+
+—
+
+—
+
+P013
+
+Deep Research: A Systematic Survey [P013]
+
+2025; 2512.02038
+
+code cited
+
+G110, G116
+
+G076
+
+—
+
+P014
+
+ToSearchOrNot [P014]
+
+—
+
+full text unavailable
+
+—
+
+—
+
+—
+
+P015
+
+DR.BENCH: A Multidimensional Evaluation for Deep Research Agents, from Answers to Reports [P015]
+
+2025
+
+code shipped
+
+G102, G109, G116
+
+G036
+
+—
+
+P016
+
+MolAgent [P016]
+
+—
+
+full text unavailable
+
+—
+
+—
+
+—
+
+P017
+
+How Far Are We from Genuinely Useful Deep Research Agents? [P017]
+
+2025; 2512.01948
+
+code shipped
+
+G064, G097, G102, G109, G110, G111
+
+G098
+
+G098 [5]
+
+P018
+
+DualResearch: Entropy-Gated Dual-Graph Retrieval for Answer Reconstruction [P018]
+
+2025; 2510.08959
+
+paper only
+
+G051, G110, G011
+
+—
+
+G015 [1]
+
+P019
+
+HalluCitation Matters: Revealing the Impact of Hallucinated References with 300 Hallucinated Papers in ACL Conferences [P019]
+
+2026
+
+paper only
+
+G097, G109, G110, G111, G011
+
+—
+
+—
+
+P020
+
+LLM-Optim-WirelessNet [P020]
+
+—
+
+full text unavailable
+
+—
+
+—
+
+—
+
+P021
+
+Fact2Fiction [P021]
+
+—
+
+full text unavailable
+
+—
+
+—
+
+—
+
+P022
+
+DLLM Agent: See Farther, Run Faster [P022]
+
+2026; 2602.07451
+
+paper only
+
+G051, G055, G097, G111
+
+—
+
+—
+
+P023
+
+DeepTRACE: Auditing Deep Research AI Systems for Tracking Reliability Across Citations and Evidence [P023]
+
+2025; 2509.04499
+
+paper only
+
+G102, G109, G116
+
+—
+
+—
+
+P024
+
+FinDeepForecast: A Live Multi-Agent System for Benchmarking Deep Research Agents in Financial Forecasting [P024]
+
+2026; 2601.05039
+
+demo only
+
+G102, G116
+
+—
+
+—
+
+P025
+
+COMPASS: Enhancing Agent Long-Horizon Reasoning with Evolving Context [P025]
+
+2025; 2510.08790
+
+paper only
+
+G051, G055, G110, G032, G116
+
+—
+
+—
+
+P026
+
+CausalEvolve: Towards Open-Ended Discovery with Causal Scratchpad [P026]
+
+2026; 2603.14575
+
+paper only
+
+G109, G110
+
+—
+
+—
+
+P027
+
+Advancing Mathematical Research via Human-AI Interactive Theorem Proving [P027]
+
+2025; 2512.09443
+
+code cited
+
+G102, G109, G111
+
+—
+
+—
+
+P028
+
+Marco DeepResearch: Unlocking Efficient Deep Research Agents via Verification-Centric Design [P028]
+
+2026; 2603.28376
+
+code shipped
+
+G051, G110, G131
+
+G010
+
+G010 [2]
+
+P029
+
+CollectiveIntelligence [P029]
+
+—
+
+full text unavailable
+
+—
+
+—
+
+—
+
+P030
+
+Erase to Improve: Erasable Reinforcement Learning for Search-Augmented LLMs [P030]
+
+2026; 2510.00861
+
+code cited
+
+G079, G116
+
+—
+
+—
+
+P031
+
+AutoMalTool: Automatic Red Teaming LLM-based Agents with Model Context Protocol Tools [P031/P033]
+
+2025; 2509.21011
+
+paper only
+
+G064
+
+—
+
+—
+
+P032
+
+Automatic Red Teaming LLM-based Agents with Model Context Protocol Tools [P032]
+
+2025
+
+paper only
+
+G097
+
+—
+
+—
+
+P033
+
+Automatic Red Teaming LLM-based Agents with Model Context Protocol Tools [P031/P033]
+
+2025; 2509.21011
+
+paper only
+
+G064, G097
+
+—
+
+—
+
+P034
+
+What Makes AI Research Replicable? Executable Knowledge Graphs as Scientific Knowledge Representations [P034]
+
+2026; 2510.17795
+
+code shipped
+
+G064, G109, G032, G116
+
+G136
+
+G136 [1]
+
+P035
+
+Project Rachel: Can an AI Become a Scholarly Author? [P035]
+
+2025; 2511.14819
+
+paper only
+
+G109, G111
+
+—
+
+G095 [1]
+
+P036
+
+GenAI-DataStories [P036]
+
+—
+
+full text unavailable
+
+—
+
+—
+
+—
+
+P037
+
+DRACO: a Cross-Domain Benchmark for Deep Research Accuracy, Completeness, and Objectivity [P037]
+
+2026; 2602.11685
+
+code shipped
+
+G102, G116
+
+—
+
+—
+
+P038
+
+Can We Predict Before Executing Machine Learning Agents? [P038]
+
+2025
+
+code shipped
+
+G079, G109, G111, G131, G116
+
+—
+
+G136 [1]
+
+P039
+
+SAGE: Benchmarking and Improving Retrieval for Deep Research Agents [P039]
+
+2026; 2602.05975
+
+code shipped
+
+G051, G097, G109, G032
+
+—
+
+—
+
+P040
+
+Deep Research Brings Deeper Harm [P040]
+
+2025; 2510.11851
+
+code cited
+
+—
+
+—
+
+—
+
+P041
+
+MiroEval: Benchmarking Multimodal Deep Research Agents in Process and Outcome [P041]
+
+2026; 2603.28407
+
+code shipped
+
+G102, G109, G110, G116
+
+—
+
+—
+
+P042
+
+Is Your LLM-as-a-Recommender Agent Trustable? LLMs’ Recommendation is Easily Hacked by Biases [P042]
+
+2025
+
+code shipped
+
+G064, G102, G109, G111, G116
+
+—
+
+—
+
+P043
+
+ResponsibleAgentic-survey [P043]
+
+—
+
+full text unavailable
+
+—
+
+—
+
+—
+
+P044
+
+Learning to Retrieve from Agent Trajectories [P044]
+
+2025
+
+code shipped
+
+—
+
+—
+
+G108 [1]
+
+P045
+
+Emergent Social Intelligence Risks in Generative Multi-Agent Systems [P045]
+
+2026; 2603.27771
+
+code cited
+
+G055, G064, G113
+
+—
+
+—
+
+P046
+
+IntentRL: Training Proactive User-intent Agents for Open-ended Deep Research via Reinforcement Learning [P046]
+
+2026; 2602.03468
+
+paper only
+
+G051, G109, G110
+
+—
+
+—
+
+P047
+
+UFO3: Weaving the Digital Agent Galaxy [P047]
+
+2025; 2511.11332
+
+code shipped
+
+G053, G055, G056, G057, G129
+
+G086
+
+G086 [2]
+
+P048
+
+K-Dense Analyst: Towards Fully Automated Scientific Analysis [P048]
+
+2025; 2508.07043
+
+paper only
+
+G051, G097, G109, G111, G011
+
+—
+
+—
+
+P049
+
+Rethinking Memory Mechanisms of Foundation Agents in the Second Half: A Survey [P049]
+
+2026; 2602.06052
+
+code cited
+
+G064, G109, G111, G131, G032
+
+G007
+
+—
+
+P050
+
+Training One Model to Master Cross-Level Agentic Actions via Reinforcement Learning [P050]
+
+2025; 2512.09706
+
+code shipped
+
+G079
+
+—
+
+—
+
+P051
+
+GoodPoint: Learning Constructive Scientific Paper Feedback from Author Responses [P051]
+
+2026; 2604.11924
+
+paper only
+
+G064, G109
+
+—
+
+—
+
+P052
+
+AgentWebBench: Benchmarking Multi-Agent Coordination in Agentic Web [P052]
+
+2026; 2604.10938
+
+code shipped
+
+G053, G055
+
+G028
+
+—
+
+P053
+
+Analytical Search: A New Paradigm for Evidence-Governed Problem Solving [P053]
+
+2025
+
+paper only
+
+G051, G097, G111, G011, G032
+
+—
+
+—
+
+P054
+
+An Index-based Approach for Efficient and Effective Web Content Extraction [P054]
+
+2025
+
+paper only
+
+G097, G110, G011, G129
+
+—
+
+—
+
+P055
+
+R2A2 [P055]
+
+—
+
+full text unavailable
+
+—
+
+—
+
+—
+
+P056
+
+Learning to Rewrite Tool Descriptions for Reliable LLM-Agent Tool Use [P056]
+
+2026; 2602.20426
+
+paper only
+
+—
+
+—
+
+—
+
+P057
+
+LUT-LLM: Efficient Language Model Inference with Memory-based Computations on FPGAs [P057]
+
+2025
+
+paper only
+
+—
+
+—
+
+—
+
+P058
+
+Memory Intelligence Agent (MIA): Dual-Memory Reinforcement Learning for Deep Research Agents [P058]
+
+2025
+
+paper only
+
+G051, G064, G111, G116
+
+—
+
+—
+
+P059
+
+Experience as a Compass: Multi-agent RAG with Evolving Orchestration and Agent Prompts [P059]
+
+2026
+
+paper only
+
+G051, G064, G109, G044
+
+—
+
+—
+
+P060
+
+VSearcher: Long-Horizon Multimodal Search Agent via Reinforcement Learning [P060]
+
+2026; 2603.02795
+
+code shipped
+
+G051, G079, G109
+
+—
+
+—
+
+P061
+
+A Picture of Agentic Search [P061/P068]
+
+2026; 2602.17518
+
+code shipped
+
+G097, G102, G116
+
+—
+
+—
+
+P062
+
+InfoSeeker: A Scalable Hierarchical Parallel Agent Framework for Web Information Seeking [P062]
+
+2026; 2604.02971
+
+code shipped
+
+G055, G097
+
+G005
+
+G005 [7]; G008 [1]
+
+P063
+
+Why Your Deep Research Agent Fails? On Hallucination Evaluation in Full Research Trajectory [P063]
+
+2026
+
+code shipped
+
+G051, G053, G102, G116
+
+—
+
+G051 [1]; G052 [1]; G053 [1]
+
+P064
+
+ADEPTS: A Capability Framework for Human-Centered Agent Design [P064]
+
+2025; 2507.15885
+
+paper only
+
+G051, G109, G032, G116
+
+—
+
+—
+
+P065
+
+Story2Proposal: A Scaffold for Structured Scientific Paper Writing [P065]
+
+2026; 2603.27065
+
+paper only
+
+G051, G064, G109, G110, G111
+
+—
+
+—
+
+P066
+
+SearchAttack: Red-Teaming LLMs against Knowledge-to-Action Threats under Online Web Search [P066]
+
+2026; 2601.04093
+
+paper only
+
+—
+
+—
+
+—
+
+P067
+
+EigentSearch-Q+: Enhancing Deep Research Agents with Structured Reasoning Tools [P067]
+
+2026; 2604.07927
+
+code shipped
+
+G051, G097, G111, G032
+
+G022
+
+G022 [9]
+
+P068
+
+A Picture of Agentic Search [P061/P068]
+
+2026; 2602.17518
+
+record unresolved
+
+—
+
+—
+
+—
+
+P069
+
+BioMedGraphica [P069]
+
+—
+
+record unresolved
+
+—
+
+—
+
+—
+
+P070
+
+GAIA: Geothermal Analytics Intelligent Agent [P070]
+
+2025
+
+paper only
+
+G097, G011, G116
+
+—
+
+—
+
+P071
+
+Evaluating Stochasticity in Deep Research Agents [P071]
+
+2026; 2602.23271
+
+paper only
+
+G051, G097, G113
+
+—
+
+—
+
+P072
+
+TaskSense: Cognitive Chain Modeling and Difficulty Estimation of GUI Tasks [P072]
+
+2025; 2511.09309
+
+paper only
+
+—
+
+—
+
+—
+
+P073
+
+Rerank Before You Reason: Analyzing Reranking Tradeoffs through Effective Token Cost in Deep Search Agents [P073]
+
+2025
+
+code shipped
+
+—
+
+—
+
+—
+
+P074
+
+CoVe: Training Interactive Tool-Use Agents via Constraint-Guided Verification [P074]
+
+2025
+
+code shipped
+
+G079, G044, G116
+
+—
+
+—
+
+P075
+
+SelfEvolvingAgents-survey [P075]
+
+—
+
+full text unavailable
+
+—
+
+—
+
+—
+
+P076
+
+Towards Efficient Agents: A Co-Design of Inference Architecture and System [P076]
+
+2025; 2512.18337
+
+paper only
+
+G053, G100, G056
+
+—
+
+—
+
+P077
+
+IODResearch [P077]
+
+—
+
+full text unavailable
+
+—
+
+—
+
+—
+
+P078
+
+BeyondTextualLogo [P078]
+
+—
+
+full text unavailable
+
+—
+
+—
+
+—
+
+P079
+
+SwarmSys: Decentralized Swarm-Inspired Agents for Scalable and Adaptive Reasoning [P079]
+
+2025
+
+paper only
+
+G055, G064, G111, G113
+
+—
+
+—
+
+P080
+
+Improving and Evaluating Open Deep Research Agents [P080]
+
+2025
+
+code cited
+
+G051, G064, G111
+
+G092
+
+—
+
+P081
+
+A Hierarchical Agentic Framework for Autonomous Drone-Based Visual Inspection [P081/P088]
+
+2025; 2510.00259
+
+paper only
+
+G053, G055, G111
+
+—
+
+—
+
+P082
+
+DualSpec: Accelerating Deep Research Agents via Dual-Process Action Speculation [P082]
+
+2026; 2603.07416
+
+paper only
+
+—
+
+—
+
+—
+
+P083
+
+MedCoAct: Confidence-Aware Multi-Agent Collaboration for Complete Clinical Decision [P083]
+
+2025; 2510.10461
+
+paper only
+
+G055, G064, G102
+
+—
+
+—
+
+P084
+
+Autonomous Data Processing using Meta-Agents [P084]
+
+2025
+
+code cited
+
+G104, G131, G032, G116
+
+—
+
+—
+
+P085
+
+AgenticSelfEvolution-LLM [P085]
+
+—
+
+full text unavailable
+
+—
+
+—
+
+—
+
+P086
+
+Towards AI-Enabled Training Needs Analysis Using Dual AI-Agent Collaboration [P086]
+
+2026
+
+demo only
+
+G055, G102, G111
+
+—
+
+—
+
+P087
+
+CASTCurate [P087]
+
+—
+
+full text unavailable
+
+—
+
+—
+
+—
+
+P088
+
+A Hierarchical Agentic Framework for Autonomous Drone-Based Visual Inspection [P081/P088]
+
+2025; 2510.00259
+
+paper only
+
+G053, G055, G111
+
+—
+
+—
+
+P089
+
+DRL-Conversational [P089]
+
+—
+
+full text unavailable
+
+—
+
+—
+
+—
+
+P090
+
+On Holistic Database Optimization via Leveraging Similarity Across Actions, Workloads, Configurations, and Scenarios [P090]
+
+2026
+
+code cited
+
+—
+
+—
+
+—
+
+P091
+
+LinuxFirmwareFuzz [P091]
+
+—
+
+full text unavailable
+
+—
+
+—
+
+—
+
+P092
+
+AISearch-LLM-survey [P092]
+
+—
+
+full text unavailable
+
+—
+
+—
+
+—
+
+P093
+
+FlowSearcher: Synthesizing Memory-Guided Agentic Workflows for Web Information Seeking [P093]
+
+2026
+
+code promised; unavailable
+
+G064, G032, G068, G123
+
+G133
+
+G133 [1]
+
+P094
+
+Improving Completeness in Deep Research Agents through Targeted Enrichment (HERO) [P094]
+
+2026
+
+paper only
+
+G111
+
+—
+
+—
+
+P095
+
+Perspectra [P095]
+
+—
+
+full text unavailable
+
+—
+
+—
+
+—
+
+P096
+
+BriefHistory-AISci [P096]
+
+—
+
+full text unavailable
+
+—
+
+—
+
+—
+
+P097
+
+CausalGame: Benchmarking Causal Thinking of LLM Agents in Games [P097]
+
+2025
+
+paper only
+
+G109, G110, G111, G011
+
+—
+
+—
+
+P098
+
+ContextLengthCrunch [P098]
+
+—
+
+full text unavailable
+
+—
+
+—
+
+—
+
+P099
+
+MemoryMechanisms-Survey [P099]
+
+—
+
+full text unavailable
+
+—
+
+—
+
+—
+
+P100
+
+Smarter Geothermal Field Development with Agentic AI System, GAIA [P100]
+
+2026
+
+paper only
+
+G053, G097, G102, G011
+
+—
+
+—
+
+P101
+
+VisualizingDeepAgents [P101]
+
+—
+
+full text unavailable
+
+—
+
+—
+
+—
+
+Appendix S3 All observed paper–repository relations
+
+Table S3: Union of all observed paper–repository relations. N denotes a named-tool edge, C a canonical companion-code edge, and A an evidence-confirmed paper-author/repository-author relation. Multiple letters on one row describe distinct evidence for the same pair.
+
+Paper
+
+Repo
+
+Paper title
+
+Canonical repository
+
+Relation
+
+Confirmed paper author(s)
+
+P001
+
+G051
+
+Memento: Fine-tuning LLM Agents without Fine-tuning LLMs
+
+HKUDS/AI-Researcher
+
+N
+
+—
+
+P001
+
+G064
+
+Memento: Fine-tuning LLM Agents without Fine-tuning LLMs
+
+JinheonBaek/ResearchAgent
+
+N
+
+—
+
+P001
+
+G083
+
+Memento: Fine-tuning LLM Agents without Fine-tuning LLMs
+
+Memento-Teams/Memento
+
+CA
+
+Guchun Zhang; Huichi Zhou; Jun Wang; Ka Yiu Lee; Kin Hei Lee; Kun Shao; Linyi Yang; Siyuan Guo; Xue Yan; Yihang Chen; Zihan Wang
+
+P001
+
+G097
+
+Memento: Fine-tuning LLM Agents without Fine-tuning LLMs
+
+OpenRaiser/NanoResearch
+
+N
+
+—
+
+P001
+
+G111
+
+Memento: Fine-tuning LLM Agents without Fine-tuning LLMs
+
+SamuelSchmidgall/AgentLaboratory
+
+N
+
+—
+
+P001
+
+G008
+
+Memento: Fine-tuning LLM Agents without Fine-tuning LLMs
+
+ai-agents-2030/awesome-deep-research-agent
+
+A
+
+Yihang Chen
+
+P005
+
+G064
+
+DeepResearch: A Survey of Autonomous Research Agents
+
+JinheonBaek/ResearchAgent
+
+N
+
+—
+
+P005
+
+G097
+
+DeepResearch: A Survey of Autonomous Research Agents
+
+OpenRaiser/NanoResearch
+
+N
+
+—
+
+P005
+
+G110
+
+DeepResearch: A Survey of Autonomous Research Agents
+
+SakanaAI/AI-Scientist-v2
+
+N
+
+—
+
+P005
+
+G111
+
+DeepResearch: A Survey of Autonomous Research Agents
+
+SamuelSchmidgall/AgentLaboratory
+
+N
+
+—
+
+P005
+
+G129
+
+DeepResearch: A Survey of Autonomous Research Agents
+
+vukrosic/auto-research
+
+N
+
+—
+
+P006
+
+G111
+
+A Survey of Scientific Large Language Models: From Data Foundations to Agent Frontiers
+
+SamuelSchmidgall/AgentLaboratory
+
+N
+
+—
+
+P006
+
+G093
+
+A Survey of Scientific Large Language Models: From Data Foundations to Agent Frontiers
+
+open-sciencelab/awesome-scientific-datasets-and-llms
+
+CA
+
+Chenglong Ma; Guohang Zhuang; Jiamin Wu; Jiaqi Liu; Jucheng Hu; Ming Hu; Tianbin Li; Wanghan Xu; Wei Li; Yingzhou Lu
+
+P007
+
+G097
+
+FutureX: An Advanced Live Benchmark for LLM Agents in Future Prediction
+
+OpenRaiser/NanoResearch
+
+N
+
+—
+
+P007
+
+G111
+
+FutureX: An Advanced Live Benchmark for LLM Agents in Future Prediction
+
+SamuelSchmidgall/AgentLaboratory
+
+N
+
+—
+
+P007
+
+G032
+
+FutureX: An Advanced Live Benchmark for LLM Agents in Future Prediction
+
+du-nlp-lab/MLR-Copilot
+
+N
+
+—
+
+P007
+
+G116
+
+FutureX: An Advanced Live Benchmark for LLM Agents in Future Prediction
+
+snap-stanford/MLAgentBench
+
+N
+
+—
+
+P008
+
+G079
+
+A Survey on Agentic Multimodal Large Language Models
+
+MASWorks/ML-Agent
+
+N
+
+—
+
+P008
+
+G032
+
+A Survey on Agentic Multimodal Large Language Models
+
+du-nlp-lab/MLR-Copilot
+
+N
+
+—
+
+P008
+
+G050
+
+A Survey on Agentic Multimodal Large Language Models
+
+hjyao00/awesome-agentic-mllms
+
+CA
+
+Bo Fang; Guanbin Li; Huanjin Yao; Jiaxing Huang; Jingyi Zhang; Ruifei Zhang; Ruolin Zhu; Shunyu Liu; Yibo Wang; Yongcheng Jing
+
+P008
+
+G116
+
+A Survey on Agentic Multimodal Large Language Models
+
+snap-stanford/MLAgentBench
+
+N
+
+—
+
+P010
+
+G079
+
+Large Language Models for Next-Generation Wireless Network Management: A Survey and Tutorial
+
+MASWorks/ML-Agent
+
+N
+
+—
+
+P012
+
+G051
+
+Co-Sight: Enhancing LLM-Based Agents via Conflict-Aware Meta-Verification and Trustworthy Reasoning with Structured Facts
+
+HKUDS/AI-Researcher
+
+N
+
+—
+
+P012
+
+G064
+
+Co-Sight: Enhancing LLM-Based Agents via Conflict-Aware Meta-Verification and Trustworthy Reasoning with Structured Facts
+
+JinheonBaek/ResearchAgent
+
+N
+
+—
+
+P012
+
+G110
+
+Co-Sight: Enhancing LLM-Based Agents via Conflict-Aware Meta-Verification and Trustworthy Reasoning with Structured Facts
+
+SakanaAI/AI-Scientist-v2
+
+N
+
+—
+
+P012
+
+G113
+
+Co-Sight: Enhancing LLM-Based Agents via Conflict-Aware Meta-Verification and Trustworthy Reasoning with Structured Facts
+
+Sibyl-Research-Team/AutoResearch-SibylSystem
+
+N
+
+—
+
+P012
+
+G011
+
+Co-Sight: Enhancing LLM-Based Agents via Conflict-Aware Meta-Verification and Trustworthy Reasoning with Structured Facts
+
+aiming-lab/AutoResearchClaw
+
+N
+
+—
+
+P013
+
+G110
+
+Deep Research: A Systematic Survey
+
+SakanaAI/AI-Scientist-v2
+
+N
+
+—
+
+P013
+
+G076
+
+Deep Research: A Systematic Survey
+
+mangopy/deep-research-survey
+
+C
+
+—
+
+P013
+
+G116
+
+Deep Research: A Systematic Survey
+
+snap-stanford/MLAgentBench
+
+N
+
+—
+
+P015
+
+G102
+
+DR.BENCH: A Multidimensional Evaluation for Deep Research Agents, from Answers to Reports
+
+PouriaRouzrokh/LatteReview
+
+N
+
+—
+
+P015
+
+G109
+
+DR.BENCH: A Multidimensional Evaluation for Deep Research Agents, from Answers to Reports
+
+SakanaAI/AI-Scientist
+
+N
+
+—
+
+P015
+
+G036
+
+DR.BENCH: A Multidimensional Evaluation for Deep Research Agents, from Answers to Reports
+
+evigbyen/drbench
+
+C
+
+—
+
+P015
+
+G116
+
+DR.BENCH: A Multidimensional Evaluation for Deep Research Agents, from Answers to Reports
+
+snap-stanford/MLAgentBench
+
+N
+
+—
+
+P017
+
+G064
+
+How Far Are We from Genuinely Useful Deep Research Agents?
+
+JinheonBaek/ResearchAgent
+
+N
+
+—
+
+P017
+
+G098
+
+How Far Are We from Genuinely Useful Deep Research Agents?
+
+OPPO-PersonalAI/FINDER_DEFT
+
+CA
+
+Dingling Zhang; He Zhu; Jiaheng Liu; King Zhu; Wangchunshu Zhou
+
+P017
+
+G097
+
+How Far Are We from Genuinely Useful Deep Research Agents?
+
+OpenRaiser/NanoResearch
+
+N
+
+—
+
+P017
+
+G102
+
+How Far Are We from Genuinely Useful Deep Research Agents?
+
+PouriaRouzrokh/LatteReview
+
+N
+
+—
+
+P017
+
+G109
+
+How Far Are We from Genuinely Useful Deep Research Agents?
+
+SakanaAI/AI-Scientist
+
+N
+
+—
+
+P017
+
+G110
+
+How Far Are We from Genuinely Useful Deep Research Agents?
+
+SakanaAI/AI-Scientist-v2
+
+N
+
+—
+
+P017
+
+G111
+
+How Far Are We from Genuinely Useful Deep Research Agents?
+
+SamuelSchmidgall/AgentLaboratory
+
+N
+
+—
+
+P018
+
+G015
+
+DualResearch: Entropy-Gated Dual-Graph Retrieval for Answer Reconstruction
+
+Alpha-Innovator/InternAgent
+
+A
+
+Bo Zhang
+
+P018
+
+G051
+
+DualResearch: Entropy-Gated Dual-Graph Retrieval for Answer Reconstruction
+
+HKUDS/AI-Researcher
+
+N
+
+—
+
+P018
+
+G110
+
+DualResearch: Entropy-Gated Dual-Graph Retrieval for Answer Reconstruction
+
+SakanaAI/AI-Scientist-v2
+
+N
+
+—
+
+P018
+
+G011
+
+DualResearch: Entropy-Gated Dual-Graph Retrieval for Answer Reconstruction
+
+aiming-lab/AutoResearchClaw
+
+N
+
+—
+
+P019
+
+G097
+
+HalluCitation Matters: Revealing the Impact of Hallucinated References with 300 Hallucinated Papers in ACL Conferences
+
+OpenRaiser/NanoResearch
+
+N
+
+—
+
+P019
+
+G109
+
+HalluCitation Matters: Revealing the Impact of Hallucinated References with 300 Hallucinated Papers in ACL Conferences
+
+SakanaAI/AI-Scientist
+
+N
+
+—
+
+P019
+
+G110
+
+HalluCitation Matters: Revealing the Impact of Hallucinated References with 300 Hallucinated Papers in ACL Conferences
+
+SakanaAI/AI-Scientist-v2
+
+N
+
+—
+
+P019
+
+G111
+
+HalluCitation Matters: Revealing the Impact of Hallucinated References with 300 Hallucinated Papers in ACL Conferences
+
+SamuelSchmidgall/AgentLaboratory
+
+N
+
+—
+
+P019
+
+G011
+
+HalluCitation Matters: Revealing the Impact of Hallucinated References with 300 Hallucinated Papers in ACL Conferences
+
+aiming-lab/AutoResearchClaw
+
+N
+
+—
+
+P022
+
+G051
+
+DLLM Agent: See Farther, Run Faster
+
+HKUDS/AI-Researcher
+
+N
+
+—
+
+P022
+
+G055
+
+DLLM Agent: See Farther, Run Faster
+
+Human-Agent-Society/CORAL
+
+N
+
+—
+
+P022
+
+G097
+
+DLLM Agent: See Farther, Run Faster
+
+OpenRaiser/NanoResearch
+
+N
+
+—
+
+P022
+
+G111
+
+DLLM Agent: See Farther, Run Faster
+
+SamuelSchmidgall/AgentLaboratory
+
+N
+
+—
+
+P023
+
+G102
+
+DeepTRACE: Auditing Deep Research AI Systems for Tracking Reliability Across Citations and Evidence
+
+PouriaRouzrokh/LatteReview
+
+N
+
+—
+
+P023
+
+G109
+
+DeepTRACE: Auditing Deep Research AI Systems for Tracking Reliability Across Citations and Evidence
+
+SakanaAI/AI-Scientist
+
+N
+
+—
+
+P023
+
+G116
+
+DeepTRACE: Auditing Deep Research AI Systems for Tracking Reliability Across Citations and Evidence
+
+snap-stanford/MLAgentBench
+
+N
+
+—
+
+P024
+
+G102
+
+FinDeepForecast: A Live Multi-Agent System for Benchmarking Deep Research Agents in Financial Forecasting
+
+PouriaRouzrokh/LatteReview
+
+N
+
+—
+
+P024
+
+G116
+
+FinDeepForecast: A Live Multi-Agent System for Benchmarking Deep Research Agents in Financial Forecasting
+
+snap-stanford/MLAgentBench
+
+N
+
+—
+
+P025
+
+G051
+
+COMPASS: Enhancing Agent Long-Horizon Reasoning with Evolving Context
+
+HKUDS/AI-Researcher
+
+N
+
+—
+
+P025
+
+G055
+
+COMPASS: Enhancing Agent Long-Horizon Reasoning with Evolving Context
+
+Human-Agent-Society/CORAL
+
+N
+
+—
+
+P025
+
+G110
+
+COMPASS: Enhancing Agent Long-Horizon Reasoning with Evolving Context
+
+SakanaAI/AI-Scientist-v2
+
+N
+
+—
+
+P025
+
+G032
+
+COMPASS: Enhancing Agent Long-Horizon Reasoning with Evolving Context
+
+du-nlp-lab/MLR-Copilot
+
+N
+
+—
+
+P025
+
+G116
+
+COMPASS: Enhancing Agent Long-Horizon Reasoning with Evolving Context
+
+snap-stanford/MLAgentBench
+
+N
+
+—
+
+P026
+
+G109
+
+CausalEvolve: Towards Open-Ended Discovery with Causal Scratchpad
+
+SakanaAI/AI-Scientist
+
+N
+
+—
+
+P026
+
+G110
+
+CausalEvolve: Towards Open-Ended Discovery with Causal Scratchpad
+
+SakanaAI/AI-Scientist-v2
+
+N
+
+—
+
+P027
+
+G102
+
+Advancing Mathematical Research via Human-AI Interactive Theorem Proving
+
+PouriaRouzrokh/LatteReview
+
+N
+
+—
+
+P027
+
+G109
+
+Advancing Mathematical Research via Human-AI Interactive Theorem Proving
+
+SakanaAI/AI-Scientist
+
+N
+
+—
+
+P027
+
+G111
+
+Advancing Mathematical Research via Human-AI Interactive Theorem Proving
+
+SamuelSchmidgall/AgentLaboratory
+
+N
+
+—
+
+P028
+
+G010
+
+Marco DeepResearch: Unlocking Efficient Deep Research Agents via Verification-Centric Design
+
+AIDC-AI/Marco-DeepResearch
+
+CA
+
+Longyue Wang; Qianghuai Jia
+
+P028
+
+G051
+
+Marco DeepResearch: Unlocking Efficient Deep Research Agents via Verification-Centric Design
+
+HKUDS/AI-Researcher
+
+N
+
+—
+
+P028
+
+G110
+
+Marco DeepResearch: Unlocking Efficient Deep Research Agents via Verification-Centric Design
+
+SakanaAI/AI-Scientist-v2
+
+N
+
+—
+
+P028
+
+G131
+
+Marco DeepResearch: Unlocking Efficient Deep Research Agents via Verification-Centric Design
+
+WecoAI/aideml
+
+N
+
+—
+
+P030
+
+G079
+
+Erase to Improve: Erasable Reinforcement Learning for Search-Augmented LLMs
+
+MASWorks/ML-Agent
+
+N
+
+—
+
+P030
+
+G116
+
+Erase to Improve: Erasable Reinforcement Learning for Search-Augmented LLMs
+
+snap-stanford/MLAgentBench
+
+N
+
+—
+
+P031
+
+G064
+
+AutoMalTool: Automatic Red Teaming LLM-based Agents with Model Context Protocol Tools
+
+JinheonBaek/ResearchAgent
+
+N
+
+—
+
+P032
+
+G097
+
+Automatic Red Teaming LLM-based Agents with Model Context Protocol Tools
+
+OpenRaiser/NanoResearch
+
+N
+
+—
+
+P033
+
+G064
+
+Automatic Red Teaming LLM-based Agents with Model Context Protocol Tools
+
+JinheonBaek/ResearchAgent
+
+N
+
+—
+
+P033
+
+G097
+
+Automatic Red Teaming LLM-based Agents with Model Context Protocol Tools
+
+OpenRaiser/NanoResearch
+
+N
+
+—
+
+P034
+
+G064
+
+What Makes AI Research Replicable? Executable Knowledge Graphs as Scientific Knowledge Representations
+
+JinheonBaek/ResearchAgent
+
+N
+
+—
+
+P034
+
+G109
+
+What Makes AI Research Replicable? Executable Knowledge Graphs as Scientific Knowledge Representations
+
+SakanaAI/AI-Scientist
+
+N
+
+—
+
+P034
+
+G032
+
+What Makes AI Research Replicable? Executable Knowledge Graphs as Scientific Knowledge Representations
+
+du-nlp-lab/MLR-Copilot
+
+N
+
+—
+
+P034
+
+G116
+
+What Makes AI Research Replicable? Executable Knowledge Graphs as Scientific Knowledge Representations
+
+snap-stanford/MLAgentBench
+
+N
+
+—
+
+P034
+
+G136
+
+What Makes AI Research Replicable? Executable Knowledge Graphs as Scientific Knowledge Representations
+
+zjunlp/xKG
+
+CA
+
+Ningyu Zhang
+
+P035
+
+G109
+
+Project Rachel: Can an AI Become a Scholarly Author?
+
+SakanaAI/AI-Scientist
+
+N
+
+—
+
+P035
+
+G111
+
+Project Rachel: Can an AI Become a Scholarly Author?
+
+SamuelSchmidgall/AgentLaboratory
+
+N
+
+—
+
+P035
+
+G095
+
+Project Rachel: Can an AI Become a Scholarly Author?
+
+openags/Awesome-AI-Scientist-Papers
+
+A
+
+Martin Monperrus
+
+P037
+
+G102
+
+DRACO: a Cross-Domain Benchmark for Deep Research Accuracy, Completeness, and Objectivity
+
+PouriaRouzrokh/LatteReview
+
+N
+
+—
+
+P037
+
+G116
+
+DRACO: a Cross-Domain Benchmark for Deep Research Accuracy, Completeness, and Objectivity
+
+snap-stanford/MLAgentBench
+
+N
+
+—
+
+P038
+
+G079
+
+Can We Predict Before Executing Machine Learning Agents?
+
+MASWorks/ML-Agent
+
+N
+
+—
+
+P038
+
+G109
+
+Can We Predict Before Executing Machine Learning Agents?
+
+SakanaAI/AI-Scientist
+
+N
+
+—
+
+P038
+
+G111
+
+Can We Predict Before Executing Machine Learning Agents?
+
+SamuelSchmidgall/AgentLaboratory
+
+N
+
+—
+
+P038
+
+G131
+
+Can We Predict Before Executing Machine Learning Agents?
+
+WecoAI/aideml
+
+N
+
+—
+
+P038
+
+G116
+
+Can We Predict Before Executing Machine Learning Agents?
+
+snap-stanford/MLAgentBench
+
+N
+
+—
+
+P038
+
+G136
+
+Can We Predict Before Executing Machine Learning Agents?
+
+zjunlp/xKG
+
+A
+
+Ningyu Zhang
+
+P039
+
+G051
+
+SAGE: Benchmarking and Improving Retrieval for Deep Research Agents
+
+HKUDS/AI-Researcher
+
+N
+
+—
+
+P039
+
+G097
+
+SAGE: Benchmarking and Improving Retrieval for Deep Research Agents
+
+OpenRaiser/NanoResearch
+
+N
+
+—
+
+P039
+
+G109
+
+SAGE: Benchmarking and Improving Retrieval for Deep Research Agents
+
+SakanaAI/AI-Scientist
+
+N
+
+—
+
+P039
+
+G032
+
+SAGE: Benchmarking and Improving Retrieval for Deep Research Agents
+
+du-nlp-lab/MLR-Copilot
+
+N
+
+—
+
+P041
+
+G102
+
+MiroEval: Benchmarking Multimodal Deep Research Agents in Process and Outcome
+
+PouriaRouzrokh/LatteReview
+
+N
+
+—
+
+P041
+
+G109
+
+MiroEval: Benchmarking Multimodal Deep Research Agents in Process and Outcome
+
+SakanaAI/AI-Scientist
+
+N
+
+—
+
+P041
+
+G110
+
+MiroEval: Benchmarking Multimodal Deep Research Agents in Process and Outcome
+
+SakanaAI/AI-Scientist-v2
+
+N
+
+—
+
+P041
+
+G116
+
+MiroEval: Benchmarking Multimodal Deep Research Agents in Process and Outcome
+
+snap-stanford/MLAgentBench
+
+N
+
+—
+
+P042
+
+G064
+
+Is Your LLM-as-a-Recommender Agent Trustable? LLMs’ Recommendation is Easily Hacked by Biases
+
+JinheonBaek/ResearchAgent
+
+N
+
+—
+
+P042
+
+G102
+
+Is Your LLM-as-a-Recommender Agent Trustable? LLMs’ Recommendation is Easily Hacked by Biases
+
+PouriaRouzrokh/LatteReview
+
+N
+
+—
+
+P042
+
+G109
+
+Is Your LLM-as-a-Recommender Agent Trustable? LLMs’ Recommendation is Easily Hacked by Biases
+
+SakanaAI/AI-Scientist
+
+N
+
+—
+
+P042
+
+G111
+
+Is Your LLM-as-a-Recommender Agent Trustable? LLMs’ Recommendation is Easily Hacked by Biases
+
+SamuelSchmidgall/AgentLaboratory
+
+N
+
+—
+
+P042
+
+G116
+
+Is Your LLM-as-a-Recommender Agent Trustable? LLMs’ Recommendation is Easily Hacked by Biases
+
+snap-stanford/MLAgentBench
+
+N
+
+—
+
+P044
+
+G108
+
+Learning to Retrieve from Agent Trajectories
+
+RUC-NLPIR/WebThinker
+
+A
+
+Ji-Rong Wen
+
+P045
+
+G055
+
+Emergent Social Intelligence Risks in Generative Multi-Agent Systems
+
+Human-Agent-Society/CORAL
+
+N
+
+—
+
+P045
+
+G064
+
+Emergent Social Intelligence Risks in Generative Multi-Agent Systems
+
+JinheonBaek/ResearchAgent
+
+N
+
+—
+
+P045
+
+G113
+
+Emergent Social Intelligence Risks in Generative Multi-Agent Systems
+
+Sibyl-Research-Team/AutoResearch-SibylSystem
+
+N
+
+—
+
+P046
+
+G051
+
+IntentRL: Training Proactive User-intent Agents for Open-ended Deep Research via Reinforcement Learning
+
+HKUDS/AI-Researcher
+
+N
+
+—
+
+P046
+
+G109
+
+IntentRL: Training Proactive User-intent Agents for Open-ended Deep Research via Reinforcement Learning
+
+SakanaAI/AI-Scientist
+
+N
+
+—
+
+P046
+
+G110
+
+IntentRL: Training Proactive User-intent Agents for Open-ended Deep Research via Reinforcement Learning
+
+SakanaAI/AI-Scientist-v2
+
+N
+
+—
+
+P047
+
+G053
+
+UFO3: Weaving the Digital Agent Galaxy
+
+HKUDS/ClawTeam
+
+N
+
+—
+
+P047
+
+G055
+
+UFO3: Weaving the Digital Agent Galaxy
+
+Human-Agent-Society/CORAL
+
+N
+
+—
+
+P047
+
+G056
+
+UFO3: Weaving the Digital Agent Galaxy
+
+hyperspaceai/agi
+
+N
+
+—
+
+P047
+
+G057
+
+UFO3: Weaving the Digital Agent Galaxy
+
+iii-hq/iii
+
+N
+
+—
+
+P047
+
+G086
+
+UFO3: Weaving the Digital Agent Galaxy
+
+microsoft/UFO
+
+CA
+
+Chiming Ni; Yu Kang
+
+P047
+
+G129
+
+UFO3: Weaving the Digital Agent Galaxy
+
+vukrosic/auto-research
+
+N
+
+—
+
+P048
+
+G051
+
+K-Dense Analyst: Towards Fully Automated Scientific Analysis
+
+HKUDS/AI-Researcher
+
+N
+
+—
+
+P048
+
+G097
+
+K-Dense Analyst: Towards Fully Automated Scientific Analysis
+
+OpenRaiser/NanoResearch
+
+N
+
+—
+
+P048
+
+G109
+
+K-Dense Analyst: Towards Fully Automated Scientific Analysis
+
+SakanaAI/AI-Scientist
+
+N
+
+—
+
+P048
+
+G111
+
+K-Dense Analyst: Towards Fully Automated Scientific Analysis
+
+SamuelSchmidgall/AgentLaboratory
+
+N
+
+—
+
+P048
+
+G011
+
+K-Dense Analyst: Towards Fully Automated Scientific Analysis
+
+aiming-lab/AutoResearchClaw
+
+N
+
+—
+
+P049
+
+G064
+
+Rethinking Memory Mechanisms of Foundation Agents in the Second Half: A Survey
+
+JinheonBaek/ResearchAgent
+
+N
+
+—
+
+P049
+
+G109
+
+Rethinking Memory Mechanisms of Foundation Agents in the Second Half: A Survey
+
+SakanaAI/AI-Scientist
+
+N
+
+—
+
+P049
+
+G111
+
+Rethinking Memory Mechanisms of Foundation Agents in the Second Half: A Survey
+
+SamuelSchmidgall/AgentLaboratory
+
+N
+
+—
+
+P049
+
+G131
+
+Rethinking Memory Mechanisms of Foundation Agents in the Second Half: A Survey
+
+WecoAI/aideml
+
+N
+
+—
+
+P049
+
+G007
+
+Rethinking Memory Mechanisms of Foundation Agents in the Second Half: A Survey
+
+agentmemoryworld/awesome-agent-memory
+
+C
+
+—
+
+P049
+
+G032
+
+Rethinking Memory Mechanisms of Foundation Agents in the Second Half: A Survey
+
+du-nlp-lab/MLR-Copilot
+
+N
+
+—
+
+P050
+
+G079
+
+Training One Model to Master Cross-Level Agentic Actions via Reinforcement Learning
+
+MASWorks/ML-Agent
+
+N
+
+—
+
+P051
+
+G064
+
+GoodPoint: Learning Constructive Scientific Paper Feedback from Author Responses
+
+JinheonBaek/ResearchAgent
+
+N
+
+—
+
+P051
+
+G109
+
+GoodPoint: Learning Constructive Scientific Paper Feedback from Author Responses
+
+SakanaAI/AI-Scientist
+
+N
+
+—
+
+P052
+
+G053
+
+AgentWebBench: Benchmarking Multi-Agent Coordination in Agentic Web
+
+HKUDS/ClawTeam
+
+N
+
+—
+
+P052
+
+G055
+
+AgentWebBench: Benchmarking Multi-Agent Coordination in Agentic Web
+
+Human-Agent-Society/CORAL
+
+N
+
+—
+
+P052
+
+G028
+
+AgentWebBench: Benchmarking Multi-Agent Coordination in Agentic Web
+
+cxcscmu/AgentWebBench
+
+C
+
+—
+
+P053
+
+G051
+
+Analytical Search: A New Paradigm for Evidence-Governed Problem Solving
+
+HKUDS/AI-Researcher
+
+N
+
+—
+
+P053
+
+G097
+
+Analytical Search: A New Paradigm for Evidence-Governed Problem Solving
+
+OpenRaiser/NanoResearch
+
+N
+
+—
+
+P053
+
+G111
+
+Analytical Search: A New Paradigm for Evidence-Governed Problem Solving
+
+SamuelSchmidgall/AgentLaboratory
+
+N
+
+—
+
+P053
+
+G011
+
+Analytical Search: A New Paradigm for Evidence-Governed Problem Solving
+
+aiming-lab/AutoResearchClaw
+
+N
+
+—
+
+P053
+
+G032
+
+Analytical Search: A New Paradigm for Evidence-Governed Problem Solving
+
+du-nlp-lab/MLR-Copilot
+
+N
+
+—
+
+P054
+
+G097
+
+An Index-based Approach for Efficient and Effective Web Content Extraction
+
+OpenRaiser/NanoResearch
+
+N
+
+—
+
+P054
+
+G110
+
+An Index-based Approach for Efficient and Effective Web Content Extraction
+
+SakanaAI/AI-Scientist-v2
+
+N
+
+—
+
+P054
+
+G011
+
+An Index-based Approach for Efficient and Effective Web Content Extraction
+
+aiming-lab/AutoResearchClaw
+
+N
+
+—
+
+P054
+
+G129
+
+An Index-based Approach for Efficient and Effective Web Content Extraction
+
+vukrosic/auto-research
+
+N
+
+—
+
+P058
+
+G051
+
+Memory Intelligence Agent (MIA): Dual-Memory Reinforcement Learning for Deep Research Agents
+
+HKUDS/AI-Researcher
+
+N
+
+—
+
+P058
+
+G064
+
+Memory Intelligence Agent (MIA): Dual-Memory Reinforcement Learning for Deep Research Agents
+
+JinheonBaek/ResearchAgent
+
+N
+
+—
+
+P058
+
+G111
+
+Memory Intelligence Agent (MIA): Dual-Memory Reinforcement Learning for Deep Research Agents
+
+SamuelSchmidgall/AgentLaboratory
+
+N
+
+—
+
+P058
+
+G116
+
+Memory Intelligence Agent (MIA): Dual-Memory Reinforcement Learning for Deep Research Agents
+
+snap-stanford/MLAgentBench
+
+N
+
+—
+
+P059
+
+G051
+
+Experience as a Compass: Multi-agent RAG with Evolving Orchestration and Agent Prompts
+
+HKUDS/AI-Researcher
+
+N
+
+—
+
+P059
+
+G064
+
+Experience as a Compass: Multi-agent RAG with Evolving Orchestration and Agent Prompts
+
+JinheonBaek/ResearchAgent
+
+N
+
+—
+
+P059
+
+G109
+
+Experience as a Compass: Multi-agent RAG with Evolving Orchestration and Agent Prompts
+
+SakanaAI/AI-Scientist
+
+N
+
+—
+
+P059
+
+G044
+
+Experience as a Compass: Multi-agent RAG with Evolving Orchestration and Agent Prompts
+
+gepa-ai/gepa
+
+N
+
+—
+
+P060
+
+G051
+
+VSearcher: Long-Horizon Multimodal Search Agent via Reinforcement Learning
+
+HKUDS/AI-Researcher
+
+N
+
+—
+
+P060
+
+G079
+
+VSearcher: Long-Horizon Multimodal Search Agent via Reinforcement Learning
+
+MASWorks/ML-Agent
+
+N
+
+—
+
+P060
+
+G109
+
+VSearcher: Long-Horizon Multimodal Search Agent via Reinforcement Learning
+
+SakanaAI/AI-Scientist
+
+N
+
+—
+
+P061
+
+G097
+
+A Picture of Agentic Search
+
+OpenRaiser/NanoResearch
+
+N
+
+—
+
+P061
+
+G102
+
+A Picture of Agentic Search
+
+PouriaRouzrokh/LatteReview
+
+N
+
+—
+
+P061
+
+G116
+
+A Picture of Agentic Search
+
+snap-stanford/MLAgentBench
+
+N
+
+—
+
+P062
+
+G055
+
+InfoSeeker: A Scalable Hierarchical Parallel Agent Framework for Web Information Seeking
+
+Human-Agent-Society/CORAL
+
+N
+
+—
+
+P062
+
+G097
+
+InfoSeeker: A Scalable Hierarchical Parallel Agent Framework for Web Information Seeking
+
+OpenRaiser/NanoResearch
+
+N
+
+—
+
+P062
+
+G005
+
+InfoSeeker: A Scalable Hierarchical Parallel Agent Framework for Web Information Seeking
+
+agent-on-the-fly/InfoSeeker
+
+CA
+
+Huichi Zhou; Jun Wang; Ka Yiu Lee; Kun Shao; Meng Fang; Yuxuan Huang; Zhiyuan He
+
+P062
+
+G008
+
+InfoSeeker: A Scalable Hierarchical Parallel Agent Framework for Web Information Seeking
+
+ai-agents-2030/awesome-deep-research-agent
+
+A
+
+Yuxuan Huang
+
+P063
+
+G051
+
+Why Your Deep Research Agent Fails? On Hallucination Evaluation in Full Research Trajectory
+
+HKUDS/AI-Researcher
+
+NA
+
+Chao Huang
+
+P063
+
+G052
+
+Why Your Deep Research Agent Fails? On Hallucination Evaluation in Full Research Trajectory
+
+HKUDS/AutoAgent
+
+A
+
+Chao Huang
+
+P063
+
+G053
+
+Why Your Deep Research Agent Fails? On Hallucination Evaluation in Full Research Trajectory
+
+HKUDS/ClawTeam
+
+NA
+
+Chao Huang
+
+P063
+
+G102
+
+Why Your Deep Research Agent Fails? On Hallucination Evaluation in Full Research Trajectory
+
+PouriaRouzrokh/LatteReview
+
+N
+
+—
+
+P063
+
+G116
+
+Why Your Deep Research Agent Fails? On Hallucination Evaluation in Full Research Trajectory
+
+snap-stanford/MLAgentBench
+
+N
+
+—
+
+P064
+
+G051
+
+ADEPTS: A Capability Framework for Human-Centered Agent Design
+
+HKUDS/AI-Researcher
+
+N
+
+—
+
+P064
+
+G109
+
+ADEPTS: A Capability Framework for Human-Centered Agent Design
+
+SakanaAI/AI-Scientist
+
+N
+
+—
+
+P064
+
+G032
+
+ADEPTS: A Capability Framework for Human-Centered Agent Design
+
+du-nlp-lab/MLR-Copilot
+
+N
+
+—
+
+P064
+
+G116
+
+ADEPTS: A Capability Framework for Human-Centered Agent Design
+
+snap-stanford/MLAgentBench
+
+N
+
+—
+
+P065
+
+G051
+
+Story2Proposal: A Scaffold for Structured Scientific Paper Writing
+
+HKUDS/AI-Researcher
+
+N
+
+—
+
+P065
+
+G064
+
+Story2Proposal: A Scaffold for Structured Scientific Paper Writing
+
+JinheonBaek/ResearchAgent
+
+N
+
+—
+
+P065
+
+G109
+
+Story2Proposal: A Scaffold for Structured Scientific Paper Writing
+
+SakanaAI/AI-Scientist
+
+N
+
+—
+
+P065
+
+G110
+
+Story2Proposal: A Scaffold for Structured Scientific Paper Writing
+
+SakanaAI/AI-Scientist-v2
+
+N
+
+—
+
+P065
+
+G111
+
+Story2Proposal: A Scaffold for Structured Scientific Paper Writing
+
+SamuelSchmidgall/AgentLaboratory
+
+N
+
+—
+
+P067
+
+G051
+
+EigentSearch-Q+: Enhancing Deep Research Agents with Structured Reasoning Tools
+
+HKUDS/AI-Researcher
+
+N
+
+—
+
+P067
+
+G097
+
+EigentSearch-Q+: Enhancing Deep Research Agents with Structured Reasoning Tools
+
+OpenRaiser/NanoResearch
+
+N
+
+—
+
+P067
+
+G111
+
+EigentSearch-Q+: Enhancing Deep Research Agents with Structured Reasoning Tools
+
+SamuelSchmidgall/AgentLaboratory
+
+N
+
+—
+
+P067
+
+G022
+
+EigentSearch-Q+: Enhancing Deep Research Agents with Structured Reasoning Tools
+
+camel-ai/eigent_search
+
+CA
+
+Boer Zhang; Dongzhuoran Zhou; Guohao Li; Mingyan Wu; Puzhen Zhang; Wendong Fan; Yuan He; Yuqicheng Zhu; Zifeng Ding
+
+P067
+
+G032
+
+EigentSearch-Q+: Enhancing Deep Research Agents with Structured Reasoning Tools
+
+du-nlp-lab/MLR-Copilot
+
+N
+
+—
+
+P070
+
+G097
+
+GAIA: Geothermal Analytics Intelligent Agent
+
+OpenRaiser/NanoResearch
+
+N
+
+—
+
+P070
+
+G011
+
+GAIA: Geothermal Analytics Intelligent Agent
+
+aiming-lab/AutoResearchClaw
+
+N
+
+—
+
+P070
+
+G116
+
+GAIA: Geothermal Analytics Intelligent Agent
+
+snap-stanford/MLAgentBench
+
+N
+
+—
+
+P071
+
+G051
+
+Evaluating Stochasticity in Deep Research Agents
+
+HKUDS/AI-Researcher
+
+N
+
+—
+
+P071
+
+G097
+
+Evaluating Stochasticity in Deep Research Agents
+
+OpenRaiser/NanoResearch
+
+N
+
+—
+
+P071
+
+G113
+
+Evaluating Stochasticity in Deep Research Agents
+
+Sibyl-Research-Team/AutoResearch-SibylSystem
+
+N
+
+—
+
+P074
+
+G079
+
+CoVe: Training Interactive Tool-Use Agents via Constraint-Guided Verification
+
+MASWorks/ML-Agent
+
+N
+
+—
+
+P074
+
+G044
+
+CoVe: Training Interactive Tool-Use Agents via Constraint-Guided Verification
+
+gepa-ai/gepa
+
+N
+
+—
+
+P074
+
+G116
+
+CoVe: Training Interactive Tool-Use Agents via Constraint-Guided Verification
+
+snap-stanford/MLAgentBench
+
+N
+
+—
+
+P076
+
+G053
+
+Towards Efficient Agents: A Co-Design of Inference Architecture and System
+
+HKUDS/ClawTeam
+
+N
+
+—
+
+P076
+
+G100
+
+Towards Efficient Agents: A Co-Design of Inference Architecture and System
+
+Orchestra-Research/AI-Research-SKILLs
+
+N
+
+—
+
+P076
+
+G056
+
+Towards Efficient Agents: A Co-Design of Inference Architecture and System
+
+hyperspaceai/agi
+
+N
+
+—
+
+P079
+
+G055
+
+SwarmSys: Decentralized Swarm-Inspired Agents for Scalable and Adaptive Reasoning
+
+Human-Agent-Society/CORAL
+
+N
+
+—
+
+P079
+
+G064
+
+SwarmSys: Decentralized Swarm-Inspired Agents for Scalable and Adaptive Reasoning
+
+JinheonBaek/ResearchAgent
+
+N
+
+—
+
+P079
+
+G111
+
+SwarmSys: Decentralized Swarm-Inspired Agents for Scalable and Adaptive Reasoning
+
+SamuelSchmidgall/AgentLaboratory
+
+N
+
+—
+
+P079
+
+G113
+
+SwarmSys: Decentralized Swarm-Inspired Agents for Scalable and Adaptive Reasoning
+
+Sibyl-Research-Team/AutoResearch-SibylSystem
+
+N
+
+—
+
+P080
+
+G051
+
+Improving and Evaluating Open Deep Research Agents
+
+HKUDS/AI-Researcher
+
+N
+
+—
+
+P080
+
+G064
+
+Improving and Evaluating Open Deep Research Agents
+
+JinheonBaek/ResearchAgent
+
+N
+
+—
+
+P080
+
+G111
+
+Improving and Evaluating Open Deep Research Agents
+
+SamuelSchmidgall/AgentLaboratory
+
+N
+
+—
+
+P080
+
+G092
+
+Improving and Evaluating Open Deep Research Agents
+
+nickscamara/open-deep-research
+
+C
+
+—
+
+P081
+
+G053
+
+A Hierarchical Agentic Framework for Autonomous Drone-Based Visual Inspection
+
+HKUDS/ClawTeam
+
+N
+
+—
+
+P081
+
+G055
+
+A Hierarchical Agentic Framework for Autonomous Drone-Based Visual Inspection
+
+Human-Agent-Society/CORAL
+
+N
+
+—
+
+P081
+
+G111
+
+A Hierarchical Agentic Framework for Autonomous Drone-Based Visual Inspection
+
+SamuelSchmidgall/AgentLaboratory
+
+N
+
+—
+
+P083
+
+G055
+
+MedCoAct: Confidence-Aware Multi-Agent Collaboration for Complete Clinical Decision
+
+Human-Agent-Society/CORAL
+
+N
+
+—
+
+P083
+
+G064
+
+MedCoAct: Confidence-Aware Multi-Agent Collaboration for Complete Clinical Decision
+
+JinheonBaek/ResearchAgent
+
+N
+
+—
+
+P083
+
+G102
+
+MedCoAct: Confidence-Aware Multi-Agent Collaboration for Complete Clinical Decision
+
+PouriaRouzrokh/LatteReview
+
+N
+
+—
+
+P084
+
+G104
+
+Autonomous Data Processing using Meta-Agents
+
+RightNow-AI/autokernel
+
+N
+
+—
+
+P084
+
+G131
+
+Autonomous Data Processing using Meta-Agents
+
+WecoAI/aideml
+
+N
+
+—
+
+P084
+
+G032
+
+Autonomous Data Processing using Meta-Agents
+
+du-nlp-lab/MLR-Copilot
+
+N
+
+—
+
+P084
+
+G116
+
+Autonomous Data Processing using Meta-Agents
+
+snap-stanford/MLAgentBench
+
+N
+
+—
+
+P086
+
+G055
+
+Towards AI-Enabled Training Needs Analysis Using Dual AI-Agent Collaboration
+
+Human-Agent-Society/CORAL
+
+N
+
+—
+
+P086
+
+G102
+
+Towards AI-Enabled Training Needs Analysis Using Dual AI-Agent Collaboration
+
+PouriaRouzrokh/LatteReview
+
+N
+
+—
+
+P086
+
+G111
+
+Towards AI-Enabled Training Needs Analysis Using Dual AI-Agent Collaboration
+
+SamuelSchmidgall/AgentLaboratory
+
+N
+
+—
+
+P088
+
+G053
+
+A Hierarchical Agentic Framework for Autonomous Drone-Based Visual Inspection
+
+HKUDS/ClawTeam
+
+N
+
+—
+
+P088
+
+G055
+
+A Hierarchical Agentic Framework for Autonomous Drone-Based Visual Inspection
+
+Human-Agent-Society/CORAL
+
+N
+
+—
+
+P088
+
+G111
+
+A Hierarchical Agentic Framework for Autonomous Drone-Based Visual Inspection
+
+SamuelSchmidgall/AgentLaboratory
+
+N
+
+—
+
+P093
+
+G064
+
+FlowSearcher: Synthesizing Memory-Guided Agentic Workflows for Web Information Seeking
+
+JinheonBaek/ResearchAgent
+
+N
+
+—
+
+P093
+
+G133
+
+FlowSearcher: Synthesizing Memory-Guided Agentic Workflows for Web Information Seeking
+
+XiangKeYiNTU/flowsearcher
+
+CA
+
+Keyi Xiang
+
+P093
+
+G032
+
+FlowSearcher: Synthesizing Memory-Guided Agentic Workflows for Web Information Seeking
+
+du-nlp-lab/MLR-Copilot
+
+N
+
+—
+
+P093
+
+G068
+
+FlowSearcher: Synthesizing Memory-Guided Agentic Workflows for Web Information Seeking
+
+kayba-ai/recursive-improve
+
+N
+
+—
+
+P093
+
+G123
+
+FlowSearcher: Synthesizing Memory-Guided Agentic Workflows for Web Information Seeking
+
+tonitangpotato/autoresearch-engram
+
+N
+
+—
+
+P094
+
+G111
+
+Improving Completeness in Deep Research Agents through Targeted Enrichment (HERO)
+
+SamuelSchmidgall/AgentLaboratory
+
+N
+
+—
+
+P097
+
+G109
+
+CausalGame: Benchmarking Causal Thinking of LLM Agents in Games
+
+SakanaAI/AI-Scientist
+
+N
+
+—
+
+P097
+
+G110
+
+CausalGame: Benchmarking Causal Thinking of LLM Agents in Games
+
+SakanaAI/AI-Scientist-v2
+
+N
+
+—
+
+P097
+
+G111
+
+CausalGame: Benchmarking Causal Thinking of LLM Agents in Games
+
+SamuelSchmidgall/AgentLaboratory
+
+N
+
+—
+
+P097
+
+G011
+
+CausalGame: Benchmarking Causal Thinking of LLM Agents in Games
+
+aiming-lab/AutoResearchClaw
+
+N
+
+—
+
+P100
+
+G053
+
+Smarter Geothermal Field Development with Agentic AI System, GAIA
+
+HKUDS/ClawTeam
+
+N
+
+—
+
+P100
+
+G097
+
+Smarter Geothermal Field Development with Agentic AI System, GAIA
+
+OpenRaiser/NanoResearch
+
+N
+
+—
+
+P100
+
+G102
+
+Smarter Geothermal Field Development with Agentic AI System, GAIA
+
+PouriaRouzrokh/LatteReview
+
+N
+
+—
+
+P100
+
+G011
+
+Smarter Geothermal Field Development with Agentic AI System, GAIA
+
+aiming-lab/AutoResearchClaw
+
+N
+
+—
+
+Corpus sources
+
+[2]
+[] Repository labels G001–G139 and paper labels P001–P101 resolve the records in Supplementary Tables S1 and S2. Shared labels identify duplicate paper records that resolve to one bibliographic artifact. Artifacts already cited in the main reference list retain their numeric citation.
+
+[G001]
+
+ac-rad.
+
+ac-rad/organa.
+
+GitHub repository, accessed 10 June 2026.
+
+https://github.com/ac-rad/organa.
+
+[G002]
+
+activeloopai.
+
+activeloopai/autoresearch_deeplake_swarm.
+
+GitHub repository, accessed 10 June 2026.
+
+https://github.com/activeloopai/autoresearch_deeplake_swarm.
+
+[G003]
+
+affaan-m.
+
+affaan-m/everything-claude-code.
+
+GitHub repository, accessed 10 June 2026.
+
+https://github.com/affaan-m/everything-claude-code.
+
+[G004]
+
+Agent-Analytics.
+
+Agent-Analytics/autoresearch-growth.
+
+GitHub repository, accessed 10 June 2026.
+
+https://github.com/Agent-Analytics/autoresearch-growth.
+
+[G005]
+
+agent-on-the-fly.
+
+agent-on-the-fly/InfoSeeker.
+
+GitHub repository, accessed 10 June 2026.
+
+https://github.com/agent-on-the-fly/InfoSeeker.
+
+[G006]
+
+Agent-RL.
+
+Agent-RL/ReCall.
+
+GitHub repository, accessed 10 June 2026.
+
+https://github.com/Agent-RL/ReCall.
+
+[G007]
+
+agentmemoryworld.
+
+agentmemoryworld/awesome-agent-memory.
+
+GitHub repository, accessed 10 June 2026.
+
+https://github.com/agentmemoryworld/awesome-agent-memory.
+
+[G008]
+
+ai-agents-2030.
+
+ai-agents-2030/awesome-deep-research-agent.
+
+GitHub repository, accessed 10 June 2026.
+
+https://github.com/ai-agents-2030/awesome-deep-research-agent.
+
+[G009]
+
+aibuildai.
+
+aibuildai/AI-Build-AI.
+
+GitHub repository, accessed 10 June 2026.
+
+https://github.com/aibuildai/AI-Build-AI.
+
+[G010]
+
+AIDC-AI.
+
+AIDC-AI/Marco-DeepResearch.
+
+GitHub repository, accessed 10 June 2026.
+
+https://github.com/AIDC-AI/Marco-DeepResearch.
+
+[G011]
+
+aiming-lab.
+
+aiming-lab/AutoResearchClaw.
+
+GitHub repository, accessed 10 June 2026.
+
+https://github.com/aiming-lab/AutoResearchClaw.
+
+[G012]
+
+alfonsograziano.
+
+alfonsograziano/auto-agent.
+
+GitHub repository, accessed 10 June 2026.
+
+https://github.com/alfonsograziano/auto-agent.
+
+[G013]
+
+algorithmicsuperintelligence.
+
+algorithmicsuperintelligence/openevolve.
+
+GitHub repository, accessed 10 June 2026.
+
+https://github.com/algorithmicsuperintelligence/openevolve.
+
+[G014]
+
+alibaba-nlp.
+
+alibaba-nlp/DeepResearch.
+
+GitHub repository, accessed 10 June 2026.
+
+https://github.com/alibaba-nlp/DeepResearch.
+
+[G015]
+
+Alpha-Innovator.
+
+Alpha-Innovator/InternAgent.
+
+GitHub repository, accessed 10 June 2026.
+
+https://github.com/Alpha-Innovator/InternAgent.
+
+[G016]
+
+antgroup.
+
+antgroup/Research-Venus.
+
+GitHub repository, accessed 10 June 2026.
+
+https://github.com/antgroup/Research-Venus.
+
+[G017]
+
+ArchishmanSengupta.
+
+ArchishmanSengupta/autovoiceevals.
+
+GitHub repository, accessed 10 June 2026.
+
+https://github.com/ArchishmanSengupta/autovoiceevals.
+
+[G018]
+
+ArmanJR-Lab.
+
+ArmanJR-Lab/autoautoresearch.
+
+GitHub repository, accessed 10 June 2026.
+
+https://github.com/ArmanJR-Lab/autoautoresearch.
+
+[G019]
+
+baidubce.
+
+baidubce/FM-Agent.
+
+GitHub repository, accessed 10 June 2026.
+
+https://github.com/baidubce/FM-Agent.
+
+[G020]
+
+buildoak.
+
+buildoak/tennis-xgboost-autoresearch.
+
+GitHub repository, accessed 10 June 2026.
+
+https://github.com/buildoak/tennis-xgboost-autoresearch.
+
+[G021]
+
+bytedance.
+
+bytedance/deer-flow.
+
+GitHub repository, accessed 10 June 2026.
+
+https://github.com/bytedance/deer-flow.
+
+[G022]
+
+camel-ai.
+
+camel-ai/eigent_search.
+
+GitHub repository, accessed 10 June 2026.
+
+https://github.com/camel-ai/eigent_search.
+
+[G023]
+
+camel-ai.
+
+camel-ai/owl.
+
+GitHub repository, accessed 10 June 2026.
+
+https://github.com/camel-ai/owl.
+
+[G024]
+
+CBaquero.
+
+CBaquero/BTCautoresearch.
+
+GitHub repository, accessed 10 June 2026.
+
+https://github.com/CBaquero/BTCautoresearch.
+
+[G025]
+
+chchenhui.
+
+chchenhui/mlrbench.
+
+GitHub repository, accessed 10 June 2026.
+
+https://github.com/chchenhui/mlrbench.
+
+[G026]
+
+ChrisHayduk.
+
+ChrisHayduk/SimplexFold.
+
+GitHub repository, accessed 10 June 2026.
+
+https://github.com/ChrisHayduk/SimplexFold.
+
+[G027]
+
+chrisworsey55.
+
+chrisworsey55/atlas-gic.
+
+GitHub repository, accessed 10 June 2026.
+
+https://github.com/chrisworsey55/atlas-gic.
+
+[G028]
+
+cxcscmu.
+
+cxcscmu/AgentWebBench.
+
+GitHub repository, accessed 10 June 2026.
+
+https://github.com/cxcscmu/AgentWebBench.
+
+[G029]
+
+davebcn87.
+
+davebcn87/pi-autoresearch.
+
+GitHub repository, accessed 10 June 2026.
+
+https://github.com/davebcn87/pi-autoresearch.
+
+[G030]
+
+dorukardahan.
+
+dorukardahan/ZeroAPI.
+
+GitHub repository, accessed 10 June 2026.
+
+https://github.com/dorukardahan/ZeroAPI.
+
+[G031]
+
+drivelineresearch.
+
+drivelineresearch/autoresearch-claude-code.
+
+GitHub repository, accessed 10 June 2026.
+
+https://github.com/drivelineresearch/autoresearch-claude-code.
+
+[G032]
+
+du-nlp-lab.
+
+du-nlp-lab/MLR-Copilot.
+
+GitHub repository, accessed 10 June 2026.
+
+https://github.com/du-nlp-lab/MLR-Copilot.
+
+[G033]
+
+du-nlp-lab.
+
+du-nlp-lab/nlp-coresearcher.
+
+GitHub repository, accessed 10 June 2026.
+
+https://github.com/du-nlp-lab/nlp-coresearcher.
+
+[G034]
+
+eimenhmdt.
+
+eimenhmdt/autoresearcher.
+
+GitHub repository, accessed 10 June 2026.
+
+https://github.com/eimenhmdt/autoresearcher.
+
+[G035]
+
+Entrpi.
+
+Entrpi/autoresearch-everywhere.
+
+GitHub repository, accessed 10 June 2026.
+
+https://github.com/Entrpi/autoresearch-everywhere.
+
+[G036]
+
+evigbyen.
+
+evigbyen/drbench.
+
+GitHub repository, accessed 10 June 2026.
+
+https://github.com/evigbyen/drbench.
+
+[G037]
+
+evo-hq.
+
+evo-hq/evo.
+
+GitHub repository, accessed 10 June 2026.
+
+https://github.com/evo-hq/evo.
+
+[G038]
+
+facebookresearch.
+
+facebookresearch/aira-dojo.
+
+GitHub repository, accessed 10 June 2026.
+
+https://github.com/facebookresearch/aira-dojo.
+
+[G039]
+
+FoundationAgents.
+
+FoundationAgents/MetaGPT.
+
+GitHub repository, accessed 10 June 2026.
+
+https://github.com/FoundationAgents/MetaGPT.
+
+[G040]
+
+FractalAIResearchLabs.
+
+FractalAIResearchLabs/PiEvolve.
+
+GitHub repository, accessed 10 June 2026.
+
+https://github.com/FractalAIResearchLabs/PiEvolve.
+
+[G041]
+
+future-house.
+
+future-house/paper-qa.
+
+GitHub repository, accessed 10 June 2026.
+
+https://github.com/future-house/paper-qa.
+
+[G042]
+
+GAIR-NLP.
+
+GAIR-NLP/DeepResearcher.
+
+GitHub repository, accessed 10 June 2026.
+
+https://github.com/GAIR-NLP/DeepResearcher.
+
+[G043]
+
+GAIR-NLP.
+
+GAIR-NLP/OpenResearcher.
+
+GitHub repository, accessed 10 June 2026.
+
+https://github.com/GAIR-NLP/OpenResearcher.
+
+[G044]
+
+gepa-ai.
+
+gepa-ai/gepa.
+
+GitHub repository, accessed 10 June 2026.
+
+https://github.com/gepa-ai/gepa.
+
+[G045]
+
+gersteinlab.
+
+gersteinlab/ML-Bench.
+
+GitHub repository, accessed 10 June 2026.
+
+https://github.com/gersteinlab/ML-Bench.
+
+[G046]
+
+gianfrancopiana.
+
+gianfrancopiana/openclaw-autoresearch.
+
+GitHub repository, accessed 10 June 2026.
+
+https://github.com/gianfrancopiana/openclaw-autoresearch.
+
+[G047]
+
+GliteTech.
+
+GliteTech/glite-arf.
+
+GitHub repository, accessed 10 June 2026.
+
+https://github.com/GliteTech/glite-arf.
+
+[G048]
+
+gomesgroup.
+
+gomesgroup/coscientist.
+
+GitHub repository, accessed 10 June 2026.
+
+https://github.com/gomesgroup/coscientist.
+
+[G049]
+
+greyhaven-ai.
+
+greyhaven-ai/autocontext.
+
+GitHub repository, accessed 10 June 2026.
+
+https://github.com/greyhaven-ai/autocontext.
+
+[G050]
+
+hjyao00.
+
+hjyao00/awesome-agentic-mllms.
+
+GitHub repository, accessed 10 June 2026.
+
+https://github.com/hjyao00/awesome-agentic-mllms.
+
+[G052]
+
+HKUDS.
+
+HKUDS/AutoAgent.
+
+GitHub repository, accessed 10 June 2026.
+
+https://github.com/HKUDS/AutoAgent.
+
+[G053]
+
+HKUDS.
+
+HKUDS/ClawTeam.
+
+GitHub repository, accessed 10 June 2026.
+
+https://github.com/HKUDS/ClawTeam.
+
+[G054]
+
+HKUST-KnowComp.
+
+HKUST-KnowComp/Awesome-LLM-Scientific-Discovery.
+
+GitHub repository, accessed 10 June 2026.
+
+https://github.com/HKUST-KnowComp/Awesome-LLM-Scientific-Discovery.
+
+[G055]
+
+Human-Agent-Society.
+
+Human-Agent-Society/CORAL.
+
+GitHub repository, accessed 10 June 2026.
+
+https://github.com/Human-Agent-Society/CORAL.
+
+[G056]
+
+hyperspaceai.
+
+hyperspaceai/agi.
+
+GitHub repository, accessed 10 June 2026.
+
+https://github.com/hyperspaceai/agi.
+
+[G057]
+
+iii-hq.
+
+iii-hq/iii.
+
+GitHub repository, accessed 10 June 2026.
+
+https://github.com/iii-hq/iii.
+
+[G058]
+
+iii-hq.
+
+iii-hq/n-autoresearch.
+
+GitHub repository, accessed 10 June 2026.
+
+https://github.com/iii-hq/n-autoresearch.
+
+[G059]
+
+InternScience.
+
+InternScience/MLEvolve.
+
+GitHub repository, accessed 10 June 2026.
+
+https://github.com/InternScience/MLEvolve.
+
+[G060]
+
+InternScience.
+
+InternScience/ResearchClawBench.
+
+GitHub repository, accessed 10 June 2026.
+
+https://github.com/InternScience/ResearchClawBench.
+
+[G061]
+
+james-s-tayler.
+
+james-s-tayler/lazy-developer.
+
+GitHub repository, accessed 10 June 2026.
+
+https://github.com/james-s-tayler/lazy-developer.
+
+[G062]
+
+jennyzzt.
+
+jennyzzt/dgm.
+
+GitHub repository, accessed 10 June 2026.
+
+https://github.com/jennyzzt/dgm.
+
+[G063]
+
+jeongph.
+
+jeongph/autospec.
+
+GitHub repository, accessed 10 June 2026.
+
+https://github.com/jeongph/autospec.
+
+[G065]
+
+jmilinovich.
+
+jmilinovich/goal-md.
+
+GitHub repository, accessed 10 June 2026.
+
+https://github.com/jmilinovich/goal-md.
+
+[G066]
+
+jsegov.
+
+jsegov/autoresearch-win-rtx.
+
+GitHub repository, accessed 10 June 2026.
+
+https://github.com/jsegov/autoresearch-win-rtx.
+
+[G067]
+
+karpathy.
+
+karpathy/autoresearch.
+
+GitHub repository, accessed 10 June 2026.
+
+https://github.com/karpathy/autoresearch.
+
+[G068]
+
+kayba-ai.
+
+kayba-ai/recursive-improve.
+
+GitHub repository, accessed 10 June 2026.
+
+https://github.com/kayba-ai/recursive-improve.
+
+[G069]
+
+kortix-ai.
+
+kortix-ai/suna.
+
+GitHub repository, accessed 10 June 2026.
+
+https://github.com/kortix-ai/suna.
+
+[G070]
+
+Leeroo-AI.
+
+Leeroo-AI/kapso.
+
+GitHub repository, accessed 10 June 2026.
+
+https://github.com/Leeroo-AI/kapso.
+
+[G071]
+
+leo-lilinxiao.
+
+leo-lilinxiao/codex-autoresearch.
+
+GitHub repository, accessed 10 June 2026.
+
+https://github.com/leo-lilinxiao/codex-autoresearch.
+
+[G072]
+
+LitLLM.
+
+LitLLM/LitLLM.
+
+GitHub repository, accessed 10 June 2026.
+
+https://github.com/LitLLM/LitLLM.
+
+[G073]
+
+Liu-Hy.
+
+Liu-Hy/GenoMAS.
+
+GitHub repository, accessed 10 June 2026.
+
+https://github.com/Liu-Hy/GenoMAS.
+
+[G074]
+
+llnl.
+
+llnl/open-ai-co-scientist.
+
+GitHub repository, accessed 10 June 2026.
+
+https://github.com/llnl/open-ai-co-scientist.
+
+[G075]
+
+lucasgelfond.
+
+lucasgelfond/autoresearch-webgpu.
+
+GitHub repository, accessed 10 June 2026.
+
+https://github.com/lucasgelfond/autoresearch-webgpu.
+
+[G076]
+
+mangopy.
+
+mangopy/deep-research-survey.
+
+GitHub repository, accessed 10 June 2026.
+
+https://github.com/mangopy/deep-research-survey.
+
+[G077]
+
+mannaandpoem.
+
+mannaandpoem/OpenManus.
+
+GitHub repository, accessed 10 June 2026.
+
+https://github.com/mannaandpoem/OpenManus.
+
+[G078]
+
+masamasa59.
+
+masamasa59/ai-agent-papers.
+
+GitHub repository, accessed 10 June 2026.
+
+https://github.com/masamasa59/ai-agent-papers.
+
+[G079]
+
+MASWorks.
+
+MASWorks/ML-Agent.
+
+GitHub repository, accessed 10 June 2026.
+
+https://github.com/MASWorks/ML-Agent.
+
+[G080]
+
+MatthewZMD.
+
+MatthewZMD/agent-digivolve-harness.
+
+GitHub repository, accessed 10 June 2026.
+
+https://github.com/MatthewZMD/agent-digivolve-harness.
+
+[G081]
+
+mattprusak.
+
+mattprusak/autoresearch-genealogy.
+
+GitHub repository, accessed 10 June 2026.
+
+https://github.com/mattprusak/autoresearch-genealogy.
+
+[G082]
+
+MaximeRobeyns.
+
+MaximeRobeyns/self_improving_coding_agent.
+
+GitHub repository, accessed 10 June 2026.
+
+https://github.com/MaximeRobeyns/self_improving_coding_agent.
+
+[G083]
+
+Memento-Teams.
+
+Memento-Teams/Memento.
+
+GitHub repository, accessed 10 June 2026.
+
+https://github.com/Memento-Teams/Memento.
+
+[G084]
+
+metauto-ai.
+
+metauto-ai/HGM.
+
+GitHub repository, accessed 10 June 2026.
+
+https://github.com/metauto-ai/HGM.
+
+[G085]
+
+microsoft.
+
+microsoft/RD-Agent.
+
+GitHub repository, accessed 10 June 2026.
+
+https://github.com/microsoft/RD-Agent.
+
+[G086]
+
+microsoft.
+
+microsoft/UFO.
+
+GitHub repository, accessed 10 June 2026.
+
+https://github.com/microsoft/UFO.
+
+[G087]
+
+miolini.
+
+miolini/autoresearch-macos.
+
+GitHub repository, accessed 10 June 2026.
+
+https://github.com/miolini/autoresearch-macos.
+
+[G088]
+
+MiroMindAI.
+
+MiroMindAI/MiroRL.
+
+GitHub repository, accessed 10 June 2026.
+
+https://github.com/MiroMindAI/MiroRL.
+
+[G089]
+
+MoonshotAI.
+
+MoonshotAI/Kimi-Researcher.
+
+GitHub repository, accessed 10 June 2026.
+
+https://github.com/MoonshotAI/Kimi-Researcher.
+
+[G090]
+
+MrTsepa.
+
+MrTsepa/autoevolve.
+
+GitHub repository, accessed 10 June 2026.
+
+https://github.com/MrTsepa/autoevolve.
+
+[G091]
+
+mutable-state-inc.
+
+mutable-state-inc/autoresearch-at-home.
+
+GitHub repository, accessed 10 June 2026.
+
+https://github.com/mutable-state-inc/autoresearch-at-home.
+
+[G092]
+
+nickscamara.
+
+nickscamara/open-deep-research.
+
+GitHub repository, accessed 10 June 2026.
+
+https://github.com/nickscamara/open-deep-research.
+
+[G093]
+
+open-sciencelab.
+
+open-sciencelab/awesome-scientific-datasets-and-llms.
+
+GitHub repository, accessed 10 June 2026.
+
+https://github.com/open-sciencelab/awesome-scientific-datasets-and-llms.
+
+[G094]
+
+openags.
+
+openags/Auto-Research.
+
+GitHub repository, accessed 10 June 2026.
+
+https://github.com/openags/Auto-Research.
+
+[G095]
+
+openags.
+
+openags/Awesome-AI-Scientist-Papers.
+
+GitHub repository, accessed 10 June 2026.
+
+https://github.com/openags/Awesome-AI-Scientist-Papers.
+
+[G096]
+
+openai.
+
+openai/mle-bench.
+
+GitHub repository, accessed 10 June 2026.
+
+https://github.com/openai/mle-bench.
+
+[G098]
+
+OPPO-PersonalAI.
+
+OPPO-PersonalAI/FINDER_DEFT.
+
+GitHub repository, accessed 10 June 2026.
+
+https://github.com/OPPO-PersonalAI/FINDER_DEFT.
+
+[G099]
+
+OPPO-PersonalAI.
+
+OPPO-PersonalAI/OAgents.
+
+GitHub repository, accessed 10 June 2026.
+
+https://github.com/OPPO-PersonalAI/OAgents.
+
+[G100]
+
+Orchestra-Research.
+
+Orchestra-Research/AI-Research-SKILLs.
+
+GitHub repository, accessed 10 June 2026.
+
+https://github.com/Orchestra-Research/AI-Research-SKILLs.
+
+[G101]
+
+peterskoett.
+
+peterskoett/self-improving-agent.
+
+GitHub repository, accessed 10 June 2026.
+
+https://github.com/peterskoett/self-improving-agent.
+
+[G102]
+
+PouriaRouzrokh.
+
+PouriaRouzrokh/LatteReview.
+
+GitHub repository, accessed 10 June 2026.
+
+https://github.com/PouriaRouzrokh/LatteReview.
+
+[G103]
+
+raktim-mondol.
+
+raktim-mondol/co-scientist.
+
+GitHub repository, accessed 10 June 2026.
+
+https://github.com/raktim-mondol/co-scientist.
+
+[G104]
+
+RightNow-AI.
+
+RightNow-AI/autokernel.
+
+GitHub repository, accessed 10 June 2026.
+
+https://github.com/RightNow-AI/autokernel.
+
+[G105]
+
+rivirside.
+
+rivirside/cft.
+
+GitHub repository, accessed 10 June 2026.
+
+https://github.com/rivirside/cft.
+
+[G106]
+
+Rkcr7.
+
+Rkcr7/autoresearch-sudoku.
+
+GitHub repository, accessed 10 June 2026.
+
+https://github.com/Rkcr7/autoresearch-sudoku.
+
+[G107]
+
+RUC-NLPIR.
+
+RUC-NLPIR/Search-o1.
+
+GitHub repository, accessed 10 June 2026.
+
+https://github.com/RUC-NLPIR/Search-o1.
+
+[G108]
+
+RUC-NLPIR.
+
+RUC-NLPIR/WebThinker.
+
+GitHub repository, accessed 10 June 2026.
+
+https://github.com/RUC-NLPIR/WebThinker.
+
+[G110]
+
+SakanaAI.
+
+SakanaAI/AI-Scientist-v2.
+
+GitHub repository, accessed 10 June 2026.
+
+https://github.com/SakanaAI/AI-Scientist-v2.
+
+[G112]
+
+ShengranHu.
+
+ShengranHu/ADAS.
+
+GitHub repository, accessed 10 June 2026.
+
+https://github.com/ShengranHu/ADAS.
+
+[G113]
+
+Sibyl-Research-Team.
+
+Sibyl-Research-Team/AutoResearch-SibylSystem.
+
+GitHub repository, accessed 10 June 2026.
+
+https://github.com/Sibyl-Research-Team/AutoResearch-SibylSystem.
+
+[G114]
+
+sipyourdrink-ltd.
+
+sipyourdrink-ltd/bernstein.
+
+GitHub repository, accessed 10 June 2026.
+
+https://github.com/sipyourdrink-ltd/bernstein.
+
+[G115]
+
+sjtu-sai-agents.
+
+sjtu-sai-agents/ML-Master.
+
+GitHub repository, accessed 10 June 2026.
+
+https://github.com/sjtu-sai-agents/ML-Master.
+
+[G117]
+
+supratikpm.
+
+supratikpm/gemini-autoresearch.
+
+GitHub repository, accessed 10 June 2026.
+
+https://github.com/supratikpm/gemini-autoresearch.
+
+[G118]
+
+Tencent.
+
+Tencent/CognitiveKernel-Pro.
+
+GitHub repository, accessed 10 June 2026.
+
+https://github.com/Tencent/CognitiveKernel-Pro.
+
+[G119]
+
+The-Swarm-Corporation.
+
+The-Swarm-Corporation/AI-CoScientist.
+
+GitHub repository, accessed 10 June 2026.
+
+https://github.com/The-Swarm-Corporation/AI-CoScientist.
+
+[G120]
+
+THUDM.
+
+THUDM/AgentBench.
+
+GitHub repository, accessed 10 June 2026.
+
+https://github.com/THUDM/AgentBench.
+
+[G121]
+
+THUDM.
+
+THUDM/AgentRL.
+
+GitHub repository, accessed 10 June 2026.
+
+https://github.com/THUDM/AgentRL.
+
+[G122]
+
+tmgthb.
+
+tmgthb/Autonomous-Agents.
+
+GitHub repository, accessed 10 June 2026.
+
+https://github.com/tmgthb/Autonomous-Agents.
+
+[G123]
+
+tonitangpotato.
+
+tonitangpotato/autoresearch-engram.
+
+GitHub repository, accessed 10 June 2026.
+
+https://github.com/tonitangpotato/autoresearch-engram.
+
+[G124]
+
+trevin-creator.
+
+trevin-creator/autoresearch-mlx.
+
+GitHub repository, accessed 10 June 2026.
+
+https://github.com/trevin-creator/autoresearch-mlx.
+
+[G125]
+
+uditgoenka.
+
+uditgoenka/autoresearch.
+
+GitHub repository, accessed 10 June 2026.
+
+https://github.com/uditgoenka/autoresearch.
+
+[G126]
+
+vivekvkashyap.
+
+vivekvkashyap/autoresearch-rl.
+
+GitHub repository, accessed 10 June 2026.
+
+https://github.com/vivekvkashyap/autoresearch-rl.
+
+[G127]
+
+VoltAgent.
+
+VoltAgent/awesome-ai-agent-papers.
+
+GitHub repository, accessed 10 June 2026.
+
+https://github.com/VoltAgent/awesome-ai-agent-papers.
+
+[G128]
+
+VoltAgent.
+
+VoltAgent/awesome-codex-subagents.
+
+GitHub repository, accessed 10 June 2026.
+
+https://github.com/VoltAgent/awesome-codex-subagents.
+
+[G129]
+
+vukrosic.
+
+vukrosic/auto-research.
+
+GitHub repository, accessed 10 June 2026.
+
+https://github.com/vukrosic/auto-research.
+
+[G130]
+
+wanshuiyin.
+
+wanshuiyin/Auto-claude-code-research-in-sleep.
+
+GitHub repository, accessed 10 June 2026.
+
+https://github.com/wanshuiyin/Auto-claude-code-research-in-sleep.
+
+[G131]
+
+WecoAI.
+
+WecoAI/aideml.
+
+GitHub repository, accessed 10 June 2026.
+
+https://github.com/WecoAI/aideml.
+
+[G132]
+
+WecoAI.
+
+WecoAI/awesome-autoresearch.
+
+GitHub repository, accessed 10 June 2026.
+
+https://github.com/WecoAI/awesome-autoresearch.
+
+[G133]
+
+XiangKeYiNTU.
+
+XiangKeYiNTU/flowsearcher.
+
+GitHub repository, accessed 10 June 2026.
+
+https://github.com/XiangKeYiNTU/flowsearcher.
+
+[G134]
+
+YoungDubbyDu.
+
+YoungDubbyDu/LLM-Agent-Optimization.
+
+GitHub repository, accessed 10 June 2026.
+
+https://github.com/YoungDubbyDu/LLM-Agent-Optimization.
+
+[G135]
+
+Zandereins.
+
+Zandereins/schliff.
+
+GitHub repository, accessed 10 June 2026.
+
+https://github.com/Zandereins/schliff.
+
+[G136]
+
+zjunlp.
+
+zjunlp/xKG.
+
+GitHub repository, accessed 10 June 2026.
+
+https://github.com/zjunlp/xKG.
+
+[G137]
+
+zkarimi22.
+
+zkarimi22/autoresearch-anything.
+
+GitHub repository, accessed 10 June 2026.
+
+https://github.com/zkarimi22/autoresearch-anything.
+
+[G138]
+
+zou-group.
+
+zou-group/avatar.
+
+GitHub repository, accessed 10 June 2026.
+
+https://github.com/zou-group/avatar.
+
+[G139]
+
+zou-group.
+
+zou-group/virtual-lab.
+
+GitHub repository, accessed 10 June 2026.
+
+https://github.com/zou-group/virtual-lab.
+
+[P001]
+
+Huichi Zhou, Yihang Chen, Siyuan Guo, Xue Yan, Kin Hei Lee, Zihan Wang, et al.
+
+Memento: Fine-tuning LLM Agents without Fine-tuning LLMs.
+
+arXiv preprint, 2025.
+
+Code or companion artifact: https://github.com/Agent-on-the-Fly/Memento.
+
+[P002]
+
+DeepResearchArena.
+
+Bibliographic metadata for record P002 remains unresolved.
+
+[P003]
+
+MoNaCo.
+
+Bibliographic metadata for record P003 remains unresolved.
+
+[P004]
+
+DRA-MedicalAI.
+
+Bibliographic metadata for record P004 remains unresolved.
+
+[P007]
+
+Zhiyuan Zeng, Jiashuo Liu, Siyuan Chen, Tianci He, Yali Liao, Yixiao Tian, et al.
+
+FutureX: An Advanced Live Benchmark for LLM Agents in Future Prediction.
+
+arXiv:2508.11987, 2025.
+
+[P008]
+
+Huanjin Yao, Ruifei Zhang, Jiaxing Huang, Jingyi Zhang, Yibo Wang, Bo Fang, et al.
+
+A Survey on Agentic Multimodal Large Language Models.
+
+arXiv:2510.10991, 2025.
+
+Code or companion artifact: https://github.com/HJYao00/Awesome-Agentic-MLLMs.
+
+[P009]
+
+Zhichao Xu, Fengran Mo, Zhiqi Huang, Crystina Zhang, Puxuan Yu, Bei Wang, et al.
+
+Information Retrieval Meets Large Language Models: A Comprehensive Survey.
+
+arXiv:2502.14822, 2026.
+
+[P010]
+
+Bisheng Wei, Ruihong Jiang, Ruichen Zhang, Yinqiu Liu, Dusit Niyato, Yaohua Sun, et al.
+
+Large Language Models for Next-Generation Wireless Network Management: A Survey and Tutorial.
+
+IEEE, 2025.
+
+[P011]
+
+DocResearcher.
+
+Bibliographic metadata for record P011 remains unresolved.
+
+[P012]
+
+Hongwei Zhang, Ji Lu, Shiqing Jiang, Chenxiang Zhu, Li Xie, Chen Zhong, et al.
+
+Co-Sight: Enhancing LLM-Based Agents via Conflict-Aware Meta-Verification and Trustworthy Reasoning with Structured Facts.
+
+arXiv:2510.21557, 2025.
+
+[P013]
+
+Zhengliang Shi, Yiqun Chen, Haitao Li, Weiwei Sun, Shiyu Ni, Yougang Lyu, et al.
+
+Deep Research: A Systematic Survey.
+
+arXiv:2512.02038, 2025.
+
+Code or companion artifact: https://github.com/mangopy/Deep-Research-Survey.
+
+[P014]
+
+ToSearchOrNot.
+
+Bibliographic metadata for record P014 remains unresolved.
+
+[P015]
+
+Yang Yao, Yixu Wang, Yuxuan Zhang, Yi Lu, Tianle Gu, Lingyu Li, et al.
+
+DR.BENCH: A Multidimensional Evaluation for Deep Research Agents, from Answers to Reports.
+
+arXiv preprint, 2025.
+
+Code or companion artifact: https://github.com/evigbyen/drbench/.
+
+[P016]
+
+MolAgent.
+
+Bibliographic metadata for record P016 remains unresolved.
+
+[P017]
+
+Dingling Zhang, He Zhu, Jincheng Ren, Kangqi Song, Xinran Zhou, Boyu Feng, et al.
+
+How Far Are We from Genuinely Useful Deep Research Agents?
+
+arXiv:2512.01948, 2025.
+
+Code or companion artifact: https://github.com/OPPO-PersonalAI/FINDER_DEFT.
+
+[P018]
+
+Jinxin Shi, Zongsheng Cao, Runmin Ma, Yusong Hu, Jie Zhou, Xin Li, et al.
+
+DualResearch: Entropy-Gated Dual-Graph Retrieval for Answer Reconstruction.
+
+arXiv:2510.08959, 2025.
+
+[P019]
+
+Yusuke Sakai, Hidetaka Kamigaito, and Taro Watanabe.
+
+HalluCitation Matters: Revealing the Impact of Hallucinated References with 300 Hallucinated Papers in ACL Conferences.
+
+Preprint / ACL Rolling Review, 2026.
+
+[P020]
+
+LLM-Optim-WirelessNet.
+
+Bibliographic metadata for record P020 remains unresolved.
+
+[P021]
+
+Fact2Fiction.
+
+Bibliographic metadata for record P021 remains unresolved.
+
+[P022]
+
+Hui-Ling Zhen, Weizhe Lin, Renxi Liu, Kai Han, Yiming Li, Yuchuan Tian, et al.
+
+DLLM Agent: See Farther, Run Faster.
+
+arXiv:2602.07451, 2026.
+
+[P023]
+
+Pranav Narayanan Venkit, Philippe Laban, Yilun Zhou, Kung-Hsiang Huang, Yixin Mao, and Chien-Sheng Wu.
+
+DeepTRACE: Auditing Deep Research AI Systems for Tracking Reliability Across Citations and Evidence.
+
+arXiv:2509.04499, 2025.
+
+[P024]
+
+Xiangyu Li, Xuan Yao, Guohao Qi, Fengbin Zhu, Kelvin J. L. Koa, Xiang Yao Ng, et al.
+
+FinDeepForecast: A Live Multi-Agent System for Benchmarking Deep Research Agents in Financial Forecasting.
+
+arXiv:2601.05039, 2026.
+
+[P025]
+
+Guangya Wan, Mingyang Ling, Xiaoqi Ren, Rujun Han, Sheng Li, and Zizhao Zhang.
+
+COMPASS: Enhancing Agent Long-Horizon Reasoning with Evolving Context.
+
+arXiv:2510.08790, 2025.
+
+[P026]
+
+Yongqiang Chen, Chenxi Liu, Zhenhao Chen, Tongliang Liu, Bo Han, and Kun Zhang.
+
+CausalEvolve: Towards Open-Ended Discovery with Causal Scratchpad.
+
+arXiv:2603.14575, 2026.
+
+[P027]
+
+Chenyi Li, Zhijian Lai, Dong An, Jiang Hu, and Zaiwen Wen.
+
+Advancing Mathematical Research via Human-AI Interactive Theorem Proving.
+
+arXiv:2512.09443, 2025.
+
+Code or companion artifact: https://github.com/optsuite/MathResearchPrompts.
+
+[P028]
+
+Bin Zhu, Qianghuai Jia, Tian Lan, Junyang Ren, Feng Gu, Feihu Jiang, et al.
+
+Marco DeepResearch: Unlocking Efficient Deep Research Agents via Verification-Centric Design.
+
+arXiv:2603.28376, 2026.
+
+Code or companion artifact: https://github.com/AIDC-AI/Marco-DeepResearch.
+
+[P029]
+
+CollectiveIntelligence.
+
+Bibliographic metadata for record P029 remains unresolved.
+
+[P030]
+
+Ziliang Wang, Kang An, Xuhui Zheng, Faqiang Qian, Weikun Zhang, Jialu Cai, et al.
+
+Erase to Improve: Erasable Reinforcement Learning for Search-Augmented LLMs.
+
+arXiv:2510.00861, 2026.
+
+[P031/P033]
+
+Ping He, Changjiang Li, Binbin Zhao, Tianyu Du, and Shouling Ji.
+
+AutoMalTool: Automatic Red Teaming LLM-based Agents with Model Context Protocol Tools.
+
+arXiv:2509.21011, 2025.
+
+[P032]
+
+Ping He, Changjiang Li, Binbin Zhao, Tianyu Du, and Shouling Ji.
+
+Automatic Red Teaming LLM-based Agents with Model Context Protocol Tools.
+
+arXiv preprint, 2025.
+
+[P034]
+
+Yujie Luo, Zhuoyun Yu, Xuehai Wang, Yuqi Zhu, Ningyu Zhang, Lanning Wei, et al.
+
+What Makes AI Research Replicable? Executable Knowledge Graphs as Scientific Knowledge Representations.
+
+arXiv:2510.17795, 2026.
+
+Code or companion artifact: https://github.com/zjunlp/xKG.
+
+[P035]
+
+Martin Monperrus, Benoit Baudry, and Clément Vidal.
+
+Project Rachel: Can an AI Become a Scholarly Author?
+
+arXiv:2511.14819, 2025.
+
+[P036]
+
+GenAI-DataStories.
+
+Bibliographic metadata for record P036 remains unresolved.
+
+[P037]
+
+Joey Zhong, Hao Zhang, Clare Southern, Jeremy Yang, Thomas Wang, Kate Jung, et al.
+
+DRACO: a Cross-Domain Benchmark for Deep Research Accuracy, Completeness, and Objectivity.
+
+arXiv:2602.11685, 2026.
+
+Code or companion artifact: https://hf.co/datasets/perplexity-ai/draco.
+
+[P038]
+
+Jingsheng Zheng, Jintian Zhang, Yujie Luo, Yuren Mao, Yunjun Gao, Lun Du, et al.
+
+Can We Predict Before Executing Machine Learning Agents?
+
+arXiv preprint, 2025.
+
+Code or companion artifact: https://github.com/zjunlp/predict-before-execute.
+
+[P039]
+
+Tiansheng Hu, Yilun Zhao, Canyu Zhang, Arman Cohan, and Chen Zhao.
+
+SAGE: Benchmarking and Improving Retrieval for Deep Research Agents.
+
+arXiv:2602.05975, 2026.
+
+Code or companion artifact: https://github.com/HughieHu/Sage.
+
+[P040]
+
+Shuo Chen, Zonggen Li, Zhen Han, Bailan He, Tong Liu, Haokun Chen, et al.
+
+Deep Research Brings Deeper Harm.
+
+arXiv:2510.11851, 2025.
+
+[P041]
+
+Fangda Ye, Yuxin Hu, Pengxiang Zhu, Yibo Li, Ziqi Jin, Yao Xiao, et al.
+
+MiroEval: Benchmarking Multimodal Deep Research Agents in Process and Outcome.
+
+arXiv:2603.28407, 2026.
+
+Code or companion artifact: https://github.com/MiroMindAI/MiroEval.
+
+[P042]
+
+Zichen Tang, Zirui Zhang, Qian Wang, Zhenheng Tang, Bo Li, and Xiaowen Chu.
+
+Is Your LLM-as-a-Recommender Agent Trustable? LLMs’ Recommendation is Easily Hacked by Biases.
+
+arXiv preprint, 2025.
+
+Code or companion artifact: https://github.com/trl730109/LLM-as-a-Recommender.
+
+[P043]
+
+ResponsibleAgentic-survey.
+
+Bibliographic metadata for record P043 remains unresolved.
+
+[P044]
+
+Yuqi Zhou, Sunhao Dai, Changle Qu, Liang Pang, Jun Xu, and Ji-Rong Wen.
+
+Learning to Retrieve from Agent Trajectories.
+
+arXiv preprint, 2025.
+
+Code or companion artifact: https://github.com/Yuqi-Zhou/LRAT.
+
+[P045]
+
+Yue Huang, Yu Jiang, Wenjie Wang, Haomin Zhuang, Xiaonan Luo, Yuchen Ma, et al.
+
+Emergent Social Intelligence Risks in Generative Multi-Agent Systems.
+
+arXiv:2603.27771, 2026.
+
+[P046]
+
+Haohao Luo, Zexi Li, Yuexiang Xie, Wenhao Zhang, Yaliang Li, and Ying Shen.
+
+IntentRL: Training Proactive User-intent Agents for Open-ended Deep Research via Reinforcement Learning.
+
+arXiv:2602.03468, 2026.
+
+[P047]
+
+Chaoyun Zhang, Liqun Li, He Huang, Chiming Ni, Bo Qiao, Si Qin, et al.
+
+UFO3: Weaving the Digital Agent Galaxy.
+
+arXiv:2511.11332, 2025.
+
+Code or companion artifact: https://github.com/microsoft/UFO/.
+
+[P048]
+
+Orion Li, Vinayak Agarwal, Summer Zhou, Ashwin Gopinath, and Timothy Kassis.
+
+K-Dense Analyst: Towards Fully Automated Scientific Analysis.
+
+arXiv:2508.07043, 2025.
+
+[P049]
+
+Wei-Chieh Huang, Weizhi Zhang, Yueqing Liang, Yuanchen Bei, Yankai Chen, Tao Feng, et al.
+
+Rethinking Memory Mechanisms of Foundation Agents in the Second Half: A Survey.
+
+arXiv:2602.06052, 2026.
+
+Code or companion artifact: https://github.com/AgentMemoryWorld/Awesome-Agent-Memory.
+
+[P050]
+
+Kaichen He, Zihao Wang, Muyao Li, Anji Liu, and Yitao Liang.
+
+Training One Model to Master Cross-Level Agentic Actions via Reinforcement Learning.
+
+arXiv:2512.09706, 2025.
+
+Code or companion artifact: https://github.com/CraftJarvis/OpenHA.
+
+[P051]
+
+Jimin Mun, Chani Jung, Xuhui Zhou, Hyunwoo Kim, and Maarten Sap.
+
+GoodPoint: Learning Constructive Scientific Paper Feedback from Author Responses.
+
+arXiv:2604.11924, 2026.
+
+[P052]
+
+Shanshan Zhong, Kate Shen, and Chenyan Xiong.
+
+AgentWebBench: Benchmarking Multi-Agent Coordination in Agentic Web.
+
+arXiv:2604.10938, 2026.
+
+Code or companion artifact: https://github.com/cxcscmu/AgentWebBench.
+
+[P053]
+
+Yiteng Tu, Shuo Miao, Weihang Su, Yiqun Liu, and Qingyao Ai.
+
+Analytical Search: A New Paradigm for Evidence-Governed Problem Solving.
+
+arXiv preprint, 2025.
+
+[P054]
+
+Yihan Chen, Benfeng Xu, Xiaorui Wang, and Zhendong Mao.
+
+An Index-based Approach for Efficient and Effective Web Content Extraction.
+
+ACM preprint, 2025.
+
+[P055]
+
+R2A2.
+
+Bibliographic metadata for record P055 remains unresolved.
+
+[P056]
+
+Ruocheng Guo, Kaiwen Dong, Xiang Gao, and Kamalika Das.
+
+Learning to Rewrite Tool Descriptions for Reliable LLM-Agent Tool Use.
+
+arXiv:2602.20426, 2026.
+
+[P057]
+
+Zifan He, Shengyu Ye, Rui Ma, Yang Wang, and Jason Cong.
+
+LUT-LLM: Efficient Language Model Inference with Memory-based Computations on FPGAs.
+
+arXiv preprint / conference submission, 2025.
+
+[P058]
+
+Jingyang Qiao, Weicheng Meng, Yu Cheng, Zhihang Lin, Zhizhong Zhang, Xin Tan, et al.
+
+Memory Intelligence Agent (MIA): Dual-Memory Reinforcement Learning for Deep Research Agents.
+
+arXiv preprint, 2025.
+
+[P059]
+
+Sha Li, and Naren Ramakrishnan.
+
+Experience as a Compass: Multi-agent RAG with Evolving Orchestration and Agent Prompts.
+
+arXiv preprint, 2026.
+
+[P060]
+
+Ruiyang Zhang, Qianguo Sun, Chao Song, Yiyan Qi, and Zhedong Zheng.
+
+VSearcher: Long-Horizon Multimodal Search Agent via Reinforcement Learning.
+
+arXiv:2603.02795, 2026.
+
+Code or companion artifact: https://github.com/Ruiyang-061X/VSearcher.
+
+[P061/P068]
+
+Francesca Pezzuti, Ophir Frieder, Fabrizio Silvestri, Sean MacAvaney, and Nicola Tonellotto.
+
+A Picture of Agentic Search.
+
+arXiv:2602.17518, 2026.
+
+Code or companion artifact: https://github.com/AgenticSearchQueryset/ASQ.
+
+[P062]
+
+Ka Yiu Lee, Yuxuan Huang, Zhiyuan He, Huichi Zhou, Weilin Luo, Kun Shao, et al.
+
+InfoSeeker: A Scalable Hierarchical Parallel Agent Framework for Web Information Seeking.
+
+arXiv:2604.02971, 2026.
+
+Code or companion artifact: https://github.com/agent-on-the-fly/InfoSeeker.
+
+[P063]
+
+Yuhao Zhan, Tianyu Fan, Linxuan Huang, Zirui Guo, and Chao Huang.
+
+Why Your Deep Research Agent Fails? On Hallucination Evaluation in Full Research Trajectory.
+
+arXiv preprint, 2026.
+
+Code or companion artifact: https://github.com/yuhao-zhan/DeepHalluBench.
+
+[P064]
+
+Pierluca D’Oro, Caley Drooff, Joy Chen, and Joseph Tighe.
+
+ADEPTS: A Capability Framework for Human-Centered Agent Design.
+
+arXiv:2507.15885, 2025.
+
+[P065]
+
+Zhuoyang Qian, Wei Shi, Xu Lin, Li Ling, Meng Luo, Ziming Wang, et al.
+
+Story2Proposal: A Scaffold for Structured Scientific Paper Writing.
+
+arXiv:2603.27065, 2026.
+
+[P066]
+
+Yu Yan, Sheng Sun, Mingfeng Li, Zheming Yang, Chiwei Zhu, Fei Ma, et al.
+
+SearchAttack: Red-Teaming LLMs against Knowledge-to-Action Threats under Online Web Search.
+
+arXiv:2601.04093, 2026.
+
+[P067]
+
+Boer Zhang, Mingyan Wu, Dongzhuoran Zhou, Yuqicheng Zhu, Wendong Fan, Puzhen Zhang, et al.
+
+EigentSearch-Q+: Enhancing Deep Research Agents with Structured Reasoning Tools.
+
+arXiv:2604.07927, 2026.
+
+Code or companion artifact: https://github.com/camel-ai/eigent_search.
+
+[P069]
+
+BioMedGraphica.
+
+Bibliographic metadata for record P069 remains unresolved.
+
+[P070]
+
+Mochammad Randy Harsuk, and Zhengfa Nori Nakata.
+
+GAIA: Geothermal Analytics Intelligent Agent.
+
+conference workshop paper, 2025.
+
+[P071]
+
+Haotian Zhai, Elias Stengel-Eskin, Pratik Patil, and Liu Leqi.
+
+Evaluating Stochasticity in Deep Research Agents.
+
+arXiv:2602.23271, 2026.
+
+[P072]
+
+Yiwen Yin, Zhian Hu, Xiaoxi Xu, Chun Yu, Xintong Wu, Wenyu Fan, et al.
+
+TaskSense: Cognitive Chain Modeling and Difficulty Estimation of GUI Tasks.
+
+arXiv:2511.09309, 2025.
+
+[P073]
+
+Sahel Sharifymoghaddam, and Jimmy Lin.
+
+Rerank Before You Reason: Analyzing Reranking Tradeoffs through Effective Token Cost in Deep Search Agents.
+
+arXiv preprint, 2025.
+
+Code or companion artifact: https://github.com/texttron/BrowseComp-Plus.
+
+[P074]
+
+Jinpeng Chen, Cheng Gong, Hanbo Li, Ziru Liu, Zichen Tian, Xinyu Fu, et al.
+
+CoVe: Training Interactive Tool-Use Agents via Constraint-Guided Verification.
+
+arXiv preprint, 2025.
+
+Code or companion artifact: https://cove-agent.github.io.
+
+[P075]
+
+SelfEvolvingAgents-survey.
+
+Bibliographic metadata for record P075 remains unresolved.
+
+[P076]
+
+Weizhe Lin, Hui-Ling Zhen, Shuai Yang, Xian Wang, Renxi Liu, Hanting Chen, et al.
+
+Towards Efficient Agents: A Co-Design of Inference Architecture and System.
+
+arXiv:2512.18337, 2025.
+
+[P077]
+
+IODResearch.
+
+Bibliographic metadata for record P077 remains unresolved.
+
+[P078]
+
+BeyondTextualLogo.
+
+Bibliographic metadata for record P078 remains unresolved.
+
+[P079]
+
+Ruohao Li, Hongjun Liu, Leyi Zhao, Zisu Li, Jiawei Li, Jiajun Jiang, et al.
+
+SwarmSys: Decentralized Swarm-Inspired Agents for Scalable and Adaptive Reasoning.
+
+arXiv preprint, 2025.
+
+[P080]
+
+Doaa Allabadi, Kyle Bradbury, and Jordan M. Malof.
+
+Improving and Evaluating Open Deep Research Agents.
+
+arXiv preprint, 2025.
+
+Code or companion artifact: https://github.com/nickscamara/open-deep-research.
+
+[P081/P088]
+
+Ethan Herron, Xian Yeow Lee, Gregory Sin, Teresa Gonzalez Diaz, Ahmed Farahat, and Chetan Gupta.
+
+A Hierarchical Agentic Framework for Autonomous Drone-Based Visual Inspection.
+
+arXiv:2510.00259, 2025.
+
+[P082]
+
+Shuzhang Zhong, Baotong Lu, Qi Chen, Chuanjie Liu, Fan Yang, and Meng Li.
+
+DualSpec: Accelerating Deep Research Agents via Dual-Process Action Speculation.
+
+arXiv:2603.07416, 2026.
+
+[P083]
+
+Hongjie Zheng, Zesheng Shi, and Ping Yi.
+
+MedCoAct: Confidence-Aware Multi-Agent Collaboration for Complete Clinical Decision.
+
+arXiv:2510.10461, 2025.
+
+[P084]
+
+Udayan Khurana.
+
+Autonomous Data Processing using Meta-Agents.
+
+ACM manuscript, 2025.
+
+[P085]
+
+AgenticSelfEvolution-LLM.
+
+Bibliographic metadata for record P085 remains unresolved.
+
+[P086]
+
+Nikilkumar Patel, Peter J. Barclay, Janice McMillan, and David McGuire.
+
+Towards AI-Enabled Training Needs Analysis Using Dual AI-Agent Collaboration.
+
+ICAART 2026 — 18th International Conference on Agents and Artificial Intelligence, Vol. 4, pp. 3174–3181. DOI: 10.5220/0014403000004052, 2026.
+
+[P087]
+
+CASTCurate.
+
+Bibliographic metadata for record P087 remains unresolved.
+
+[P089]
+
+DRL-Conversational.
+
+Bibliographic metadata for record P089 remains unresolved.
+
+[P090]
+
+William Zhang.
+
+On Holistic Database Optimization via Leveraging Similarity Across Actions, Workloads, Configurations, and Scenarios.
+
+CMU PhD Thesis, 2026.
+
+Code or companion artifact: https://github.com/17zhangw/protox.
+
+[P091]
+
+LinuxFirmwareFuzz.
+
+Bibliographic metadata for record P091 remains unresolved.
+
+[P092]
+
+AISearch-LLM-survey.
+
+Bibliographic metadata for record P092 remains unresolved.
+
+[P093]
+
+Keyi Xiang, Zeyu Feng, Zhuoyi Lin, Yueming Lyu, Shi Boyuan, Yew-Soon Ong, et al.
+
+FlowSearcher: Synthesizing Memory-Guided Agentic Workflows for Web Information Seeking.
+
+ICLR 2026, 2026.
+
+Code or companion artifact: https://github.com/XiangKeYiNTU/flowsearcher.
+
+[P094]
+
+Jesse Wonnink.
+
+Improving Completeness in Deep Research Agents through Targeted Enrichment (HERO).
+
+UvA MSc AI Thesis, 2026.
+
+[P095]
+
+Perspectra.
+
+Bibliographic metadata for record P095 remains unresolved.
+
+[P096]
+
+BriefHistory-AISci.
+
+Bibliographic metadata for record P096 remains unresolved.
+
+[P097]
+
+Zhenhao Chen, Yongqiang Chen, Chenxi Liu, Junchi Yu, Xiangchen Song, Zijian Li, et al.
+
+CausalGame: Benchmarking Causal Thinking of LLM Agents in Games.
+
+arXiv preprint, 2025.
+
+[P098]
+
+ContextLengthCrunch.
+
+Bibliographic metadata for record P098 remains unresolved.
+
+[P099]
+
+MemoryMechanisms-Survey.
+
+Bibliographic metadata for record P099 remains unresolved.
+
+[P100]
+
+Randy Harsuko, Zhengfa Bi, and Nori Nakata.
+
+Smarter Geothermal Field Development with Agentic AI System, GAIA.
+
+Proceedings, 51st Workshop on Geothermal Reservoir Engineering, Stanford University, February 9-11, 2026, 2026.
+
+[P101]
+
+VisualizingDeepAgents.
+
+Bibliographic metadata for record P101 remains unresolved.

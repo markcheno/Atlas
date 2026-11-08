@@ -1,0 +1,1951 @@
+The FlightFinder Occurrence Corpus: harmonising 128 aviation-safety source codes into one deduplicated cross-national accident dataset
+
+Denys Kolomiiets 
+
+Affiliation: FlightFinder / himaxym.com, Lisbon, Portugal 
+
+denys@himaxym.com
+
+September 6, 2026
+
+Abstract
+
+National aviation-investigation databases are deep but territorial; global compilations
+such as the Aviation Safety Network and the Bureau of Aircraft Accidents Archives are
+hand-curated, apply their own inclusion thresholds, and publish no per-record lineage.
+The FlightFinder Occurrence Corpus harmonizes 279,485 occurrences and 131,882
+attached narratives from 128 source codes — national accident-investigation
+authorities, occurrence-reporting systems and four global compilations. Records are
+mapped into one schema; each normalized record reduces to exactly one key from an
+ordered ladder — event signature, registration and date, rounded position and date,
+or source and native identifier — so a missing field never creates a link, and the
+key is the occurrence identifier. Records the ladder cannot reach are scored in a
+blocked pass into an explicit merge table and applied only within an automatically
+approved score band or after a person confirms them. Field conflicts follow a
+documented source ranking; one provenance row per contributing source — its native
+identifier and URL — is retained, with attribution and licence terms per source code.
+Linkage error is measured on five adjudicated samples totalling 200 pairs. A
+recorded uniform random draw of 60 from the 3,441 merges the automatic
+band applies as it ships found no error; the exact two-sided 95 %
+Clopper–Pearson upper bound on its false-merge rate is 6.0 %, or 205
+pairs. The measured error covers the scored band only; the ladder’s deterministic
+joins are not adjudicated. The corpus has no exposure denominators and inherits the
+under-reporting of its sources. It is offered as a base for cross-national safety
+statistics, source-disagreement studies and narrative text mining; a frozen,
+DOI-referenced snapshot accompanies the live API.
+
+Keywords: aviation safety; accident database; record linkage; deduplication; data integration; open data; ICAO ADREP
+
+1 Introduction
+
+Aviation is among the most intensively investigated activities in modern transport, yet the records of that investigation are fragmented in a way that limits what can be learned from them. Each contracting state to the Chicago Convention maintains, under ICAO Annex 13, an authority that investigates accidents and serious incidents in its territory and publishes the results; many states additionally run mandatory or voluntary occurrence-reporting systems for events below the accident threshold. The resulting databases are large, authoritative and, taken one at a time, well documented [1, 2]. They are, however, defined by where an event happened and which authority chose to investigate it, not by the population of events a researcher might wish to study. A fatal accident involving an aircraft registered in one state, operated by a carrier from a second and crashing in a third may appear in three authorities’ files under three identifiers, three occurrence classes and three counts of fatalities, while a comparable accident in a state whose investigation authority publishes little may reach no published final report at all: of the 269 commercial accidents the IATA Accident Classification Task Force classified for 2018–2023, International Air Transport Association and International
+Coordinating Council of Aerospace Industries Associations and International
+Federation of Air Line Pilots’ Associations [3] report that 57 % resulted in one. That figure bounds the availability of final reports among events already known to the classifiers; it is not a statement about which events reach a database, since an event with no final report can still enter one through a preliminary report, an occurrence-reporting system or a compilation.
+
+Researchers who need a global view have therefore turned to volunteer- or commercially-curated compilations, principally the Aviation Safety Network (ASN) list of airliner and corporate-jet occurrences [4] and the Bureau of Aircraft Accidents Archives (B3A) [5]. These underpin the best-known long-run risk series [6] and much of the machine-learning literature on accident severity. They have three limitations that motivate the present work. First, they are curated to inclusion thresholds of their own rather than to a reporting mandate — B3A admits aircraft of six seats including crew and above, and the ASN curated database is an airliner and corporate-jet list — so what they contain is an editorial decision that the user cannot re-derive. (The ASN Wikibase, which is what this corpus ingests, is far broader and reaches light aircraft, rotorcraft, gliders and unmanned aircraft; the two ASN products must not be conflated.) Second, they are single-curated and closed-provenance: a record cites, at best, a report, and a user cannot tell which authorities described the event or how disagreements between them were resolved. Third, because part of their input is press coverage, their completeness is correlated with media salience, which has risen over time even as accident frequency has fallen [7]. Oster et al. [8] catalogue the further analytical consequences: shifting definitions, incomparable denominators and non-uniform reporting across countries, none of which a single-source database can quantify from within.
+
+The alternative is to build the global view directly from the official sources and to treat the fragmentation itself as data. That is the approach taken by the FlightFinder Occurrence Corpus described here. The corpus ingests occurrence records from 128 registered source codes—national accident-investigation boards, civil-aviation-authority occurrence-reporting systems, regional bodies where they publish record-level data, and four global compilations that are ingested as sources rather than held aside (Section 3.1)—maps them into a single schema, links records that describe the same aircraft’s involvement in the same physical event, and publishes for every resulting occurrence the complete set of contributing sources with their licence terms. Linking is deterministic wherever a positive identifier exists — an ordered ladder of keys rather than a scored comparison of pairs — and falls back to a reduced Fellegi–Sunter scheme [9] for the cohort that carries no identifier at all: the same blocked comparison and the same separation of an automatically-applied band from a clerical-review queue, but with weights set by hand rather than estimated, which is a heuristic scorer in their shape and not their method (Section 4.6). The corpus dictates that reduction. The fields a full model would weigh are absent on most records, with operator populated on 41.5 % and manufacturer on 0.4 %, so estimating their agreement probabilities would calibrate a comparison that rarely happens. Linkage error is measured on adjudicated samples rather than asserted, and Section 4.7 reports what each sample could and could not see. The corpus is not a new investigation of any event; it is a documented aggregation of existing investigations whose reported statistics can be recomputed from a frozen snapshot, and it inherits their coverage and their errors. What it adds is scale, a common vocabulary and provenance. What it does not achieve is balance: four NTSB exports supply 60.8 % of its source records, so it is a United States dataset with substantial international coverage rather than a global one, and Section 7.6 states what follows from that.
+
+Because this is a data paper, we organize it around design goals rather than research questions. The goals were fixed before the validation sample was drawn and are the standard against which Section 6 reports.
+
+DG1 
+
+Breadth with provenance. Include every source that publishes record-level occurrence data under terms permitting redistribution of at least structured fields — official authorities in the first instance, and the global compilations that cover what no authority publishes — and retain on every canonical occurrence the identity and URL of one record per contributing source, with the attribution text and licence resolved through its source code.
+
+DG2 
+
+Deduplication with measured error. Resolve records describing the same event into one occurrence by a documented rule rather than a fitted model — the deterministic ladder is stated here in full, the scoring pass that bands the residue is stated as rules but not as numbers — publish the adjudicated decisions rather than a model fit, and report the error rate of the automatic band together with the sampling frame it was measured on. Recall is explicitly out of scope: the design errs toward under-merging, and detecting the duplicates it leaves apart would require an external list the corpus does not have.
+
+DG3 
+
+A minimal harmonized schema. Map each source’s native occurrence class, severity, aircraft type and location fields into a small target vocabulary aligned with the ICAO ADREP taxonomy, with the mapping rule documented as implemented — a closed allow-list of accepted values and a stated default for everything else, not a per-source crosswalk — and an explicit rule for choosing canonical values when sources disagree.
+
+DG4 
+
+Reproducibility and versioning. Expose the corpus through a documented API and a frozen, DOI-referenced snapshot such that every figure in this paper can be regenerated from stated calls, and such that later versions are distinguishable from the one described here.
+
+The contributions of the paper are as follows.
+
+(i) 
+
+A source registry of 128 source codes — national investigation authorities, occurrence-reporting systems and four global compilations — each with a coverage window, a state and an attribution string (Section 3).
+
+(ii) 
+
+A construction pipeline documented stage by stage—ingestion, normalization, deterministic key-ladder linkage, source-rank field resolution and occurrence-class mapping—with the linkage model stated formally, and with the limits of that specification stated: the ladder can be re-implemented from this paper, the scoring pass that assigns the merge bands cannot (Section 4).
+
+(iii) 
+
+Linkage error measured on 200 adjudicated pairs across five samples, with the sampling frame of each stated and the selection of sample 4 recorded as a seeded random draw, and a per-source overlap matrix (Sections 5 and 6).
+
+(iv) 
+
+A reproducibility appendix giving the exact API calls, deduplication rules and derived-variable definitions needed to re-derive every table and figure from the deposited snapshot, and stating which of them the deposit does not support (Appendix A).
+
+The remainder of the paper is organized as follows. Section 2 reviews existing occurrence databases, the record-linkage literature and data-descriptor conventions. Section 3 describes the source material and the published schema. Section 4 specifies the construction pipeline and Section 5 the validation design. Section 6 reports corpus statistics and validation outcomes against the design goals. Section 7 discusses interpretation, known biases and intended uses, and Section 8 concludes.
+
+2 Related work
+
+2.1 Existing aviation-occurrence databases
+
+Quantitative aviation-safety research has long depended on a small number of
+institutional databases, each defined by a jurisdiction, a reporting mandate
+and an inclusion threshold rather than by the population of events it aims to
+describe. The NTSB aviation database is the canonical national source: it
+covers civil accidents and selected incidents since 1962 within the United
+States, its territories and international waters, together with foreign
+investigations in which the NTSB served as accredited representative, and its
+own documentation notes that minor pre-2001 cases were purged and that
+location and airport fields are absent before 1982 [1].
+Oster et al. [8] review the analytical problems this creates:
+denominators (departures, flight hours) are collected by other agencies under
+different definitions, accident classifications shift over time, and
+cross-country comparison is hampered by non-uniform reporting. In Europe,
+Regulation (EU) 376/2014 routes mandatory and voluntary occurrence reports
+from 65 authorities into the European Central Repository through the ECCAIRS
+platform, which encodes events with the ICAO ADREP taxonomy and now holds
+roughly 2.3 million occurrences [2]; the repository is,
+however, not open to the public at record level.
+
+Two non-governmental compilations fill the resulting gap for global work. The
+Aviation Safety Network, maintained by the Flight Safety Foundation, records
+airliner, corporate-jet and military-transport accidents and hijackings since
+1919 in its curated database, and a far larger Wikibase — more than
+258,000 entries — that extends to light aircraft, helicopters, gliders,
+balloons and unmanned aircraft [4]. It is the Wikibase,
+not the curated database, that the present corpus ingests. The Bureau of
+Aircraft Accidents Archives (B3A) holds more than 38,000 civil and military
+files from 1918 onward, with an inclusion floor of six seats including crew,
+[5]. Both are curated by hand from official reports and
+press coverage, neither publishes a source lineage per record, and their
+inclusion thresholds (passenger capacity or hull loss) exclude the large
+majority of general-aviation events that dominate national authorities’
+files. Barnett [6] illustrates the analytical practice built
+on these sources: worldwide death-risk-per-boarding trends for 1968–2017 are
+computed from the ASN airliner list combined with traffic denominators, with
+the author explicitly flagging jurisdictions where reporting may be
+incomplete. More recently, Omrani et al. [10] compared machine
+learning severity models trained separately on NTSB, TSB Canada and ATSB
+records for 2008–2023 and found that field availability and coding
+conventions differ enough across the three authorities to change model
+behaviour—an early quantitative signal that harmonisation is a research
+problem in its own right. Crowd-sourced ADS-B archives such as the OpenSky
+Network [11] have produced open, versioned
+datasets of flight movements and derived safety proxies (emergency squawks,
+go-arounds), demonstrating the data-descriptor model for aviation but
+covering trajectories, not investigated occurrences. Narrative text has been
+mined at scale within single reporting systems
+[12], again without cross-authority linkage.
+
+2.2 Record linkage and deduplication
+
+Merging occurrence files from many authorities is an instance of record
+linkage, whose statistical foundations were laid by
+Fellegi and Sunter [9]: pairs of records are scored by the likelihood
+ratio of agreement patterns under the match and non-match hypotheses, and two
+thresholds partition pairs into links, non-links and a clerical-review zone.
+Christen [13] gives the standard engineering treatment—
+pre-processing, blocking, comparison functions for names, dates and
+locations, classification and evaluation—while Papadakis et al. [14]
+survey blocking and filtering methods that keep pairwise comparison tractable
+when the candidate space is quadratic in corpus size. Modern
+implementations estimate the Fellegi–Sunter parameters by
+expectation–maximisation without labelled training pairs;
+Enamorado et al. [15] show that this scales to tens of millions
+of administrative records while yielding calibrated match probabilities and
+uncertainty for downstream analyses. Bayesian formulations treat the linkage
+structure as a latent bipartite matching or partition, propagating linkage
+uncertainty and enforcing one-to-one constraints
+[16]. Binette and Steorts [17] review the field and
+emphasise two points directly relevant here: deduplication within a single
+file and linkage across files are the same problem when records are clustered
+to latent entities, and evaluation requires a held-out labelled sample rather
+than agreement rates alone. Aviation occurrences are an unusually favourable
+linkage domain—date, registration mark, ICAO aircraft type and location are
+near-unique jointly—but registration re-use, transliterated place names,
+time-zone-shifted dates and authorities reporting the same event under
+different classifications (accident, serious incident, incident) generate
+precisely the ambiguous pairs for which probabilistic scoring and manual
+adjudication of the review zone were designed.
+
+2.3 Data-paper conventions and documentation
+
+The data-descriptor genre has matured into a distinct publication type with
+its own norms. Wilkinson et al. [18] set out the FAIR principles
+(findable, accessible, interoperable, reusable) that data journals now
+require: persistent identifiers, rich machine-readable metadata, standard
+vocabularies and explicit licences. Gebru et al. [19] propose the
+“datasheet” checklist—motivation, composition, collection process,
+preprocessing, uses, distribution and maintenance—which has become the de
+facto structure for documenting provenance and known biases of a compiled
+dataset. Within aviation, Noort et al. [20] show what a Data in Brief
+descriptor for accident-derived material looks like: a small, fully
+annotated corpus with a codebook, validation statistics and a reuse
+statement. The OpenSky descriptor in Earth System Science Data
+[11] is the closest aviation precedent for a
+large, continuously updated corpus published with versioned DOIs and an API.
+None of these treat multi-source integration and per-record provenance as
+the central contribution.
+
+2.4 Under-reporting and coverage bias
+
+Any compilation of official records inherits the coverage of the reporting
+systems it draws on, and that coverage is known to be incomplete and uneven.
+At the level of the investigation itself, an ICAO Assembly working paper
+reports that only 57 % of the 269 commercial accidents classified by the
+IATA Accident Classification Task Force for 2018–2023 had a published final
+report [3]; missingness is concentrated in particular
+states, so global datasets built from published reports are systematically
+thinner in exactly the regions with the highest accident rates. Below the
+accident threshold, reporting is voluntary or weakly enforced:
+Gao et al. [21] model the joint time series of voluntary reports and
+accidents in US commercial aviation and find reporting volume responds to
+accident occurrence rather than the reverse, while
+Kioulepoglou et al. [22] document, through interviews with
+Greek pilots, the fear of sanction, perceived futility and workload that
+suppress incident reports—mechanisms that vary by operator and country and
+therefore induce spatially structured under-coverage. Coverage is further
+distorted upstream of official channels: van der Meer et al. [7] show that
+news attention per fatal aviation accident rose between 1996 and 2017 even
+as frequency fell, so sources that depend on press coverage (as the
+volunteer-curated compilations partly do) over-represent salient events.
+Oster et al. [8] note the same problem for cross-national
+comparisons. Multi-source datasets offer a partial remedy: when the same
+event is captured independently by several authorities, the pattern of
+overlap can in principle be used to estimate what any single source misses.
+Section 5.2 explains why that estimate is not
+offered for this corpus: the compilations that would serve as the second list
+are ingested as sources, so the lists are not independent.
+
+2.5 Research gap
+
+No existing resource combines (i) record-level data from more than a handful
+of official investigation authorities, (ii) an explicit, reproducible
+deduplication step that is documented rather than fitted, with a measured
+error rate and its adjudications published,
+and (iii) per-record provenance that retains every contributing source. The
+ASN and B3A compilations are global but single-curated and
+closed-provenance; NTSB, ECCAIRS and their peers are deep but
+jurisdictional; OpenSky-derived datasets describe traffic rather than
+investigated occurrences; and we are aware of no published
+application of the record-linkage literature to cross-authority aviation
+occurrence data. The FlightFinder Occurrence Corpus
+addresses this by harmonising 128 source codes into one schema, resolving
+duplicates with a deterministic key ladder backed by an explicit merge table
+whose adjudicated decisions are published, and attaching source attribution to
+each of 279,485 events and 131,882 attached narratives. The corpus borrows the Fellegi–Sunter decision
+structure for the records its key ladder cannot reach — blocked comparison,
+per-field agreement, and the separation of confident links from a clerical-review queue — while
+deliberately omitting the parameter estimation that the implementations above
+provide, because the fields such a model would weigh are missing on most
+records and the comparison that matters here is cross-lingual normalisation
+rather than string similarity. Beyond serving as an
+analysis-ready global dataset, the retained source overlap enables direct
+measurement of cross-authority disagreement on the 10,757 events that more
+than one authority recorded — but not capture–recapture bounds on events
+every authority missed, since the two global compilations that would serve as
+independent lists are themselves ingested.
+
+3 Data
+
+3.1 Source material and provenance
+
+The corpus is built from the occurrence databases, accident lists and report archives published by 128 registered source codes. Most are official in the strict sense — an accident-investigation authority established under Annex 13, or a civil aviation authority operating an occurrence-reporting system — but four are not: the Bureau of Aircraft Accidents Archives, the Aviation Safety Network, Wikidata and SKYbrary are volunteer or community compilations, and they are ingested as sources rather than held aside. That is a change from an earlier design of this corpus and it has a consequence the paper returns to in Section 5.2: because those compilations are inside the corpus, they cannot serve as the independent lists an external coverage check would require. Together they supply 23.8 % of source records. Each source is registered with a stable code (the source field of the API), its homepage, an attribution string and a licence field. A state is recorded for the 123 codes that are national authorities; the four global compilations and the interstate MAK carry none, because the field would be false rather than empty. One licence entry is not a grant: see Section 7.6.1. Table 1 summarizes it by source code; the five largest are three of the four NTSB exports [1], the Bureau of Aircraft Accidents Archives and the Aviation Safety Network, which between them supply 83.4 % of source records; the largest national authority after the NTSB is the United Kingdom AAIB at 2.3 %. 39.2 % of source records come from outside the NTSB exports and 9.4 % from outside the ten largest codes altogether.
+
+Table 1: Source records by contributing source. Counts are the provenance rows retained on the
+published corpus, one per contributing source per occurrence; records dropped
+as same-source siblings or as undated are not included, so this is not a
+pre-deduplication ingest count. The table is ordered by contribution rather than by
+region: the region column is empty for every occurrence in the corpus
+(Section 7.6.2), so a regional breakdown would have to
+be inferred from country_iso, which is itself missing on
+25.2 % of records and disproportionately on the recent decades.
+
+Source
+
+Records
+
+Share
+
+Window
+
+ntsb1962
+
+86,999
+
+29.9 %
+
+1962–1981
+
+ntsbpre
+
+60,400
+
+20.8 %
+
+1948–2007
+
+baaa
+
+41,317
+
+14.2 %
+
+1918–2026
+
+ntsb
+
+29,151
+
+10.0 %
+
+2008–2026
+
+aviation-safety
+
+24,797
+
+8.5 %
+
+1919–2026
+
+aaib
+
+6,665
+
+2.3 %
+
+1958–2026
+
+adru
+
+4,654
+
+1.6 %
+
+1923–2026
+
+cenipa
+
+3,651
+
+1.3 %
+
+1949–2026
+
+sust
+
+3,012
+
+1.0 %
+
+1959–2026
+
+bea
+
+2,888
+
+1.0 %
+
+1973–2025
+
+Remaining 118 codes
+
+27,423
+
+9.4 %
+
+1902–2026
+
+of which NTSB, four source codes
+
+60.8 %
+
+of which four global compilations
+
+23.8 %
+
+Total, 128 source codes
+
+290,957
+
+100 %
+
+1902–2026
+
+Two features of this distribution matter more than any regional cut would.
+First, the corpus is dominated by one state: four NTSB source codes supply
+60.8 % of all source records, so any unqualified statement about
+“global” aviation safety drawn from it is a statement about the United States
+with a tail. Second, the count of 128 is of source codes, not of
+authorities: NTSB alone occupies four of them because its bulk data is
+published in several incompatible historical formats, and four of the remaining
+codes are the global compilations rather than investigation bodies at all.
+
+Source records were retrieved by 128 source-specific adapters, the most recent extraction being 2026-08 from bulk downloads where offered (for example the NTSB avall database export) and otherwise from paginated public query interfaces or published report indexes (the retrieval route is a property of each adapter and is not recorded in the registry; supplementary Table S1 gives the code, attribution, state, homepage, record count and event-year window per source, which is what the registry does hold). Each retrieved record is written to a staging table keyed on the source and the source’s own identifier, with a timestamp of the last write, before any transformation, so that each canonical field can be traced to the source record it was derived from as that record stood at the most recent re-sync (Section 4.2).
+
+3.2 Coverage window, unit of analysis and inclusion
+
+The corpus spans event dates from 1902 to 2026; the effective start of dense coverage differs by source and is reported per source in Table S1 and by region in Table 1. Two units of analysis coexist. A source record is one row as published by one authority, identified by (source, id). An occurrence is the canonical event produced by the linkage step, identified by the API id, and is the unit for all counts reported in this paper unless stated otherwise. An occurrence is therefore one aircraft’s involvement in an event, not the event itself. The second rung of the key ladder keys 216,528 of the 279,485 occurrences (77.5 %) on registration and date (Section 4.4), so two airframes in one mid-air collision receive two different keys by construction and remain two occurrences; the collision guard of Section 4.6 exists to keep the fallback scorer from undoing that. Users counting events rather than involvements must collapse such occurrences themselves — the midair_collision, Collision With Aircraft - Both In Flight and Airborne collision categories (2,874 occurrences, of which 1,528 fall in 726 same-day, same-country groups of two or more) are where to start. The same holds for fatality sums: where each authority reports the combined toll of a collision on each airframe’s record, that toll is counted once per occurrence. Its magnitude is not determinable from the deposit — of the 332 same-day pairs carrying an identical non-zero fatalities_total, 248 have occupants null on both sides and no narrative text is deposited, so a shared toll cannot be told from two equal tolls — and it is reported here as a property of the unit, not corrected. An occurrence is included if at least one contributing source record satisfies that source’s own publication criteria and has a parseable event date; records with no usable event date are dropped during the build rather than quarantined; there is no staging table, and the count appears only in the build log. Records that describe the same event but are classified differently by different authorities (for instance an accident by the state of occurrence and a serious incident by the state of registry) are linked, not excluded, but the classification conflict is not retained: the priority rule of Section 4.8 writes one harmonized class per occurrence and the losing record’s class is not persisted, so the disagreement is visible neither in the API nor in the deposit (Section 6.3). Purely administrative entries, duplicate republications within a single source, and events involving no aircraft (ground-handling injuries with no aircraft involvement, where a source records them) are excluded by per-source rules documented in the adapter code (the adapters themselves are in the repository named under Data and code availability).
+
+The corpus contains no exposure denominators. Flight hours, departures and fleet sizes are collected by other agencies under definitions that are not aligned with occurrence reporting [8], and attaching them is the subject of a companion paper on exposure-adjusted rates by aircraft family, in preparation. Counts from this corpus are therefore counts of reported and published events; they are not rates and should not be interpreted as such without an external denominator.
+
+3.3 Published schema
+
+Table 2 lists the fields of the two published objects. An Occurrence carries the canonical values selected by the priority rule of Section 4.8 and the array sources[] of contributing source records. A Narrative is a per-source object, never merged across authorities, so that text is always attributable to exactly one publisher and one licence; it carries the source’s own phase_of_flight string unharmonized, and a facts{} object that repeats the canonical occurrence the narrative resolves to, for callers who fetch a narrative without fetching its event. facts{} is not a per-source field store: no source-specific keys are carried anywhere in the published objects, so structured detail beyond the harmonized schema — injury tables and weather, for instance — has to be read from the source through the URL in event_sources. Where a source publishes a longer article or report page, an article sub-object carries its title, a short excerpt, the canonical URL and, subject to the source’s policy and the API tier, the full text.
+
+Table 2: Variables of the two published objects. Field names are those returned by GET /events, GET /events/{id} and GET /narratives/{source}/{id}; the deposited snapshot is a flattened projection of the same data and does not use every name here. events.jsonl carries family for family_slug and phase for the narrative’s phase_of_flight, and it has no sources[] array: provenance is the separate file event_sources.csv.gz, joined on the occurrence id (Appendix A). Vocabularies for occurrence_type and severity are defined in Section 4.9.
+
+Object / field
+
+Type
+
+Definition and derivation
+
+Occurrence
+
+id
+
+string
+
+Canonical occurrence identifier. It is the linkage key of Section 4.4 itself, not a surrogate assigned beside it, so it is stable across versions if and only if the fields it is built from are
+
+occurrence_type
+
+enum
+
+Harmonized class, three values only: accident (99.17 %), incident (0.74 %), combat_loss (0.09 %). There is no serious_incident class despite Annex 13 defining one — see Section 4.9. Mapped from the source’s native class by the allow-list of Section 4.9, which admits these three values and sends everything else to accident
+
+event_date
+
+date
+
+Local calendar date of the event. There is no precision flag as a separate field: a source publishing only a month or a year is stored at whatever precision its parser could resolve, and the precision is read from the length of the stored value rather than from a flag
+
+severity
+
+enum
+
+Harmonized outcome severity: unknown (75.26 %), fatal (20.92 %), hull_loss (3.49 %), minor (0.24 %), incident (0.07 %), serious_incident (0.02 %). Derived from injury and damage fields by the rule of Section 4.9
+
+country_iso
+
+ISO 3166-1 alpha-2
+
+State of occurrence, normalized from source place fields. Events over water carry no special code — they are simply null, alongside every other record whose place could not be resolved
+
+type_icao
+
+string
+
+ICAO Doc 8643 aircraft type designator; normalized from manufacturer/model strings
+
+family_slug
+
+string
+
+Aircraft family grouping of type_icao (e.g. variants of one airframe), used by /aircraft/{family}/safety
+
+registration
+
+string
+
+Canonical registration mark (normalized form; Section 4.3)
+
+operator
+
+string
+
+Canonical operator name after normalization
+
+fatalities_total
+
+integer
+
+Total fatalities (on board plus ground) from the highest-priority source reporting a value. Per occurrence, i.e. per airframe involvement: where sources report a collision’s combined toll on each airframe’s record, summing over occurrences counts it twice (Section 3.2)
+
+sources[]
+
+array
+
+One element per contributing source record: source code, attribution text, license, url
+
+Narrative
+
+source, id, slug
+
+string
+
+Publishing authority code, its native record identifier, and a URL-safe slug
+
+policy
+
+enum
+
+full or excerpt: whether the authority’s terms permit redistribution of the full narrative
+
+narrative_text
+
+text
+
+Narrative as published, or an excerpt under excerpt policy; language as published
+
+probable_cause
+
+text
+
+Probable-cause or conclusions statement where the source separates it
+
+phase_of_flight
+
+string
+
+Source-native phase of flight; not harmonized in this version
+
+facts{}
+
+object
+
+The canonical occurrence this narrative resolves to, repeated inline for convenience (cause_summary suppressed where any contributing source is excerpt policy). It is not a per-source field store: no source-specific keys are carried, and the native occurrence class is not among them
+
+attribution, license, source_url
+
+string
+
+Required attribution text, licence identifier and canonical URL of the source record
+
+article{}
+
+object
+
+title, excerpt, canonical_url, license; full_text on the Pro tier where policy permits
+
+3.4 Known biases
+
+Three sources of bias are inherent in the material and are quantified where possible in Section 6. Coverage bias arises because the corpus can only contain events that an authority investigated and published; International Air Transport Association and International
+Coordinating Council of Aerospace Industries Associations and International
+Federation of Air Line Pilots’ Associations [3] report that 43 % of the commercial accidents the IATA Accident Classification Task Force had already classified for 2018–2023 reached no published final report, and the missingness is concentrated by state. The denominator there is events known to the classifiers, not events in the world, and a missing final report does not by itself keep an event out of this corpus. Threshold bias arises because each source applies its own inclusion rule—the NTSB purged minor pre-2001 cases [1], occurrence-reporting systems include events far below the accident threshold [2]—so that the mix of occurrence classes varies by source and by period independently of the underlying event population. Reporting-culture bias arises below the accident threshold, where voluntary reporting volume responds to salient accidents [21] and is suppressed by fear of sanction and perceived futility in ways that vary by operator and state [22]. The corpus does not correct any of these; it makes them visible by stratifying every count by source and occurrence class.
+
+4 Corpus construction pipeline
+
+The pipeline has six stages, executed in order and re-run in full at each release: source registry, ingestion, normalization, deterministic key-ladder linkage, source-rank field resolution, and occurrence-type and severity mapping. Each stage writes a table keyed on (source, id) or on the canonical id, so that any published value can be traced back through the stages to the source record as it stood at the last re-sync.
+
+4.1 Source registry
+
+The registry is the controlled list of authorities from which records may enter the corpus. Adding a source requires recording its code, legal name, state or organization, homepage, the licence or terms-of-use text applicable to structured data and to narratives, the derived policy, the retrieval method, the native occurrence-class vocabulary it publishes (which is recorded for reference only: it is not mapped term by term, see Section 4.9), and its state and homepage. The registry also holds a priority tier used in Section 4.8. The registry currently holds 130 codes. 123 follow the uniform adapter contract; the remaining seven codes — mak, atsb, baaa, ntsb, wikidata, aviation-safety and skybrary — keep their own tables because their published formats do not fit it. Those seven are codes, not organizations: the NTSB’s other three exports (ntsb1962, ntsbpre, ntsbaar) follow the uniform contract and are counted among the 123, so one authority spans both groups. 128 of the 130 have actually contributed records to this snapshot; bdca and dinacpy are registered but have delivered nothing yet, so every count in this paper is over the contributing 128 and not over the registry (Table 1, Table S1). Registration is not the same relation as contribution and the two must not be quoted interchangeably. The contributing codes carry 117 distinct state values, of which one is the placeholder ZZ used by pubrec, a heterogeneous public-records channel that belongs to no single state; 116 are real states. A code is also not an authority: the NTSB alone occupies four codes, one per published export. The registry records a code, an attribution string, a state and a homepage per source; it does not classify them by Annex 13 role, and this paper does not report such a breakdown because it would have to be invented rather than read. Redistribution terms are likewise held as free text rather than as a licence class — 128 distinct attribution strings and 127 distinct strings in the license field across the contributing codes, most of them organisation names rather than licences (Section 7.6.1) — so narrative reuse is decided per source at ingest and not summarised here.
+
+4.2 Ingestion
+
+Each source has an adapter that retrieves records and writes them to a staging table keyed on (source, case_id), where case_id is the source’s own identifier, together with a built_at timestamp of the last write. Adapters are idempotent: a re-run retrieves the current state and updates the existing row in place, keeping the record’s internal identifier stable across re-syncs. The staging table therefore holds each source record as it stood at the most recent re-sync and not a history of its revisions: a source-side amendment — a revised fatality count after a final report, for example — replaces the earlier value, and the earlier value is not retained. A user who needs the pre-revision state must obtain it from the source; the corpus records only the URL. The payload is the source’s own representation—a database row, a CSV line, or an HTML report page reduced to its structured fields and narrative text. Adapters do not interpret content; interpretation begins at normalization. Ingestion is scheduled per source at intervals from daily to quarterly according to the source’s own update cadence, which is configured per adapter rather than stored in the registry and is therefore not tabulated.
+
+4.3 Normalization
+
+Normalization maps each raw payload to a common intermediate record with typed fields and, for each field, a source-specific parser. Four fields are critical to linkage and are treated with care. Event date is parsed to a calendar date in the local time zone of the stated location. The parser records internally whether it resolved a day, a month or only a year. That flag is not carried into the published schema as a field of its own (Table 2), but the distinction is not lost: a date resolved only to a month or a year is stored as a shorter string, so the split is recoverable from event_date itself and is reported in Section 5.4. Sources publishing UTC timestamps are converted using the location’s time zone, because most authorities record local dates and a UTC timestamp near midnight would otherwise disagree by one day with a local-date record of the same event. Registration mark is normalized by upper-casing, removing hyphens, spaces and punctuation, expanding known national-prefix variants (for example the presence or absence of a hyphen after a one- or two-letter prefix), and stripping trailing annotations such as “(2)” used by some authorities to denote re-used marks; the raw string is retained alongside the normalized form. Aircraft type is mapped from free-text manufacturer and model strings to an ICAO Doc 8643 designator by a lookup table built iteratively from the most frequent unresolved strings, with a residual of 84.4 % of occurrences left unresolved (type_icao null) and a family slug assigned from a designator-to-family table. Location is resolved to a country ISO code from the source’s country field where present, otherwise from a gazetteer match on place name and, where available, coordinates; transliteration variants are handled by matching on the ASCII-folded form. Operator names are ASCII-folded, lower-cased and stripped of legal-form suffixes for comparison but retained as published for display.
+
+4.4 Deterministic linkage by key ladder
+
+Records from different sources that describe the same event are identified
+deterministically, not probabilistically. Each normalized record is reduced to
+exactly one key, and records sharing a key are one occurrence. The key is the
+occurrence identifier: there is no surrogate id assigned separately from the
+linkage decision, so an identifier changes if and only if the fields it is
+built from change.
+
+The ladder is evaluated in order, and the first rung that applies wins.
+
+1. 
+
+Event signature, for the three authorities that publish
+preliminary, interim and final reports of one event under different case
+identifiers (AAIA Hong Kong, AAIIB Philippines, AICPNG Papua New Guinea):
+evt:<source>:<date>:<signature>, where the signature is the first 40 characters of the
+narrative with report-tier boilerplate removed. These sources are keyed here
+first regardless of what other fields the row carries, because their
+registration arrives from a fallible PDF-extraction step that can succeed for
+one tier of an event and fail for another — checking registration first let a
+partial extraction give one tier a different key from its siblings, recreating
+the duplicate the rung exists to prevent.
+
+2. 
+
+Registration and date:
+reg:<normalized registration>:<date>, when the record carries a registration that survives a
+placeholder filter. The filter is an exact word list rather than a heuristic:
+dashless all-letter strings are legitimate Brazilian tails written without the
+separator, so a “looks like a word” rule would silently delete real airframes’
+histories.
+
+3. 
+
+Rounded position and date:
+geo:<lat>:<lon>:<date> at one decimal place, when coordinates are present and are
+not within 0.05^{\circ} of the origin. Sources ship 10^{-6} for “position
+unknown”, and testing for exact zero rather than at the key’s own precision
+once collapsed every coordinate-less accident sharing a date into a single
+occurrence.
+
+4. 
+
+Source and native identifier:
+src:<source>:<native id>,
+otherwise. A record that reaches this rung cannot merge with anything, by
+construction.
+
+An earlier rung on operator and date was removed after audit: it merged
+distinct accidents flown by the same operator on the same day.
+
+The design choice this ladder embodies is that a missing field must never
+create a link. Every rung above the last requires a positive identifier —
+a registration, a position, an event signature — and a record carrying none
+of them falls to a key that is unique by construction rather than being matched
+on the fields it does have. The corpus therefore errs toward under-merging, and
+Section 4.5 describes what is done about the residue.
+
+4.5 Post-merge recovery passes
+
+Three passes run after the ladder, each addressing a class of duplicate the
+ladder cannot reach on its own. They are ordered, and the order matters: each
+pass can create keys that the next one uses as merge targets.
+
+Timezone and registration backfill.
+
+SKYbrary records local time
+where some primary sources record UTC, and carries registrations for events
+whose primary source omitted them. A pass reconciles \pm 1 day offsets and
+backfills registrations onto src:-keyed occurrences, subject to a
+conservative type-compatibility check that prefers a false negative to a wrong
+merge.
+
+Registration recovery from free text.
+
+The registration rung is
+reached only when an adapter supplied a registration field. Several authorities
+bury the tail in prose — the BEA and ANSV in French and Italian narratives,
+the TSB inside the type string (“Cessna 208B Caravan, C-GMVB”), and the ANSV
+case identifiers degrade to a bare country prefix that the placeholder filter
+correctly rejects. A pass recovers registration-shaped tokens from the type and
+narrative fields and merges only when the recovered key lands on a same-date
+occurrence created independently by another source. The key hit is the
+validation: a tail-shaped string proves nothing, while a string that resolves
+to another authority’s record for the same day is evidence. When this pass last ran it scanned 66,241 geo:- and
+src:-keyed rows and merged 182. That population is a run-time figure and
+the snapshot cannot reproduce it: the merges it made have since collapsed rows, so the
+deposited corpus carries 62,674 such keys (40,656 geo: and
+22,018 src:) rather than the pre-merge count. The 182 merges are
+likewise applied and not separately recoverable. Both numbers are reported as measured at
+run time and are marked here as not reproducible from the deposit, rather than quoted as
+though a reader could check them.
+
+Adjudicated merges.
+
+The largest duplicate cohort produces no shared
+key at all: records where at least one side reaches the source rung, having no usable
+registration and no usable position. Two global compilations rewrite the same official
+reports, so one accident exists twice with nothing the ladder can match on.
+These are proposed by the scoring pass of
+Section 4.6, recorded in an explicit merge table with
+a status, and applied at build time only when the status is
+auto or confirmed. A table rather than a further rung, for
+three reasons: a wrong rung is discovered only as a missing accident, whereas a
+row names both sides, and deleting it restores them on the next build of the
+closed database, where both records’ field values still exist (the deposit
+carries the absorbed record’s source identity and URL but not its field values,
+so a reader of the snapshot can name what was merged but cannot undo it) —
+with one further qualification stated below; the table is where a review queue
+can live; and it lets this paper report how many events were merged by the
+automatic band and how many by a recorded decision.
+
+Chains are resolved before application. One event in the corpus existed as
+three occurrences and contributed its death toll three times; a table naming
+ a\to b and b\to c , applied in table order, would leave a pointing at a
+record already removed. Every absorbed identifier is therefore resolved to its
+final survivor first, and a cycle — which would require one record both to
+survive and not to survive — is dropped entire rather than applied by halves.
+
+One consequence must be stated for anyone joining the deposited merge table to
+the snapshot: survivor_id is the survivor as of the row’s writing and
+not a final identifier. 85 of the 4,068 rows (34
+auto and 51 pending) name a survivor_id
+that does not appear in events.jsonl.gz at all — 84 of them
+TSB records and one from ntsbpre. None is a wrong merge. In all
+34 auto rows and 37 of the pending ones the
+survivor’s native record now sits under the row’s own absorbed_id,
+because a later registration-recovery pass re-keyed it and reversed the
+direction the row records; the remaining 14 sit under a third
+registration key. A further 8 pending rows name an
+absorbed_id that is itself absent, each carrying
+fan-demoted. The consumer rule is therefore to resolve either side
+through event_sources.csv.gz on (source, native_id)
+rather than by matching identifiers directly.
+
+4.6 Proposing merges for the unkeyable cohort
+
+Pairs for the merge table are proposed by a scoring pass, run offline rather
+than inside the corpus build: the table holds human decisions, and
+regenerating it on every build would either overwrite them or force the build
+to reason about them.
+
+Blocking is exact on event date and death toll, with at least two deaths. This
+is a crude block and it is the only natural one available for this cohort: the
+date is the single field every source fills, and the toll is the only other
+value two independent rewrites of one official report reliably agree on. A
+record with no registration and no position offers nothing else to block on.
+
+The two-death threshold has a consequence that should be stated rather than
+left to be inferred, because it names where the residual duplication lives.
+A pair below the threshold is never scored, never proposed and never merged:
+it is not that the scorer judges it and declines, but that it is never
+considered. That is not a small corner of the cohort. Of the 62,674
+occurrences the ladder could reach only by its weakest rungs, 46,594
+— 74.3 % — carry a known fatality count below two. Whatever
+duplication survives in this corpus is therefore concentrated, by
+construction, in low-toll occurrences that no source keyed by registration or
+position; the adjudicated samples say nothing about that stratum, and the
+error rates of Section 6.2 should not be read as
+applying to it.
+
+Everything after the block is scoring, and the scheme is a deliberately
+reduced Fellegi–Sunter [9]: a blocked comparison, a
+per-field agreement vector, a weighted score, and a cut of that score into a
+band applied automatically and a band held for clerical review, after the
+partition their formulation introduced. What is removed is the parameter
+estimation. The m and u probabilities are not
+estimated by expectation–maximisation [15]; the
+weights are set by hand and the score is a blunt confidence used to order a
+queue, not a calibrated posterior. Two further departures should be read as
+disqualifying the label rather than qualifying it. The score takes only eleven
+discrete values, because it is a sum of fixed rule bonuses and not a
+likelihood ratio, so it has no distribution to threshold and no calibration
+curve to plot. And the third Fellegi–Sunter tier is not materialised: pairs
+scoring below the review band are never written to the merge table, which
+therefore contains links and review-queue pairs only. What is implemented is a
+blocked heuristic scorer that inherits the shape of their decision rule; the
+inferential content of the method is not present, and none of the guarantees
+that follow from it are claimed here.
+
+The removal is a decision about this corpus rather than a shortcut. A full
+model earns its keep when many fields discriminate and several blocking keys
+are available; here the operator field is populated on 41.5 % of
+records and manufacturer on 0.4 %, the date is the only natural
+blocking key for the cohort in question, and the comparison that matters most
+— an airframe written in Cyrillic by one source and Latin by another — is a
+normalisation problem that no off-the-shelf implementation solves. Estimating
+ m and u over fields that are usually missing would produce well-calibrated
+weights for a comparison that rarely happens. The decision structure is worth
+keeping; the parameter layer is not, and claiming it would be the failure this
+paper exists to avoid. A pair is proposed only when the aircraft type agrees on at least one
+significant token and either the operator agrees or the two records
+name the same state. The death toll is not a second signal here: it is part of
+the block, so every pair reaching the scoring stage already agrees on it. Agreement
+is required positively rather than as absence of contradiction, because absence
+is cheap in this corpus: the operator field is populated on
+41.5 % of records and manufacturer on 0.4 %, so two records can
+fail to contradict each other on almost everything.
+
+Type comparison folds Cyrillic OKB designations to Latin and glues a designator
+to its number, without which a MAK record and an Aviation Safety Network record
+of the same airframe share no token at all.
+
+Guards.
+
+Four rules demote a scoring pair to the review queue rather
+than merging it. Each was added because a sample found the failure it prevents,
+and each cost merges that would otherwise have been made.
+
+• 
+
+Mass fleet, small toll. Wartime transports of mass operators
+were lost in batches, so a same-day, same-toll coincidence is ordinary rather
+than remarkable. A sample drawn deliberately from this cell contained four
+genuine false merges in thirty — two different C-47s of the same air force,
+same day, same toll, one in Indiana and one in Burma, separated only by a
+production block that neither compilation records.
+
+• 
+
+Manufacturer agreement without model agreement. A
+manufacturer’s name is a token shared by every aircraft it built. Two records
+agreeing on Junkers and nothing else were merged, one a Ju 52 and the
+other a Ju 88. A conflicting model number under a shared designator prefix now
+demotes the pair. It demotes rather than rejects, because a Convair 340
+converted to a 580 is one airframe under two designations.
+
+• 
+
+One collision, two airframes. A mid-air collision between two
+aircraft of one type and operator produces two records sharing every blocking
+field, and both are legitimate because each is one airframe’s
+involvement — the unit of analysis defined in
+Section 3.2. Nothing in the scoring can separate them, and the
+fan guard below does not fire because a clean two-way crossing produces no fan.
+A collision marker in either narrative demotes the pair.
+
+• 
+
+Fan. A record appearing in more than one proposal cannot be the
+same event as both. At most one is right and the scoring does not say which, so
+all of its proposals go to a person.
+
+4.7 Linkage error, measured
+
+Linkage error is measured on adjudicated samples rather than asserted, and
+the sampling frame matters more than the headline. Five samples were drawn in
+sequence, each in response to what the previous one failed to cover, and the
+two guards above came out of that sequence: the false merge and the
+undecidable pair found in the third sample became the model-number and
+collision guards, both added before any merge reached the corpus. The samples,
+their frames, their verdicts and what each can and cannot support are reported
+together in Section 6.2 and
+Table 4 rather than twice; the design point to carry into the
+next section is that the frames are stated because they are not
+interchangeable, and that adjudication used the sources’ own published records,
+so the resulting figures bound clerical error and not the deeper question of
+whether two compilations repeated one upstream mistake.
+
+4.8 Field resolution by source rank
+
+When an occurrence has more than one contributing record, one record wins
+outright and its gaps are filled from the others. There is no per-field
+election and no Annex 13 role in the rule, for the reason
+Section 4.1 gives: the registry does not record what
+role a source played in a given occurrence, so a rule that depended on it could
+not be evaluated.
+
+What is implemented is a static three-level rank over sources, reflecting
+field richness rather than legal standing:
+
+• 
+
+Rank 3 — every national investigation authority. Most reach
+this rank through the uniform adapter contract; the NTSB and the ATSB keep
+their own tables for format reasons (Section 3.1) but rank
+with the rest, which matters because the four NTSB codes alone supply
+60.8 % of source records.
+
+• 
+
+Rank 2 — MAK and the Bureau of Aircraft Accidents Archives.
+
+• 
+
+Rank 1 — Wikidata, the Aviation Safety Network and SKYbrary.
+
+The record from the higher-ranked source becomes the occurrence, and every
+field still null on it is filled from the records it beat, in the order they
+were seen. is_hull_loss is the one exception and is a disjunction:
+if any contributing record reports a hull loss, the occurrence does.
+
+Ties are broken by first arrival, except among the three tier-aware sources of
+Section 4.4, where a final report outranks an interim
+one and an interim outranks a preliminary. Publication date plays no part.
+
+Two consequences are worth stating because they are not what a reader would
+assume. A rank-1 compilation loses to a rank-3 authority on every field they
+both populate, even where the compilation is demonstrably more accurate — the
+rank is a proxy for richness, not for correctness. And because resolution is
+per record rather than per field, an occurrence’s fields are internally
+consistent with one source’s account rather than being the best available value
+of each; the losing records remain reachable through the provenance list, but
+their field values are not retained in the published occurrence.
+
+4.9 Occurrence-type and severity mapping
+
+Each source publishes its own occurrence classification, and the corpus does
+not reconcile them. There is no per-source crosswalk table. The mapping is a
+closed set of three accepted values — accident, incident,
+combat_loss — and anything a source publishes that is not one
+of those three becomes accident. A source’s “serious incident”, its
+“occurrence”, its national category and its blank field all arrive at the
+same value, and nothing records that they did.
+
+The realised distribution follows directly from that default rather than from
+the world. The dominance of accident at 99.17 % is a
+property of the mapping, not of aviation: it is what a fall-through rule
+produces when most sources classify in a vocabulary the corpus does not
+recognise. A reader who takes the figure as evidence that 99 % of
+recorded occurrences were accidents in the Annex 13 sense will be wrong, and
+the error is ours to declare rather than theirs to discover. Three classes occur: accident
+(277,157; 99.17 %), incident (2,073;
+0.74 %) and combat_loss (255; 0.09 %).
+
+Two consequences follow and both should be read before using the field.
+There is no serious_incident class, although Annex 13 defines
+one and several sources publish it: the value survives only in the
+severity field, on 69 records that are typed
+accident. A study filtering on occurrence type will therefore find no
+serious incidents at all, and one filtering on severity will find them
+mislabelled as accidents. And combat_loss is not a safety
+event: it is retained because the underlying sources record shoot-downs and
+war losses, and excluded from any rate this paper reports, but a naive
+WHERE occurrence_type = ’accident’ both keeps them out and silently
+changes the denominator.
+
+severity is derived, not mapped: an occurrence is fatal if the canonical fatalities_total is greater than zero, and is otherwise assigned from the highest injury level and the aircraft damage level reported by the highest-priority record that carries either field (the non-fatal levels are hull_loss (9,743), minor (672), incident (196) and serious_incident (69), each carried through from the source where it publishes one). Occurrences with no injury or damage information from any source receive the severity level unknown, which is a stored value and not a null. Because both fields depend on the mapping rule and on the priority rule, any change to either is versioned with the corpus (Section Data and code availability).
+
+5 Technical validation
+
+Validation addresses design goals DG1 and DG3 directly and DG2 in a form the
+original goal did not anticipate, along two axes: the error rate of the linkage
+step, measured on adjudicated samples, and the structure of source
+overlap. A third axis — coverage against independent compilations — was
+planned and is not available;
+Section 5.2 explains why, and the explanation is a
+result rather than an omission.
+
+5.1 Linkage error on adjudicated samples
+
+Following Christen [13] and Binette and Steorts [17], linkage
+quality is measured on adjudicated pairs rather than inferred from model fit.
+The measurement here is narrower than those references assume, and the
+narrowing is a consequence of the method: a deterministic ladder produces no
+match weights to stratify and no thresholds to move, so the stratified
+precision-and-recall estimator those papers describe has nothing to attach to.
+It does produce clusters — records sharing a key are one occurrence — and
+those clusters carry no error estimate here at all. 7,171 reg-keyed
+occurrences hold two or more source records joined by the shared
+reg: key alone (7,886 source records across all
+10,364 multi-record reg: occurrences), and 179
+occurrences are joined on the geo rung. All 200 adjudicated pairs are
+scorer pairs; not one is a ladder join. The geo rung is the higher risk of the
+two, since it joins on date and a position rounded to 0.1 degree, some
+11 kilometres at the equator. A later version should draw a uniform
+seeded sample from each ladder population and adjudicate it as sample 4 was
+adjudicated; no error rate for these joins is asserted here, because none has
+been measured.
+
+What is measured is the error rate of the scoring band that merges
+automatically, on samples drawn from stated frames. Five samples were
+adjudicated, drawn sequentially rather than to a protocol fixed in
+advance; Table 4 gives each frame. The rates are not pooled,
+because the frames are not nested and a pooled figure would average a stratum
+chosen for difficulty against one chosen at random.
+
+Two quantities that would normally accompany such a table are absent and are
+named here rather than left to inference. Recall is not measured. The
+ladder errs toward leaving records apart, so its characteristic failure is a
+duplicate that survives as two occurrences, and nothing in this design detects
+one. Inter-adjudicator agreement is not measured. The largest sample was
+split into disjoint halves that were adjudicated separately, so no pair was
+decided twice and there is no overlap from which to compute a coefficient.
+
+5.2 Why coverage is not assessed against ASN and B3A
+
+An earlier design for this paper assessed external validity against the two
+global compilations, the Aviation Safety Network and the Bureau of Aircraft
+Accidents Archives, and estimated the events missed by all three lists by
+capture–recapture. That design is not reported here, because it cannot be
+executed on this corpus, and the reason is worth stating plainly rather than
+quietly dropping.
+
+Both compilations are ingested. They are not external lists against
+which the corpus can be checked; they are part of it. On the snapshot described
+here the Aviation Safety Network is the primary source of 21,242
+occurrences (7.6 %) and the Bureau of Aircraft Accidents Archives of
+34,754 (12.4 %); SKYbrary, which the priority rule ranks
+lowest, is the primary source of none, and the four compilations together
+supply about 23.8 % of source records.
+Measuring the corpus against them measures a subset of the corpus against
+itself. The overlap term m in a Lincoln–Petersen estimator would not be the
+independent recapture the estimator assumes; it would be an artefact of one
+ingestion pipeline reading two files.
+
+The failure is not repaired by modelling dependence. A log-linear model with
+interaction terms relaxes the independence assumption between genuinely
+separate lists; it does not make a list independent of a corpus that contains
+it. Nor is the problem confined to the estimator: the same objection voids any
+coverage percentage quoted against these two compilations, because the
+denominator and the numerator share rows.
+
+What can honestly be said about coverage is narrower and appears in
+Section 7.6: the corpus inherits the reporting thresholds and
+territorial scope of its contributing authorities, and no statement in this
+paper should be read as an estimate of events that no authority recorded.
+A genuine external check would require a list assembled independently of every
+source the corpus ingests. The United States is the one jurisdiction where such
+a check is available in principle, since the NTSB bulk export can be compared
+against the corpus’s own NTSB-derived records to estimate ingestion loss rather
+than world coverage; that is a narrower claim than the one originally
+planned, and it is a check on the pipeline, not on the world.
+
+5.3 Per-source overlap matrix
+
+For DG1 the informative statistic is how much of each source is redundant with others. We compute the 128\times 128 matrix O_{ij} counting occurrences with contributing records from both source i and source j . It is reported as raw counts rather than as a fraction of either source, and it is therefore symmetric: normalizing by the size of source i would give the arguably more useful asymmetric statistic — the share of i that j also covers — but that is not what Figure 3 plots, and the two should not be confused. The matrix is sparse, with its dense cells between the global compilations and between an investigation authority and a compilation that rewrites its reports; the largest off-diagonal cell is 3,354, between the Aviation Safety Network and the Bureau of Aircraft Accidents Archives. A source whose records are all covered by a higher-priority source contributes provenance but not coverage. Neither the per-source count of single-source occurrences nor a list of sources with no overlap at all is computed here; both would follow from event_sources.csv.gz and neither is claimed as a result of this paper.
+
+5.4 Internal consistency
+
+Field-level checks are run on every release. Those the snapshot carries in descriptives.json are the completeness and consistency figures quoted above; the date-precision split is not among them and is stated here instead, computed from events.jsonl.gz: 279,297 occurrences carry a ten-character date string (99.93 %), 48 resolve only to a month and 140 only to a year, and no occurrence is dated after 2026. That is a count of string length, not of validity: the build gate checks that a four-digit year can be read and falls in a plausible range, and never validates the month or the day. Exactly two stored values are not calendar dates — reg:9HVLT:2007-18-20 (month 18, source malta) and a bpea record storing 2018-03-42 (day 42) — so 279,295 of the ten-character values are valid dates. Both are recorded here as errata rather than silently repaired, because the first is baked into that occurrence’s linkage key and correcting it would change its published id. The remaining per-release checks are the fraction of records with resolved type_icao, non-null registration and resolved country; the fraction of fatal occurrences whose class is not accident (which should be near zero under Annex 13 and indicates mapping errors); the number of registrations appearing in more than 5 occurrences (re-used marks or normalization failures); and the count of occurrences dated in the future or before the source’s stated coverage window.
+
+6 Results
+
+Results are reported against the design goals. All figures are regenerable from the API calls in Appendix A against the deposited snapshot https://doi.org/10.5281/zenodo.22303316.
+
+6.1 DG1: composition and provenance
+
+The corpus holds 279,485 occurrences assembled from 290,957 source records, of which 96.15 % derive from a single source, 3.61 % from two, 0.21 % from three and 0.02 % from four or more; the maximum for one occurrence is five, reached by 2 occurrences. That distribution bounds what the linkage can be said to achieve: only 10,757 occurrences (3.85 %) are attested by more than one authority, so every cross-source comparison in this paper rests on that subset rather than on the whole, and the remaining 268,728 single-sourced occurrences cannot be cross-checked within the corpus at all. Table 3 gives counts by decade, and Figure 1 the annual series. The corpus carries 131,882 non-empty narratives that resolve to a canonical occurrence, drawn from 122 of the 128 source codes and attached to 128,483 occurrences — 46.0 %. The two counts differ because several narratives can attach to one event, and quoting the narrative count against the occurrence total would overstate coverage by about a point. The narrative store holds 164,068 records in all; the residual 31,933 were fetched for source records that no occurrence in this snapshot claims — typically a native identifier the ingest saw but the occurrence loader did not — and a further 253 resolve but carry no text. They are counted here rather than dropped silently, and narrative_index.csv.gz in the snapshot lets any of these figures be recomputed under a different definition. The region column is empty for every row, so the geographic breakdown below is derived from country_iso, which is itself absent on 25.2 % of occurrences.
+
+Table 3: Canonical occurrences by decade of event date and state of occurrence.
+The breakdown is by country_iso rather than by ICAO region, because
+region is empty for every occurrence; “unknown” is shown as its own
+column rather than distributed, since it is the largest column in the two most
+recent decades. Rows sum to 252,580; the remaining 26,905
+occurrences fall before 1950, giving 279,485. The “United States”
+column is a severe undercount from 2008 onward: the current NTSB feed does not
+populate country_iso, so its records fall into “unknown”.
+
+Decade
+
+United States
+
+Other states
+
+Unknown
+
+Total
+
+Multi-source (%)
+
+1950–1959
+
+423
+
+1,839
+
+3,670
+
+5,932
+
+13.1
+
+1960–1969
+
+33,159
+
+2,970
+
+3,428
+
+39,557
+
+3.1
+
+1970–1979
+
+45,305
+
+3,604
+
+3,420
+
+52,329
+
+3.7
+
+1980–1989
+
+31,843
+
+2,712
+
+2,787
+
+37,342
+
+4.0
+
+1990–1999
+
+22,189
+
+4,791
+
+3,030
+
+30,010
+
+3.7
+
+2000–2009
+
+15,048
+
+11,292
+
+6,563
+
+32,903
+
+3.1
+
+2010–2019
+
+536
+
+15,870
+
+18,432
+
+34,838
+
+3.1
+
+2020–2026
+
+336
+
+8,061
+
+11,272
+
+19,669
+
+2.6
+
+Total
+
+148,839
+
+51,139
+
+52,602
+
+252,580
+
+3.6
+
+The shape of this table is the corpus’s most consequential property and it is
+invisible in the headline count. United States records dominate the middle
+decades — 45,305 of 52,329 occurrences in the 1970s — and
+then all but vanish: 536 of 34,838 in the 2010s. That collapse
+is a defect of attribution in this snapshot rather than a change in the sources
+or in the world. The two large historical NTSB exports, which end in 1981 and
+2007, carry a state code; the current NTSB feed, which takes over in 2008 at
+comparable volume — 1,775 occurrences in 2008 against the
+1,825 attributed to the United States in 2007 — does not. Its
+normalizer never populates country_iso, so 29,139 of the
+29,148 occurrences whose primary source is that feed carry no state at
+all; the 9 exceptions took their code from a second contributing source
+(Canada seven times, France and Turkey once each).
+
+The corpus does not assign these records to the United States, and must not:
+the NTSB participates in foreign investigations, and the nine records that did
+receive a code are Canadian, French and Turkish. Their order of magnitude can
+still be stated. 28,992 of them carry coordinates and 22,420 of
+those fall inside a rectangle drawn around the contiguous United States — a
+box and not a border, which admits southern Canada and northern Mexico and
+excludes Alaska, Hawaii and the territories. That figure gives the scale of the
+missing attribution; it is not a count and is not used as one. The defect is
+known, is uncorrected in this snapshot, and will be repaired when the corpus is
+next recut.
+
+What replaces the attributed records is in any case not other states so much as
+unattributed ones: country_iso is missing on 52.9 % of
+2010s occurrences and 57.3 % of those since 2020. Of the
+29,704 occurrences dated 2010 or later with no state code,
+25,664 (86.4 %) have the current NTSB feed as their primary
+source and 4,009 (13.5 %) come from the global compilations,
+which record a place name rather than a state code. Any time series cut by
+country from this corpus is therefore measuring source composition at least as
+much as it measures aviation, and the decades are not comparable to one another
+without saying so.
+
+Figure 1: Canonical occurrences per event year. The series is plotted from 1919; the 36 occurrences dated 1902–1918 are omitted from the plot, not from the corpus. The series is a record of reporting as much as of aviation: the rise through the 1960s is the NTSB historical archive entering the corpus, and the decline through the 1980s follows the end of the 1962–1981 export. The 2007–2008 handover to the current NTSB feed leaves the annual total flat (3,320 in 2007, 3,454 in 2008); its effect is on attribution (Table 3), not on this series.
+
+6.2 DG2: linkage error
+
+The linkage produces no weight distribution to threshold and no calibration
+curve to plot. Most of it is a key ladder, which records a decision per pair
+and no score at all; the scored cohort carries one, but it is a sum of fixed
+rule bonuses taking eleven discrete values, so plotting it would describe the
+rule rather than the data. What can be reported is the error rate of the band
+that ships, measured on adjudicated samples, and the sampling frame of
+each.
+
+Table 4: Hand-adjudicated linkage samples. Each row is an independent sample
+with its own sampling frame; the frames are not nested and the rates are not
+poolable. Samples 3 and 4 both come from the automatically-merging band:
+sample 3 measures it as it stood before the two guards it produced,
+sample 4 is a fresh draw from the band as it ships. Only sample 4 was drawn
+by a recorded procedure — a uniform random sample of 60 of the
+3,441 applied pairs, seed 20260901, listed in
+adjudicated_pairs.csv — and it is the only one whose selection a
+reader can repeat. The frames are not nested but they are not disjoint either:
+the file holds 200 rows and 198 distinct pairs, because two pairs
+drawn into sample 4 had already been adjudicated in sample 1
+(src:aviation-safety:45944 / reg:DAVFB:1938-10-01 and
+src:aviation-safety:44220 / reg:YV84C:1985-05-28, judged
+duplicate both times). The sample 4 draw was uniform over the applied band and
+was not screened against earlier samples.
+
+Sample
+
+Frame
+
+ n 
+
+Duplicates
+
+Errors
+
+Outcome
+
+1
+
+scoring band, as it then stood
+
+40
+
+40
+
+0
+
+frame too narrow
+
+2
+
+mass fleet, small toll
+
+30
+
+26
+
+4
+
+cell excluded
+
+2b
+
+country agreement only
+
+10
+
+10
+
+0
+
+held for review
+
+3
+
+merging band, before its guards
+
+60
+
+58
+
+1
+
+two guards added
+
+4
+
+merging band, as it ships
+
+60
+
+60
+
+0
+
+bound, not proof
+
+Figure 2: Occurrences by number of contributing sources, log height. There is no match-weight histogram to show in its place: linkage is deterministic for all but the scored cohort, and that cohort’s score takes eleven discrete values fixed by rule, so its histogram would show the rule and not the data. The multi-source bars are dominated by ladder joins: of the 10,757 occurrences with more than one source, only the 3,441 rows the scored band applies come from the mechanism whose error is measured in Section 6.2.
+
+Figure 3: Per-source overlap for the twenty largest source codes, ordered by contribution. Cell (i,j) counts occurrences carrying records from both sources; the diagonal is each source’s own total and is shown grey. Every non-zero off-diagonal cell is labelled with its count; colour is on a log scale read from the bar below, the largest off-diagonal cell being 3,354, between the Aviation Safety Network and the Bureau of Aircraft Accidents Archives.
+
+Sample 1 is reported because the way it misled is the finding. Forty
+duplicates and no errors reads as settled, but in all forty the deciding signal
+was the operator, and the sample contained no pair held together by country
+alone — so it carried no information about a stratum it never touched. Its
+own interval said as much: zero errors in forty bounds the error rate below
+roughly 7.5 % by the rule of three, which over the full band admits
+several hundred wrong merges.
+
+Sample 2 was drawn deliberately from the strata sample 1 had missed and found
+four genuine false merges in thirty. That cell — a mass-built airframe of a
+mass operator with a small death toll — is now excluded from automatic
+merging.
+
+Sample 3 is the one that matters, being the first drawn from the band that
+merges automatically. Fifty-eight duplicates, one false merge and one pair that could not be settled. Both the error and the undecidable pair became
+guards, described in Section 4.6, and both were added
+before any merge reached the corpus.
+
+One error in 59 confident verdicts is 1.7 %, and at that sample
+size a single error constrains the rate only loosely: the exact binomial
+(Clopper–Pearson) 95 % interval runs from 0.04 % to
+9.1 %. Applied to the 3,441 pairs the band merges, the point
+estimate is of order 58 false merges and the interval admits anywhere
+from 1 to 313. That figure is reported here as history — it
+describes the band as it stood when sample 3 was drawn, before the guards, and
+it is superseded for the shipping band by sample 4 below. It is a point
+estimate on 59 verdicts and never a bound: sixty adjudications cannot
+exclude an error rate several times the one observed.
+
+That figure describes the band sample 3 was drawn from, not the band that ships
+today. Both problematic pairs are now demoted to the review queue by the guards
+they produced: in the deposited merge table each carries status
+pending at score 0.20, with evidence
+model-number-conflict and collision respectively. Of the
+sixty pairs of sample 3, 56 are still merged automatically and all
+56 were adjudicated duplicates — but that is in-sample by
+construction, because the guards were derived from the very two pairs they now
+catch, and it cannot stand as a rate for the current band. Four pairs left
+the automatic band, not two, and only three of them left it because of a
+guard: besides the two the guards were derived from, a merge this sample had
+adjudicated as a duplicate now sits at score 0.50 carrying
+collision. The fourth, also adjudicated a duplicate, carries no guard
+marker at all — its evidence string ends in high-toll-anchor, which
+is a scoring bonus and not a guard, borne by 1,322 of the
+3,441 rows the band applies — so at score 0.65 it falls below
+the cut-off on the score alone. Put in the units the benefit is put in, the
+guards withheld one correct merge to withdraw one wrong merge and one pair
+that could not be decided. That is a cost in
+recall, visible at all only because these sixty pairs happen to have been
+adjudicated.
+
+Sample 4 was drawn to answer that. It is a uniform random sample of 60
+of the 3,441 pairs the band applies today, drawn with seed
+20260901 so the selection can be repeated, and adjudicated out of
+sample: none of the sixty is a pair any guard was derived from. All 60
+were duplicates. Fifty-three were settled mechanically — the two sides carry
+the same registration on the same date, in one case encoded in the absorbed
+record’s own key rather than in its fields, and a registration is not reissued
+within a day — and the remaining seven by reading the sources’ own records,
+with the deciding fact recorded per pair. That split limits what the sample
+establishes. Registration and date agreement is the signal the merge rule
+already weighs most heavily, so for those fifty-three the adjudication confirms
+the rule’s own input rather than re-establishing the event independently. Only
+the seven decided from the sources’ records bring evidence the rule did not
+use.
+
+Zero errors in sixty does not mean the band is clean; it bounds how unclean it
+can be. The exact (Clopper–Pearson) two-sided 95 % upper bound on
+the rate is 5.96 %, which across the 3,441 applied pairs is
+205 false merges; the one-sided 95 % bound, appropriate if
+only the upper direction is of interest, is 4.87 % or 168
+pairs. Neither is a ceiling on the number of false merges: both are confidence
+statements about the rate, and a reader who wants the two-sided bound below
+1 % would have to adjudicate 368 pairs at zero errors
+(299 one-sided). That bound is
+wider than the point estimate sample 3 gave, so these two samples together do
+not demonstrate that the guards improved anything — sixty observations cannot
+show that. What sample 4 establishes is narrower and was previously missing
+altogether: the band as it ships has now been measured on a sample whose
+selection is recorded, and it produced no error.
+
+The figure bounds clerical
+error only: the two global compilations dominating this cohort are not
+independent of each other, so a duplicate that both inherited from one upstream
+mistake would be adjudicated as a duplicate and counted as correct.
+
+6.3 DG3: harmonization outcome
+
+Table 5 cross-tabulates canonical occurrence_type against severity. Cross-source class disagreement is not reported: the corpus stores one harmonized class per occurrence and does not retain the losing record’s class after the priority rule has run, so the disagreement rate cannot be recovered from the published snapshot. Reporting it would require the loader to persist each contributing record’s pre-merge class, which is a schema change rather than an analysis and is listed under future work in Section 7.7. 0.30 % of fatal occurrences carry a canonical class other than accident (176 of 58,473), of which 169 are combat_loss. Field completeness after normalization is: date 100 %, registration 78.0 %, type_icao 15.6 %, country_iso 74.8 %, operator 41.5 %, fatalities_total 52.5 %.
+
+Table 5: Canonical occurrences by harmonized occurrence type and severity. The
+two fields are not independent axes of one classification: severity
+carries a serious_incident level that occurrence_type does
+not, and every record holding it is typed accident.
+
+occurrence_type
+
+fatal
+
+hull_loss
+
+serious_inc.
+
+incident
+
+minor
+
+unknown
+
+Total
+
+accident
+
+58,297
+
+9,728
+
+69
+
+196
+
+672
+
+208,195
+
+277,157
+
+incident
+
+7
+
+5
+
+0
+
+0
+
+0
+
+2,061
+
+2,073
+
+combat_loss
+
+169
+
+10
+
+0
+
+0
+
+0
+
+76
+
+255
+
+Total
+
+58,473
+
+9,743
+
+69
+
+196
+
+672
+
+210,332
+
+279,485
+
+Three cells deserve comment. unknown severity covers
+75.3 % of the corpus, so the table is mostly a statement about what the
+sources did not record; a study treating absent severity as non-fatal would
+misclassify three quarters of the data. The 69
+serious_incident records typed accident are the mismatch
+described in Section 4.9 and are the only place that
+Annex 13 class survives. And 169 of the 255
+combat_loss records are fatal — these are shoot-downs and war
+losses, retained for provenance and excluded from every rate reported here.
+
+7 Discussion
+
+7.1 What the multi-source share means
+
+10,757 occurrences (3.85 %) carry records from more than one
+source. That share is the corpus’s own cross-check surface — the only place
+where two authorities can be observed describing one event — and it is the
+quantity the merge work of Section 4.5 moves. Before the
+adjudicated merges were applied the same corpus reported 7,558
+multi-source occurrences (2.67 % of a then-larger total); the merges
+raised the count by 42 %, not by finding new records but by
+recognising that pairs already present described one event. Like the
+recovery-pass figures of Section 4.6, this is a
+run-time measurement of a state the deposit no longer holds: the snapshot
+carries the corpus after those merges, so 7,558 cannot be recomputed
+from it and is reported as measured rather than as checkable.
+
+That figure answers the natural objection to spending this much care on
+linkage in a corpus where 96 % of occurrences come from a single
+source. The linkage does not change the single-source majority. What it
+changes is the size of the minority on which every cross-source claim in this
+paper and its companions rests, and it changed it by nearly half.
+
+One internal quantity is reported in place of the external coverage estimate
+that Section 5.2 explains cannot be computed: the
+count of source records that reach an occurrence shared with another
+authority, against those the ladder placed on a key of their own. That
+measures the pipeline, not the world, and the distinction is the point of
+Section 5.2.
+
+7.2 What the corpus is and is not
+
+The corpus is a harmonized, provenance-preserving aggregation of published official records. The design goals commit it to breadth, to a measured deduplication error, to a small common vocabulary and to reproducibility; they do not commit it to completeness, which no aggregation of published records can achieve, or to correctness beyond that of its sources. The validation results should be read in that light. The band that merges automatically was measured by a recorded random draw of 60 of the 3,441 pairs it applies, which found no error, bounding rather than disproving a rate: the exact two-sided 95 % upper bound is 6.0 %, a confidence statement about the rate and not a ceiling on the count. Recall is not measured at all, and that omission is the more serious of the two, because the ladder errs toward leaving records apart, so the duplicates it fails to join stay in the corpus as separate occurrences and inflate counts. Only the measured error can be placed on a scale — 205 pairs at that bound, 0.07 % of 279,485 occurrences, far below the between-source coverage differences visible in Figure 3. No comparable statement is possible for the unmeasured one, and nothing in this paper should be read as bounding it. The measured side can be tightened by users who need it: occurrence_merges.csv publishes every proposed pair with its status, its rule-derived score and the evidence string that produced it, so the 627 pairs still in the review queue can be adjudicated further and the applied band re-cut — resolving identifiers through event_sources.csv.gz, since 85 rows name a survivor the ladder has since re-keyed (Section 4.5). What is not published is a calibrated weight, because none is estimated.
+
+7.3 Alternative explanations for the validation results
+
+Several artefacts could produce the numbers in Section 6 without the pipeline working as intended. An error rate that flatters the band. Sample 1 measured 40 of 40 and meant less than it appeared, because its frame excluded the strata where errors live; the guard against this is not a wider sample but a stated frame, and Table 4 gives the frame of each. Adjudication agreeing with the corpus by construction. The two global compilations dominating the unkeyable cohort read the same official reports, so a duplicate both inherited from one upstream transcription error is adjudicated as a duplicate and counted correct; the reported rate therefore bounds clerical error and not source error, and no design available here separates them. Under-merging read as precision. The ladder errs toward leaving records apart, so a corpus that merged nothing would report no false merges at all — which is why the multi-source share of Section 7.1 is reported beside the error rate: it is the quantity that falls if the linkage becomes timid. Ingestion lag mistaken for under-reporting. Low apparent coverage for a state may mean an authority publishes in a form the adapters do not yet parse; the per-source coverage window in Table S1 separates the two.
+
+7.4 Comparison with prior resources
+
+Relative to ASN and B3A, the corpus is broader in source and carries their editorial judgement with them: it holds the national authorities’ records that neither compilation rewrites, and it also contains the events they record that no ingested authority describes, because both compilations are ingested as sources rather than filtered against an official list. It does not claim to be broader in aircraft class, since the ASN Wikibase it ingests already extends to light aircraft and rotorcraft. On this snapshot 58,425 occurrences (20.9 %) have no contributing source other than the four compilations — 21,217 carry only ASN, 31,558 only B3A, 55,770 nothing beyond those two — and these are what give the corpus its coverage outside investigated events. The deposit cannot separate compilation entries that cite an official report from those built on press coverage; a user who needs authority-level evidence should treat compilation-only occurrences as a stratum and filter on event_sources.csv.gz, as Section 5.2 already does for the coverage argument. Relative to the national databases, the corpus adds cross-reference and a common vocabulary at the cost of the field depth each authority provides natively; the source-specific fields are not carried over — the API’s facts{} object is a fixed summary of canonical values, not a per-source field store — so a study needing native depth must follow the URL in event_sources back to the source. Omrani et al. [10] found that models trained on NTSB, TSB and ATSB separately behave differently because of coding differences. This corpus does not resolve that: the allow-list of Section 4.9 collapses every unrecognized national class into accident and keeps no record that it did, so the coding differences are erased rather than reconciled, and occurrence_type must not be used as the outcome of a cross-authority comparison. What the corpus does add for that purpose is the source axis: the overlap matrix identifies the events several authorities described, and event_sources names which, so a study of coding disagreement can be run on the raw records behind those occurrences — retaining the pre-merge class is listed under future work in Section 6.3. The corpus follows the descriptor precedent set for aviation by the OpenSky datasets [11] in pairing a live API with frozen, DOI-referenced snapshots, and adopts the datasheet structure of Gebru et al. [19] in Appendix B. The author’s earlier open aggregate of the FAA wildlife-strike database [23] used the same versioned-release pattern for a single source; the present work extends it to many.
+
+7.5 Intended uses and cautions
+
+The corpus is suited to questions in which source attribution matters or in which breadth across jurisdictions outweighs field depth: cross-national comparison of occurrence mix, studies of disagreement between authorities, text mining over narratives with per-source licensing respected, and as a linkage target for other datasets keyed on registration and date. It is not suited, on its own, to rate estimation, because it carries no exposure denominators [8], or to trend estimation across the coverage window of any source without conditioning on that window, because Figure 1 shows that the series is dominated by when authorities began publishing. Users should stratify by source and occurrence class before pooling, should treat single-source occurrences from sources with no overlap as unvalidated, and should treat narratives under excerpt policy as pointers to the original rather than as text data.
+
+Three aggregations should not be attempted on this snapshot at all. They are named here rather than left to be discovered downstream, and each follows from a property stated elsewhere in this paper. Do not sum fatalities_total over the corpus. The unit is one aircraft’s involvement and not the event (Section 3.2), so where an authority reports a collision’s combined toll on each airframe’s record the toll is counted once per occurrence; the sum is in addition conditional on the 52.5 % of occurrences that carry the field. The deposit permits neither the double count nor the missing half to be corrected, so a corpus-wide death toll is not a quantity this snapshot can produce. Do not cut a country time series across 2008. The current NTSB feed does not populate country_iso, so the “United States” column of Table 3 collapses at that handover for a reason that has nothing to do with aviation (Section 6.1). The break is a defect of this snapshot, and any per-state series spanning it measures the defect. Do not compute figures by aircraft type. type_icao resolves on 15.6 % of occurrences, and the residue is not missing at random: resolution runs from 25.7 % on the largest NTSB export down to 1.5 % on B3A and 0 on Wikidata, so a per-type count is a count of the sources whose model strings the lookup table happens to cover.
+
+7.6 Limitations
+
+7.6.1 One source is redistributed without a licence
+
+Provenance is this corpus’s claim, so a gap in it is reported first, and the
+gap is wider than a count of non-empty license fields suggests. The
+field is free text, and across the 128 contributing codes it falls into
+four classes. 15 codes (132,541 source records) name
+recognisable terms — CC BY 4.0, CC0, the UK Open Government Licence,
+Licence Ouverte/Etalab 2.0, United States public domain, the SKYbrary licence
+agreement, and the Government of Canada non-commercial reproduction terms.
+107 codes (127,436 records) carry nothing but the name of the
+publishing organisation, among them ntsbpre (60,400) and
+baaa (41,317); the corpus asserts a rights-holder for these,
+not a grant. 5 codes (6,183 records) carry a descriptive note
+about the material rather than terms. And one records an explicit absence.
+The Aviation Safety Network publishes no usable terms: its footer copyright
+link resolves to a 404, leaving a liability disclaimer and a copyright notice,
+and the records this corpus ingests come from the user-contributed ASN Wikibase
+rather than the curated ASN database. The registry entry therefore records the
+copyright holder and the absence of a grant instead of asserting terms that
+were never given. What this corpus asserts, then, is that it has recorded
+whatever each source published about reuse; it does not assert that
+127 of 128 sources have granted redistribution rights, and the
+107 bare organisation names should be read as an open question per
+source rather than as a permission.
+
+The exposure is not small and is stated rather than buried: ASN supplies
+24,797 source records (8.5 %) and is the primary source of
+21,242 occurrences (7.6 %), so its field values are
+redistributed in the snapshot. Facts about an accident — its date,
+registration, location and toll — are not themselves protectable, and every
+ASN-derived record carries a link back to the ASN page it came from; but a
+substantial extraction from a compiled database engages the European
+sui generis database right independently of copyright in the facts, and
+this paper does not claim that question is settled. A permission request to the
+Flight Safety Foundation is outstanding. Users who need to exclude the source
+can: event_sources.csv.gz carries one row per contributing source, so
+dropping source = ’aviation-safety’ and the occurrences left with no
+other source is a two-line filter. Reproduced on this snapshot it removes the
+24,797 ASN rows and 21,217 ASN-only occurrences, leaving
+258,268. The filter does not make the remainder free of ASN, and it is
+not offered as such: exactly 25 surviving occurrences still carry
+aviation-safety as their primary source, all of them ASN and SKYbrary
+together with the rank tie broken by first arrival, and a further 3,580
+carry an ASN row beside a higher-ranked source, so some of their null fields may
+have been filled from it. events.jsonl.gz holds no per-field
+provenance, so that filling cannot be undone from the deposit.
+
+7.6.2 Fields that are mostly empty
+
+The schema is wider than the data. Any cut along a sparse field silently
+changes its own denominator, so the completeness of every variable used in this
+paper is given here rather than in a supplement, measured on the deposited
+snapshot: event_date and
+report_url 100 %,
+registration 78.0 %, country_iso 74.8 %,
+phase 70.1 %, category 58.9 %,
+fatalities_total 52.5 %, operator 41.5 %,
+occupants 28.2 %, lat 16.9 %,
+type_icao 15.6 %, flight_nature 14.8 % and
+manufacturer 0.4 %. Three fields named elsewhere in this paper
+are returned by the API but are not columns of events.jsonl, so the
+snapshot supports no figure for them and none is quoted:
+cause_summary, airline_icao and region. The last is
+null on every row the API returns and is discussed immediately below.
+
+Three of these deserve naming rather than tabulating. region is empty
+for every occurrence, so no regional analysis is possible from this corpus
+without inferring region from country_iso, which is itself missing on
+a quarter of records and missing most on the recent decades — there because
+the current NTSB feed’s normalizer leaves country_iso null, a defect
+of this snapshot rather than of the source. type_icao
+at 15.6 % means a per-type rate computed from this corpus describes the
+sixth of it that carries a designator, not the fleet. And
+fatalities_total at 52.5 % means that a sum of deaths over the
+corpus is a sum over the half of records that report them; the figure quoted
+anywhere in this paper is that conditional sum and not an estimate of deaths.
+
+7.6.3 Consistency findings, not future checks
+
+The integrity checks were run rather than planned, and three of them return
+non-zero. 4,945 occurrences sit at latitude and longitude both exactly zero, and 6,312 lie within the 0.05^{\circ} radius the key ladder treats as unknown,
+which is not a position in the Gulf of Guinea but a source’s way of writing
+“unknown”; the key ladder already refuses to link on such a position, but a
+map built from this corpus without filtering will draw them. 176
+occurrences are fatal but not typed accident, of which 169 are
+combat_loss and 7 incident. 90 registrations
+appear in more than five distinct occurrences, which is plausible for a
+long-lived training airframe and is also what a normalisation error looks like;
+they are flagged, not resolved. Future-dated events: 0.
+
+7.6.4 One state, four source codes
+
+Four NTSB source codes supply 60.8 % of source records. The corpus is
+therefore a United States dataset with substantial international coverage
+rather than a global one with an American component, and every unqualified
+aggregate in it inherits that shape. This is not correctable by weighting: the
+absent records are absent because the authorities that would have filed them
+publish nothing machine-readable, and a weight cannot recover an event nobody
+wrote down.
+
+The most important limitation is coverage bias inherited from the sources: events that no source published in any form are absent, and International Air Transport Association and International
+Coordinating Council of Aerospace Industries Associations and International
+Federation of Air Line Pilots’ Associations [3] show that non-publication of final reports is concentrated in particular states. Their figure bounds report availability rather than corpus coverage — an event without a final report may still enter through a preliminary report, a reporting system or a compilation — but the concentration by state is the relevant warning either way. The corpus cannot estimate this from within at all; Section 5.2 explains why the natural external check is unavailable. Second, the linkage relies on registration and date; events where the registration is absent from all sources, or where an authority reports only a month, depend on the weaker blocking keys and have lower recall, which is concentrated in older records and in sources with sparse structured fields. Third, the mapping from native classes to three harmonized levels loses information and, for sources with a single undifferentiated class, imposes a severity-based rule that Annex 13 does not sanction; the native class is not retained in the published objects — neither the API’s facts{} nor events.jsonl.gz carries it — so the canonical class must be read as the output of that default rule and the native class recovered from the source. Fourth, the samples were adjudicated with a large language model under the author’s direction (see Assisted work), working from the sources’ own published records rather than independently of the project; adjudication by the party that built the linkage is common in this literature [17] but it is not independent, and the reported rates should be read with that in mind. Fifth, narratives are multilingual and are not translated, and the corpus makes no attempt to remove names of individuals that authorities themselves publish. Finally, the corpus is a moving target: sources are added and re-ingested, thresholds may be re-tuned, and the figures in this paper describe the snapshot deposited as version 2026-09-04 (DOI 10.5281/zenodo.22303316) and no other.
+
+7.7 Future work
+
+Three extensions follow naturally. Exposure denominators from fleet and schedule data would convert counts into rates and are the subject of a companion paper in preparation. Field-level disagreement between authorities, of which the class disagreement in Section 6.3 is one instance, is analyzed in a second companion paper on cross-source disagreement, in preparation. Structured extraction from narratives [12] could recover the source-specific detail the harmonized schema drops — phase of flight in particular, carried today only as the source’s own unmapped string — into the ADREP vocabulary; a pipeline for that is evaluated separately in a companion paper on narrative text mining, in preparation. On the linkage side, replacing the point-estimate thresholds by a posterior over partitions [16] would allow downstream counts to carry linkage uncertainty. Two smaller changes would answer questions this paper has to leave open. Persisting each contributing record’s pre-merge occurrence class would make the cross-source disagreement rate of Section 6.3 measurable instead of unrecoverable; it is a schema change, not an analysis. And recall, which is not measured here at all, admits a cheap internal lower bound: mask the registrations on a sample of the 10,757 occurrences already linked by registration and count how many the scoring pass recovers without them. That would not measure the duplicates no source keyed, but it would replace an unmeasured quantity with a measured floor.
+
+8 Conclusion
+
+The FlightFinder Occurrence Corpus assembles 279,485 aviation occurrences and 131,882 attached narratives from the 128 source codes that contribute to it — national investigation authorities and occurrence-reporting systems, four global compilations, and one public-records channel — into one schema, with the identity and URL of one record per contributing source preserved on each occurrence — provenance is keyed on (occurrence, source), so where one source supplies two records of the same occurrence only one survives in provenance — and the attribution and licence terms carried on the source code it belongs to. The construction pipeline is documented stage by stage: per-source ingestion into a staging table keyed on source and native identifier and overwritten on re-sync, normalization of dates, registrations, aircraft types and locations, a deterministic key ladder in which each record reduces to exactly one identifier so that a missing field cannot create a link, an explicit merge table for the cohort the ladder cannot reach, an authority-priority rule for canonical values, and a closed allow-list with a stated fall-through default for occurrence type and severity — which is why accident at 99.17 % is a property of that default and not of aviation. On the band that merges automatically, a recorded random draw of 60 found no error, bounding its false-merge rate at 6.0 % with 95 % confidence; coverage relative to the ASN and B3A compilations is not reported, because both are ingested by the corpus and the comparison would measure a subset of it against itself; see Section 5.2 for why no capture–recapture estimate of the events missed by every list is offered. The corpus carries no exposure data and inherits the under-reporting of its sources, and it is offered not as a complete census of aviation occurrences but as a documented, provenance-preserving base whose reported statistics can be recomputed from the deposited snapshot on which the coverage and disagreement of the world’s investigation systems can themselves be studied. A frozen snapshot, the adjudicated linkage sample and the source registry accompany the live API so that every table in this paper can be regenerated and every future release compared with it.
+
+Data and code availability
+
+The corpus is served by the himaxym.com data API, base URL https://himaxym.com/api/v1/data, documented by the OpenAPI specification at https://himaxym.com/api/v1/data/openapi.json. The endpoints used in this paper are GET /sources (registry), GET /events (paginated occurrences with filters), GET /events/{id} (occurrence with all contributing sources and narratives), GET /narratives/{source}/{id} and GET /aircraft/{family}/safety. The GET /sources and GET /events endpoints answer without credentials at a low rate; sustained use requires a free API key (1,000 requests per day, 60 per minute) or a Pro key (20,000 per day); full narrative text under full policy is available on the Pro tier only. Structured fields are redistributed under the licence stated per source code in the license field of the registry, returned inline on each element of sources[] by GET /events/{id}; narrative text is redistributed only under the source’s policy, and users must reproduce the attribution string. The frozen snapshot described in this paper, comprising the occurrence and source tables, the registry, the narrative index and the adjudicated linkage sample with its verdicts, is deposited at Zenodo under concept DOI 10.5281/zenodo.22228451, which always resolves to the most recent version; the exact snapshot from which every number reported here is computed is version DOI 10.5281/zenodo.22303316. The deposit also carries the two scripts that regenerate the manuscript’s descriptives and figures from the deposited files, so every reported number can be recomputed without access to the live database. The ingestion, normalization and linkage modules are not in the deposit: they are part of a larger application that is not public, and are specified in the construction and linkage sections above rather than released; the deposited merge table records every linkage decision they produced. For the corpus to be rebuildable from source records, a future release would need to ship either the scoring module itself as a standalone executable with its dictionaries — the placeholder word list, the type–token fold table, the collision markers and the boilerplate patterns — or a complete numeric specification of it, every rule bonus, the high-toll anchor’s definition and trigger toll, the guard mechanics and the band cut-off, with worked test pairs whose scores and statuses can be checked against occurrence_merges.csv. The deposited files are released under CC BY 4.0 except where the source’s own terms forbid it, and three sources are carved out by name: the Transportation Safety Board of Canada (1,317 records, Crown copyright reproduced under the Government of Canada non-commercial reproduction terms), SKYbrary (464 records, under a bespoke EUROCONTROL agreement) and the Aviation Safety Network (24,797 records, which grants nothing — see Section 7.6.1). Rows from those three are redistributed under their own terms and are not relicensed here. All structured fields remain subject to the per-source attribution recorded in Table S1.
+
+Author contributions and competing interests
+
+D.K. designed and built the corpus and pipeline, designed and executed the validation, and wrote the paper. The author operates himaxym.com, the website and API through which the corpus is published, and has no other competing interest to declare.
+
+Assisted work.
+
+The pipeline code, the adjudication of the five linkage samples of Table 4 and successive drafts of this paper were produced with a large language model under the author’s direction. Adjudication verdicts were reached from the sources’ own published records, with the basis for each verdict recorded per pair in the deposited adjudicated_pairs.csv; for samples 1–3 that basis is a category rather than a citation of the specific record, while sample 4 names the deciding fact. No verdict rests on the model’s recollection. The author is accountable for every number and every claim here and has checked each against the deposited snapshot and the pipeline source. Where a check was not performed it is marked as such in the text rather than left to inference.
+
+Appendix A Reproducibility protocol
+
+The following steps regenerate every table and figure from the API and the snapshot. Three levels of reproduction must be kept apart, and only the first is supported here. (i) Re-deriving this paper’s statistics from the snapshot is supported in full: the deposit and describe.mjs deliver every number reported above. (ii) Rebuilding the corpus from source records is not supported: the ingestion, normalization and scoring modules are closed (Section Data and code availability), and the numeric specification of the scoring pass is not published. (iii) Reversing a merge is possible only as far as naming it: event_sources.csv.gz carries (occurrence_id, source, native_id, url) and no field values, so a reader can identify the absorbed source record and retrieve it from its source, but cannot recover the values it held in the corpus. Environment: Node.js 24.x for the pipeline itself, which has no statistical dependencies — the linkage is a key ladder and a rule-based scoring pass, so there is no model to fit, no library to pin and no seed to fix. No Python and no version pinning are required: describe.mjs and make_figures.mjs in the deposit use only the Node standard library, and both resolve their inputs next to themselves, so they run unchanged from the flat Zenodo download (node describe.mjs) or from a checkout (node deposit/describe.mjs), and the figures are emitted as SVG and converted with rsvg-convert
+
+1. 
+
+Registry. curl -H "Authorization: Bearer $KEY" https://himaxym.com/api/v1/data/sources returns the registry (code, name, license, homepage, narratives, policy). Save as sources.json. Note that the registry and the corpus are not the same list: the registry is the set of codes permitted to enter, and at the time of this snapshot two of them (bdca, dinacpy) had contributed no records yet. Table S1 and the source axis of Figure 3 are the 128 codes that actually contribute, which is event_sources.csv.gz grouped by source — take that as the definition, not the registry’s row count.
+
+2. 
+
+Occurrences. Page through GET /events?from=YYYY-MM-DD&to=2026-MM-DD&limit=100&cursor=... until next_cursor is null, writing each data[] element to events.jsonl. The snapshot contains the identical table and needs no paging. Optional filters country, type, family, operator, fatal=1 are not used for the full pull.
+
+3. 
+
+Contributing sources. For each occurrence, GET /events/{id} returns sources[] and narratives[], each source element carrying source, attribution, license and url. To avoid 279,485 calls the snapshot ships a reduced projection of the same relation, event_sources.csv.gz, with columns (occurrence_id,source,native_id,url) only. Attribution and licence are not repeated per row: they are properties of the source code, and the snapshot carries them once per code in table_S1.csv, which is joined on source. A reader who needs licence terms at record level must perform that join, or call the API, where the fields are returned inline.
+
+4. 
+
+Narratives. The snapshot carries no narrative text — licences differ per source and several permit excerpting only — but it ships narrative_index.csv.gz, one row per stored narrative with columns (occurrence_id,source,native_id,slug,narrative_chars,probable_cause_chars,indexable). Every narrative count in this paper is a filter over that file: 164,068 rows in all, 132,135 whose occurrence_id is non-null (the narrative resolves to a canonical occurrence), and 131,882 of those with non-empty text — the figure quoted in Section 6.1, covering 128,483 occurrences from 122 source codes. Text itself is retrieved per record through GET /narratives/{source}/{id} under that source’s policy.
+
+5. 
+
+Deduplication rules (for rebuilding from source records). Normalize registration as upper(regexp_replace(reg,’[^A-Z0-9]’,’’)) after stripping a trailing parenthesized suffix, and reject the placeholder word list before using the result. Parse dates to a local calendar date, retaining internally whether a day, a month or only a year was resolved; that flag is not a field of the published schema. Then apply the ladder of Section 4.4 in order, taking the first rung that applies — event signature for the three tier-aware sources, registration and date, position rounded to one decimal and date, source and native identifier — and group records by the resulting key. There is no model to fit, no threshold to sweep and no seed to fix. For the cohort that reaches the last rung, the scoring rules of Section 4.6 are stated as rules but not as numbers, so this step does not reconstruct the bands: the per-rule bonuses, the definition and trigger toll of the high-toll anchor, the guard demotion mechanics and the band cut-off are not published, and occurrence_merges.csv in the snapshot is therefore the authority for the status and evidence string of every proposed pair rather than a check on a re-derivation.
+
+6. 
+
+Canonical values. Take the record from the highest-ranked source (Section 4.8: rank 3 uniform authorities, rank 2 MAK and BAAA, rank 1 Wikidata, ASN and SKYbrary), then fill its null fields from the records it beat. The rank is a property of the source code, not of the row, so it is not a column of event_sources.csv: join on source to obtain it. Break ties by first arrival, except among the three tier-aware sources of Section 4.4, where a final report outranks an interim one and an interim a preliminary; publication date plays no part.
+
+7. 
+
+Derived variables. severity = fatal if fatalities_total >0 , else per the rule in Section 4.9; region is not derived from anything — it is null on every row of the published corpus and no step in this protocol produces it.
+
+8. 
+
+Table 1 and 3. For Table 1, group event_sources.csv by source and count rows, taking the year window from the joined occurrences. For Table 3, group events.jsonl by decade of event_date and by country_iso collapsed to three columns — US, any other code, and null — keeping null as its own column rather than distributing it. Neither table is grouped by region; see Section 7.6.2.
+
+9. 
+
+Linkage evaluation. Load occurrence_merges.csv (snapshot), 4,068 rows with columns (absorbed_id,survivor_id,status,method,score,evidence,decided_by,decided_at): 3,441 rows are auto and 627 pending. The decided_by and decided_at columns are empty on every row — the pipeline never populated them, so the merge table carries no adjudication trail and the audit trail is adjudicated_pairs.csv alone; all adjudication was LLM-assisted under the author’s supervision, as declared under Assisted work. There is no weight file and no threshold to sweep, and the band assignment cannot be reproduced from this paper (step 7): take the status column of occurrence_merges.csv as given and reproduce the reported error rates by comparing the five adjudicated samples against those bands as in Table 4. The file is consistent with a cut-off of 0.80 on score combined with the fan guard — the lowest auto score is 0.80 and all 270 pending rows at or above it carry fan-demoted — but that is an inference from the deposit, not a published rule. Sample 4 is additionally re-drawable: take the 3,441 rows with status auto in the order they appear in the file and draw 60 with Python’s random.sample after random.seed(20260901); the draw is generator-specific, so another language’s RNG seeded with the same number selects a different set. Those samples are deposited as adjudicated_pairs.csv, 200 rows with columns (sample,pair_id,absorbed_id,survivor_id,event_date,fatalities,verdict,basis); the error rates in Table 4 are counts over that file and need no estimator. There is no cluster file and no stratified interval to compute — see Section 5.1 for why neither exists. Figure 2 is not built from these files: it counts sources per occurrence in event_sources.csv.gz and is described there because it stands in place of the match-weight histogram this design cannot produce.
+
+10. 
+
+Coverage against ASN and B3A. Not reproduced — see Section 5.2 for why the comparison is not reported: both compilations are ingested by the corpus, so the check would measure a subset of the corpus against itself.
+
+11. 
+
+Overlap matrix. From event_sources.csv, self-join on occurrence_id to count occurrences per source pair; order by contribution and show raw counts, the diagonal being each source’s total; Figure 3.
+
+12. 
+
+Internal checks. Run node describe.mjs (snapshot) to regenerate descriptives.json, which carries the completeness and consistency statistics of Section 5.4. It reads events.jsonl.gz and event_sources.csv.gz and uses the Node standard library only; make_figures.mjs regenerates the three figures from the same two files.
+
+Appendix B Datasheet summary
+
+Following Gebru et al. [19], this appendix is the dataset’s datasheet; the deposit carries no separate datasheet file. Motivation: to provide a provenance-preserving, cross-jurisdictional occurrence dataset for safety research; created by the author; no external funding. Composition: 279,485 occurrence records and 131,882 attached narrative records (164,068 in the narrative store overall); instances are investigated or reported aviation occurrences; the dataset is a sample of the population of occurrences, biased as described in Section 3.4; narratives may contain names of individuals as published by the source authorities; no labels beyond the harmonized fields. Collection: retrieved from public official sources by scripted adapters, most recently 2026-08; no individuals were contacted. Preprocessing: as in Section 4; source records are held in a staging table at their state as of the last re-sync, and earlier states are not retained. Uses: safety statistics, source-comparison studies, text mining; not suitable for rate estimation without external denominators or for identifying individuals. Distribution: API and Zenodo snapshot; per-source licences. Maintenance: re-ingested on per-source schedules; versioned releases with changelogs; errata accepted at the corresponding author.
+
+References
+
+[1]
+
+National Transportation Safety Board.
+
+Aviation investigation search (CAROL): Civil aviation accidents and
+selected incidents, 1962–present.
+
+NTSB, Washington, DC, 2026.
+
+URL https://www.ntsb.gov/Pages/AviationQueryv2.aspx.
+
+Covers the United States, its territories and international waters,
+plus foreign investigations in which the NTSB was accredited representative.
+Accessed 2026-08-27.
+
+[2]
+
+European Commission.
+
+ECCAIRS 2: European aviation occurrence reporting portal.
+
+European Coordination Centre for Accident and Incident Reporting
+Systems, 2026.
+
+URL https://aviationreporting.eu/en.
+
+Implements Regulation (EU) 376/2014; 65 authorities feed the European
+Central Repository (about 2.3 million occurrence reports) using the ICAO
+ADREP taxonomy. Accessed 2026-08-27.
+
+[3]
+
+International Air Transport Association and International Coordinating Council
+of Aerospace Industries Associations and International Federation of Air Line
+Pilots’ Associations.
+
+Driving safety: Enhancing accident investigation report publication
+and mechanisms.
+
+Technical Report A42-WP/330, ICAO Assembly, 42nd Session, Technical
+Commission, 2025.
+
+URL
+https://www.icao.int/sites/default/files/Meetings/a42/Documents/WP/wp_330_en.pdf.
+
+Reports that only 57% of the 269 accidents classified by the IATA
+Accident Classification Task Force for 2018–2023 resulted in a published
+final report. Accessed 2026-08-27.
+
+[4]
+
+Flight Safety Foundation.
+
+ASN aviation safety database.
+
+Aviation Safety Network, Alexandria, VA, 2026.
+
+URL https://aviation-safety.net/database/databases.php.
+
+Two products: the curated database of airliner (12+ passengers),
+corporate-jet and military-transport occurrences since 1919, and the ASN
+Wikibase, which covers all aircraft classes since 1905 and holds more than
+258,000 entries. The present corpus ingests the Wikibase. Accessed
+2026-08-27.
+
+[5]
+
+Bureau of Aircraft Accidents Archives.
+
+B3A crash archives.
+
+Bureau of Aircraft Accidents Archives, Geneva, 2026.
+
+URL https://www.baaa-acro.com/.
+
+More than 38,000 accident files, civil and military, from 1918
+onward; inclusion floor of six seats including crew. Accessed 2026-09-03.
+
+[6]
+
+Arnold Barnett.
+
+Aviation safety: A whole new world?
+
+Transportation Science, 54(1):84–96,
+2020.
+
+doi: 10.1287/trsc.2019.0937.
+
+[7]
+
+Toni G. L. A. van der Meer, Anne C. Kroon, and Rens Vliegenthart.
+
+Do news media kill? How a biased news reality can overshadow real
+societal risks, the case of aviation and road traffic accidents.
+
+Social Forces, 101(1):506–530, 2022.
+
+doi: 10.1093/sf/soab114.
+
+[8]
+
+Clinton V. Oster, John S. Strong, and C. Kurt Zorn.
+
+Analyzing aviation safety: Problems, challenges, opportunities.
+
+Research in Transportation Economics, 43(1):148–164, 2013.
+
+doi: 10.1016/j.retrec.2012.12.001.
+
+[9]
+
+Ivan P. Fellegi and Alan B. Sunter.
+
+A theory for record linkage.
+
+Journal of the American Statistical Association, 64(328):1183–1210, 1969.
+
+doi: 10.1080/01621459.1969.10501049.
+
+[10]
+
+Farzane Omrani, Hossein Etemadfard, and Rouzbeh Shad.
+
+Assessment of aviation accident datasets in severity prediction
+through machine learning.
+
+Journal of Air Transport Management, 115:102531,
+2024.
+
+doi: 10.1016/j.jairtraman.2023.102531.
+
+[11]
+
+Martin Strohmeier, Xavier Olive, Jannis Lübbe, Matthias Schäfer, and
+Vincent Lenders.
+
+Crowdsourced air traffic data from the OpenSky Network
+2019–2020.
+
+Earth System Science Data, 13(2):357–366,
+2021.
+
+doi: 10.5194/essd-13-357-2021.
+
+[12]
+
+Ludovic Tanguy, Nikola Tulechki, Assaf Urieli, Eric Hermann, and Céline
+Raynal.
+
+Natural language processing for aviation safety reports: From
+classification to interactive analysis.
+
+Computers in Industry, 78:80–95, 2016.
+
+doi: 10.1016/j.compind.2015.09.005.
+
+[13]
+
+Peter Christen.
+
+Data Matching: Concepts and Techniques for Record Linkage,
+Entity Resolution, and Duplicate Detection.
+
+Springer, Berlin, Heidelberg, 2012.
+
+doi: 10.1007/978-3-642-31164-2.
+
+[14]
+
+George Papadakis, Dimitrios Skoutas, Emmanouil Thanos, and Themis Palpanas.
+
+Blocking and filtering techniques for entity resolution: A survey.
+
+ACM Computing Surveys, 53(2):1–42, 2020.
+
+doi: 10.1145/3377455.
+
+[15]
+
+Ted Enamorado, Benjamin Fifield, and Kosuke Imai.
+
+Using a probabilistic model to assist merging of large-scale
+administrative records.
+
+American Political Science Review, 113(2):353–371, 2019.
+
+doi: 10.1017/S0003055418000783.
+
+[16]
+
+Mauricio Sadinle.
+
+Bayesian estimation of bipartite matchings for record linkage.
+
+Journal of the American Statistical Association, 112(518):600–612, 2017.
+
+doi: 10.1080/01621459.2016.1148612.
+
+[17]
+
+Olivier Binette and Rebecca C. Steorts.
+
+(Almost) all of entity resolution.
+
+Science Advances, 8(12):eabi8021, 2022.
+
+doi: 10.1126/sciadv.abi8021.
+
+URL https://arxiv.org/abs/2008.04443.
+
+[18]
+
+Mark D. Wilkinson, Michel Dumontier, IJsbrand Jan Aalbersberg, et al.
+
+The FAIR guiding principles for scientific data management and
+stewardship.
+
+Scientific Data, 3:160018, 2016.
+
+doi: 10.1038/sdata.2016.18.
+
+[19]
+
+Timnit Gebru, Jamie Morgenstern, Briana Vecchione, Jennifer Wortman Vaughan,
+Hanna Wallach, Hal Daumé III, and Kate Crawford.
+
+Datasheets for datasets.
+
+Communications of the ACM, 64(12):86–92,
+2021.
+
+doi: 10.1145/3458723.
+
+[20]
+
+Mark C. Noort, Tom W. Reader, and Alex Gillespie.
+
+Cockpit voice recorder transcript data: Capturing safety voice and
+safety listening during historic aviation accidents.
+
+Data in Brief, 39:107602, 2021.
+
+doi: 10.1016/j.dib.2021.107602.
+
+[21]
+
+Yi Gao, Yang Hao, Sen Wang, and Hao Wu.
+
+The dynamics between voluntary safety reporting and commercial
+aviation accidents.
+
+Safety Science, 141:105351, 2021.
+
+doi: 10.1016/j.ssci.2021.105351.
+
+[22]
+
+Panagiotis Kioulepoglou, Vassilios Nikolaidis, Katerina M. David, and Ilias
+Makris.
+
+Investigating incident under-reporting in aviation: Qualitative
+insights among Greek pilots.
+
+Research in Transportation Business & Management,
+59:101309, 2025.
+
+doi: 10.1016/j.rtbm.2025.101309.
+
+[23]
+
+Denys Kolomiiets.
+
+Open versioned aggregates of the FAA National Wildlife Strike
+Database (1990–2026): conditional damage rates by animal family, airframe,
+and airport, 2026.
+
+URL https://arxiv.org/abs/2608.12390.
+
+Submitted 2 August 2026.
