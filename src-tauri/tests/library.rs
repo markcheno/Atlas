@@ -326,6 +326,26 @@ fn p0_24_non_utf8_names_are_listed() {
     assert!(page.items[0].display_name.contains('\u{FFFD}'));
 }
 
+/// P0-24 on Windows: a file name with an unpaired surrogate lists with a
+/// replacement character.
+#[cfg(windows)]
+#[test]
+fn p0_24_unpaired_surrogate_names_are_listed() {
+    use std::ffi::OsString;
+    use std::os::windows::ffi::OsStringExt;
+    let lib = Lib::new();
+    let books = lib.env.base.join("Books");
+    fs::create_dir_all(&books).unwrap();
+    let mut wide: Vec<u16> = "caf".encode_utf16().collect();
+    wide.push(0xD800);
+    wide.extend(".pdf".encode_utf16());
+    fs::write(books.join(OsString::from_wide(&wide)), b"%PDF").unwrap();
+    lib.add(&books);
+    lib.settle();
+    let page = lib.list(&query());
+    assert!(page.items[0].display_name.contains('\u{FFFD}'));
+}
+
 /// Paging and filters stay correct on a larger library. Latency is measured
 /// by the benchmark harness (`benches/inventory.rs`), not asserted here: CI
 /// runners are too noisy for timing gates.

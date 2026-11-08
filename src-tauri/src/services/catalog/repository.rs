@@ -3,7 +3,6 @@
 use rusqlite::{ErrorCode as SqliteCode, params};
 
 use super::writer::CatalogHandle;
-use crate::domain::dto::{DocumentPage, DocumentQuery, FileInstance};
 use crate::domain::traits::{CatalogRepository, SourceRootRecord};
 use crate::error::{AtlasError, AtlasResult};
 
@@ -75,13 +74,5 @@ impl CatalogRepository for SqliteCatalog<'_> {
                 .map(|n| n > 0)
                 .map_err(AtlasError::db("remove the library folder"))
         })?
-    }
-
-    fn list_documents(&self, _query: &DocumentQuery) -> AtlasResult<DocumentPage> {
-        Err(AtlasError::not_implemented("list_documents", "0.6"))
-    }
-
-    fn file_instance(&self, _id: &str) -> AtlasResult<Option<FileInstance>> {
-        Err(AtlasError::not_implemented("open_original", "0.6"))
     }
 }

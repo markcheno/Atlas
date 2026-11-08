@@ -89,7 +89,7 @@ section 9, abstraction budget). They are defined in
 
 | Trait | Purpose | First adapter |
 | --- | --- | --- |
-| `CatalogRepository` | Source roots, file instances, later scan sessions | **0.3 (`SqliteCatalog`: source roots)**; 0.5 / 0.6 |
+| `CatalogRepository` | Source-root records (scan sessions live in `inventory::db`; browse and open queries in `library` and `source_open`, on the read-only pool) | **0.3 (`SqliteCatalog`)** |
 | `InventorySource` | Streamed, read-only directory listing | **0.5 (`LocalFsSource`)** |
 | `VolumeInspector` | Free space, filesystem type, network or cloud-synced | **0.2 (`OsVolumeInspector`)** |
 | `ResourceMonitor` | Device snapshot for the data-root volume | **0.4 (`OsResourceMonitor`, `SimulatedMonitor`)** |
