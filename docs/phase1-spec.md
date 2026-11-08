@@ -81,8 +81,9 @@ src-tauri/
   tauri.windows.conf.json                    # new: bundle.resources for pdfium.dll and notices
   tauri.linux.conf.json                      # new: bundle.resources for libpdfium.so and notices
   vendor/pdfium/<platform>/                  # gitignored; fetched by `just setup` and CI
-  migrations/0007_jobs.sql                   # new
-  migrations/0008_documents_passages_fts.sql # new
+  migrations/0007_jobs.sql                   # new (Slice 1.1)
+  migrations/0008_documents.sql              # new (Slice 1.3)
+  migrations/0009_passages_fts.sql           # new (Slice 1.4)
   src/main.rs                                # --extract-worker dispatch before atlas_lib::run()
   src/services/jobs/                         # new: JobRunner, JobProcessor, jobs db, control
   src/services/inventory/scan.rs             # new: ScanProcessor (Phase 0's runner body)
@@ -158,13 +159,24 @@ The Phase 0 data-root layout and lifecycle rules stand. Phase 1 keeps extracted 
 ### 6.1 Schema additions
 
 ```text
-0007_jobs.sql
+0007_jobs.sql (Slice 1.1)
   ALTER TABLE scan_sessions RENAME TO jobs;                      -- SQLite rewrites scan_directories' FK
-  ALTER TABLE jobs ADD COLUMN kind TEXT NOT NULL DEFAULT 'scan'
-    CHECK (kind IN ('scan', 'extract'));
+  ALTER TABLE jobs ADD COLUMN kind TEXT NOT NULL DEFAULT 'scan';  -- no CHECK: see below
+  DROP INDEX scan_sessions_by_root;  DROP INDEX scan_sessions_by_state;
+  CREATE INDEX jobs_by_root ON jobs (source_root_id, kind);
   CREATE INDEX jobs_by_kind_state ON jobs (kind, state, priority, created_at);
-  -- The scan counters stay as columns (0 for extract jobs). scan_directories.session_id and
+  -- The scan counters stay as columns (0 for other kinds). scan_directories.session_id and
   -- file_instances.last_seen_session_id keep their names: a rename buys nothing.
+
+0008_documents.sql (Slice 1.3)
+  documents (id TEXT PRIMARY KEY, content_hash BLOB NOT NULL UNIQUE,
+             state TEXT NOT NULL CHECK (state IN ('pending', 'running', 'done', 'needs_ocr',
+                    'encrypted', 'malformed', 'unsupported', 'too_large', 'worker_crashed', 'failed')),
+             reason TEXT, extractor_version INTEGER, page_count INTEGER, char_count INTEGER,
+             title TEXT, authors TEXT /* JSON array */, language TEXT,
+             created_at TEXT NOT NULL, updated_at TEXT NOT NULL) STRICT;
+  CREATE INDEX documents_state ON documents (state);
+  -- Then the file_instances columns, after documents exists:
   ALTER TABLE file_instances ADD COLUMN extract_state TEXT NOT NULL DEFAULT 'pending'
     CHECK (extract_state IN ('pending', 'hashing', 'linked', 'skipped_cloud_only',
                              'unreadable', 'hash_failed'));
@@ -175,14 +187,7 @@ The Phase 0 data-root layout and lifecycle rules stand. Phase 1 keeps extracted 
   CREATE INDEX file_instances_extract_queue
     ON file_instances (source_root_id, availability, extract_state);
 
-0008_documents_passages_fts.sql
-  documents (id TEXT PRIMARY KEY, content_hash BLOB NOT NULL UNIQUE,
-             state TEXT NOT NULL CHECK (state IN ('pending', 'running', 'done', 'needs_ocr',
-                    'encrypted', 'malformed', 'unsupported', 'too_large', 'worker_crashed', 'failed')),
-             reason TEXT, extractor_version INTEGER, page_count INTEGER, char_count INTEGER,
-             title TEXT, authors TEXT /* JSON array */, language TEXT,
-             created_at TEXT NOT NULL, updated_at TEXT NOT NULL) STRICT;
-  CREATE INDEX documents_state ON documents (state);
+0009_passages_fts.sql (Slice 1.4)
   passages (id INTEGER PRIMARY KEY, document_id TEXT NOT NULL REFERENCES documents (id) ON DELETE CASCADE,
             ordinal INTEGER NOT NULL, page_no INTEGER, location TEXT, text TEXT NOT NULL,
             UNIQUE (document_id, ordinal)) STRICT;
@@ -200,7 +205,8 @@ Semantics:
 - **FTS maintenance.** `INSERT INTO passages_fts(passages_fts) VALUES ('merge', N)` in bounded batches at the end of each extraction job; `'integrity-check'` in tests; `'rebuild'` as the recovery action if a check fails.
 - **Orphans.** A document is deleted only when its last instance is purged (an instance is purged when its source root is removed or when the user deletes a missing file from the catalog; Phase 1 does not auto-purge).
 - **Readers.** `CatalogReader::POOL_SIZE` rises from 2 to 4: a 200 ms search must not starve the status poll, the Windows regression Slice 0.8 fixed.
-- **Migration.** Opening a schema-6 catalog applies 0007 and 0008. A `paused_user` scan and its frontier survive the rename intact (P1-01). Newer schemas are still refused without writes.
+- **Migration.** Opening a Phase 0 (schema-6) catalog applies 0007 onward. A `paused_user` scan and its frontier survive the rename intact (P1-01). Newer schemas are still refused without writes.
+- **Migration rules** (also in `src-tauri/migrations/README.md`). The runner applies each migration in a transaction on a connection with foreign keys **on**, so: never add a `REFERENCES` clause to a table that doesn't exist yet (every later insert into the child fails with "no such table"); and never rebuild a table that other tables reference (dropping it cascades). That is why `jobs.kind` has no CHECK constraint: a new kind would need a rebuild. Rust's `JobKind` refuses unknown values when decoding.
 
 ## 7. Jobs, extraction worker and policy
 
@@ -253,7 +259,8 @@ Unchanged from Phase 0. Phase 1 adds:
 
 ```rust
 // Phase 0 traits stand. Phase 1 promotes and fills in:
-trait JobProcessor { fn kind(&self) -> JobKind; fn run(&mut self, job: JobRow, signal: &Signal) -> JobOutcome; }
+trait JobProcessor: Send { fn idle_wait(&self) -> Duration; fn started(&mut self) {} fn run(&mut self, job: JobRow) -> Flow; }
+// Built per open root by a factory from ProcessorContext { catalog, data_root, signal }; one runner per JobKind.
 // SchedulingPolicy stays a concrete ResourcePolicy: there is still one implementation.
 trait DocumentProcessor { fn id(&self) -> &'static str; fn supports(&self, FileType) -> bool;
                           fn extract(&mut self, req: ExtractRequest, sink: &mut dyn PageSink) -> ExtractOutcome; }
@@ -323,7 +330,7 @@ Phase 0's generator (`scripts/generate-fixtures.mjs`) and its layout stand, as �
 | P1-21 | Windows junction inside a source root; a 300-character path | The junction is skipped and counted like a symlink; the long path is cataloged and extracted |
 | P1-22 | Quit (and SIGKILL) during extraction | No worker process survives the app; on relaunch the job resumes |
 
-Use the injected fakes from Phase 0 (`FakeMonitor`, `FaultySource`) plus a scripted `DocumentProcessor` for P1-11. Add migration tests for 0007 and 0008, FTS integrity checks after every crash test, and the originals-unchanged snapshot to every extraction test. Negative cases must be tested, not just the happy path.
+Use the injected fakes from Phase 0 (`FakeMonitor`, `FaultySource`) plus a scripted `DocumentProcessor` for P1-11. Add migration tests for 0007, 0008 and 0009, FTS integrity checks after every crash test, and the originals-unchanged snapshot to every extraction test. Negative cases must be tested, not just the happy path.
 
 ## 13. Benchmarks and hardware validation
 
@@ -344,7 +351,7 @@ Provisional targets, to report against and not to publish as requirements: **sea
 - **PDFium delivery.** `tools.lock.json` at the repository root pins the bblanchon/pdfium-binaries release (chromium/8125) per platform with SHA-256; `scripts/fetch-pdfium.mjs` verifies and unpacks it into gitignored `src-tauri/vendor/pdfium/<platform>/` with its `LICENSE` and `licenses/` folder. `just setup` and `.github/actions/setup` run it (cached by hash) because `tauri-build` copies bundle resources at compile time.
 - **Bundling.** macOS: `tauri.macos.conf.json` lists the dylib under `bundle.macOS.frameworks`, so Tauri places it in `Contents/Frameworks` and signs it with the app's identity (ad-hoc in CI), which hardened-runtime library validation requires. Windows and Linux: `tauri.windows.conf.json` / `tauri.linux.conf.json` ship `pdfium.dll` / `libpdfium.so` as `bundle.resources`. The notices ship as `licenses/pdfium/` resources on every OS.
 - **Signing gate (Slice 1.2).** The CI-built macOS `.app` passes `codesign --verify --deep --strict` with the dylib inside, and its worker reaches `hello` and extracts one PDF when launched from the bundle. If the ad-hoc build fails library validation, add `com.apple.security.cs.disable-library-validation` through `bundle.macOS.entitlements`, and record that notarization will later need the same entitlement reviewed.
-- **CI.** The smoke test gains "search finds a passage" (after extraction finishes on the 1k text fixture) and "quit leaves no worker process". The bench job adds the 30k text scenario (`--text-kb 20`). The spike workflow is unchanged.
+- **CI.** The full tier (docs/architecture.md, "Build, CI and measurement") carries everything below; the quick tier for slice branches runs only the Linux checks and tests. The smoke test gains "search finds a passage" (after extraction finishes on the 1k text fixture) and "quit leaves no worker process". The bench job adds the 30k text scenario (`--text-kb 20`). The spike workflow is unchanged.
 - **Licenses.** `docs/dependency-licenses.md` gains `pdfium-render`, `rbook`, `html2text`, `zip`, `blake3` and the hand-kept native row for PDFium (BSD-3-Clause plus FreeType, libjpeg-turbo, OpenJPEG, Little CMS, zlib, Abseil, HarfBuzz, ICU and the rest of its `licenses/` folder). GPL/AGPL findings are flagged as before.
 - **Linux dependencies** are unchanged: PDFium is bundled, not a system package. Document the AppImage's bundled PDFium with the other bundled libraries.
 - The artifacts still start without Python, Docker, a database server, Ollama or an LLM, and extraction needs none of them either.
@@ -356,10 +363,10 @@ Implement and verify **one slice at a time**. Build and rerun tests after each s
 
 | Slice | Deliverable | Verification gate |
 | --- | --- | --- |
-| 1.1 | **Jobs.** Migration 0007; `services/jobs` (`JobRunner`, `JobProcessor`, generic control); inventory re-homed as `ScanProcessor`; pause/resume/cancel for any job id; "Phase 1 slice 1.1" in the app status, status bar, error message and mocks; ADR 0009 drafted | Every Phase 0 test green without semantic change; P1-01, P1-02 |
+| 1.1 | **Jobs.** Migration 0007 (jobs only); `services/jobs` (`JobRunner`, `JobProcessor`, generic control); inventory re-homed as `ScanProcessor`; pause/resume/cancel for any job id; "Phase 1 slice 1.1" in the app status, status bar, error message and mocks; ADR 0009 drafted | Every Phase 0 test green without semantic change; P1-01, P1-02 |
 | 1.2 | **Foundations.** Fixtures with body text and valid EPUBs; `tools.lock.json` and `fetch-pdfium`; PDFium bundled and signed on three OSes; worker skeleton that loads PDFium and answers `hello` | Bundles build on three OSes; `codesign --verify --deep --strict`; `hello` from the CI-built `.app` on macOS and from `cargo test` everywhere; worker start time recorded (sidecar fallback decided) |
-| 1.3 | **Extraction.** Engines (sniff, hash, PDF, EPUB, unreadable-text rule), documents and dedup, per-file status, supervisor, duty-cycle policy, `extraction-status`, Library Text badges and filter, status-bar line, Read text now; ADR 0009 final | P1-03 … P1-14 |
-| 1.4 | **Search.** Migration 0008, FTS5 with triggers, query builder, `search_documents`, the evaluation questions and `search_eval`, `benches/search.rs`; ADR 0010 | P1-15 … P1-17, P1-19 |
+| 1.3 | **Extraction.** Migration 0008 (documents and the `file_instances` extraction columns); engines (sniff, hash, PDF, EPUB, unreadable-text rule), documents and dedup, per-file status, supervisor, duty-cycle policy, `extraction-status`, Library Text badges and filter, status-bar line, Read text now; ADR 0009 final | P1-03 … P1-14 |
+| 1.4 | **Search.** Migration 0009 (passages and FTS5 with triggers), query builder, `search_documents`, the evaluation questions and `search_eval`, `benches/search.rs`; ADR 0010 | P1-15 … P1-17, P1-19 |
 | 1.5 | **Search UI and document detail.** Home → Search view, results with spans, filters, paging, detail panel, job controls for both kinds | Vitest coverage of every new screen state; smoke "search finds a passage" |
 | 1.6 | **Metadata and duplicates.** Title, authors, language; duplicate groups and "Also at"; storage usage by category, indexing estimate, Clean caches | P1-18; estimate shown as a range only after 50 samples |
 | 1.7 | **Carry-overs.** Replayed entries charged less on resume inside large folders; Windows junctions and long paths; worker lifetime on quit; `benches/extraction.rs` | P1-20 … P1-22 |
@@ -399,7 +406,7 @@ Each slice includes: code, automated tests, a short README and docs update (`arc
 
 ## 18. Kickoff instructions for the coding agent
 
-**First requested task:** Implement **Slice 1.1** only: add migration 0007 (rename `scan_sessions` to `jobs` with a `kind` column and the new `file_instances` columns), create `services/jobs` with `JobRunner` and the `JobProcessor` trait, move the Phase 0 inventory worker body into `ScanProcessor` without changing its behaviour, make `pause_job`, `resume_job` and `cancel_job` work on any job id, change the slice strings to Phase 1 (`CURRENT_SLICE = "1.1"`, the status bar, the `NotImplemented` message, the test mocks and `ipc_contract.rs`), and draft ADR 0009. Every Phase 0 test must pass unchanged in meaning; add P1-01 and P1-02. Update `docs/architecture.md`, `migrations/README.md`, the README status and the justfile as affected. After the slice passes, summarize code and verification, note deviations, and name Slice 1.2 as the next step.
+**First requested task:** Implement **Slice 1.1** only: add migration 0007 (rename `scan_sessions` to `jobs` with a `kind` column; the `file_instances` extraction columns wait for 0008 in Slice 1.3, see §6.1), create `services/jobs` with `JobRunner` and the `JobProcessor` trait, move the Phase 0 inventory worker body into `ScanProcessor` without changing its behaviour, make `pause_job`, `resume_job` and `cancel_job` work on any job id, change the slice strings to Phase 1 (`CURRENT_SLICE = "1.1"`, the status bar, the `NotImplemented` message, the test mocks and `ipc_contract.rs`), and draft ADR 0009. Every Phase 0 test must pass unchanged in meaning; add P1-01 and P1-02. Update `docs/architecture.md`, `migrations/README.md`, the README status and the justfile as affected. After the slice passes, summarize code and verification, note deviations, and name Slice 1.2 as the next step.
 
 Do **not** start extraction, FTS, or the search UI before Slice 1.1's gate passes. Do not add the extractor crates to `src-tauri/Cargo.toml` before Slice 1.2.
 
@@ -415,6 +422,13 @@ Do **not** start extraction, FTS, or the search UI before Slice 1.1's gate passe
 - FTS5 is trigger-maintained; text stays in SQLite; `content/extracted/` remains reserved.
 - `pdfium-render`'s `thread_safe` feature stays off (the spike measured it that way); ADR 0008's sentence about it is corrected in the same change as this document.
 - Fixtures with body text come before any extraction slice, because nothing can be extracted from the Phase 0 stubs.
+
+**2026-11-08, amended during Slice 1.1:**
+
+- Migration 0007 is jobs only. Adding `file_instances.document_id REFERENCES documents(id)` before `documents` exists makes every later insert into `file_instances` fail with foreign keys on ("no such table: main.documents"), so the extraction columns move to `0008_documents.sql` (Slice 1.3) and passages with FTS5 to `0009_passages_fts.sql` (Slice 1.4).
+- `jobs.kind` has no CHECK constraint, so a future kind needs no table rebuild (which would cascade-delete the scan frontier under the migration runner's foreign keys).
+- The `JobProcessor` signature in §9 is the as-built one.
+- CI has tiers (added at the product owner's request). Pushes to `slice-*` branches run a quick Linux-only tier (checks and tests), and docs-only branch pushes run lint only. `main`, tags, pull requests and `just ci-remote` run the full matrix that §14 extends. A slice is still merged only after a full run passes.
 
 ### Primary reference documentation (verify current versions at implementation time)
 

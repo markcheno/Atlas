@@ -69,7 +69,7 @@ pub struct AppStatus {
     pub os: OsKind,
     pub arch: String,
     pub build_profile: BuildProfile,
-    /// The Phase 0 slice this build implements, e.g. "0.1".
+    /// The slice this build implements, "<phase>.<slice>", e.g. "1.1".
     pub slice: String,
     pub features: Vec<FeatureStatus>,
 }
@@ -384,6 +384,17 @@ pub enum JobState {
     FailedTerminal,
     Cancelled,
     Completed,
+}
+
+/// What a job does (phase1-spec §7.1, ADR 0009). Stored as TEXT in
+/// `jobs.kind`; not part of the IPC contract until a DTO carries it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum JobKind {
+    /// Cataloging a source root's files (Phase 0's inventory).
+    Scan,
+    /// Text extraction from cataloged files (Phase 1, Slice 1.3).
+    Extract,
 }
 
 /// Machine-readable pause reasons; display text is chosen by the UI.

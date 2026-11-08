@@ -80,13 +80,13 @@ impl Lib {
             .unwrap()
             .catalog()
             .call(move |c| {
-                c.query_row("SELECT state FROM scan_sessions WHERE id = ?1", [id], |r| {
+                c.query_row("SELECT state FROM jobs WHERE id = ?1", [id], |r| {
                     r.get::<_, String>(0)
                 })
                 .ok()
             })
             .unwrap()
-            .and_then(|s| atlas_lib::services::inventory::db::from_db(&s))
+            .and_then(|s| atlas_lib::services::catalog::codec::from_db(&s))
     }
 
     fn wait_state(&self, job: &str, want: JobState) {
@@ -295,7 +295,7 @@ fn p0_07_symlinks_are_skipped_and_counted() {
         let job = job.clone();
         move |c| {
             c.query_row(
-                "SELECT skipped_symlinks FROM scan_sessions WHERE id = ?1",
+                "SELECT skipped_symlinks FROM jobs WHERE id = ?1",
                 [job],
                 |r| r.get::<_, u32>(0),
             )
@@ -650,11 +650,9 @@ fn elapsed_time_accumulates_across_batches() {
         .unwrap()
         .catalog()
         .call(move |c| {
-            c.query_row(
-                "SELECT elapsed_ms FROM scan_sessions WHERE id = ?1",
-                [job],
-                |r| r.get::<_, i64>(0),
-            )
+            c.query_row("SELECT elapsed_ms FROM jobs WHERE id = ?1", [job], |r| {
+                r.get::<_, i64>(0)
+            })
             .unwrap() as u64
         })
         .unwrap();

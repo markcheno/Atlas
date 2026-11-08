@@ -13,7 +13,7 @@ describe('atlas IPC facade', () => {
 
   it('invokes commands by their Rust names with camelCase arguments', async () => {
     const status = await atlas.getAppStatus();
-    expect(status.slice).toBe('0.9');
+    expect(status.slice).toBe('1.1');
     expect(tauriMock.invoke).toHaveBeenCalledWith('get_app_status', undefined);
 
     await atlas.startInventory('root-1').catch(() => undefined);
@@ -24,7 +24,7 @@ describe('atlas IPC facade', () => {
     tauriMock.setHandler('list_provider_profiles', () => {
       throw {
         code: 'not_implemented',
-        message: 'list_provider_profiles is not available yet; planned for Phase 0 slice 0.7',
+        message: 'list_provider_profiles is not available yet; planned for slice 0.7',
         command: 'list_provider_profiles',
         plannedSlice: '0.7',
       };

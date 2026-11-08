@@ -155,6 +155,10 @@ spike-builds out="":
 spike-licenses:
     pnpm spike:licenses
 
+# Run CI on GitHub for the pushed current branch: `full` (every OS, smoke, benchmarks, bundles) or `quick` (Linux checks and tests). Pushes to slice-* run quick by themselves
+ci-remote scope="full":
+    gh workflow run ci.yml --ref "$(git branch --show-current)" -f scope={{ scope }}
+
 # Recent CI runs for the current branch
 ci-status:
     gh run list --branch "$(git branch --show-current)" --limit 5

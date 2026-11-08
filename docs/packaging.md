@@ -7,11 +7,12 @@ can't work through the security prompts described below.
 
 ## What CI builds
 
-Every push to `main`, every `phase*/…` tag, and every manual run builds
-release bundles in the `package` job of
+Every push to `main`, every `phase*/…` tag, and every full manual run
+(`just ci-remote`) builds release bundles in the `package` job of
 [`.github/workflows/ci.yml`](../.github/workflows/ci.yml). The
-`check-and-build` job also builds debug bundles on every push and pull
-request. Artifacts are attached to the workflow run (release bundles for 30
+`check-and-build` job also builds debug bundles in those runs and on pull
+requests. Pushes to `slice-*` branches run the quick tier, which builds no
+bundles ([CI tiers](architecture.md#build-ci-and-measurement)). Artifacts are attached to the workflow run (release bundles for 30
 days, debug bundles for 14).
 
 | OS (runner) | Formats | Artifact |

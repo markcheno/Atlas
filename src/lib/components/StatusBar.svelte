@@ -77,7 +77,8 @@
   </div>
   {#if status}
     <span class="muted">
-      Atlas {status.appVersion} · Phase 0 slice {status.slice}{status.buildProfile === 'debug'
+      Atlas {status.appVersion} · Phase {status.slice.split('.')[0]} slice {status.slice}{status.buildProfile ===
+      'debug'
         ? ' · development build'
         : ''}
     </span>

@@ -1,252 +1,43 @@
-//! SQL for scan sessions, the directory frontier, and file instances.
-//! Every function runs on the catalog writer thread.
-//!
-//! State changes are conditional (`… WHERE state IN (…)`) so the worker and
-//! user commands can never overwrite each other's decisions, for example a
-//! policy pause can never replace a user pause.
+//! SQL for scans: the directory frontier, file instances, and the overview.
+//! Every function runs on the catalog writer thread, except reads that
+//! callers pass to the reader pool. Job rows of every kind, and their state
+//! changes, are in [`crate::services::jobs::db`].
 
 use std::path::PathBuf;
 
-use rusqlite::{Connection, OptionalExtension, Row, params};
-use serde::Serialize;
-use serde::de::DeserializeOwned;
+use rusqlite::{Connection, OptionalExtension, params};
 
 use crate::domain::dto::{
-    InventoryOverview, InventoryStatus, JobState, PauseReason, RootInventorySummary, ThrottleReason,
+    InventoryOverview, InventoryStatus, JobKind, JobState, RootInventorySummary,
 };
 use crate::infrastructure::native_path;
+use crate::services::catalog::codec::opt_from_db;
+use crate::services::jobs::db::{
+    ACTIVE_STATES, JOB_COLUMNS, JobRow, insert_job, job_from_row, state_list,
+};
 
-/// Enum ⇄ TEXT using the same snake_case names as the IPC contract.
-pub fn to_db<T: Serialize>(value: &T) -> String {
-    match serde_json::to_value(value) {
-        Ok(serde_json::Value::String(s)) => s,
-        _ => String::new(),
-    }
-}
-
-pub fn from_db<T: DeserializeOwned>(text: &str) -> Option<T> {
-    serde_json::from_value(serde_json::Value::String(text.to_owned())).ok()
-}
-
-fn opt_from_db<T: DeserializeOwned>(text: Option<String>) -> Option<T> {
-    text.as_deref().and_then(from_db)
-}
-
-/// States that still have work to do or could resume.
-pub const ACTIVE_STATES: &[JobState] = &[
-    JobState::Queued,
-    JobState::Running,
-    JobState::PausedPolicy,
-    JobState::PausedUser,
-    JobState::FailedRetryable,
-];
-
-fn state_list(states: &[JobState]) -> String {
-    states
-        .iter()
-        .map(|s| format!("'{}'", to_db(s)))
-        .collect::<Vec<_>>()
-        .join(", ")
-}
-
-#[derive(Debug, Clone)]
-pub struct SessionRow {
-    pub id: String,
-    pub source_root_id: String,
-    pub root_path_bytes: Vec<u8>,
-    pub root_display: String,
-    pub state: JobState,
-    pub pause_reason: Option<PauseReason>,
-    pub throttle_reason: Option<ThrottleReason>,
-    pub started_at: Option<String>,
-    pub finished_at: Option<String>,
-    pub scanned_directories: u32,
-    pub discovered_files: u32,
-    pub skipped_symlinks: u32,
-    pub skipped_entries: u32,
-    pub error_count: u32,
-    pub retry_count: u32,
-    pub elapsed_ms: u64,
-    pub last_error: Option<String>,
-}
-
-const SESSION_COLUMNS: &str = "s.id, s.source_root_id, r.path_bytes, r.display_path, s.state, \
-     s.pause_reason, s.throttle_reason, s.started_at, s.finished_at, s.scanned_directories, \
-     s.discovered_files, s.skipped_symlinks, s.skipped_entries, s.error_count, s.retry_count, \
-     s.elapsed_ms, s.last_error";
-
-fn session_from_row(row: &Row) -> rusqlite::Result<SessionRow> {
-    let state: String = row.get(4)?;
-    Ok(SessionRow {
-        id: row.get(0)?,
-        source_root_id: row.get(1)?,
-        root_path_bytes: row.get(2)?,
-        root_display: row.get(3)?,
-        state: from_db(&state).unwrap_or(JobState::FailedTerminal),
-        pause_reason: opt_from_db(row.get(5)?),
-        throttle_reason: opt_from_db(row.get(6)?),
-        started_at: row.get(7)?,
-        finished_at: row.get(8)?,
-        scanned_directories: row.get(9)?,
-        discovered_files: row.get(10)?,
-        skipped_symlinks: row.get(11)?,
-        skipped_entries: row.get(12)?,
-        error_count: row.get(13)?,
-        retry_count: row.get(14)?,
-        elapsed_ms: row.get::<_, i64>(15)?.max(0) as u64,
-        last_error: row.get(16)?,
-    })
-}
-
-pub fn session(conn: &Connection, id: &str) -> rusqlite::Result<Option<SessionRow>> {
-    conn.query_row(
-        &format!(
-            "SELECT {SESSION_COLUMNS} FROM scan_sessions s
-             JOIN source_roots r ON r.id = s.source_root_id WHERE s.id = ?1"
-        ),
-        [id],
-        session_from_row,
-    )
-    .optional()
-}
-
-/// The next session the worker should run: an interrupted running one
-/// first, then policy-paused, then queued, by priority and age.
-pub fn next_runnable(conn: &Connection) -> rusqlite::Result<Option<SessionRow>> {
-    conn.query_row(
-        &format!(
-            "SELECT {SESSION_COLUMNS} FROM scan_sessions s
-             JOIN source_roots r ON r.id = s.source_root_id
-             WHERE s.state IN ('running', 'paused_policy', 'queued')
-             ORDER BY s.priority DESC,
-                      CASE s.state WHEN 'running' THEN 0 WHEN 'paused_policy' THEN 1 ELSE 2 END,
-                      s.created_at, s.rowid
-             LIMIT 1"
-        ),
-        [],
-        session_from_row,
-    )
-    .optional()
-}
-
-/// The newest non-terminal session for a root, if any.
-pub fn active_for_root(conn: &Connection, root_id: &str) -> rusqlite::Result<Option<SessionRow>> {
-    conn.query_row(
-        &format!(
-            "SELECT {SESSION_COLUMNS} FROM scan_sessions s
-             JOIN source_roots r ON r.id = s.source_root_id
-             WHERE s.source_root_id = ?1 AND s.state IN ({})
-             ORDER BY s.rowid DESC LIMIT 1",
-            state_list(ACTIVE_STATES)
-        ),
-        [root_id],
-        session_from_row,
-    )
-    .optional()
-}
-
-pub fn insert_session(
-    conn: &Connection,
-    id: &str,
-    root_id: &str,
-    now: &str,
-) -> rusqlite::Result<()> {
-    conn.execute(
-        "INSERT INTO scan_sessions (id, source_root_id, state, created_at, updated_at)
-         VALUES (?1, ?2, 'queued', ?3, ?3)",
-        params![id, root_id, now],
-    )
-    .map(|_| ())
-}
-
-/// Moves a session to `to` only if it is currently in one of `from`.
-/// Returns whether the transition happened.
-pub fn transition(
-    conn: &Connection,
-    id: &str,
-    to: JobState,
-    from: &[JobState],
-    pause_reason: Option<PauseReason>,
-    last_error: Option<&str>,
-    now: &str,
-) -> rusqlite::Result<bool> {
-    let terminal = matches!(
-        to,
-        JobState::Completed | JobState::Cancelled | JobState::FailedTerminal
-    );
-    let changed = conn.execute(
-        &format!(
-            "UPDATE scan_sessions SET
-                 state = ?2,
-                 pause_reason = ?3,
-                 throttle_reason = CASE WHEN ?2 = 'running' THEN throttle_reason ELSE NULL END,
-                 last_error = COALESCE(?4, last_error),
-                 started_at = CASE WHEN ?2 = 'running' THEN COALESCE(started_at, ?5) ELSE started_at END,
-                 finished_at = CASE WHEN ?6 THEN ?5 ELSE finished_at END,
-                 updated_at = ?5
-             WHERE id = ?1 AND state IN ({})",
-            state_list(from)
-        ),
-        params![
-            id,
-            to_db(&to),
-            pause_reason.map(|r| to_db(&r)),
-            last_error,
-            now,
-            terminal
-        ],
-    )?;
-    Ok(changed > 0)
-}
-
-pub fn set_throttle(
-    conn: &Connection,
-    id: &str,
-    throttle: Option<ThrottleReason>,
-) -> rusqlite::Result<()> {
-    conn.execute(
-        "UPDATE scan_sessions SET throttle_reason = ?2
-         WHERE id = ?1 AND throttle_reason IS NOT ?2",
-        params![id, throttle.map(|t| to_db(&t))],
-    )
-    .map(|_| ())
-}
-
-pub fn bump_retry(conn: &Connection, id: &str) -> rusqlite::Result<u32> {
-    conn.execute(
-        "UPDATE scan_sessions SET retry_count = retry_count + 1 WHERE id = ?1",
-        [id],
-    )?;
-    conn.query_row(
-        "SELECT retry_count FROM scan_sessions WHERE id = ?1",
-        [id],
-        |r| r.get(0),
-    )
-}
-
-/// On open: interrupted work becomes queued again (a user's pause is kept,
-/// P0-09), and folders that have never been scanned, such as ones added
-/// before cataloging existed, are queued once.
-pub fn recover_on_open(conn: &Connection, now: &str) -> rusqlite::Result<usize> {
-    let requeued = conn.execute(
-        "UPDATE scan_sessions SET state = 'queued', pause_reason = NULL, throttle_reason = NULL,
-             updated_at = ?1
-         WHERE state IN ('running', 'paused_policy', 'failed_retryable')",
-        [now],
-    )?;
+/// On open, folders that have never been scanned, such as ones added before
+/// cataloging existed, are queued once. Returns how many were queued.
+pub fn queue_never_scanned(conn: &Connection, now: &str) -> rusqlite::Result<usize> {
     let never_scanned: Vec<String> = {
         let mut stmt = conn.prepare(
             "SELECT r.id FROM source_roots r
              WHERE r.last_scan_at IS NULL
-               AND NOT EXISTS (SELECT 1 FROM scan_sessions s WHERE s.source_root_id = r.id)",
+               AND NOT EXISTS (SELECT 1 FROM jobs s WHERE s.source_root_id = r.id AND s.kind = 'scan')",
         )?;
         stmt.query_map([], |r| r.get(0))?
             .collect::<rusqlite::Result<_>>()?
     };
     for root_id in &never_scanned {
-        insert_session(conn, &uuid::Uuid::new_v4().to_string(), root_id, now)?;
+        insert_job(
+            conn,
+            &uuid::Uuid::new_v4().to_string(),
+            root_id,
+            JobKind::Scan,
+            now,
+        )?;
     }
-    Ok(requeued + never_scanned.len())
+    Ok(never_scanned.len())
 }
 
 pub fn seed_frontier(conn: &Connection, session_id: &str, root_rel: &[u8]) -> rusqlite::Result<()> {
@@ -304,7 +95,7 @@ pub fn record_dir_failure(
         params![dir_id, code, max_attempts],
     )?;
     conn.execute(
-        "UPDATE scan_sessions SET error_count = error_count + 1, last_error = ?2, updated_at = ?3
+        "UPDATE jobs SET error_count = error_count + 1, last_error = ?2, updated_at = ?3
          WHERE id = ?1",
         params![session_id, code, now],
     )
@@ -378,7 +169,7 @@ pub fn commit_batch(
     let tx = conn.transaction()?;
     {
         let running = tx.execute(
-            "UPDATE scan_sessions SET
+            "UPDATE jobs SET
                  skipped_symlinks = skipped_symlinks + ?2,
                  skipped_entries = skipped_entries + ?3,
                  error_count = error_count + ?4,
@@ -512,7 +303,7 @@ pub fn finish(
         params![root_id, now],
     )?;
     tx.execute(
-        "UPDATE scan_sessions SET
+        "UPDATE jobs SET
              state = 'completed', pause_reason = NULL, throttle_reason = NULL,
              finished_at = ?2, updated_at = ?2,
              discovered_files = (SELECT COUNT(*) FROM file_instances WHERE last_seen_session_id = ?1),
@@ -528,16 +319,7 @@ pub fn finish(
     tx.commit()
 }
 
-/// Frontier rows are only useful while a session can resume.
-pub fn drop_frontier(conn: &Connection, session_id: &str) -> rusqlite::Result<()> {
-    conn.execute(
-        "DELETE FROM scan_directories WHERE session_id = ?1",
-        [session_id],
-    )
-    .map(|_| ())
-}
-
-fn live_counts(conn: &Connection, s: &SessionRow) -> rusqlite::Result<(u32, u32)> {
+fn live_counts(conn: &Connection, s: &JobRow) -> rusqlite::Result<(u32, u32)> {
     let terminal = matches!(
         s.state,
         JobState::Completed | JobState::Cancelled | JobState::FailedTerminal
@@ -558,7 +340,7 @@ fn live_counts(conn: &Connection, s: &SessionRow) -> rusqlite::Result<(u32, u32)
     Ok((discovered, done))
 }
 
-pub fn status(conn: &Connection, s: &SessionRow) -> rusqlite::Result<InventoryStatus> {
+pub fn status(conn: &Connection, s: &JobRow) -> rusqlite::Result<InventoryStatus> {
     let (discovered_files, completed_directories) = live_counts(conn, s)?;
     Ok(InventoryStatus {
         job_id: s.id.clone(),
@@ -583,9 +365,9 @@ pub fn overview(conn: &Connection) -> rusqlite::Result<InventoryOverview> {
     let active = conn
         .query_row(
             &format!(
-                "SELECT {SESSION_COLUMNS} FROM scan_sessions s
+                "SELECT {JOB_COLUMNS} FROM jobs s
                  JOIN source_roots r ON r.id = s.source_root_id
-                 WHERE s.state IN ({})
+                 WHERE s.kind = 'scan' AND s.state IN ({})
                  ORDER BY CASE s.state WHEN 'running' THEN 0 WHEN 'paused_policy' THEN 1
                               WHEN 'paused_user' THEN 2 WHEN 'failed_retryable' THEN 3 ELSE 4 END,
                           s.created_at, s.rowid
@@ -593,7 +375,7 @@ pub fn overview(conn: &Connection) -> rusqlite::Result<InventoryOverview> {
                 state_list(ACTIVE_STATES)
             ),
             [],
-            session_from_row,
+            job_from_row,
         )
         .optional()?;
     let active = match active {
@@ -602,7 +384,7 @@ pub fn overview(conn: &Connection) -> rusqlite::Result<InventoryOverview> {
     };
 
     let queued_sessions = conn.query_row(
-        "SELECT COUNT(*) FROM scan_sessions WHERE state = 'queued'",
+        "SELECT COUNT(*) FROM jobs WHERE kind = 'scan' AND state = 'queued'",
         [],
         |r| r.get(0),
     )?;
@@ -620,8 +402,9 @@ pub fn overview(conn: &Connection) -> rusqlite::Result<InventoryOverview> {
                 COALESCE(SUM(f.availability = 'available'), 0),
                 COALESCE(SUM(f.availability = 'missing'), 0),
                 COALESCE(SUM(f.availability = 'available' AND f.storage = 'cloud_only'), 0),
-                (SELECT state FROM scan_sessions WHERE source_root_id = r.id ORDER BY rowid DESC LIMIT 1),
-                (SELECT id FROM scan_sessions WHERE source_root_id = r.id AND state IN ({active})
+                (SELECT state FROM jobs WHERE source_root_id = r.id AND kind = 'scan'
+                   ORDER BY rowid DESC LIMIT 1),
+                (SELECT id FROM jobs WHERE source_root_id = r.id AND kind = 'scan' AND state IN ({active})
                    ORDER BY rowid DESC LIMIT 1)
          FROM source_roots r LEFT JOIN file_instances f ON f.source_root_id = r.id
          GROUP BY r.id ORDER BY r.display_path, r.id"
@@ -655,24 +438,14 @@ pub fn overview(conn: &Connection) -> rusqlite::Result<InventoryOverview> {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn enum_text_matches_the_ipc_names() {
-        assert_eq!(to_db(&JobState::PausedPolicy), "paused_policy");
-        assert_eq!(
-            from_db::<JobState>("paused_user"),
-            Some(JobState::PausedUser)
-        );
-        assert_eq!(to_db(&PauseReason::BatteryLow), "battery_low");
-        assert_eq!(from_db::<JobState>("nonsense"), None);
-    }
+    use crate::services::jobs::db::transition;
 
     #[test]
     fn a_batch_for_a_session_that_left_running_writes_nothing() {
         let mut conn = Connection::open_in_memory().unwrap();
         crate::services::catalog::migrations::migrate(&mut conn, "t").unwrap();
         conn.execute_batch("PRAGMA foreign_keys = OFF").unwrap();
-        insert_session(&conn, "s1", "r1", "t").unwrap();
+        insert_job(&conn, "s1", "r1", JobKind::Scan, "t").unwrap();
         assert!(
             transition(
                 &conn,
@@ -718,7 +491,7 @@ mod tests {
         assert_eq!(dirs(&conn), 1, "the late batch must not land");
         let skipped: u32 = conn
             .query_row(
-                "SELECT skipped_entries FROM scan_sessions WHERE id = 's1'",
+                "SELECT skipped_entries FROM jobs WHERE id = 's1'",
                 [],
                 |r| r.get(0),
             )

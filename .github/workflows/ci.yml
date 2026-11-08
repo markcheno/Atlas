@@ -1,11 +1,25 @@
 name: CI
 
+# Three tiers (docs/architecture.md, "CI tiers"); the plan job picks one:
+#   full:  every OS. Checks, tests, debug bundles, smoke tests, benchmarks,
+#          release bundles. Pushes to main, tags, pull requests, and manual
+#          runs (`just ci-remote`).
+#   quick: Linux checks and tests only. Pushes to slice-* branches, and
+#          manual runs with scope=quick (`just ci-remote quick`).
+#   docs:  lint only (Prettier checks Markdown). Branch pushes that change
+#          only Markdown files, docs/, or spikes/ (spikes.yml covers spikes).
 on:
   push:
-    branches: [main]
+    branches: [main, 'slice-*']
     tags: ['phase*/**']
   pull_request:
   workflow_dispatch:
+    inputs:
+      scope:
+        description: 'full: every OS, smoke tests, benchmarks, release bundles. quick: Linux checks and tests.'
+        type: choice
+        options: [full, quick]
+        default: full
 
 permissions:
   contents: read
@@ -20,9 +34,102 @@ env:
 # Actions are pinned to full commit SHAs; the comment records the release.
 # Shared setup lives in .github/actions/setup.
 jobs:
+  plan:
+    name: Plan
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      scope: ${{ steps.scope.outputs.scope }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Choose the scope
+        id: scope
+        shell: bash
+        env:
+          EVENT: ${{ github.event_name }}
+          REF: ${{ github.ref }}
+          BEFORE: ${{ github.event.before }}
+          REQUESTED: ${{ inputs.scope }}
+        run: |
+          case "$EVENT" in
+            workflow_dispatch) scope="${REQUESTED:-full}" ;;
+            push) if [[ "$REF" == refs/heads/slice-* ]]; then scope=quick; else scope=full; fi ;;
+            *) scope=full ;;
+          esac
+          changed=""
+          if [[ "$EVENT" == push && "$REF" == refs/heads/* ]]; then
+            base="$BEFORE"
+            # A new branch (or a force push) has no usable "before".
+            if [[ -z "$base" || "$base" =~ ^0+$ ]] || ! git cat-file -e "$base^{commit}" 2>/dev/null; then
+              base="$(git merge-base origin/main HEAD)"
+            fi
+            changed="$(git diff --name-only "$base" HEAD)"
+            if [[ -n "$changed" ]] && ! grep -qvE '\.md$|^docs/|^spikes/' <<<"$changed"; then
+              scope=docs
+            fi
+          fi
+          echo "scope=$scope" >> "$GITHUB_OUTPUT"
+          {
+            echo "### CI scope: $scope"
+            echo
+            echo "Event \`$EVENT\` on \`$REF\`. To run more, use \`just ci-remote\` (full) or \`just ci-remote quick\`."
+            if [[ -n "$changed" ]]; then
+              echo
+              echo "Changed files: $(wc -l <<<"$changed" | tr -d ' ')"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  # Quick tier: the checks and tests of the full Linux job, without bundles.
+  quick:
+    name: Quick (Linux x64)
+    needs: plan
+    if: needs.plan.outputs.scope == 'quick'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      # Shares the full Linux job's cache, so a new slice branch starts warm
+      # from main's.
+      - uses: ./.github/actions/setup
+        with:
+          rust-shared-key: check
+
+      - name: Rust format, clippy, tests
+        run: pnpm check:rust
+
+      - name: Generated bindings are committed
+        run: pnpm check:bindings
+
+      - run: pnpm lint
+      - run: pnpm typecheck
+      - run: pnpm test
+
+  # Docs tier: ESLint and Prettier (which checks Markdown); no Rust.
+  docs:
+    name: Docs (lint)
+    needs: plan
+    if: needs.plan.outputs.scope == 'docs'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm lint
+
   # Checks, tests, debug bundles, and (Windows, Linux) the WebDriver smoke test.
   check-and-build:
     name: ${{ matrix.name }}
+    needs: plan
+    if: needs.plan.outputs.scope == 'full'
     strategy:
       fail-fast: false
       matrix:
@@ -44,6 +151,7 @@ jobs:
       - uses: ./.github/actions/setup
         with:
           linux-extra-packages: webkit2gtk-driver xvfb dbus
+          rust-shared-key: check
 
       - name: Rust format, clippy, tests
         run: pnpm check:rust
@@ -104,6 +212,8 @@ jobs:
   # Measurements only; never fails on numbers (docs/benchmarks.md).
   bench:
     name: Benchmarks ${{ matrix.name }}
+    needs: plan
+    if: needs.plan.outputs.scope == 'full'
     strategy:
       fail-fast: false
       matrix:
@@ -134,7 +244,8 @@ jobs:
   # Release bundles: unsigned development builds (docs/packaging.md).
   package:
     name: Release bundle ${{ matrix.name }}
-    if: github.event_name != 'pull_request'
+    needs: plan
+    if: needs.plan.outputs.scope == 'full' && github.event_name != 'pull_request'
     strategy:
       fail-fast: false
       matrix:

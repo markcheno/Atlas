@@ -10,7 +10,7 @@ use crate::domain::dto::{
 };
 use crate::error::{AtlasError, AtlasResult};
 use crate::infrastructure::clock::now_rfc3339;
-use crate::services::inventory::db::{from_db, to_db};
+use crate::services::catalog::codec::{from_db, to_db};
 use crate::services::workspace::OpenRoot;
 
 struct StoredProfile {

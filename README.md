@@ -4,7 +4,7 @@ Atlas is a local-first personal AI librarian for large private collections of
 PDFs, EPUBs, books and papers. *Collect freely. Organize minimally. Retrieve
 intelligently.*
 
-**Status: Phase 0 complete; Phase 1 specified, not started.** Atlas asks where to keep its library and
+**Status: Phase 1, Slice 1.1 (general jobs); Phase 0 complete.** Atlas asks where to keep its library and
 which folders hold your books and papers, then catalogs every PDF and EPUB
 in them in the background, read-only. Cataloging slows on battery, pauses
 when the battery is low or the drive is nearly full, survives quitting and
@@ -17,8 +17,10 @@ OpenAI-compatible service and test it; keys are stored in your system
 keychain. Atlas contacts a service only when you test it, and sends nothing
 from your library. AI features themselves come in a later phase.
 
-Every push is built and tested on macOS (Apple silicon), Windows x64, and
-Linux x64. CI runs an automated click-through of the app on Windows and
+Every push to `main`, every release tag and every pull request is built
+and tested on macOS (Apple silicon), Windows x64, and Linux x64; pushes to
+work-in-progress slice branches get a quicker Linux-only check
+([CI tiers](docs/architecture.md#build-ci-and-measurement)). CI runs an automated click-through of the app on Windows and
 Linux, measures cataloging performance on all three, and produces
 unsigned development installers. See [packaging](docs/packaging.md) and
 [benchmarks](docs/benchmarks.md). Plugged in, cataloging is throttled to 500
@@ -53,7 +55,8 @@ None of this is in the app yet.
 | AI endpoint connection test | Working |
 | CI, installers, cross-platform smoke test, benchmarks | Working (development builds, unsigned) |
 | Extraction and vector-engine decision | Decided ([ADR 0008](docs/adr/0008-extraction-and-vector-engines.md)); built in Phase 1 and 2 |
-| Text extraction, duplicates, full-text search | Phase 1, specified ([spec](docs/phase1-spec.md)); not started |
+| Background jobs of several kinds (scans now, text extraction next) | Working (Phase 1, Slice 1.1) |
+| Text extraction, duplicates, full-text search | Phase 1, in progress ([spec](docs/phase1-spec.md)): Slice 1.1 of 1.8 built |
 
 Specifications: [product](docs/product-spec.md), [Phase 0](docs/phase0-spec.md),
 [Phase 1](docs/phase1-spec.md), [architecture](docs/architecture.md),
@@ -119,6 +122,7 @@ just licenses         # regenerate docs/dependency-licenses.md
 just bench            # benchmark suite on 1k and 30k fixtures (release build; a few minutes)
 just bench-full       # plus the 30k throttle sweep
 just e2e              # WebDriver smoke test of the debug build (Windows/Linux; needs tauri-driver)
+just ci-remote        # run CI on GitHub for this pushed branch: full (default) or `just ci-remote quick`
 just ci-status        # recent CI runs for this branch
 ```
 

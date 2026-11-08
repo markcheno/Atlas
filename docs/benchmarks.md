@@ -166,4 +166,26 @@ about 9,000 entries in, that is 9,000 ÷ 500 entries/s ≈ 18 s. The status
 shows the files already cataloged meanwhile. Charging less for replayed
 entries, or resuming mid-folder, is left for a later phase.
 
+## Regression check: Slice 1.1 (general jobs)
+
+Slice 1.1 moved the scan onto the general job runner
+([ADR 0009](adr/0009-jobs-and-extraction.md)) without changing its logic.
+`just bench` ran on the M5 Pro before (on `main`) and after, on the same
+fixtures, back to back (2026-11-08):
+
+| 30k, plugged in | Before | After |
+| --- | ---: | ---: |
+| Files/s at the policy rate | 378.3 | 378.1 |
+| Scan CPU, % of a core | 17.9 | 17.8 |
+| Peak RSS, MiB | 20.2 | 19.9 |
+| Browse p95 while scanning, ms | 33.49 | 33.57 |
+| Status p95 while scanning, ms | 11.28 | 12.39 |
+| Files/s unthrottled | 14,939 | 14,443 |
+| Files written after a pause | 0 | 0 |
+| Duplicate rows after a kill | 0 | 0 |
+
+The 1k and battery scenarios match as closely (73.4 and 73.6 files/s on
+battery). Every difference is within the spread between repeated runs of
+the same build; the unthrottled 30k run lasts only 2 s.
+
 <!-- results:end -->

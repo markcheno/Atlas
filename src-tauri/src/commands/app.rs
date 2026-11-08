@@ -6,8 +6,9 @@ use crate::domain::dto::{
 use crate::error::AtlasResult;
 use crate::state::AppState;
 
-/// The Phase 0 slice this build implements.
-pub const CURRENT_SLICE: &str = "0.9";
+/// The slice this build implements, "<phase>.<slice>" (Phase 1, Slice 1 is
+/// "1.1"). The UI derives the phase from it.
+pub const CURRENT_SLICE: &str = "1.1";
 
 /// (id, label, delivering slice, implemented in this build)
 const FEATURES: &[(&str, &str, &str, bool)] = &[

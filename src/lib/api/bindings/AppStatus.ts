@@ -8,6 +8,6 @@ import type { OsKind } from "./OsKind";
  */
 export type AppStatus = { appVersion: string, os: OsKind, arch: string, buildProfile: BuildProfile, 
 /**
- * The Phase 0 slice this build implements, e.g. "0.1".
+ * The slice this build implements, "<phase>.<slice>", e.g. "1.1".
  */
 slice: string, features: Array<FeatureStatus>, };

@@ -18,9 +18,10 @@ use crate::domain::dto::{
 };
 use crate::error::{AtlasError, AtlasResult};
 use crate::infrastructure::native_path;
+use crate::services::catalog::codec::{from_db, to_db};
 use crate::services::catalog::reader::CatalogReader;
 use crate::services::catalog::writer::CatalogHandle;
-use crate::services::inventory::db::{ACTIVE_STATES, from_db, to_db};
+use crate::services::jobs::db::{ACTIVE_STATES, state_list};
 use crate::services::sources::probe;
 use fold::{fold, like_escape};
 
@@ -161,13 +162,9 @@ fn query_page(conn: &Connection, q: &DocumentQuery) -> rusqlite::Result<(Vec<Row
         })?
         .collect::<rusqlite::Result<Vec<_>>>()?;
 
-    let active = ACTIVE_STATES
-        .iter()
-        .map(|s| format!("'{}'", to_db(s)))
-        .collect::<Vec<_>>()
-        .join(", ");
+    let active = state_list(ACTIVE_STATES);
     let scanning: bool = conn.query_row(
-        &format!("SELECT EXISTS (SELECT 1 FROM scan_sessions WHERE state IN ({active}))"),
+        &format!("SELECT EXISTS (SELECT 1 FROM jobs WHERE kind = 'scan' AND state IN ({active}))"),
         [],
         |r| r.get(0),
     )?;

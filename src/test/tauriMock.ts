@@ -29,7 +29,7 @@ export const fakeStatus: AppStatus = {
   os: 'macos',
   arch: 'aarch64',
   buildProfile: 'debug',
-  slice: '0.9',
+  slice: '1.1',
   features: [],
 };
 
@@ -277,7 +277,7 @@ export const invoke = vi.fn(
     const slice = plannedSlices[command] ?? '0.x';
     const payload: ErrorPayload = {
       code: 'not_implemented',
-      message: `${command} is not available yet; planned for Phase 0 slice ${slice}`,
+      message: `${command} is not available yet; planned for slice ${slice}`,
       command,
       plannedSlice: slice,
     };

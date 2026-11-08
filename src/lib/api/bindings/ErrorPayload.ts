@@ -10,6 +10,6 @@ export type ErrorPayload = { code: ErrorCode, message: string, recovery?: string
  */
 command?: string, 
 /**
- * For `not_implemented`: the Phase 0 slice planned to deliver it.
+ * For `not_implemented`: the slice planned to deliver it, e.g. "1.3".
  */
 plannedSlice?: string, };
