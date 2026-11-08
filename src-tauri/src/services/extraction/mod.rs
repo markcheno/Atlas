@@ -9,6 +9,7 @@
 pub mod engine;
 pub mod locate;
 pub mod protocol;
+pub mod supervisor;
 pub mod worker_main;
 
 /// The hidden argument that runs the executable as the extraction worker.
