@@ -32,6 +32,13 @@ commits share the single writer connection, so the check cannot race a
 state change. (Added in Slice 0.8, after the first CI run on slower
 hardware caught a late batch after a pause.)
 
+*Amended 2026-11-08 (Phase 1, Slice 1.1):* the second job kind arrived, so
+`scan_sessions` is now the general `jobs` table and a scan is a row with
+`kind = 'scan'` (migration 0007, [ADR 0009](0009-jobs-and-extraction.md)).
+Everything in this ADR still holds for scans. The conditional state changes
+moved to `services/jobs/db.rs`, and the scan's batch commit and frontier
+stay in `services/inventory/db.rs`.
+
 **A persisted directory frontier.** `scan_directories` lists folders still
 to scan for a session. Atlas lists a folder's entries in batches of up to
 100, and each batch is one transaction. That transaction upserts files,

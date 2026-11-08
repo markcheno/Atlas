@@ -1,9 +1,10 @@
 //! Inventory: read-only traversal of library folders into the catalog
 //! (phase0-spec §7, ADR 0005).
 //!
-//! One worker thread per open data root walks one source root at a time,
+//! Scans are the first job kind (ADR 0009): the scan runner of each open
+//! data root walks one source root at a time with a [`scan::ScanProcessor`],
 //! streaming each directory in bounded batches. Progress lives in the
-//! catalog (`scan_sessions`, `scan_directories`), so a quit, crash, or
+//! catalog (`jobs` of kind `scan`, `scan_directories`), so a quit, crash, or
 //! unplugged drive never loses completed work or duplicates rows. The
 //! worker obeys [`crate::services::scheduler::policy::ResourcePolicy`] and
 //! a token-bucket rate limit, and it never opens file contents.
@@ -12,12 +13,10 @@ pub mod classify;
 pub mod control;
 pub mod db;
 pub mod rate;
-pub mod runner;
+pub mod scan;
 
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
-
-pub use runner::InventoryRunner;
 
 use crate::domain::dto::InventoryOverview;
 use crate::domain::traits::InventorySource;

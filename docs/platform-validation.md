@@ -485,6 +485,53 @@ App checks: `just ci` passed on the M5 Pro after the slice number moved to
 - ARM Windows and Linux;
 - Docling's peak memory on Windows (the measurement read 0).
 
+## Phase 1
+
+Phase 1 slices are recorded below, in the same form as Phase 0's above
+([Phase 1 spec](phase1-spec.md) §15).
+
+## Slice 1.1
+
+Slice 1.1 adds no screens. The catalog's `scan_sessions` table becomes
+`jobs` with a `kind` (migration 0007), scans run on the general job runner,
+and the status bar reads "Phase 1 slice 1.1". Automated evidence is P1-01
+and P1-02 (`src-tauri/tests/jobs.rs`), which passed 3 runs of 3 locally,
+plus the 6→7 migration unit test with foreign-key checks. Removing the scan
+filter from the cataloging overview, or from the Library's "scanning"
+flag, makes P1-02 fail.
+
+### macOS arm64, Slice 1.1 (2026-11-08)
+
+Upgrade of a real Phase 0 library, using scratch copies only:
+
+1. With `main`'s Phase 0 debug build and a scratch `ATLAS_CONFIG_DIR`,
+   created a library, added the 30k benchmark fixture, and paused the scan
+   by hand at 5,900 files (2 folders done, 9 pending). Quit, then copied
+   the library folder and pointed a second scratch locator at the copy.
+2. Opened the copy with the Slice 1.1 debug build. The status read
+   "Cataloging paused · Paused by you · 5,900 files so far", and the status
+   bar "Atlas 0.1.0 · Phase 1 slice 1.1 · development build". The catalog
+   held migrations 1–7, `atlas.json` said 7, and the job was `kind =
+   'scan'`, still `paused_user`, with its frontier unchanged.
+3. Resume finished in about 55 s at the policy rate: 30,006 files, all
+   available, none missing, no duplicate rows, and the frontier was
+   cleared. The 3 failures are the fixture's unreadable `locked/` folder
+   (3 attempts), as in Phase 0.
+4. The Library showed "Showing 1–50 of 30,006 matches".
+5. After quitting, opened the migrated copy with `main`'s Phase 0 build. It
+   showed "This library needs a newer version of Atlas … (format 7; this
+   version supports up to 6)". The catalog and `atlas.json` stayed
+   byte-identical (SHA-256). Only `atlas.lock` was rewritten; it records
+   the process holding the library and is taken before the schema check
+   (ADR 0002).
+
+Benchmarks before and after are within noise
+([regression check](benchmarks.md#regression-check-slice-11-general-jobs)).
+
+**Not verified in Slice 1.1:** the manual upgrade on Windows and Linux
+(CI runs P1-01 and the migration test on all three OSes); a second job
+kind doing real work (extraction arrives in Slice 1.3).
+
 ## Manual checklist for Windows and Linux
 
 CI runs an automated smoke test on Windows and Linux (Slice 0.8, below),
@@ -598,6 +645,20 @@ build:
    files are cataloged without being downloaded (the cloud icon stays).
 6. macOS: add an iCloud Drive folder with "Optimize Mac Storage". Confirm
    offloaded files are cataloged and stay offloaded.
+
+### Upgrade from Phase 0 (Slice 1.1)
+
+1. With a Phase 0 build (0.1.0 from a `phase0/slice-09` CI run) and a
+   scratch config folder, add a fixture of 2,000 files or more, pause the
+   scan part-way, and quit.
+2. Copy the library folder. Open the copy with a Slice 1.1 build. Confirm
+   the scan still shows "Paused by you" with the same file count, and the
+   status bar says "Phase 1 slice 1.1".
+3. Resume and confirm it completes with the fixture's `catalogableFiles`
+   count and no missing files.
+4. Open the migrated copy with the Phase 0 build again. Confirm it shows
+   "This library needs a newer version of Atlas" and the catalog file is
+   unchanged.
 
 ### Library, search, open (Slice 0.6)
 

@@ -14,6 +14,9 @@ inputs:
   rust-cache:
     description: "'false' skips the Rust build cache (the spike jobs measure cold builds)."
     default: 'true'
+  rust-shared-key:
+    description: Shares one Rust cache between jobs that build the same thing (it replaces cache-key and the job name in the key; rust-cache still adds the OS and architecture).
+    default: ''
 
 runs:
   using: composite
@@ -49,6 +52,7 @@ runs:
       with:
         workspaces: src-tauri
         key: ${{ inputs.cache-key }}
+        shared-key: ${{ inputs.rust-shared-key }}
 
     - name: Install npm dependencies
       if: inputs.app == 'true'

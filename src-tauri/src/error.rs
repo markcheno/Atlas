@@ -100,7 +100,7 @@ pub struct ErrorPayload {
     #[ts(optional)]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub command: Option<String>,
-    /// For `not_implemented`: the Phase 0 slice planned to deliver it.
+    /// For `not_implemented`: the slice planned to deliver it, e.g. "1.3".
     #[ts(optional)]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub planned_slice: Option<String>,
@@ -108,7 +108,7 @@ pub struct ErrorPayload {
 
 #[derive(Debug, thiserror::Error)]
 pub enum AtlasError {
-    #[error("{command} is not available yet; planned for Phase 0 slice {planned_slice}")]
+    #[error("{command} is not available yet; planned for slice {planned_slice}")]
     NotImplemented {
         command: &'static str,
         planned_slice: &'static str,
@@ -390,7 +390,7 @@ mod tests {
             json,
             serde_json::json!({
                 "code": "not_implemented",
-                "message": "list_documents is not available yet; planned for Phase 0 slice 0.6",
+                "message": "list_documents is not available yet; planned for slice 0.6",
                 "command": "list_documents",
                 "plannedSlice": "0.6"
             })

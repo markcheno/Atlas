@@ -1,115 +1,31 @@
-//! The single inventory worker (phase0-spec §7.1–7.3, ADR 0005).
+//! The scan job processor: Phase 0's inventory worker (phase0-spec §7.1–7.3,
+//! ADR 0005), run by the generic job runner (ADR 0009).
 
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc, Condvar, Mutex};
-use std::thread::{self, JoinHandle};
+use std::sync::Arc;
 use std::time::{Duration, Instant, UNIX_EPOCH};
 
 use same_file::Handle;
 
-use super::db::{self, Batch, DirRow, FileRecord, SessionRow};
+use super::db::{self, Batch, DirRow, FileRecord};
 use super::rate::TokenBucket;
 use super::{InventoryDeps, classify};
 use crate::domain::dto::{JobState, PauseReason, PolicyMode, SourceRootStatus, ThrottleReason};
 use crate::domain::traits::{CatalogRepository, DirEntryInfo, EntryKind};
-use crate::error::{AtlasError, AtlasResult};
 use crate::infrastructure::clock::now_rfc3339;
 use crate::infrastructure::native_path;
+use crate::services::catalog::codec::to_db;
 use crate::services::catalog::repository::SqliteCatalog;
 use crate::services::catalog::writer::CatalogHandle;
+use crate::services::jobs::{
+    self, Flow, JobProcessor, JobRow, ProcessorContext, ProcessorFactory, Signal,
+};
 use crate::services::library::fold::fold;
 use crate::services::sources::{self, Relation};
 
-/// Wakes the worker early (user commands) and tells it to stop (shutdown).
-struct Signal {
-    stop: AtomicBool,
-    seq: Mutex<u64>,
-    cv: Condvar,
-}
-
-impl Signal {
-    fn stopped(&self) -> bool {
-        self.stop.load(Ordering::SeqCst)
-    }
-
-    /// Sleeps up to `d`, returning early on a wake or stop. Returns whether
-    /// a stop was requested.
-    fn wait(&self, d: Duration) -> bool {
-        if d.is_zero() {
-            return self.stopped();
-        }
-        let guard = self.seq.lock().unwrap_or_else(|p| p.into_inner());
-        let start = *guard;
-        let _ = self
-            .cv
-            .wait_timeout_while(guard, d, |seq| *seq == start && !self.stopped());
-        self.stopped()
-    }
-
-    fn notify(&self) {
-        *self.seq.lock().unwrap_or_else(|p| p.into_inner()) += 1;
-        self.cv.notify_all();
-    }
-}
-
-/// Owns the worker thread for one open data root. Dropping it stops the
-/// worker and waits for it, so it never outlives the catalog it writes.
-pub struct InventoryRunner {
-    signal: Arc<Signal>,
-    thread: Option<JoinHandle<()>>,
-}
-
-impl InventoryRunner {
-    pub fn start(
-        catalog: CatalogHandle,
-        data_root: &Path,
-        deps: InventoryDeps,
-    ) -> AtlasResult<Self> {
-        let signal = Arc::new(Signal {
-            stop: AtomicBool::new(false),
-            seq: Mutex::new(0),
-            cv: Condvar::new(),
-        });
-        let data_root = dunce::canonicalize(data_root).unwrap_or_else(|_| data_root.to_path_buf());
-        let worker = Worker {
-            catalog,
-            data_root_handle: Handle::from_path(&data_root).ok(),
-            data_root,
-            deps,
-            signal: Arc::clone(&signal),
-            last_emit: None,
-        };
-        let thread = thread::Builder::new()
-            .name("atlas-inventory".into())
-            .spawn(move || worker.run())
-            .map_err(AtlasError::io("start cataloging"))?;
-        Ok(Self {
-            signal,
-            thread: Some(thread),
-        })
-    }
-
-    /// Asks the worker to re-read job states now instead of at its next
-    /// check, for example after a user pauses or adds a folder.
-    pub fn wake(&self) {
-        self.signal.notify();
-    }
-}
-
-impl Drop for InventoryRunner {
-    fn drop(&mut self) {
-        self.signal.stop.store(true, Ordering::SeqCst);
-        self.signal.notify();
-        if let Some(thread) = self.thread.take() {
-            let _ = thread.join();
-        }
-    }
-}
-
-enum Flow {
-    Continue,
-    Stop,
+/// Builds a [`ScanProcessor`] for each data root the workspace opens.
+pub fn factory(deps: InventoryDeps) -> ProcessorFactory {
+    Arc::new(move |ctx| Box::new(ScanProcessor::new(ctx, deps.clone())))
 }
 
 enum Gate {
@@ -143,7 +59,9 @@ struct Session {
     carry: Duration,
 }
 
-struct Worker {
+/// Walks one source root per job, in bounded batches, under the resource
+/// policy and rate limit. It never opens file contents.
+pub struct ScanProcessor {
     catalog: CatalogHandle,
     data_root: PathBuf,
     data_root_handle: Option<Handle>,
@@ -152,33 +70,31 @@ struct Worker {
     last_emit: Option<Instant>,
 }
 
-impl Worker {
-    fn run(mut self) {
+impl JobProcessor for ScanProcessor {
+    fn idle_wait(&self) -> Duration {
+        self.deps.config.idle_wait
+    }
+
+    fn started(&mut self) {
         self.emit(true);
-        let mut db_failures = 0u32;
-        while !self.signal.stopped() {
-            match self.catalog.call(|c| db::next_runnable(c)) {
-                Ok(Ok(Some(row))) => {
-                    db_failures = 0;
-                    if let Flow::Stop = self.run_session(row) {
-                        break;
-                    }
-                }
-                Ok(Ok(None)) => {
-                    if self.signal.wait(self.deps.config.idle_wait) {
-                        break;
-                    }
-                }
-                Ok(Err(_)) => {
-                    db_failures += 1;
-                    let backoff = Duration::from_secs(1 << db_failures.min(5));
-                    if self.signal.wait(backoff) {
-                        break;
-                    }
-                }
-                // The writer is gone: the root is closing.
-                Err(_) => break,
-            }
+    }
+
+    fn run(&mut self, job: JobRow) -> Flow {
+        self.run_session(job)
+    }
+}
+
+impl ScanProcessor {
+    pub fn new(ctx: ProcessorContext, deps: InventoryDeps) -> Self {
+        let data_root =
+            dunce::canonicalize(&ctx.data_root).unwrap_or_else(|_| ctx.data_root.clone());
+        Self {
+            catalog: ctx.catalog,
+            data_root_handle: Handle::from_path(&data_root).ok(),
+            data_root,
+            deps,
+            signal: ctx.signal,
+            last_emit: None,
         }
     }
 
@@ -213,14 +129,14 @@ impl Worker {
         let now = self.now();
         matches!(
             self.catalog
-                .call(move |c| db::transition(c, &id, to, from, reason, error, &now)),
+                .call(move |c| jobs::db::transition(c, &id, to, from, reason, error, &now)),
             Ok(Ok(true))
         )
     }
 
     fn state_of(&self, id: &str) -> Option<JobState> {
         let id = id.to_owned();
-        match self.catalog.call(move |c| db::session(c, &id)) {
+        match self.catalog.call(move |c| jobs::db::job(c, &id)) {
             Ok(Ok(Some(row))) => Some(row.state),
             _ => None,
         }
@@ -244,7 +160,7 @@ impl Worker {
             .is_some_and(|p| sources::outermost_container(p, &records, &paths).is_some())
     }
 
-    fn run_session(&mut self, row: SessionRow) -> Flow {
+    fn run_session(&mut self, row: JobRow) -> Flow {
         const STARTABLE: &[JobState] =
             &[JobState::Queued, JobState::PausedPolicy, JobState::Running];
 
@@ -390,7 +306,7 @@ impl Worker {
                     let id = s.id.clone();
                     let _ = self
                         .catalog
-                        .call(move |c| db::set_throttle(c, &id, throttle));
+                        .call(move |c| jobs::db::set_throttle(c, &id, throttle));
                     self.emit(true);
                 }
                 s.bucket.set_rate(rate);
@@ -503,7 +419,7 @@ impl Worker {
                         display_name,
                         rel_path: native_path::encode(&rel_child),
                         extension,
-                        file_type: db::to_db(&kind),
+                        file_type: to_db(&kind),
                         size_bytes: info.size_bytes,
                         modified_at: mtime_secs.and_then(rfc3339_from_secs),
                         mtime_secs,
@@ -589,7 +505,7 @@ impl Worker {
                         let id = s.id.clone();
                         let _ = self
                             .catalog
-                            .call(move |c| db::set_throttle(c, &id, throttle));
+                            .call(move |c| jobs::db::set_throttle(c, &id, throttle));
                         self.emit(true);
                     }
                 }
@@ -635,7 +551,7 @@ impl Worker {
         let retry_id = id.to_owned();
         let retries = self
             .catalog
-            .call(move |c| db::bump_retry(c, &retry_id))
+            .call(move |c| jobs::db::bump_retry(c, &retry_id))
             .ok()
             .and_then(Result::ok)
             .unwrap_or(u32::MAX);

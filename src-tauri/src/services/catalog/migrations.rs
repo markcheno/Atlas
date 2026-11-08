@@ -41,6 +41,11 @@ pub const MIGRATIONS: &[Migration] = &[
         name: "status_counts_index",
         sql: include_str!("../../../migrations/0006_status_counts_index.sql"),
     },
+    Migration {
+        version: 7,
+        name: "jobs",
+        sql: include_str!("../../../migrations/0007_jobs.sql"),
+    },
 ];
 
 /// Highest catalog schema version this build can read and write.
@@ -78,6 +83,13 @@ pub fn current_version(conn: &Connection) -> AtlasResult<u32> {
 /// Applies every pending migration, each in its own transaction.
 /// Returns the resulting schema version. Refuses newer databases.
 pub fn migrate(conn: &mut Connection, now: &str) -> AtlasResult<u32> {
+    migrate_to(conn, SUPPORTED_SCHEMA_VERSION, now)
+}
+
+/// Applies pending migrations up to and including `target`. The app always
+/// migrates to [`SUPPORTED_SCHEMA_VERSION`]; tests use a lower target to
+/// build the catalog an older release would have left behind.
+pub fn migrate_to(conn: &mut Connection, target: u32, now: &str) -> AtlasResult<u32> {
     let current = current_version(conn)?;
     if current > SUPPORTED_SCHEMA_VERSION {
         return Err(AtlasError::DataRootIncompatible {
@@ -88,7 +100,10 @@ pub fn migrate(conn: &mut Connection, now: &str) -> AtlasResult<u32> {
     conn.execute_batch(CREATE_TRACKING_TABLE)
         .map_err(AtlasError::db("be prepared for updates"))?;
 
-    for migration in MIGRATIONS.iter().filter(|m| m.version > current) {
+    for migration in MIGRATIONS
+        .iter()
+        .filter(|m| m.version > current && m.version <= target)
+    {
         let tx = conn
             .transaction()
             .map_err(AtlasError::db("start an update"))?;
@@ -131,6 +146,98 @@ mod tests {
             .query_row("SELECT COUNT(*) FROM schema_migrations", [], |r| r.get(0))
             .unwrap();
         assert_eq!(rows as usize, MIGRATIONS.len());
+    }
+
+    /// Version 7 renames `scan_sessions` to `jobs` (Phase 1, ADR 0009). Run
+    /// on the real writer connection, which has foreign keys on, as in the
+    /// app: the frontier's foreign key must follow the rename.
+    #[test]
+    fn version_7_turns_scan_sessions_into_jobs() {
+        use crate::services::catalog::writer::CatalogWriter;
+
+        let dir = tempfile::tempdir().unwrap();
+        let writer = CatalogWriter::open(&dir.path().join("catalog.sqlite")).unwrap();
+        writer
+            .call(|c| {
+                assert_eq!(migrate_to(c, 6, "t").unwrap(), 6);
+                c.execute_batch(
+                    "INSERT INTO workspace (id, name, created_at) VALUES ('w', 'W', 't');
+                     INSERT INTO source_roots (id, workspace_id, path_bytes, display_path, created_at)
+                         VALUES ('r', 'w', x'01', '/books', 't');
+                     INSERT INTO scan_sessions
+                         (id, source_root_id, state, created_at, updated_at, discovered_files)
+                         VALUES ('s', 'r', 'paused_user', 't', 't', 42);
+                     INSERT INTO scan_directories (session_id, rel_path, state, attempts)
+                         VALUES ('s', x'01', 'done', 0), ('s', x'0161', 'pending', 1);",
+                )
+                .unwrap();
+
+                assert_eq!(migrate(c, "t2").unwrap(), 7);
+
+                let (kind, state, found): (String, String, i64) = c
+                    .query_row(
+                        "SELECT kind, state, discovered_files FROM jobs WHERE id = 's'",
+                        [],
+                        |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
+                    )
+                    .unwrap();
+                assert_eq!((kind.as_str(), state.as_str(), found), ("scan", "paused_user", 42));
+                let frontier: Vec<(String, u32)> = c
+                    .prepare("SELECT state, attempts FROM scan_directories ORDER BY id")
+                    .unwrap()
+                    .query_map([], |r| Ok((r.get(0)?, r.get(1)?)))
+                    .unwrap()
+                    .collect::<Result<_, _>>()
+                    .unwrap();
+                assert_eq!(frontier, [("done".into(), 0), ("pending".into(), 1)]);
+
+                let parent: String = c
+                    .query_row(
+                        "SELECT \"table\" FROM pragma_foreign_key_list('scan_directories')",
+                        [],
+                        |r| r.get(0),
+                    )
+                    .unwrap();
+                assert_eq!(parent, "jobs");
+                let violations = c
+                    .prepare("PRAGMA foreign_key_check")
+                    .unwrap()
+                    .query_map([], |_| Ok(()))
+                    .unwrap()
+                    .count();
+                assert_eq!(violations, 0);
+                let legacy: i64 = c
+                    .query_row("PRAGMA legacy_alter_table", [], |r| r.get(0))
+                    .unwrap();
+                assert_eq!(legacy, 0);
+                let old_table: i64 = c
+                    .query_row(
+                        "SELECT COUNT(*) FROM sqlite_master WHERE name LIKE 'scan_sessions%'",
+                        [],
+                        |r| r.get(0),
+                    )
+                    .unwrap();
+                assert_eq!(old_table, 0, "no table or index keeps the old name");
+
+                // The frontier still cascades from its job.
+                c.execute("DELETE FROM source_roots WHERE id = 'r'", []).unwrap();
+                let left: i64 = c
+                    .query_row(
+                        "SELECT (SELECT COUNT(*) FROM jobs) + (SELECT COUNT(*) FROM scan_directories)",
+                        [],
+                        |r| r.get(0),
+                    )
+                    .unwrap();
+                assert_eq!(left, 0);
+            })
+            .unwrap();
+    }
+
+    #[test]
+    fn migrate_to_stops_at_the_target() {
+        let mut conn = Connection::open_in_memory().unwrap();
+        assert_eq!(migrate_to(&mut conn, 3, "t").unwrap(), 3);
+        assert_eq!(migrate(&mut conn, "t").unwrap(), SUPPORTED_SCHEMA_VERSION);
     }
 
     #[test]

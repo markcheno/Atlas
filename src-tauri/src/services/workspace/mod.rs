@@ -19,13 +19,14 @@ pub mod lock;
 pub mod manifest;
 pub mod settings;
 
+use std::collections::BTreeMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use crate::domain::dto::{
-    CandidateKind, CandidateProblem, DataRootCandidate, DataRootState, DataRootStatus, Settings,
-    VolumeKind,
+    CandidateKind, CandidateProblem, DataRootCandidate, DataRootState, DataRootStatus, JobKind,
+    Settings, VolumeKind,
 };
 use crate::domain::traits::VolumeInspector;
 use crate::error::{AtlasError, AtlasResult, ErrorPayload};
@@ -34,7 +35,8 @@ use crate::infrastructure::fsutil::{clear_dir, sync_dir};
 use crate::infrastructure::native_path;
 use crate::services::catalog::reader::CatalogReader;
 use crate::services::catalog::{self, CatalogWriter};
-use crate::services::inventory::{self, InventoryDeps, InventoryRunner};
+use crate::services::inventory::{self, InventoryDeps};
+use crate::services::jobs::{self, JobRunners, ProcessorFactory};
 use crate::services::library::{self, RootStatusCache};
 use crate::services::system::low_space_threshold;
 use layout::{CATALOG, DIRECTORIES, INIT_MARKER, TMP};
@@ -49,10 +51,10 @@ pub struct WorkspaceConfig {
 }
 
 /// An open data root. Field order matters, because Rust drops fields in
-/// declaration order: the inventory worker stops first, then the readers
-/// and the writer close, then the lock is released.
+/// declaration order: the job runners stop first, then the readers and the
+/// writer close, then the lock is released.
 pub struct OpenRoot {
-    inventory: Option<InventoryRunner>,
+    jobs: JobRunners,
     reader: CatalogReader,
     root_status: RootStatusCache,
     catalog: CatalogWriter,
@@ -81,9 +83,10 @@ impl OpenRoot {
     pub fn root_status(&self) -> &RootStatusCache {
         &self.root_status
     }
-    /// The background inventory worker, when this workspace runs one.
-    pub fn inventory(&self) -> Option<&InventoryRunner> {
-        self.inventory.as_ref()
+    /// Asks every job runner to re-read job states now, for example after
+    /// a user pauses a job or adds a folder.
+    pub fn wake_jobs(&self) {
+        self.jobs.wake_all();
     }
 }
 
@@ -101,7 +104,9 @@ enum State {
 pub struct Workspace {
     config: WorkspaceConfig,
     volumes: Arc<dyn VolumeInspector>,
-    inventory_deps: Option<InventoryDeps>,
+    /// One processor per job kind, started for every root this workspace
+    /// opens (ADR 0009).
+    processors: BTreeMap<JobKind, ProcessorFactory>,
     state: State,
 }
 
@@ -110,14 +115,20 @@ impl Workspace {
         Self {
             config,
             volumes,
-            inventory_deps: None,
+            processors: BTreeMap::new(),
             state: State::NotConfigured,
         }
     }
 
-    /// Runs an inventory worker for every root this workspace opens.
-    pub fn with_inventory(mut self, deps: InventoryDeps) -> Self {
-        self.inventory_deps = Some(deps);
+    /// Runs scans (cataloging) for every root this workspace opens.
+    pub fn with_inventory(self, deps: InventoryDeps) -> Self {
+        self.with_job_processor(JobKind::Scan, inventory::scan::factory(deps))
+    }
+
+    /// Runs jobs of `kind` with `factory`'s processor for every root this
+    /// workspace opens, replacing any earlier processor for that kind.
+    pub fn with_job_processor(mut self, kind: JobKind, factory: ProcessorFactory) -> Self {
+        self.processors.insert(kind, factory);
         self
     }
 
@@ -320,16 +331,20 @@ impl Workspace {
             manifest::write(path, &manifest)?;
         }
 
-        // Interrupted scans become queued; a user's pause is kept.
+        // Interrupted jobs become queued; a user's pause is kept. Folders
+        // never scanned are queued once.
         let now = now_rfc3339();
         catalog
-            .call(move |c| inventory::db::recover_on_open(c, &now))?
+            .call(move |c| {
+                jobs::db::requeue_interrupted(c, &now)?;
+                inventory::db::queue_never_scanned(c, &now)
+            })?
             .map_err(AtlasError::db("recover interrupted cataloging"))?;
         // Rows cataloged before search keys existed (Slice 0.5).
         library::backfill_keys(&catalog)?;
 
         Ok(OpenRoot {
-            inventory: self.start_inventory(&catalog, path)?,
+            jobs: self.start_jobs(&catalog, path)?,
             reader: CatalogReader::open(&catalog_path)?,
             root_status: RootStatusCache::default(),
             catalog,
@@ -341,15 +356,8 @@ impl Workspace {
         })
     }
 
-    fn start_inventory(
-        &self,
-        catalog: &CatalogWriter,
-        path: &Path,
-    ) -> AtlasResult<Option<InventoryRunner>> {
-        self.inventory_deps
-            .as_ref()
-            .map(|deps| InventoryRunner::start(catalog.handle(), path, deps.clone()))
-            .transpose()
+    fn start_jobs(&self, catalog: &CatalogWriter, path: &Path) -> AtlasResult<JobRunners> {
+        JobRunners::start(&catalog.handle(), path, &self.processors)
     }
 
     /// Creates a root, or finishes a previously interrupted creation.
@@ -391,7 +399,7 @@ impl Workspace {
         let _ = sync_dir(path);
 
         Ok(OpenRoot {
-            inventory: self.start_inventory(&catalog, path)?,
+            jobs: self.start_jobs(&catalog, path)?,
             reader: CatalogReader::open(&path.join(CATALOG))?,
             root_status: RootStatusCache::default(),
             catalog,

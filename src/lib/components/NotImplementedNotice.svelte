@@ -19,7 +19,7 @@
     {#if error.recovery}<p class="muted">{error.recovery}</p>{/if}
   {:else}
     <p class="muted">
-      Not available in this build yet{slice ? `; planned for Phase 0 slice ${slice}` : ''}.
+      Not available in this build yet{slice ? `; planned for slice ${slice}` : ''}.
     </p>
   {/if}
 </div>

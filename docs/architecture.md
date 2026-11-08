@@ -1,8 +1,8 @@
 # Atlas architecture
 
-Status: Phase 0 complete (Slice 0.9); Phase 1 is specified in
-[phase1-spec.md](phase1-spec.md) and not yet built. This document describes
-what is built, and marks what is only planned. Decisions with lasting
+Status: Phase 1, Slice 1.1 (general jobs). Phase 0 is complete; the rest of
+Phase 1 is specified in [phase1-spec.md](phase1-spec.md) and not yet built.
+This document describes what is built, and marks what is only planned. Decisions with lasting
 consequences are recorded as ADRs in [adr/](adr/).
 
 ## Process model
@@ -19,8 +19,8 @@ server, background daemon, database server, or Python runtime.
 │  Rust core              ▼                                      │
 │    commands/   thin adapters: validate input, map DTOs         │
 │        │                                                       │
-│    services/   workspace · catalog · inventory · scheduler     │
-│                system · providers · source_open                │
+│    services/   workspace · catalog · jobs · inventory          │
+│                scheduler · system · providers · source_open    │
 │        │                                                       │
 │    domain/     DTOs (ts-rs exported) and service traits        │
 │    infrastructure/  volume inspector, atomic writes, clock     │
@@ -86,21 +86,25 @@ Native path bytes stay in Rust (spec section 6).
 
 Traits exist only where tests need a fake, or to reserve a name (spec
 section 9, abstraction budget). They are defined in
-`src-tauri/src/domain/traits.rs` and have no implementations yet.
+`src-tauri/src/domain/traits.rs`, except `JobProcessor`, which lives with
+the runner in `services/jobs` because processors are handed the catalog
+writer.
 
 | Trait | Purpose | First adapter |
 | --- | --- | --- |
-| `CatalogRepository` | Source-root records (scan sessions live in `inventory::db`; browse and open queries in `library` and `source_open`, on the read-only pool) | **0.3 (`SqliteCatalog`)** |
+| `CatalogRepository` | Source-root records (job rows live in `jobs::db`, the scan frontier in `inventory::db`; browse and open queries in `library` and `source_open`, on the read-only pool) | **0.3 (`SqliteCatalog`)** |
 | `InventorySource` | Streamed, read-only directory listing | **0.5 (`LocalFsSource`)** |
 | `VolumeInspector` | Free space, filesystem type, network or cloud-synced | **0.2 (`OsVolumeInspector`)** |
 | `ResourceMonitor` | Device snapshot for the data-root volume | **0.4 (`OsResourceMonitor`, `SimulatedMonitor`)** |
 | `ModelProvider` | Endpoint probe and model listing | **0.7 (`HttpModelProvider`)** |
 | `SourceOpener` | OS-native open and reveal | **0.6 (`OsOpener` via `tauri-plugin-opener`)** |
+| `JobProcessor` (`services/jobs`) | Runs the jobs of one kind; a `ProcessorFactory` builds one per open library | **1.1 (`ScanProcessor`)**; extraction in 1.3 |
 | `DocumentProcessor` | Reserved name for Phase 1 extraction | Phase 1 |
 
-The scheduler is deliberately concrete. With one job kind in Phase 0 there is
-no `JobProcessor` or `SchedulingPolicy` trait; those are introduced with the
-second job kind.
+`JobProcessor` arrived with the second job kind, as Phase 0 planned
+([ADR 0009](adr/0009-jobs-and-extraction.md)). The scheduling policy stays
+concrete: every kind obeys the same `ResourcePolicy`, so there is no
+`SchedulingPolicy` trait.
 
 `ModelProvider::test_connection` returns `impl Future + Send` instead of using
 `async fn`, so callers can rely on `Send`. Traits are not yet required to be
@@ -234,22 +238,53 @@ Rationale in [ADR 0004](adr/0004-resource-policy.md).
 - **Simulation:** debug builds honor `ATLAS_SIMULATE_POWER` and
   `ATLAS_SIMULATE_FREE_BYTES`, exposed as `just dev-simulate`.
 
+## Jobs
+
+Implemented in `src-tauri/src/services/jobs/` (Slice 1.1); rationale in
+[ADR 0009](adr/0009-jobs-and-extraction.md).
+
+- **Schema** (migration 0007). `jobs` is Phase 0's `scan_sessions` renamed,
+  plus a `kind`: `scan` now, `extract` from Slice 1.3. The state machine
+  and its columns are Phase 0's (phase0-spec §7.3). There is no CHECK on
+  `kind`. Rust's `JobKind` rejects an unknown kind when a row is read, and
+  a CHECK would need a table rebuild to extend, which would cascade under
+  foreign keys (`src-tauri/migrations/README.md`).
+- **Runners.** Each open library runs one thread per registered kind
+  (`atlas-job-scan`), owned by `OpenRoot` and stopped before the catalog
+  closes. Closing signals every runner before joining any. A runner picks
+  its kind's running job, then a policy-paused one, then a queued one (by
+  priority and age), and hands it to the kind's `JobProcessor`. It sleeps
+  when nothing is runnable (a wake cuts the sleep short) and backs off on
+  database errors.
+- **Processors.** `Workspace::with_job_processor(kind, factory)` registers
+  a kind, and the factory builds a processor for each library opened, on
+  the runner's own thread. `with_inventory` registers the scan processor.
+- **Control.** `pause_job`, `resume_job` and `cancel_job` take any job ID,
+  with Phase 0's transitions and error codes. Each is a conditional state
+  change on the writer thread, then a wake of every runner. Processors
+  guard their writes with `state = 'running'` on the same writer, so
+  nothing lands after a pause.
+- **Recovery.** On open, interrupted jobs of every kind are queued again; a
+  user's pause is kept. A folder that has never been scanned gets one scan.
+- **Status.** The `inventory-status` overview, the per-folder lines and the
+  Library's "scanning" flag count scan jobs only. Extraction reports its
+  own status from Slice 1.3.
+
 ## Inventory
 
 Implemented in `src-tauri/src/services/inventory/`; rationale in
 [ADR 0005](adr/0005-inventory-durability.md).
 
-- **Schema** (migration 0003). `scan_sessions` is the job record and state
-  machine. `scan_directories` is the persisted frontier of folders still to
-  list. `file_instances` holds one row per PDF or EPUB, keyed on
+- **Schema** (migrations 0003 and 0007). A scan is a `jobs` row of kind
+  `scan` (the table was `scan_sessions` until 0007). `scan_directories` is
+  the persisted frontier of folders still to list. `file_instances` holds one row per PDF or EPUB, keyed on
   `(source_root_id, rel_path)`, with the path relative to the folder and
   stored as native bytes. Each row also has size, whole-second mtime,
   `availability` (available or missing), and `storage` (local or
   cloud_only).
-- **Worker.** One thread per open library, owned by `OpenRoot` and stopped
-  before the catalog closes. It picks a running session, then a
-  policy-paused one, then a queued one, and lists folders in batches of up
-  to 100, one transaction per batch. A batch commits only while its
+- **Scan processor.** `ScanProcessor` (`inventory/scan.rs`, Phase 0's
+  worker) runs on the scan runner (see [Jobs](#jobs)). It lists folders in
+  batches of up to 100, one transaction per batch. A batch commits only while its
   session is still running, so a pause or cancel leaves no late writes.
   Every 2 seconds it re-checks the source folder and the resource policy,
   and it paces itself with a token
@@ -281,8 +316,8 @@ Implemented in `services/library/` and `services/source_open/`; rationale
 in [ADR 0006](adr/0006-search-keys-and-safe-opening.md).
 
 - **Reads.** `CatalogReader` keeps 2 read-only connections, so UI queries
-  never wait for inventory writes. `OpenRoot` drops it after the worker and
-  before the writer.
+  never wait for inventory writes. `OpenRoot` drops it after the job
+  runners and before the writer.
 - **Search.** `search_key` (the root-relative path) and `name_key` are
   folded: NFD, combining marks removed, lowercase, NFC. Each search term
   becomes an escaped `LIKE` on `search_key`, and terms are ANDed. Filters
@@ -327,15 +362,27 @@ platform-required and contain no Atlas data.
 ## Build, CI and measurement
 
 - **CI** (`.github/workflows/ci.yml`, shared setup in
-  `.github/actions/setup`) runs on macOS arm64, Windows x64 and Linux x64:
-  - `check-and-build` runs every check and test, then builds debug
-    bundles. On Windows and Linux it also runs the WebDriver smoke test.
-  - `bench` runs the benchmark suite and publishes its tables as the job
-    summary. Numbers never fail the build.
-  - `package` builds unsigned release bundles on pushes, tags, and manual
-    runs.
+  `.github/actions/setup`) has three tiers (Slice 1.1). A `plan` job picks
+  one and writes it to the run summary:
 
-  Every job uploads its artifacts. See [packaging](packaging.md).
+  | Tier | When | What runs | Wall time |
+  | --- | --- | --- | --- |
+  | full | Pushes to `main`, tags, pull requests, manual runs (`just ci-remote`) | Every job below on macOS arm64, Windows x64 and Linux x64 | 7–9 min |
+  | quick | Pushes to `slice-*` branches, `just ci-remote quick` | Linux only: Rust format, clippy and tests, bindings, lint, typecheck, frontend tests | about 4 min |
+  | docs | Branch pushes that change only `*.md`, `docs/` or `spikes/` | ESLint and Prettier (which checks Markdown) | about 1 min |
+
+  The full tier runs:
+  - `check-and-build`: every check and test, then debug bundles. On Windows
+    and Linux it also runs the WebDriver smoke test.
+  - `bench`: the benchmark suite, whose tables become the job summary.
+    Numbers never fail the build.
+  - `package`: unsigned release bundles, except on pull requests.
+
+  The quick tier shares the full Linux job's Rust cache (`rust-shared-key`
+  in the setup action), so a new slice branch starts warm from `main`'s.
+  Slice work runs quick on every push and full before merging, and `main`
+  and tags always run full. Every job uploads its artifacts. See
+  [packaging](packaging.md).
 - **Smoke test** (`e2e/smoke.mjs`). A dependency-free W3C WebDriver client
   drives the debug build through `tauri-driver`. The flow covers
   onboarding, adding a folder, pause and resume, completion, search, open,
@@ -399,5 +446,5 @@ the measurements are in [the spike results](spike-0.9.md).
 Phase 1 adds a general jobs table, text extraction in a helper process
 (PDFium and rbook), content hashing with logical documents, and FTS5
 full-text search. It is specified in [phase1-spec.md](phase1-spec.md).
-Nothing described there exists in the code yet; this document is updated
-slice by slice as it lands.
+Slice 1.1 built the jobs table and runners ([Jobs](#jobs)). The rest is not
+in the code yet; this document is updated slice by slice as it lands.

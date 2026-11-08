@@ -3,6 +3,7 @@ use tauri::State;
 use crate::domain::dto::InventoryOverview;
 use crate::error::AtlasResult;
 use crate::services::inventory::control;
+use crate::services::jobs;
 use crate::state::AppState;
 
 /// Starts (or resumes) cataloging one library folder; returns the job ID.
@@ -16,18 +17,18 @@ pub async fn start_inventory(
         .await
 }
 
-/// Pauses a job until the user resumes it, across restarts.
+/// Pauses a job of any kind until the user resumes it, across restarts.
 #[tauri::command]
 pub async fn pause_job(state: State<'_, AppState>, job_id: String) -> AtlasResult<()> {
     state
-        .with_workspace(move |ws| control::pause(ws.require_open()?, &job_id))
+        .with_workspace(move |ws| jobs::control::pause(ws.require_open()?, &job_id))
         .await
 }
 
 #[tauri::command]
 pub async fn resume_job(state: State<'_, AppState>, job_id: String) -> AtlasResult<()> {
     state
-        .with_workspace(move |ws| control::resume(ws.require_open()?, &job_id))
+        .with_workspace(move |ws| jobs::control::resume(ws.require_open()?, &job_id))
         .await
 }
 
@@ -35,7 +36,7 @@ pub async fn resume_job(state: State<'_, AppState>, job_id: String) -> AtlasResu
 #[tauri::command]
 pub async fn cancel_job(state: State<'_, AppState>, job_id: String) -> AtlasResult<()> {
     state
-        .with_workspace(move |ws| control::cancel(ws.require_open()?, &job_id))
+        .with_workspace(move |ws| jobs::control::cancel(ws.require_open()?, &job_id))
         .await
 }
 

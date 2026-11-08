@@ -5,6 +5,7 @@
 //! Source roots arrive in 0.3, scan sessions and the directory frontier in
 //! 0.5, read-only query connections in 0.6.
 
+pub mod codec;
 pub mod migrations;
 pub mod reader;
 pub mod repository;

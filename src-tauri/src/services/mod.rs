@@ -5,6 +5,7 @@
 
 pub mod catalog;
 pub mod inventory;
+pub mod jobs;
 pub mod library;
 pub mod providers;
 pub mod scheduler;
