@@ -1,0 +1,16 @@
+[package]
+name = "sqlite-vec-simd"
+version = "0.1.9"
+edition.workspace = true
+publish.workspace = true
+description = "sqlite-vec 0.1.9's C source (vendored, MIT OR Apache-2.0) built with its NEON/AVX paths enabled"
+
+[lib]
+name = "sqlite_vec"
+
+[dependencies]
+# Only for DEP_SQLITE3_INCLUDE: compile against the app's own sqlite3.h.
+libsqlite3-sys = { version = "0.39.1", features = ["bundled"] }
+
+[build-dependencies]
+cc = "1"
