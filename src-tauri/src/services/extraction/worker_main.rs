@@ -43,7 +43,10 @@ pub fn run() -> i32 {
         return EXIT_NO_PROTOCOL;
     };
     let _ = PROTOCOL.set(Mutex::new(protocol));
-    std::panic::set_hook(Box::new(|_| {
+    // The protocol gets a fixed code; the message (which may name a file)
+    // goes to stderr only.
+    std::panic::set_hook(Box::new(|info| {
+        eprintln!("atlas worker: {info}");
         send(&Frame::Error {
             reason: "panic".into(),
         });

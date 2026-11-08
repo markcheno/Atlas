@@ -18,7 +18,7 @@ Results: [docs/spike-0.9.md](../docs/spike-0.9.md). Decision:
 | `extraction-bench/sidecar/docling/` | Docling frozen into a standalone folder with PyInstaller (`build.py`), speaking the same JSON contract as the Rust candidates |
 | `vector-bench/` | Cargo workspace: `datagen` (synthetic 1024-d vectors with exact ground truth), one binary per engine (`vec-sqlite`, `vec-sqlite-simd`, `vec-sqlite-alpha`, `vec-usearch`, `vec-lancedb`) and a brute-force `baseline` |
 | `scripts/` | Drivers: `fetch-tools`, `check-corpus`, `run-extraction`, `run-vectors`, `measure-builds` |
-| `tools.lock.json` | Pinned downloads (PDFium, protoc, typst) with SHA-256 per OS |
+| `tools.lock.json` | Pinned downloads (protoc, typst) with SHA-256 per OS; PDFium, which the app now ships, is pinned in the root `tools.lock.json` (Slice 1.2) and fetched from there |
 | `.tools/` | Where `fetch-tools` unpacks them (gitignored) |
 
 ## Running

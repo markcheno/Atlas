@@ -23,14 +23,17 @@ days, debug bundles for 14).
 
 | Bundle | Size | Notes |
 | --- | ---: | --- |
-| `Atlas_0.1.0_aarch64.dmg` | 6.8 MiB | 17 MiB app once installed |
-| `Atlas_0.1.0_x64-setup.exe` | 4.7 MiB | Uses the system WebView2 |
-| `Atlas_0.1.0_amd64.deb` | 8.4 MiB | Uses the distribution's WebKitGTK |
-| `Atlas_0.1.0_amd64.AppImage` | 82.7 MiB | Bundles WebKitGTK, GTK and their libraries |
+| `Atlas_0.1.0_aarch64.dmg` | 10.5 MiB | 26 MiB app once installed; includes PDFium (7.0 MiB) |
+| `Atlas_0.1.0_x64-setup.exe` | 7.6 MiB | Uses the system WebView2; includes PDFium (7.2 MiB) |
+| `Atlas_0.1.0_amd64.deb` | 12.6 MiB | Uses the distribution's WebKitGTK; includes PDFium (7.7 MiB) |
+| `Atlas_0.1.0_amd64.AppImage` | 86.5 MiB | Bundles WebKitGTK, GTK and their libraries, and PDFium |
 
-Release builds from CI run
-[42444312761](https://github.com/markcheno/Atlas/actions/runs/42444312761)
-(2026-11-08).
+Release builds from CI runs
+[42531070487](https://github.com/markcheno/Atlas/actions/runs/42531070487)
+(macOS, Linux) and
+[42531636951](https://github.com/markcheno/Atlas/actions/runs/42531636951)
+(Windows), 2026-11-08, Slice 1.2. Before PDFium (Slice 1.1 and earlier)
+they were 6.8, 4.7, 8.4 and 82.7 MiB.
 
 Locally: `just bundle-release` (release) or `just bundle` (debug) builds
 the formats for the current OS and prints their sizes.
@@ -53,9 +56,8 @@ MIT licence). Nothing is downloaded at run time.
 | Windows | `pdfium.dll` next to `atlas.exe` in the install folder | `src-tauri/tauri.windows.conf.json` (`bundle.resources`) |
 | Linux | `/usr/lib/Atlas/libpdfium.so` (`.deb`); `usr/lib/Atlas/` inside the AppImage | `src-tauri/tauri.linux.conf.json` (`bundle.resources`) |
 
-The library is 7.0 MiB on macOS (7.2 MiB on Windows, 7.7 MiB on Linux).
-The macOS release DMG grew from 6.8 to 10.4 MiB (17 to 26 MiB installed)
-on the M5 Pro. CI checks that the extraction worker loads the library and
+The library is 7.0 MiB on macOS (7.2 MiB on Windows, 7.7 MiB on Linux);
+the bundle sizes above include it. CI checks that the extraction worker loads the library and
 passes its self-test from every format: the signed `.app` (debug and
 release), the unpacked `.deb`, the AppImage, and a silent per-user NSIS
 install (`scripts/worker-hello.mjs`).

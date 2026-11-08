@@ -188,4 +188,37 @@ The 1k and battery scenarios match as closely (73.4 and 73.6 files/s on
 battery). Every difference is within the spread between repeated runs of
 the same build; the unthrottled 30k run lasts only 2 s.
 
+## Extraction worker start
+
+Slice 1.2 measures how long `atlas --extract-worker` takes from spawn to its
+`hello` line, which includes loading PDFium and extracting the built-in
+two-page self-test PDF (`scripts/worker-hello.mjs`, 10 starts; median of
+starts 2–10). The spec switches to a separate sidecar binary above about
+300 ms on any OS (phase1-spec §7.2); every median is under 30 ms, so the
+worker stays a mode of the app executable (2026-11-08).
+
+| Build | Where | First start | Median | CI run |
+| --- | --- | ---: | ---: | --- |
+| macOS debug | M5 Pro, `target/debug` | 20 ms | 17 ms | local |
+| macOS debug `.app` | M5 Pro | 18 ms | 15 ms | local |
+| macOS release `.app` | M5 Pro | 241 ms | 15 ms | local |
+| macOS release, DMG copy | M5 Pro | 321 ms | 18 ms | local |
+| macOS debug `.app` | CI arm64 | 57 ms | 18 ms | [42531070487](https://github.com/markcheno/Atlas/actions/runs/42531070487) |
+| macOS release `.app` | CI arm64 | 471 ms | 22 ms | 42531070487 |
+| Windows debug | CI x64 | 135 ms | 19 ms | [42531636951](https://github.com/markcheno/Atlas/actions/runs/42531636951) |
+| Windows, NSIS per-user install | CI x64 | 69 ms | 21 ms | 42531636951 |
+| Linux debug | CI x64 | 45 ms | 28 ms | 42531070487 |
+| Linux `.deb` layout | CI x64 | 155 ms | 23 ms | 42531070487 |
+| Linux AppImage | CI x64 | 1,673 ms | 1,206 ms | 42531070487 |
+
+- The first start of a newly signed or copied macOS binary takes 0.2–0.5 s
+  once while the OS checks its signature; later starts are 15–22 ms. A
+  sidecar would be a second binary paying the same one-time cost.
+- The AppImage row measures `APPIMAGE_EXTRACT_AND_RUN=1`, which unpacks the
+  86 MiB image on every start because the runner has no FUSE. The app
+  spawns the worker from its already-mounted image (`current_exe`), so that
+  cost doesn't apply to it.
+- The spike's "3 ms" for pdfium never loaded the library (ADR 0008,
+  amended).
+
 <!-- results:end -->
