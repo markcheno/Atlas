@@ -22,7 +22,8 @@ use atlas_lib::services::workspace::Workspace;
 mod common;
 use common::{Env, GIB, InventoryHarness, code, fast_config, wait_until};
 
-const LONG: Duration = Duration::from_secs(20);
+/// Bounds a failure, not a performance claim: shared CI runners are slow.
+const LONG: Duration = Duration::from_secs(120);
 
 struct Lib {
     env: Env,
@@ -242,7 +243,7 @@ fn p0_05_catalogs_a_nested_tree_without_touching_it() {
 #[test]
 fn p0_06_overlapping_roots_are_not_double_scanned() {
     let lib = Lib::new();
-    let outer = fs::canonicalize(lib.dir("Library")).unwrap();
+    let outer = dunce::canonicalize(lib.dir("Library")).unwrap();
     let inner = outer.join("Math");
     write(&inner.join("calculus.pdf"), b"%PDF");
     write(&outer.join("history.pdf"), b"%PDF");
@@ -433,7 +434,10 @@ fn p0_13_source_disappearing_mid_scan_marks_nothing_missing() {
 
     let (root_id, job) = lib.add(&books);
     assert!(wait_until(LONG, || lib.file_count() > 20));
+    // Unplug between two folder listings, then let the scan carry on.
+    assert!(lib.h.source.hold_next_listing(LONG));
     fs::rename(&drive, lib.env.base.join("unplugged")).unwrap();
+    lib.h.source.release();
     lib.wait_state(&job, JobState::PausedPolicy);
     assert_eq!(
         lib.overview().active.unwrap().pause_reason,
@@ -498,7 +502,7 @@ fn p0_21_closing_stops_the_worker_and_reopening_resumes() {
 #[test]
 fn p0_22_unreadable_folder_is_bounded_and_protects_only_its_subtree() {
     let lib = Lib::new();
-    let books = fs::canonicalize(lib.dir("Books")).unwrap();
+    let books = dunce::canonicalize(lib.dir("Books")).unwrap();
     write(&books.join("Locked/secret.pdf"), b"%PDF");
     write(&books.join("Open/fine.pdf"), b"%PDF");
     write(&books.join("Open/gone-later.pdf"), b"%PDF");

@@ -93,14 +93,37 @@ check-bindings:
 bundle bundles=default_bundles:
     pnpm tauri build --debug --bundles {{ bundles }}
 
+# Build unsigned release bundles for this OS, as CI's package job does
+bundle-release bundles=default_bundles:
+    pnpm tauri build --bundles {{ bundles }}
+    node scripts/bundle-sizes.mjs src-tauri/target/release
+
 # Open the macOS debug app bundle built by `just bundle`
 [macos]
 open-bundle:
     open src-tauri/target/debug/bundle/macos/Atlas.app
 
-# Generate a synthetic test library outside the repo, e.g. `just fixtures ~/atlas-fx 30000`
-fixtures dir files="1000":
-    node scripts/generate-fixtures.mjs {{ dir }} --files {{ files }}
+# Generate a synthetic test library outside the repo, e.g. `just fixtures ~/atlas-fx 10000 20000` (30k with a 20k flat folder)
+fixtures dir files="1000" flat="0":
+    node scripts/generate-fixtures.mjs {{ dir }} --files {{ files }} --flat {{ flat }}
+
+# ------------------------------------------------- benchmarks and smoke
+
+# Benchmark suite (1k and 30k fixtures, release build); results in the temp dir unless `out` is given
+bench out="":
+    pnpm bench {{ if out == "" { "" } else { "--out " + out } }}
+
+# Benchmark suite plus the 30k throttle sweep (about 10 more minutes)
+bench-full out="":
+    pnpm bench --sweep {{ if out == "" { "" } else { "--out " + out } }}
+
+# WebDriver smoke test of the debug build (Windows and Linux; needs tauri-driver)
+e2e *args:
+    pnpm e2e {{ args }}
+
+# Recent CI runs for the current branch
+ci-status:
+    gh run list --branch "$(git branch --show-current)" --limit 5
 
 # --------------------------------------------------------- maintenance
 

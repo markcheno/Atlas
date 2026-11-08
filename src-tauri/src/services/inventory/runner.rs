@@ -71,8 +71,7 @@ impl InventoryRunner {
             seq: Mutex::new(0),
             cv: Condvar::new(),
         });
-        let data_root =
-            std::fs::canonicalize(data_root).unwrap_or_else(|_| data_root.to_path_buf());
+        let data_root = dunce::canonicalize(data_root).unwrap_or_else(|_| data_root.to_path_buf());
         let worker = Worker {
             catalog,
             data_root_handle: Handle::from_path(&data_root).ok(),
@@ -541,7 +540,10 @@ impl Worker {
             .catalog
             .call(move |c| db::commit_batch(c, &id, &root_id, &committed, &ts))
         {
-            Ok(Ok(())) => {}
+            Ok(Ok(db::Committed::Yes)) => {}
+            // Paused or cancelled while this batch was listed: drop it. The
+            // directory stays pending and is listed again on resume.
+            Ok(Ok(db::Committed::NotRunning)) => return Some(DirOutcome::Interrupted),
             // Most likely the folder was removed while scanning (cascade).
             _ => {
                 if self.state_of(&s.id).is_some()

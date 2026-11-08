@@ -1,0 +1,41 @@
+name: Set up Atlas build
+description: System packages, pnpm, Node, the pinned Rust toolchain, caches, and npm dependencies.
+
+inputs:
+  linux-extra-packages:
+    description: Extra apt packages for Linux (for example the WebDriver and a virtual display).
+    default: ''
+  cache-key:
+    description: Distinguishes Rust caches of jobs that build different profiles.
+    default: debug
+
+runs:
+  using: composite
+  steps:
+    - name: Install Linux system dependencies
+      if: runner.os == 'Linux'
+      shell: bash
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y libwebkit2gtk-4.1-dev libayatana-appindicator3-dev \
+          librsvg2-dev libxdo-dev libssl-dev patchelf file ${{ inputs.linux-extra-packages }}
+
+    - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
+
+    - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+      with:
+        node-version: 24
+        cache: pnpm
+
+    - name: Install Rust toolchain from rust-toolchain.toml
+      shell: bash
+      run: rustup toolchain install
+
+    - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+      with:
+        workspaces: src-tauri
+        key: ${{ inputs.cache-key }}
+
+    - name: Install npm dependencies
+      shell: bash
+      run: pnpm install --frozen-lockfile

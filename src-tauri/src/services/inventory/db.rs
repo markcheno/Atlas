@@ -351,17 +351,53 @@ impl Batch {
     }
 }
 
+/// Whether a batch was written.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Committed {
+    Yes,
+    /// The session left `running` (paused, cancelled, or removed) while the
+    /// batch was being listed. Nothing was written; the directory stays
+    /// pending and is listed again on resume.
+    NotRunning,
+}
+
 /// Writes one batch atomically: new frontier rows, file upserts, counters,
 /// and (for the last batch of a directory) its completion.
+///
+/// The batch is written only while the session is still `running`, so a
+/// pause or cancel takes effect at the batch boundary with no late writes.
+/// State changes and commits share the single writer connection, so the
+/// check and the writes cannot interleave with a transition.
 pub fn commit_batch(
     conn: &mut Connection,
     session_id: &str,
     root_id: &str,
     batch: &Batch,
     now: &str,
-) -> rusqlite::Result<()> {
+) -> rusqlite::Result<Committed> {
     let tx = conn.transaction()?;
     {
+        let running = tx.execute(
+            "UPDATE scan_sessions SET
+                 skipped_symlinks = skipped_symlinks + ?2,
+                 skipped_entries = skipped_entries + ?3,
+                 error_count = error_count + ?4,
+                 elapsed_ms = elapsed_ms + ?5,
+                 updated_at = ?6
+             WHERE id = ?1 AND state = 'running'",
+            params![
+                session_id,
+                batch.skipped_symlinks,
+                batch.skipped_entries,
+                batch.entry_errors,
+                batch.elapsed_ms as i64,
+                now
+            ],
+        )?;
+        if running == 0 {
+            return Ok(Committed::NotRunning);
+        }
+
         let mut add_dir = tx.prepare_cached(
             "INSERT OR IGNORE INTO scan_directories (session_id, rel_path, state)
              VALUES (?1, ?2, 'pending')",
@@ -413,23 +449,6 @@ pub fn commit_batch(
             ])?;
         }
 
-        tx.execute(
-            "UPDATE scan_sessions SET
-                 skipped_symlinks = skipped_symlinks + ?2,
-                 skipped_entries = skipped_entries + ?3,
-                 error_count = error_count + ?4,
-                 elapsed_ms = elapsed_ms + ?5,
-                 updated_at = ?6
-             WHERE id = ?1",
-            params![
-                session_id,
-                batch.skipped_symlinks,
-                batch.skipped_entries,
-                batch.entry_errors,
-                batch.elapsed_ms as i64,
-                now
-            ],
-        )?;
         if let Some(dir_id) = batch.done_dir {
             tx.execute(
                 "UPDATE scan_directories SET state = 'done' WHERE id = ?1",
@@ -437,7 +456,8 @@ pub fn commit_batch(
             )?;
         }
     }
-    tx.commit()
+    tx.commit()?;
+    Ok(Committed::Yes)
 }
 
 /// Completes a session whose frontier is empty.
@@ -645,5 +665,64 @@ mod tests {
         );
         assert_eq!(to_db(&PauseReason::BatteryLow), "battery_low");
         assert_eq!(from_db::<JobState>("nonsense"), None);
+    }
+
+    #[test]
+    fn a_batch_for_a_session_that_left_running_writes_nothing() {
+        let mut conn = Connection::open_in_memory().unwrap();
+        crate::services::catalog::migrations::migrate(&mut conn, "t").unwrap();
+        conn.execute_batch("PRAGMA foreign_keys = OFF").unwrap();
+        insert_session(&conn, "s1", "r1", "t").unwrap();
+        assert!(
+            transition(
+                &conn,
+                "s1",
+                JobState::Running,
+                &[JobState::Queued],
+                None,
+                None,
+                "t"
+            )
+            .unwrap()
+        );
+        let batch = |dir: &[u8]| Batch {
+            dirs: vec![dir.to_vec()],
+            skipped_entries: 1,
+            ..Batch::default()
+        };
+        let dirs = |c: &Connection| -> i64 {
+            c.query_row("SELECT COUNT(*) FROM scan_directories", [], |r| r.get(0))
+                .unwrap()
+        };
+
+        assert_eq!(
+            commit_batch(&mut conn, "s1", "r1", &batch(b"a"), "t").unwrap(),
+            Committed::Yes
+        );
+        assert_eq!(dirs(&conn), 1);
+
+        transition(
+            &conn,
+            "s1",
+            JobState::PausedUser,
+            &[JobState::Running],
+            None,
+            None,
+            "t",
+        )
+        .unwrap();
+        assert_eq!(
+            commit_batch(&mut conn, "s1", "r1", &batch(b"b"), "t").unwrap(),
+            Committed::NotRunning
+        );
+        assert_eq!(dirs(&conn), 1, "the late batch must not land");
+        let skipped: u32 = conn
+            .query_row(
+                "SELECT skipped_entries FROM scan_sessions WHERE id = 's1'",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(skipped, 1);
     }
 }

@@ -36,6 +36,55 @@ impl KeychainStore {
     }
 }
 
+/// Opens the keychain on first use instead of at startup, waiting at most
+/// [`OPEN_TIMEOUT`]. Connecting can block for a long time (on Linux, D-Bus
+/// tries to start a Secret Service that may not exist, about 25 s), and
+/// most sessions never touch a key, so startup must not wait for it. If it
+/// can't be opened, every call fails and keys are kept for the session
+/// only, as when no keychain exists.
+#[derive(Default)]
+pub struct LazyKeychain {
+    opened: std::sync::OnceLock<Option<Arc<KeychainStore>>>,
+}
+
+pub const OPEN_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(5);
+
+impl LazyKeychain {
+    fn store(&self) -> AtlasResult<&KeychainStore> {
+        self.opened
+            .get_or_init(|| {
+                let (tx, rx) = std::sync::mpsc::channel();
+                let spawned = std::thread::Builder::new()
+                    .name("atlas-keychain-open".into())
+                    .spawn(move || {
+                        let _ = tx.send(KeychainStore::open().map(Arc::new));
+                    });
+                // A thread still stuck after the timeout is left to finish
+                // on its own; its result is ignored.
+                spawned
+                    .ok()
+                    .and_then(|_| rx.recv_timeout(OPEN_TIMEOUT).ok())
+                    .flatten()
+            })
+            .as_deref()
+            .ok_or(AtlasError::SecretStoreFailed)
+    }
+}
+
+impl SecretStore for LazyKeychain {
+    fn set(&self, account: &str, secret: &Secret) -> AtlasResult<()> {
+        self.store()?.set(account, secret)
+    }
+
+    fn get(&self, account: &str) -> AtlasResult<Option<Secret>> {
+        self.store()?.get(account)
+    }
+
+    fn delete(&self, account: &str) -> AtlasResult<()> {
+        self.store()?.delete(account)
+    }
+}
+
 #[cfg(target_os = "macos")]
 fn platform_store() -> keyring_core::Result<Arc<CredentialStore>> {
     Ok(apple_native_keyring_store::keychain::Store::new()?)

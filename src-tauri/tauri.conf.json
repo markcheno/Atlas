@@ -13,6 +13,7 @@
     "windows": [
       {
         "label": "main",
+        "create": false,
         "title": "Atlas",
         "width": 1100,
         "height": 720,
@@ -30,6 +31,9 @@
     "active": true,
     "targets": ["app", "dmg", "nsis", "appimage", "deb"],
     "category": "Productivity",
+    "macOS": {
+      "signingIdentity": "-"
+    },
     "shortDescription": "A local-first personal AI librarian",
     "icon": [
       "icons/32x32.png",

@@ -132,8 +132,11 @@ pub fn cancel(root: &OpenRoot, job_id: &str) -> AtlasResult<()> {
     )
 }
 
+/// The indexing status for the UI. Read on a pooled read-only connection,
+/// so it never queues behind catalog writes (on Windows, waiting for the
+/// writer made it take 0.4–0.9 s at p95 during scans; docs/benchmarks.md).
 pub fn overview(root: &OpenRoot) -> AtlasResult<InventoryOverview> {
-    root.catalog()
-        .call(|c| db::overview(c))?
+    root.reader()
+        .read(db::overview)?
         .map_err(AtlasError::db("read cataloging status"))
 }

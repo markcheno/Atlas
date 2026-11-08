@@ -18,13 +18,12 @@ use std::sync::{Arc, Mutex};
 use tauri::{Emitter, Manager};
 
 use domain::dto::InventoryOverview;
-use infrastructure::keychain::KeychainStore;
+use infrastructure::keychain::LazyKeychain;
 use infrastructure::local_source::LocalFsSource;
 use infrastructure::system_probe::{OsResourceMonitor, SimulatedMonitor, Simulation};
 use infrastructure::volume::OsVolumeInspector;
 use services::inventory::{InventoryConfig, InventoryDeps};
 use services::providers::secrets::{SecretStore, SecretVault};
-use services::source_open::OsOpener;
 use services::system::ResourceGovernor;
 use services::workspace::{Workspace, WorkspaceConfig, layout};
 use state::AppState;
@@ -53,6 +52,27 @@ fn workspace_config(app: &tauri::AppHandle) -> tauri::Result<WorkspaceConfig> {
     })
 }
 
+/// Creates the main window from its `tauri.conf.json` entry (which has
+/// `"create": false`), after the app state exists.
+fn main_window(app: &tauri::App) -> tauri::Result<()> {
+    let config = app
+        .config()
+        .app
+        .windows
+        .iter()
+        .find(|w| w.label == "main")
+        .cloned()
+        .ok_or_else(|| tauri::Error::WindowNotFound)?;
+    #[allow(unused_mut)]
+    let mut builder = tauri::WebviewWindowBuilder::from_config(app.handle(), &config)?;
+    #[cfg(windows)]
+    if let Some(args) = infrastructure::e2e::webview2_driver_args() {
+        builder = builder.additional_browser_args(&args);
+    }
+    builder.build()?;
+    Ok(())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -79,16 +99,19 @@ pub fn run() {
             // Reopens the remembered root and resumes interrupted cataloging;
             // problems become status, never a crash.
             workspace.startup();
-            // Keys go to the OS keychain; if it's unavailable, they are kept
-            // for this session only and never written to disk.
-            let keychain = KeychainStore::open().map(|k| Arc::new(k) as Arc<dyn SecretStore>);
-            let vault = Arc::new(SecretVault::new(keychain));
+            // Keys go to the OS keychain, opened on first use so startup
+            // never waits for it. If it's unavailable, keys are kept for
+            // this session only and never written to disk.
+            let keychain: Arc<dyn SecretStore> = Arc::new(LazyKeychain::default());
+            let vault = Arc::new(SecretVault::new(Some(keychain)));
             app.manage(AppState::new(
                 workspace,
                 governor,
-                Arc::new(OsOpener),
+                // Debug builds may record opens instead (smoke tests).
+                infrastructure::e2e::opener(),
                 vault,
             ));
+            main_window(app)?;
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![

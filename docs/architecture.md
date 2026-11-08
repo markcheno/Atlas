@@ -180,8 +180,9 @@ Implemented in `src-tauri/src/services/sources/`; rationale in
   after the first call), `canonicalize`, and read-only directory opens for
   identity checks. Integration tests snapshot names, sizes and mtimes of a
   source tree before and after add, list and remove.
-- **Storage.** `source_roots` (migration 0002) keeps the canonical path as
-  platform-tagged native bytes (`infrastructure/native_path.rs`) plus a
+- **Storage.** `source_roots` (migration 0002) keeps the canonical path
+  (`dunce::canonicalize`, so Windows paths keep their ordinary `C:\…` form
+  rather than the verbatim `\\?\C:\…` one) as platform-tagged native bytes (`infrastructure/native_path.rs`) plus a
   lossy display string. There is no stored status column: availability is
   probed live each time the list is shown, with a 2 second budget per call
   so a hung network mount cannot freeze the UI.
@@ -219,8 +220,8 @@ Rationale in [ADR 0004](adr/0004-resource-policy.md).
   pauses for an unreachable data drive, low space, critical pressure, or
   battery at or below 20% (resuming at 25% or on AC). It runs slowly on
   battery, with unknown power, or under elevated pressure, and runs normally
-  otherwise. Rates are 100 and 20 metadata operations per second, as
-  starting values.
+  otherwise. Rates are 500 and 100 metadata operations per second, chosen
+  from the Slice 0.8 measurements ([benchmarks](benchmarks.md)).
 - **Assessment** (`services/system/assessment.rs`) maps memory to library and
   local-AI fitness at 8, 16 and 32 GiB, plus note codes. The UI owns the
   wording, in `src/lib/deviceCopy.ts`.
@@ -245,8 +246,10 @@ Implemented in `src-tauri/src/services/inventory/`; rationale in
 - **Worker.** One thread per open library, owned by `OpenRoot` and stopped
   before the catalog closes. It picks a running session, then a
   policy-paused one, then a queued one, and lists folders in batches of up
-  to 100, one transaction per batch. Every 2 seconds it re-checks the
-  source folder and the resource policy, and it paces itself with a token
+  to 100, one transaction per batch. A batch commits only while its
+  session is still running, so a pause or cancel leaves no late writes.
+  Every 2 seconds it re-checks the source folder and the resource policy,
+  and it paces itself with a token
   bucket. Classification is by extension only, and file contents are never
   opened.
 - **Triggers.** A session starts when a folder is added, on Rescan, or when
@@ -260,10 +263,14 @@ Implemented in `src-tauri/src/services/inventory/`; rationale in
   being downloaded. Listing a dataless folder has a 15 second timeout.
 - **Progress.** The `inventory-status` Tauri event carries an
   `InventoryOverview`, at most 4 per second plus on every state change.
-  The UI shows counts only, never totals or percentages.
-- **Fixtures.** `just fixtures <dir> [files]` writes a synthetic tree
-  outside the repository (`fixtures/README.md`). `just dev-unthrottled`
-  removes the rate limit in debug builds for benchmarking.
+  The UI shows counts only, never totals or percentages. The counts come
+  from a covering index (migration 0006), so building an overview stays
+  cheap as the catalog grows. `get_inventory_status` reads on the
+  read-only pool, so it never waits behind batch commits
+  ([benchmarks](benchmarks.md)).
+- **Fixtures.** `just fixtures <dir> [files] [flat]` writes a synthetic
+  tree outside the repository (`fixtures/README.md`). `just dev-unthrottled`
+  removes the rate limit in debug builds.
 
 ## Library, search and opening
 
@@ -299,8 +306,9 @@ Implemented in `services/providers/`, `infrastructure/http_probe.rs`, and
   the catalog.
 - **Keys** go to the OS keychain under service `com.altazlabs.atlas`, or
   `….debug` in debug builds, with account `provider:<id>`. If the keychain
-  is unavailable, they are kept in memory for the session only. A
-  redacting `Secret` type keeps keys out of `Debug` output.
+  is unavailable, they are kept in memory for the session only. The
+  keychain is opened on first use (`LazyKeychain`, at most 5 s), never at
+  startup. A redacting `Secret` type keeps keys out of `Debug` output.
 - **Address rules:** http(s) only, no credentials, query, or fragment; plain
   HTTP silently to loopback only, otherwise per-profile acknowledgement.
 - **Tests** are bodiless GETs of the model list, with no redirects, no
@@ -312,6 +320,39 @@ Implemented in `services/providers/`, `infrastructure/http_probe.rs`, and
 The webview also creates its own website-data and cache folders, on macOS
 `~/Library/WebKit/<bundle>` and `~/Library/Caches/<bundle>`. These are
 platform-required and contain no Atlas data.
+
+## Build, CI and measurement
+
+- **CI** (`.github/workflows/ci.yml`, shared setup in
+  `.github/actions/setup`) runs on macOS arm64, Windows x64 and Linux x64:
+  - `check-and-build` runs every check and test, then builds debug
+    bundles. On Windows and Linux it also runs the WebDriver smoke test.
+  - `bench` runs the benchmark suite and publishes its tables as the job
+    summary. Numbers never fail the build.
+  - `package` builds unsigned release bundles on pushes, tags, and manual
+    runs.
+
+  Every job uploads its artifacts. See [packaging](packaging.md).
+- **Smoke test** (`e2e/smoke.mjs`). A dependency-free W3C WebDriver client
+  drives the debug build through `tauri-driver`. The flow covers
+  onboarding, adding a folder, pause and resume, completion, search, open,
+  settings, and a relaunch. WebDriver can't answer native folder dialogs
+  or observe the OS opening a file, so debug builds read
+  `ATLAS_E2E_PICK_DATA_ROOT`, `ATLAS_E2E_PICK_SOURCES` and
+  `ATLAS_E2E_OPENER_LOG` (`infrastructure/e2e.rs`). Release builds ignore
+  them, as they ignore `ATLAS_CONFIG_DIR`. On Windows, wry always sets
+  WebView2's browser arguments, which hides the remote-debugging arguments
+  msedgedriver passes through `WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS`. So
+  the main window is created in `setup` (`"create": false` in
+  `tauri.conf.json`), and debug builds append the driver's arguments to
+  wry's defaults. macOS has no WebDriver for WKWebView, so it uses the
+  manual checklist.
+- **Benchmarks** (`src-tauri/benches/inventory.rs`, driven by
+  `scripts/bench.mjs`). Release build, real filesystem and SQLite, and
+  simulated power for repeatable AC and battery runs. The harness follows
+  the runner's progress events instead of polling, so it measures
+  cataloging rather than itself. Method and results:
+  [benchmarks](benchmarks.md).
 
 ## Reproducibility
 

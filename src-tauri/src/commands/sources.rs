@@ -5,6 +5,7 @@ use tauri_plugin_dialog::DialogExt;
 
 use crate::domain::dto::{AddSourceRootsResult, SourceRoot};
 use crate::error::{AtlasError, AtlasResult};
+use crate::infrastructure::e2e;
 use crate::services::inventory::control;
 use crate::services::sources;
 use crate::state::AppState;
@@ -48,20 +49,24 @@ pub async fn pick_and_add_source_roots(
     app: AppHandle,
     state: State<'_, AppState>,
 ) -> AtlasResult<AddSourceRootsResult> {
-    let picked = tauri::async_runtime::spawn_blocking(move || {
-        app.dialog()
-            .file()
-            .set_title("Add library folders")
-            .blocking_pick_folders()
-    })
-    .await
-    .map_err(|_| AtlasError::Internal("the folder picker failed"))?;
-
-    let paths: Vec<PathBuf> = picked
-        .unwrap_or_default()
-        .into_iter()
-        .filter_map(|p| p.into_path().ok())
-        .collect();
+    let paths: Vec<PathBuf> = match e2e::scripted_sources() {
+        Some(paths) => paths,
+        None => {
+            let picked = tauri::async_runtime::spawn_blocking(move || {
+                app.dialog()
+                    .file()
+                    .set_title("Add library folders")
+                    .blocking_pick_folders()
+            })
+            .await
+            .map_err(|_| AtlasError::Internal("the folder picker failed"))?;
+            picked
+                .unwrap_or_default()
+                .into_iter()
+                .filter_map(|p| p.into_path().ok())
+                .collect()
+        }
+    };
     if paths.is_empty() {
         return Ok(AddSourceRootsResult::default());
     }

@@ -62,7 +62,7 @@ impl Lib {
             control::overview(ws.require_open().unwrap())
                 .is_ok_and(|o| o.active.is_none() && o.cataloged_files as usize == files.len())
         }));
-        let books = fs::canonicalize(&books).unwrap();
+        let books = dunce::canonicalize(&books).unwrap();
         Self {
             env,
             _h: h,
@@ -112,12 +112,23 @@ impl Lib {
 /// is interpreted by a shell.
 #[test]
 fn p0_16_hostile_names_are_passed_through_exactly() {
+    // Windows forbids `"`, `|`, `<`, `>`, `*`, `?` and `:` in names; its set
+    // uses the characters cmd.exe treats specially instead.
+    #[cfg(not(windows))]
     let names = [
         "; rm -rf ~.pdf",
         "$(touch pwned).pdf",
         "quote ' \" `whoami`.pdf",
         "-n leading dash.pdf",
         "pipe | and & ampersand.pdf",
+    ];
+    #[cfg(windows)]
+    let names = [
+        "; rm -rf ~.pdf",
+        "$(touch pwned).pdf",
+        "quote ' `whoami`.pdf",
+        "-n leading dash.pdf",
+        "and & ampersand %PATH% ^caret.pdf",
     ];
     let lib = Lib::with_files(&names);
     for name in names {
@@ -219,7 +230,7 @@ fn legacy_icloud_placeholder_is_revealed_not_opened() {
             .is_ok_and(|o| o.active.is_none() && o.cataloged_files == 1)
     }));
     let lib = Lib {
-        books: fs::canonicalize(&books).unwrap(),
+        books: dunce::canonicalize(&books).unwrap(),
         env,
         _h: h,
         ws,

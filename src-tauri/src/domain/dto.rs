@@ -174,7 +174,7 @@ pub struct PolicyDecision {
     pub mode: PolicyMode,
     pub pause_reason: Option<PauseReason>,
     pub throttle_reason: Option<ThrottleReason>,
-    /// Engineering starting value, not a measured guarantee.
+    /// Measured on one development machine (docs/benchmarks.md); not a guarantee.
     pub max_metadata_ops_per_second: Option<u32>,
 }
 

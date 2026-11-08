@@ -5,6 +5,7 @@ use tauri_plugin_dialog::DialogExt;
 
 use crate::domain::dto::{DataRootCandidate, DataRootStatus};
 use crate::error::{AtlasError, AtlasResult};
+use crate::infrastructure::e2e;
 use crate::state::AppState;
 
 #[tauri::command]
@@ -22,6 +23,12 @@ pub async fn get_default_data_root(state: State<'_, AppState>) -> AtlasResult<St
 /// needs no dialog or filesystem permission. `None` means cancelled.
 #[tauri::command]
 pub async fn pick_folder(app: AppHandle) -> AtlasResult<Option<String>> {
+    if let Some(path) = e2e::scripted_data_root() {
+        return path
+            .to_str()
+            .map(|s| Some(s.to_owned()))
+            .ok_or(AtlasError::InvalidPath);
+    }
     let picked = tauri::async_runtime::spawn_blocking(move || {
         app.dialog()
             .file()

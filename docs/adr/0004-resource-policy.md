@@ -48,10 +48,10 @@ protection, and the telemetry gap is reported in the snapshot.
 `batteryPresent` is `false` and power is `ac`. When the battery manager
 fails, power is `unknown`. The two cases are never conflated.
 
-**Rates are starting values.** Full rate is 100 metadata operations per
-second and slow rate is 20, the spec's engineering starting points. They are
-labelled as such in the DTO and the UI, and Slice 0.8 benchmarks will tune
-them.
+**Rates come from measurements.** Full rate is 500 metadata operations per
+second and the slow rate is one fifth of that, 100. Phase 0 began at 100 and
+20, the spec's engineering starting points. Slice 0.8 replaced them with
+measured values (amendment below).
 
 **User pause is separate.** The policy never knows about the user's Pause
 button. The 0.5 job state machine keeps `paused_user` and `paused_policy`
@@ -80,3 +80,33 @@ every policy state can be demonstrated on real hardware
   slowly. A platform power-source API could refine this later.
 - Thresholds such as 20%, 25%, the rates, and the memory-pressure cutoffs
   can be changed in one place.
+
+## Amendment: measured rates (Slice 0.8, 2026-11-07)
+
+Spec §13 asks for the throttle to be revisited from measurements. The
+benchmark harness (`src-tauri/benches/inventory.rs`, release build, real
+filesystem and SQLite) cataloged the 30,006-file fixture at fixed rates on
+an Apple M5 Pro (18 cores, 64 GB, macOS 27.0.1, nothing else running;
+re-run 2026-11-08):
+
+| Rate (entries/s) | Wall time | Scan CPU, % of one core | Peak RSS |
+| ---: | ---: | ---: | ---: |
+| unthrottled | 1.2 s | 77.8 | 18 MiB |
+| 1,000 | 30.4 s | 11.2 | 20 MiB |
+| 500 | 60.8 s | 7.2 | 20 MiB |
+| 250 | 121.5 s | 4.6 | 20 MiB |
+| 100 (old full rate) | 303.7 s | 2.5 | 20 MiB |
+
+The rule was the fastest rate that keeps average CPU at or below 25% of one
+core, with browsing p95 under 250 ms while scanning. 1,000 passes on this
+machine, but only by about 2×, and the minimum supported hardware is
+unknown. **500 was chosen**: about 3.5× headroom, 30,000 files in about a
+minute, and browsing latency unaffected (see
+[benchmarks](../benchmarks.md)). Slowed work (battery, unknown power, a
+busy system) runs at 100, which is 30,000 files in about 5 minutes.
+
+On the CI runners (shared 3–4 core VMs on all three OSes), 500 costs
+15–20% of one core even with browsing running alongside, and browse p95
+stays at 2–4 ms on 1k and at most 125 ms on 30k, so it stays within the
+rule on slower machines ([benchmarks](../benchmarks.md)). Revisit when real users' hardware reports arrive, or when
+Phase 1 adds per-file reading, which has a very different cost.

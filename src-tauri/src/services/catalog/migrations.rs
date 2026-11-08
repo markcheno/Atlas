@@ -36,6 +36,11 @@ pub const MIGRATIONS: &[Migration] = &[
         name: "provider_profiles",
         sql: include_str!("../../../migrations/0005_provider_profiles.sql"),
     },
+    Migration {
+        version: 6,
+        name: "status_counts_index",
+        sql: include_str!("../../../migrations/0006_status_counts_index.sql"),
+    },
 ];
 
 /// Highest catalog schema version this build can read and write.

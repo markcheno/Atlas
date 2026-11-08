@@ -4,7 +4,7 @@ Atlas is a local-first personal AI librarian for large private collections of
 PDFs, EPUBs, books and papers. *Collect freely. Organize minimally. Retrieve
 intelligently.*
 
-**Status: Phase 0, Slice 0.7.** Atlas asks where to keep its library and
+**Status: Phase 0, Slice 0.8.** Atlas asks where to keep its library and
 which folders hold your books and papers, then catalogs every PDF and EPUB
 in them in the background, read-only. Cataloging slows on battery, pauses
 when the battery is low or the drive is nearly full, survives quitting and
@@ -17,6 +17,17 @@ OpenAI-compatible service and test it; keys are stored in your system
 keychain. Atlas contacts a service only when you test it, and sends nothing
 from your library. AI features themselves come in a later phase.
 
+Every push is built and tested on macOS (Apple silicon), Windows x64, and
+Linux x64. CI runs an automated click-through of the app on Windows and
+Linux, measures cataloging performance on all three, and produces
+unsigned development installers. See [packaging](docs/packaging.md) and
+[benchmarks](docs/benchmarks.md). Plugged in, cataloging is throttled to 500
+folder entries a second (30,000 files in 80–100 s on the tested machines),
+using
+about 7% of one core on an M5 Pro and around 20 MiB of memory. Browsing
+stays responsive meanwhile: under 4 ms at the 95th percentile with 1,000
+files and under 130 ms with 30,000.
+
 | Capability | Status |
 | --- | --- |
 | App shell, navigation, light/dark/system theme | Working |
@@ -26,11 +37,22 @@ from your library. AI features themselves come in a later phase.
 | Background cataloging (pause, resume, recovery) | Working |
 | Browse, filename search, open and reveal originals | Working |
 | AI endpoint connection test | Working |
-| Packaging and cross-platform evidence | Slice 0.8 |
+| CI, installers, cross-platform smoke test, benchmarks | Working (development builds, unsigned) |
 | Extraction and vector-engine decision | Slice 0.9 |
 
 Specifications: [product](docs/product-spec.md), [Phase 0](docs/phase0-spec.md),
-[architecture](docs/architecture.md), [ADRs](docs/adr/).
+[architecture](docs/architecture.md), [ADRs](docs/adr/). Evidence:
+[platform validation](docs/platform-validation.md),
+[benchmarks](docs/benchmarks.md), [packaging](docs/packaging.md),
+[dependency licenses](docs/dependency-licenses.md).
+
+## Install a development build
+
+Download the installer for your OS from the artifacts of a green
+[CI run](https://github.com/markcheno/Atlas/actions/workflows/ci.yml)
+(`atlas-<OS>-…-release`). The builds are unsigned, so macOS and Windows
+will warn the first time. [Packaging](docs/packaging.md) explains how to
+open them and lists the Linux runtime dependencies.
 
 ## Prerequisites
 
@@ -61,6 +83,7 @@ just dev      # or: pnpm tauri dev
 just dev-simulate battery:18   # debug build with simulated power (ac, battery:<pct>, unknown, desktop)
 just dev-unthrottled           # debug build without the cataloging rate limit
 just fixtures ~/atlas-fx 2000  # synthetic test library (see fixtures/README.md)
+just fixtures ~/atlas-fx30k 10000 20000   # the 30k benchmark set (with a 20k-file folder)
 ```
 
 `just ui` (`pnpm dev`) serves only the UI in a browser for layout work; native
@@ -74,6 +97,10 @@ just ci               # check plus the bindings drift check, as CI runs it
 just bindings         # regenerate TypeScript bindings from Rust DTOs
 just fmt              # apply prettier and rustfmt
 just licenses         # regenerate docs/dependency-licenses.md
+just bench            # benchmark suite on 1k and 30k fixtures (release build; a few minutes)
+just bench-full       # plus the 30k throttle sweep
+just e2e              # WebDriver smoke test of the debug build (Windows/Linux; needs tauri-driver)
+just ci-status        # recent CI runs for this branch
 ```
 
 Run `just` with no arguments to list every recipe.
@@ -82,28 +109,35 @@ Run `just` with no arguments to list every recipe.
 
 ```sh
 just bundle           # debug bundles for this OS under src-tauri/target/debug/bundle/
+just bundle-release   # release bundles under src-tauri/target/release/bundle/, with sizes
 ```
 
 Bundles are unsigned and not notarized. macOS Gatekeeper and Windows
-SmartScreen will warn when opening them. See
-[platform validation](docs/platform-validation.md) for what has and has not
-been tested on each OS.
+SmartScreen will warn when opening them ([packaging](docs/packaging.md)).
+See [platform validation](docs/platform-validation.md) for what has and has
+not been tested on each OS.
 
 ## Repository layout
 
 ```text
 src/                  Svelte 5 + TypeScript UI
   lib/api/            typed IPC facade; bindings/ is generated from Rust (do not edit)
-  lib/stores/         view and theme state
-  lib/components/     shell, navigation, status, notices
-  views/              Welcome, Home, Library, Settings
+  lib/stores/         app, workspace, sources, inventory, library, provider, theme and view state
+  lib/components/     shell, navigation, status bar, panels, notices
+  views/              onboarding, Home, Library, Settings
 src-tauri/            Rust core and Tauri configuration
   src/commands/       thin IPC adapters
   src/domain/         DTOs and service traits
-  src/services/       one module per responsibility (stubs in Slice 0.1)
+  src/services/       catalog, inventory, library, sources, providers, workspace, …
+  src/infrastructure/ OS, filesystem, HTTP and keychain adapters
+  migrations/         catalog schema (SQLite), applied in order
   tests/              Rust integration tests
-docs/                 specifications, architecture, ADRs, licenses, platform evidence
-scripts/              license report, bindings check
+  benches/            benchmark harness (docs/benchmarks.md)
+e2e/                  WebDriver smoke test (Windows, Linux)
+fixtures/             how to generate synthetic test libraries
+docs/                 specifications, architecture, ADRs, evidence, licenses
+scripts/              fixtures, benchmarks, bundle sizes, license report, bindings check
+.github/              CI workflow and shared setup action
 ```
 
 ## License

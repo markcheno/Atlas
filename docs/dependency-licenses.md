@@ -29,13 +29,13 @@ Bundled native binaries (for example PDFium) will be added in Slice 0.9.
 
 ## Summary
 
-### Rust crates (530, all platforms)
+### Rust crates (545, all platforms)
 
 | License expression | Count |
 | --- | --- |
-| MIT OR Apache-2.0 | 241 |
+| MIT OR Apache-2.0 | 253 |
 | MIT | 123 |
-| Apache-2.0 OR MIT | 52 |
+| Apache-2.0 OR MIT | 55 |
 | Zlib OR Apache-2.0 OR MIT | 18 |
 | Unicode-3.0 | 18 |
 | MIT/Apache-2.0 | 16 |
@@ -93,6 +93,7 @@ Bundled native binaries (for example PDFium) will be added in Slice 0.9.
 | Package | Version | License |
 | --- | --- | --- |
 | adler2 | 2.0.1 | 0BSD OR MIT OR Apache-2.0 |
+| aes | 0.9.4 | MIT OR Apache-2.0 |
 | aho-corasick | 1.1.5 | Unlicense OR MIT |
 | alloc-no-stdlib | 3.0.0 | BSD-3-Clause |
 | alloc-stdlib | 0.3.0 | BSD-3-Clause |
@@ -122,6 +123,8 @@ Bundled native binaries (for example PDFium) will be added in Slice 0.9.
 | bitflags | 1.3.2 | MIT/Apache-2.0 |
 | bitflags | 2.13.2 | MIT OR Apache-2.0 |
 | block-buffer | 0.10.4 | MIT OR Apache-2.0 |
+| block-buffer | 0.12.1 | MIT OR Apache-2.0 |
+| block-padding | 0.4.2 | MIT OR Apache-2.0 |
 | block2 | 0.6.2 | MIT |
 | blocking | 1.7.0 | Apache-2.0 OR MIT |
 | brotli | 9.1.1 | BSD-3-Clause AND MIT |
@@ -137,6 +140,7 @@ Bundled native binaries (for example PDFium) will be added in Slice 0.9.
 | cargo_metadata | 0.19.2 | MIT |
 | cargo_toml | 1.0.1 | Apache-2.0 OR MIT |
 | cargo-platform | 0.1.9 | MIT OR Apache-2.0 |
+| cbc | 0.2.1 | MIT OR Apache-2.0 |
 | cc | 1.11.1 | MIT OR Apache-2.0 |
 | cesu8 | 1.1.0 | Apache-2.0/MIT |
 | cfb | 0.14.0 | MIT |
@@ -145,23 +149,29 @@ Bundled native binaries (for example PDFium) will be added in Slice 0.9.
 | cfg-if | 1.0.5 | MIT OR Apache-2.0 |
 | chacha20 | 0.10.2 | MIT OR Apache-2.0 |
 | chrono | 0.4.45 | MIT OR Apache-2.0 |
+| cipher | 0.5.2 | MIT OR Apache-2.0 |
 | cmake | 0.1.58 | MIT OR Apache-2.0 |
+| cmov | 0.5.4 | Apache-2.0 OR MIT |
 | combine | 4.6.9 | MIT |
 | concurrent-queue | 2.5.0 | Apache-2.0 OR MIT |
+| const-oid | 0.10.2 | Apache-2.0 OR MIT |
 | cookie | 0.18.2 | MIT OR Apache-2.0 |
 | core-foundation | 0.10.1 | MIT OR Apache-2.0 |
 | core-foundation-sys | 0.8.7 | MIT OR Apache-2.0 |
 | core-graphics | 0.25.0 | MIT OR Apache-2.0 |
 | core-graphics-types | 0.2.0 | MIT OR Apache-2.0 |
+| cpubits | 0.1.1 | MIT OR Apache-2.0 |
 | cpufeatures | 0.2.17 | MIT OR Apache-2.0 |
 | cpufeatures | 0.3.1 | MIT OR Apache-2.0 |
 | crc32fast | 1.5.4 | MIT OR Apache-2.0 |
 | crossbeam-channel | 0.5.17 | MIT OR Apache-2.0 |
 | crossbeam-utils | 0.8.23 | MIT OR Apache-2.0 |
 | crypto-common | 0.1.7 | MIT OR Apache-2.0 |
+| crypto-common | 0.2.2 | MIT OR Apache-2.0 |
 | cssparser | 0.37.0 | MPL-2.0 |
 | cssparser-macros | 0.7.1 | MPL-2.0 |
 | ctor | 1.0.13 | Apache-2.0 OR MIT |
+| ctutils | 0.4.8 | Apache-2.0 OR MIT |
 | darling | 0.24.1 | MIT |
 | darling_core | 0.24.1 | MIT |
 | darling_macro | 0.24.1 | MIT |
@@ -173,6 +183,7 @@ Bundled native binaries (for example PDFium) will be added in Slice 0.9.
 | derive_more | 2.1.1 | MIT |
 | derive_more-impl | 2.1.1 | MIT |
 | digest | 0.10.7 | MIT OR Apache-2.0 |
+| digest | 0.11.3 | MIT OR Apache-2.0 |
 | dirs | 7.0.0 | MIT OR Apache-2.0 |
 | dirs-sys | 0.5.0 | MIT OR Apache-2.0 |
 | dispatch2 | 0.3.1 | Zlib OR Apache-2.0 OR MIT |
@@ -246,6 +257,8 @@ Bundled native binaries (for example PDFium) will be added in Slice 0.9.
 | heck | 0.5.0 | MIT OR Apache-2.0 |
 | hermit-abi | 0.5.3 | MIT OR Apache-2.0 |
 | hex | 0.4.3 | MIT OR Apache-2.0 |
+| hkdf | 0.13.0 | MIT OR Apache-2.0 |
+| hmac | 0.13.0 | MIT OR Apache-2.0 |
 | html5ever | 0.39.0 | MIT OR Apache-2.0 |
 | http | 1.5.0 | MIT OR Apache-2.0 |
 | http-body | 1.1.0 | MIT |
@@ -271,6 +284,7 @@ Bundled native binaries (for example PDFium) will be added in Slice 0.9.
 | indexmap | 1.9.3 | Apache-2.0 OR MIT |
 | indexmap | 2.14.2 | Apache-2.0 OR MIT |
 | infer | 0.22.0 | MIT |
+| inout | 0.2.6 | MIT OR Apache-2.0 |
 | ipnet | 2.12.2 | MIT OR Apache-2.0 |
 | is-docker | 0.2.0 | MIT |
 | is-wsl | 0.4.0 | MIT |
@@ -443,6 +457,7 @@ Bundled native binaries (for example PDFium) will be added in Slice 0.9.
 | serialize-to-javascript-impl | 0.1.2 | MIT OR Apache-2.0 |
 | servo_arc | 0.4.3 | MIT OR Apache-2.0 |
 | sha2 | 0.10.9 | MIT OR Apache-2.0 |
+| sha2 | 0.11.1 | MIT OR Apache-2.0 |
 | shlex | 2.0.1 | MIT OR Apache-2.0 |
 | signal-hook-registry | 1.4.8 | MIT OR Apache-2.0 |
 | simd_cesu8 | 1.2.0 | Apache-2.0 OR MIT |

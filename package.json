@@ -20,7 +20,9 @@
     "check:rust": "cargo fmt --manifest-path src-tauri/Cargo.toml --check && cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets --locked -- -D warnings && cargo test --manifest-path src-tauri/Cargo.toml --locked",
     "check:bindings": "node scripts/check-bindings.mjs",
     "check": "pnpm check:rust && pnpm lint && pnpm typecheck && pnpm test",
-    "license-report": "node scripts/license-report.mjs"
+    "license-report": "node scripts/license-report.mjs",
+    "bench": "node scripts/bench.mjs",
+    "e2e": "node e2e/smoke.mjs"
   },
   "dependencies": {
     "@tauri-apps/api": "2.12.4"

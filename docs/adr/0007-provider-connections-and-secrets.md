@@ -50,7 +50,10 @@ pure-Rust D-Bus client. The service name is `com.altazlabs.atlas`, or
 an installed Atlas's keys. The account is `provider:<profile id>`. The
 catalog records only where the key is (`keychain` or `session_only`). If
 the keychain is unavailable, the key is held in memory for the session and
-the UI says it must be re-entered after a restart. It is never written to
+the UI says it must be re-entered after a restart. The keychain is opened on
+first use, not at startup, with a 5 second limit: on Linux, connecting to a
+Secret Service that isn't running can block for about 25 seconds while
+D-Bus tries to start one, which the first CI smoke test exposed (Slice 0.8). It is never written to
 disk unencrypted. Keys are redacted from `Debug` output and never appear in
 IPC responses, error messages, or logs.
 

@@ -159,6 +159,12 @@ pub struct FaultySource {
     pub fail: Mutex<HashMap<PathBuf, io::ErrorKind>>,
     pub delay_per_entry: Mutex<Option<Duration>>,
     pub calls: Mutex<HashMap<PathBuf, u32>>,
+    /// While set, the next listing waits *before* opening its folder, so
+    /// the scan is mid-way with no handle open (Windows can't rename a
+    /// folder that has open handles inside it).
+    hold: Mutex<bool>,
+    held: Mutex<u32>,
+    released: std::sync::Condvar,
 }
 
 impl FaultySource {
@@ -171,6 +177,15 @@ impl FaultySource {
     pub fn calls_for(&self, path: &Path) -> u32 {
         self.calls.lock().unwrap().get(path).copied().unwrap_or(0)
     }
+    /// Stops the scan at its next folder; true once it is waiting there.
+    pub fn hold_next_listing(&self, timeout: Duration) -> bool {
+        *self.hold.lock().unwrap() = true;
+        wait_until(timeout, || *self.held.lock().unwrap() > 0)
+    }
+    pub fn release(&self) {
+        *self.hold.lock().unwrap() = false;
+        self.released.notify_all();
+    }
 }
 
 impl InventorySource for FaultySource {
@@ -181,6 +196,16 @@ impl InventorySource for FaultySource {
             .unwrap()
             .entry(dir.to_path_buf())
             .or_default() += 1;
+        {
+            let mut hold = self.hold.lock().unwrap();
+            if *hold {
+                *self.held.lock().unwrap() += 1;
+                while *hold {
+                    hold = self.released.wait(hold).unwrap();
+                }
+                *self.held.lock().unwrap() -= 1;
+            }
+        }
         if let Some(kind) = self.fail.lock().unwrap().get(dir) {
             return Err(io::Error::new(*kind, "injected"));
         }

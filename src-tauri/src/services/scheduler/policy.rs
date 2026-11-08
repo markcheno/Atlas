@@ -28,8 +28,11 @@ use crate::services::system::low_space_threshold;
 
 pub const BATTERY_PAUSE_AT_PERCENT: f32 = 20.0;
 pub const BATTERY_RESUME_AT_PERCENT: f32 = 25.0;
-pub const AC_OPS_PER_SECOND: u32 = 100;
-pub const SLOW_OPS_PER_SECOND: u32 = 20;
+/// Metadata operations per second on AC and when slowed. Chosen from the
+/// Slice 0.8 measurements (docs/benchmarks.md, ADR 0004): about 7% of one
+/// core on an M5 Pro at 30,000 files, leaving headroom for slower machines.
+pub const AC_OPS_PER_SECOND: u32 = 500;
+pub const SLOW_OPS_PER_SECOND: u32 = AC_OPS_PER_SECOND / 5;
 
 #[derive(Debug, Default)]
 pub struct ResourcePolicy {
