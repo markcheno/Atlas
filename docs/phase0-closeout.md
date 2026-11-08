@@ -199,3 +199,9 @@ requirements:
 - **Before Phase 1 starts:** set the target share of the evaluation
   questions that full-text search must answer (the product spec's Phase 1
   done criterion asks for it).
+
+All of these are taken up by the
+[Phase 1 implementation specification](phase1-spec.md) (2026-11-08). The
+search target was set at the known-relevant document in the top 5 for at
+least 80% of the committed evaluation questions, and the extraction gate at
+100% of well-formed files with every other file reported.

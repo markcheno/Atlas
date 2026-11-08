@@ -1,8 +1,9 @@
 # Atlas architecture
 
-Status: Phase 0, Slice 0.7. This document describes what is built, and marks
-what is only planned. Decisions with lasting consequences are recorded as
-ADRs in [adr/](adr/).
+Status: Phase 0 complete (Slice 0.9); Phase 1 is specified in
+[phase1-spec.md](phase1-spec.md) and not yet built. This document describes
+what is built, and marks what is only planned. Decisions with lasting
+consequences are recorded as ADRs in [adr/](adr/).
 
 ## Process model
 
@@ -392,3 +393,11 @@ the measurements are in [the spike results](spike-0.9.md).
 - `package.json` pins exact npm versions and the pnpm version.
   `pnpm-lock.yaml` is committed and CI uses `--frozen-lockfile`.
 - GitHub Actions are pinned to full commit SHAs.
+
+## Next phase
+
+Phase 1 adds a general jobs table, text extraction in a helper process
+(PDFium and rbook), content hashing with logical documents, and FTS5
+full-text search. It is specified in [phase1-spec.md](phase1-spec.md).
+Nothing described there exists in the code yet; this document is updated
+slice by slice as it lands.

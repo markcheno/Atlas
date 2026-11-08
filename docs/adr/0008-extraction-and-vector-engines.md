@@ -118,11 +118,20 @@ PDFium never crashed. Even so, **extraction runs in a helper process**: a
 second mode of the Atlas executable, started per batch. The reasons:
 
 - PDFium is C++ reading untrusted files.
-- It isn't thread-safe; pdfium-render serializes every call.
+- It isn't thread-safe. pdfium-render can serialize calls behind a mutex
+  (its `thread_safe` feature); the spike built without that feature, and
+  Atlas isolates PDFium in a single-threaded process instead.
 - A worker can be killed on a timeout or a memory cap, which the resource
   policy (ADR 0004) needs anyway.
 
 Starting a worker costs about 3 ms.
+
+*Amended 2026-11-08:* the second reason originally read "pdfium-render
+serializes every call". The spike's `Cargo.toml` sets
+`default-features = false`, which turns `thread_safe` off, so every number
+in the spike is for the unserialized library on one thread. The
+[Phase 1 specification](../phase1-spec.md) keeps the feature off for the
+same reason.
 
 **Docling is not bundled.** It fails two of its four conditions:
 
