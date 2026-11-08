@@ -1,0 +1,13 @@
+[package]
+name = "vec-sqlite"
+version = "0.1.0"
+edition.workspace = true
+publish.workspace = true
+
+# Same rusqlite as the app (bundled SQLite), so the size delta is vec0 alone.
+[dependencies]
+vbench.workspace = true
+serde_json.workspace = true
+rusqlite = { version = "0.41.1", features = ["bundled"] }
+tokio = { version = "1", features = ["rt-multi-thread"] }
+sqlite-vec = "=0.1.9"

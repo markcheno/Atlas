@@ -121,6 +121,40 @@ bench-full out="":
 e2e *args:
     pnpm e2e {{ args }}
 
+# ------------------------------------------- Slice 0.9 spike (spikes/)
+
+# Download the pinned spike tools (PDFium, protoc, typst) into spikes/.tools
+spike-tools:
+    pnpm spike:tools
+
+# Verify the spike corpus: checksums, sources, licenses
+spike-corpus:
+    pnpm spike:corpus
+
+# Regenerate the generated part of the spike corpus (needs uv and spike-tools)
+spike-corpus-make:
+    cd spikes/extraction-bench/generator && uv run --python 3.12 make.py
+
+# Extraction comparison (pdfium, pdf-extract, rbook); `docling` = path to a frozen sidecar to include it
+spike-extract out="" docling="":
+    pnpm spike:extract {{ if out == "" { "" } else { "--out " + out } }} {{ if docling == "" { "" } else { "--docling " + docling } }}
+
+# Freeze the Docling sidecar (downloads PyTorch and Docling's models into the sidecar's build/ folder; about 2 GB)
+spike-docling:
+    cd spikes/extraction-bench/sidecar/docling && uv sync --locked --python 3.12 && uv run python build.py
+
+# Vector-engine comparison, e.g. `just spike-vectors 1000000` (needs about 20 GB free at 1M)
+spike-vectors n="100000" out="":
+    pnpm spike:vectors --n {{ n }} {{ if out == "" { "" } else { "--out " + out } }}
+
+# Clean build time and binary size of every spike candidate (slow: LanceDB)
+spike-builds out="":
+    pnpm spike:builds {{ if out == "" { "" } else { "--out " + out } }}
+
+# Regenerate docs/spike-dependency-licenses.md
+spike-licenses:
+    pnpm spike:licenses
+
 # Recent CI runs for the current branch
 ci-status:
     gh run list --branch "$(git branch --show-current)" --limit 5

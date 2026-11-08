@@ -25,7 +25,10 @@ tools are not redistributed.
 
 Not covered: system libraries the OS provides at runtime (WebKit on macOS,
 WebView2 on Windows, WebKitGTK and GTK on Linux). They are not bundled.
-Bundled native binaries (for example PDFium) will be added in Slice 0.9.
+The libraries and models the Slice 0.9 spike measured (PDFium, Docling and
+its models, vector engines) are in
+[spike-dependency-licenses.md](spike-dependency-licenses.md); one joins
+this report only when the app adopts it (ADR 0008).
 
 ## Summary
 

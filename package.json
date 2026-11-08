@@ -22,7 +22,13 @@
     "check": "pnpm check:rust && pnpm lint && pnpm typecheck && pnpm test",
     "license-report": "node scripts/license-report.mjs",
     "bench": "node scripts/bench.mjs",
-    "e2e": "node e2e/smoke.mjs"
+    "e2e": "node e2e/smoke.mjs",
+    "spike:tools": "node spikes/scripts/fetch-tools.mjs",
+    "spike:corpus": "node spikes/scripts/check-corpus.mjs",
+    "spike:extract": "node spikes/scripts/run-extraction.mjs",
+    "spike:vectors": "node spikes/scripts/run-vectors.mjs",
+    "spike:builds": "node spikes/scripts/measure-builds.mjs",
+    "spike:licenses": "node scripts/license-report.mjs --spikes"
   },
   "dependencies": {
     "@tauri-apps/api": "2.12.4"

@@ -1,0 +1,421 @@
+
+[Federal Register Volume 91, Number 215 (Monday, November 9, 2026)]
+[Rules and Regulations]
+[Pages 70774-70776]
+From the Federal Register Online via the Government Publishing Office [www.gpo.gov]
+[FR Doc No: 2026-22817]
+
+
+-----------------------------------------------------------------------
+
+DEPARTMENT OF TRANSPORTATION
+
+Federal Aviation Administration
+
+14 CFR Part 39
+
+[Docket No. FAA-2026-1335; Project Identifier AD-2025-00825-T; 
+Amendment 39-23511; AD 2026-22-09]
+RIN 2120-AA64
+
+
+Airworthiness Directives; The Boeing Company Airplanes
+
+AGENCY: Federal Aviation Administration (FAA), DOT.
+
+ACTION: Final rule.
+
+-----------------------------------------------------------------------
+
+SUMMARY: The FAA is adopting a new airworthiness directive (AD) for 
+certain The Boeing Company Model 787-8, 787-9, and 787-10 airplanes. 
+This AD was prompted by reports that the low range radio altimeter 
+(LRRA) system has an increased rate of non-computed data (NCD) outputs 
+at low altitudes during approach and landing, which could cause 
+unreliable altimeter function. This AD requires replacing the left and 
+right LRRA transmit and receive coaxial cables with larger gauge 
+coaxial cables. The FAA is issuing this AD to address the unsafe 
+condition on these products.
+
+DATES: This AD is effective December 14, 2026.
+    The Director of the Federal Register approved the incorporation by 
+reference of a certain publication listed in this AD as of December 14, 
+2026.
+
+ADDRESSES: 
+    AD Docket: You may examine the AD docket at regulations.gov under 
+Docket No. FAA-2026-1335; or in person at Docket Operations between 9 
+a.m. and 5 p.m., Monday through Friday, except Federal holidays. The AD 
+docket contains this final rule, any comments received, and other 
+information. The address for Docket Operations is U.S. Department of 
+Transportation, Docket Operations, M-30, West Building Ground Floor, 
+Room W12-140, 1200 New Jersey Avenue SE, Washington, DC 20590.
+    Material Incorporated by Reference:
+     For Boeing material identified in this AD, contact Boeing 
+Commercial Airplanes, Attention: Contractual & Data Services (C&DS), 
+2600 Westminster Blvd., MC 110-SK57, Seal Beach, CA 90740-5600; 
+telephone 562-797-1717; website myboeingfleet.com.
+     You may view this material at the FAA, Airworthiness 
+Products Section, Operational Safety Branch, 2200 South 216th St., Des 
+Moines, WA. For information on the availability of this material at the 
+FAA, call 206-231-3195. It is also available at regulations.gov under 
+Docket No. FAA-2026-1335.
+
+FOR FURTHER INFORMATION CONTACT: Frank Carreras, Aviation Safety 
+Engineer, FAA, 2200 South 216th St., Des Moines, WA 98198; phone: 206-
+231-3539; email: [email protected].
+
+SUPPLEMENTARY INFORMATION:
+
+Background
+
+    The FAA issued a notice of proposed rulemaking (NPRM) to amend 14 
+CFR part 39 by adding an AD that would apply to certain The Boeing 
+Company Model 787-8, 787-9, and 787-10 airplanes. The NPRM was 
+published in the Federal Register on February 24, 2026 (91 FR 8794). 
+The NPRM was prompted by reports that the LRRA system has an increased 
+rate of NCD outputs at low altitudes during approach and landing, which 
+could cause unreliable altimeter function. In the NPRM, the FAA 
+proposed to require replacing the left and right LRRA transmit and 
+receive coaxial cables with larger gauge coaxial cables. The FAA is 
+issuing this AD to address unreliable data output or in-service 
+disruptions of LRRA functions. The unsafe condition, if not addressed, 
+could result in loss of continued safe flight and landing.
+
+Discussion of Final Airworthiness Directive
+
+Comments
+
+    The FAA received comments from the Air Line Pilots Association, 
+International (ALPA) and Boeing who supported the NPRM without change.
+    The FAA received additional comments from seven commenters, 
+including Air Canada, American Airlines (American), EVA Air, the 
+Foundation for Aviation Safety, Turkish Airlines, United Airlines 
+(United), and an anonymous commenter. The following presents those 
+comments and the FAA's response.
+
+Request To Reference Revised Service Information
+
+    Air Canada and United requested the FAA revise the proposed AD to 
+specify that Boeing Alert Service Bulletin B787-81205-SB340062-00, 
+Issue 002, dated August 11, 2025 (Issue 002 of the Service Bulletin) 
+may be used to accomplish the proposed actions. United noted that Issue 
+002 of the Service Bulletin corrects the required material kits and 
+consumables and updates the installation instructions.
+    EVA Air requested that the FAA confirm accomplishment of Boeing 
+Alert Requirements Bulletin B787-81205-SB340062-00 RB, Issue 002, dated 
+August 11, 2025 (Issue 002 of the Requirements Bulletin), is acceptable 
+for compliance with the proposed AD. EVA stated it identified multiple 
+deviations and practical implementation issues with Boeing Alert 
+Requirements Bulletin B787-81205-SB340062-00 RB, Issue 001, dated 
+December 23, 2024 (Issue 001 of the Requirements Bulletin).
+    Turkish Airlines requested that the FAA revise the applicability of 
+the proposed AD to reference Issue 002 of the Requirements Bulletin. 
+Turkish Airlines stated that, due to technical problems in Issue 001 of 
+the Requirements Bulletin, it accomplished some actions using Issue 001 
+along with approved repair data, and continued implementation using 
+Issue 002 of the Requirements Bulletin.
+    The FAA agrees that Issue 002 of the Service Bulletin may be used 
+for accomplishing the actions required by
+
+[[Page 70775]]
+
+this AD. Tables 1 and 2 of the Accomplishment Instructions of Issue 001 
+of the Requirements Bulletin refer to Issue 001 of the Service Bulletin 
+or ``later approved issues'' as accepted procedures. Further, the FAA 
+reviewed Issue 002 of the Service Bulletin, which updates work 
+instructions for Group 4 airplanes, revises task tables and 
+illustrations, and updates industry support information without 
+expanding the scope of the AD. Therefore, operators may use the 
+procedures in Issue 002 of the Service Bulletin for compliance with 
+requirements of this AD. The FAA has determined no change to this AD is 
+necessary in regard to Air Canada's and United's requests.
+    The FAA disagrees with EVA Air's and Turkish Airline's requests. 
+Changes in Issue 002 of the Service Bulletin do not affect the required 
+for compliance (RC) steps in Issue 001 of the Requirements Bulletin. 
+Therefore, Boeing has not released Issue 002 of the Requirements 
+Bulletin. However, as noted in the previous paragraph, later approved 
+issues of the service bulletin provide accepted procedures, and this 
+meets the intent of the requests from EVA Air and Turkish Airlines.
+
+Request To Extend Compliance Time
+
+    American, Turkish Airlines, and an anonymous commenter requested 
+that the FAA extend the compliance time of the proposed AD. American 
+stated that Boeing quoted a lead time exceeding 500 days for the 
+required cables, which would shorten the available time to accomplish 
+the proposed requirements. Turkish Airlines stated that it shared its 
+kit needs with Boeing in March 2025 but continued to experience kit 
+supply problems. The anonymous commenter stated that moving the 
+compliance date slightly after the effective date of the final rule 
+would allow operators adequate time to incorporate the required 
+modifications into scheduled maintenance cycles without unnecessary 
+operational disruption.
+    The FAA disagrees with extending the compliance time. In developing 
+an appropriate compliance time for this action, the FAA considered the 
+recommendations of the manufacturer, the urgency associated with the 
+subject unsafe condition, the availability of required parts, and the 
+practical aspect of accomplishing the required modification within a 
+period of time that corresponds to the normal scheduled maintenance for 
+most affected operators. Further, the FAA has determined that operators 
+have sufficient time within the 5-year compliance period to accomplish 
+the required coaxial cable installation. However, under the provisions 
+of paragraph (i) of this AD, the FAA will consider requests for 
+approval of an extension of the compliance time if sufficient data are 
+submitted to substantiate that the new compliance time would provide an 
+acceptable level of safety. The FAA has not changed this AD in regard 
+to this comment.
+
+Request To Reduce Compliance Time
+
+    The Foundation for Aviation Safety noted that the unsafe condition 
+is critical and questioned whether it is necessary to allow up to five 
+years to accomplish the proposed actions that are estimated to take 
+approximately 28 hours.
+    As discussed in the previous comment, the FAA has determined that 
+the compliance time, as proposed, represents an appropriate amount of 
+time in which the required actions can be performed in a timely manner 
+within the affected fleet while still maintaining an adequate level of 
+safety. The FAA has not changed this AD in regard to this comment.
+
+Request To Allow Continued Operation Under Visual Flight Rules (VFR)
+
+    An anonymous commenter requested that the FAA consider permitting 
+continued operation of affected airplanes on routes where both the 
+departure and arrival airports are forecasted to maintain VFR 
+conditions, since pilots operating under VFR rely primarily on visual 
+references rather than sole dependence on radio altimeter data during 
+approach and landing. The commenter stated this approach would maintain 
+safety objectives while minimizing economic and scheduling impacts on 
+operators and passengers during the transition period.
+    The FAA disagrees because the FAA has determined that LRRA coaxial 
+cables must be replaced to address the unsafe condition. The LRRA is 
+needed for everyday operations including continued operation of 
+affected aircraft on routes where both departure and arrival airports 
+are forecast to maintain VFR conditions. Further, this AD does not 
+prohibit operations of the affected airplanes. The FAA has not changed 
+this AD in regard to this comment.
+
+Additional Changes Made to This Final Rule
+
+    Issue 002 of the Service Bulletin includes an update to the 
+estimated work-hours. Therefore, the FAA has revised the Costs of 
+Compliance section in this final rule.
+
+Conclusion
+
+    The FAA reviewed the relevant data, considered any comments 
+received, and determined that air safety requires adopting this AD as 
+proposed. Accordingly, the FAA is issuing this AD to address the unsafe 
+condition on these products. Except for minor editorial changes, and 
+any other changes described previously, this AD is adopted as proposed 
+in the NPRM. None of the changes will increase the economic burden on 
+any operator.
+
+Material Incorporated by Reference Under 1 CFR Part 51
+
+    The FAA reviewed Boeing Alert Requirements Bulletin B787-81205-
+SB340062-00 RB, Issue 001, dated December 23, 2024. This material 
+specifies procedures for replacing the existing left and right BMS13-65 
+Type 0G LRRA transmit and receive coaxial cables with larger gauge Type 
+0J coaxial cables. This material is reasonably available because the 
+interested parties have access to it through their normal course of 
+business or by the means identified in the ADDRESSES section.
+
+Costs of Compliance
+
+    The FAA estimates that this AD affects 169 airplanes of U.S. 
+registry. The FAA estimates the following costs to comply with this AD:
+
+
+                                                 Estimated Costs
+----------------------------------------------------------------------------------------------------------------
+                                                                                     Cost per      Cost on U.S.
+                Action                         Labor cost           Parts cost        product        operators
+----------------------------------------------------------------------------------------------------------------
+Replacement...........................  31 work-hours x $85 per          $15,170         $17,805      $3,009,045
+                                         hour = $2,635.
+----------------------------------------------------------------------------------------------------------------
+
+    The FAA has included all known costs in its cost estimate. 
+According to the manufacturer, however, some or all of the costs of 
+this AD may be covered under warranty, thereby reducing the cost impact 
+on affected operators.
+
+[[Page 70776]]
+
+Authority for This Rulemaking
+
+    Title 49 of the United States Code specifies the FAA's authority to 
+issue rules on aviation safety. Subtitle I, section 106, describes the 
+authority of the FAA Administrator. Subtitle VII: Aviation Programs, 
+describes in more detail the scope of the Agency's authority.
+    The FAA is issuing this rulemaking under the authority described in 
+Subtitle VII, Part A, Subpart III, Section 44701: General requirements. 
+Under that section, Congress charges the FAA with promoting safe flight 
+of civil aircraft in air commerce by prescribing regulations for 
+practices, methods, and procedures the Administrator finds necessary 
+for safety in air commerce. This regulation is within the scope of that 
+authority because it addresses an unsafe condition that is likely to 
+exist or develop on products identified in this rulemaking action.
+
+Regulatory Findings
+
+    This AD will not have federalism implications under Executive Order 
+13132. This AD will not have a substantial direct effect on the States, 
+on the relationship between the national government and the States, or 
+on the distribution of power and responsibilities among the various 
+levels of government.
+    For the reasons discussed above, I certify that this AD:
+    (1) Is not a ``significant regulatory action'' under Executive 
+Order 12866,
+    (2) Will not affect intrastate aviation in Alaska, and
+    (3) Will not have a significant economic impact, positive or 
+negative, on a substantial number of small entities under the criteria 
+of the Regulatory Flexibility Act.
+
+List of Subjects in 14 CFR Part 39
+
+    Air transportation, Aircraft, Aviation safety, Incorporation by 
+reference, Safety.
+
+The Amendment
+
+    Accordingly, under the authority delegated to me by the 
+Administrator, the FAA amends 14 CFR part 39 as follows:
+
+PART 39--AIRWORTHINESS DIRECTIVES
+
+0
+1. The authority citation for part 39 continues to read as follows:
+
+    Authority:  49 U.S.C. 106(g), 40113, 44701.
+
+
+Sec.  39.13  [Amended]
+
+0
+2. The FAA amends Sec.  39.13 by adding the following new airworthiness 
+directive:
+
+2026-22-09 The Boeing Company: Amendment 39-23511; Docket No. FAA-
+2026-1335; Project Identifier AD-2025-00825-T.
+
+(a) Effective Date
+
+    This airworthiness directive (AD) is effective December 14, 
+2026.
+
+(b) Affected ADs
+
+    None.
+
+(c) Applicability
+
+    This AD applies to The Boeing Company Model 787-8, 787-9, and 
+787-10 airplanes, certificated in any category, as identified in 
+Boeing Alert Requirements Bulletin B787-81205-SB340062-00 RB, Issue 
+001, dated December 23, 2024.
+
+(d) Subject
+
+    Air Transport Association (ATA) of America Code 34, Navigation.
+
+(e) Unsafe Condition
+
+    This AD was prompted by reports that the low range radio 
+altimeter (LRRA) system has an increased rate of non-computed data 
+(NCD) outputs at low altitudes during approach and landing. The FAA 
+is issuing this AD to address unreliable data output or in-service 
+disruptions of LRRA functions. The unsafe condition, if not 
+addressed, could result in loss of continued safe flight and 
+landing.
+
+(f) Compliance
+
+    Comply with this AD within the compliance times specified, 
+unless already done.
+
+(g) Required Actions
+
+    Except as specified by paragraph (h) of this AD: At the 
+applicable times specified in the ``Compliance'' paragraph of Boeing 
+Alert Requirements Bulletin B787-81205-SB340062-00 RB, Issue 001, 
+dated December 23, 2024, do all applicable actions identified in, 
+and in accordance with, the Accomplishment Instructions of Boeing 
+Alert Requirements Bulletin B787-81205-SB340062-00 RB, Issue 001, 
+dated December 23, 2024.
+    Note 1 to paragraph (g): Guidance for accomplishing the actions 
+required by this AD can be found in Boeing Alert Service Bulletin 
+B787-81205-SB340062-00, Issue 01, dated December 23, 2024, which is 
+referred to in Boeing Alert Requirements Bulletin B787-81205-
+SB340062-00 RB, Issue 001, dated December 23, 2024.
+
+(h) Exception to Requirements Bulletin Specifications
+
+    Where the Compliance Time columns of the tables in the 
+``Compliance'' paragraph of Boeing Alert Requirements Bulletin B787-
+81205-SB340062-00 RB, Issue 001, dated December 23, 2024, refer to 
+the Issue 001 date of Requirements Bulletin B787-81205-SB340062-00 
+RB, this AD requires using the effective date of this AD.
+
+(i) Alternative Methods of Compliance (AMOCs)
+
+    (1) The Manager, AIR-520, Continued Operational Safety Branch, 
+FAA, has the authority to approve AMOCs for this AD, if requested 
+using the procedures found in 14 CFR 39.19. In accordance with 14 
+CFR 39.19, send your request to your principal inspector or 
+responsible Flight Standards Office, as appropriate. If sending 
+information directly to the manager of the Continued Operational 
+Safety Branch, send it to the attention of the person identified in 
+paragraph (j)(1) of this AD. Information may be emailed to: 
+[email protected]. Before using any approved AMOC, notify your 
+appropriate principal inspector, or lacking a principal inspector, 
+the manager of the responsible Flight Standards Office.
+    (2) An AMOC that provides an acceptable level of safety may be 
+used for any repair, modification, or alteration required by this AD 
+if it is approved by The Boeing Company Organization Designation 
+Authorization (ODA) that has been authorized by the Manager, AIR-
+520, Continued Operational Safety Branch, FAA, to make those 
+findings. To be approved, the repair method, modification deviation, 
+or alteration deviation must meet the certification basis of the 
+airplane, and the approval must specifically refer to this AD.
+
+(j) Additional Information
+
+    (1) For more information about this AD, contact Frank Carreras, 
+Aviation Safety Engineer, FAA, 2200 South 216th St., Des Moines, WA 
+98198; phone: 206-231-3539; email: [email protected].
+    (2) Material identified in this AD that is not incorporated by 
+reference is available at the address specified in paragraph (k)(AD.
+
+(k) Material Incorporated by Reference
+
+    (1) The Director of the Federal Register approved the 
+incorporation by reference of the material listed in this paragraph 
+under 5 U.S.C. 552(a) and 1 CFR part 51.
+    (2) You must use this material as applicable to do the actions 
+required by this AD, unless the AD specifies otherwise.
+    (i) Boeing Alert Requirements Bulletin B787-81205-SB340062-00 
+RB, Issue 001, dated December 23, 2024.
+    (ii) [Reserved]
+    (3) For Boeing material identified in this AD, contact Boeing 
+Commercial Airplanes, Attention: Contractual & Data Services (C&DS), 
+2600 Westminster Blvd., MC 110-SK57, Seal Beach, CA 90740-5600; 
+telephone 562-797-1717; website myboeingfleet.com.
+    (4) You may view this material at the FAA, Airworthiness 
+Products Section, Operational Safety Branch, 2200 South 216th St., 
+Des Moines, WA. For information on the availability of this material 
+at the FAA, call 206-231-3195.
+    (5) You may view this material at the National Archives and 
+Records Administration (NARA). For information on the availability 
+of this material at NARA, visit www.archives.gov/federal-register/cfr/ibr-locations or email [email protected].
+
+    Issued on October 27, 2026.
+Brian Knaup,
+Acting Deputy Director, Integrated Certificate Management Division, 
+Aircraft Certification Service.
+[FR Doc. 2026-22817 Filed 11-6-26; 8:45 am]
+BILLING CODE 4910-13-P
+
+

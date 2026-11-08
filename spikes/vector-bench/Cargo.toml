@@ -1,0 +1,15 @@
+# Slice 0.9 vector-engine spike (docs/spike-0.9.md). Not part of the app
+# build: a separate workspace so each engine's build time and binary size
+# can be measured on its own.
+[workspace]
+resolver = "3"
+members = ["crates/*"]
+
+[workspace.package]
+edition = "2024"
+publish = false
+
+[workspace.dependencies]
+vbench = { path = "crates/common" }
+serde_json = "1.0"
+rand_chacha = "0.10.0"

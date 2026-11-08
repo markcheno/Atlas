@@ -1,0 +1,11 @@
+[package]
+name = "baseline"
+version = "0.1.0"
+edition.workspace = true
+publish.workspace = true
+
+# The size and build-time reference. vbench links what the app already
+# links, so each engine's delta is the engine alone.
+[dependencies]
+vbench.workspace = true
+serde_json.workspace = true

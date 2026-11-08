@@ -454,6 +454,37 @@ timings are from polling and are good to about ±300 ms.
 
 The manual checklist below covers these.
 
+## Slice 0.9
+
+Slice 0.9 measures libraries rather than adding to the app; the app only
+reports "slice 0.9". Its evidence is the spike harness running on all three
+OSes. Results are in [the spike results](spike-0.9.md) and the decision is
+[ADR 0008](adr/0008-extraction-and-vector-engines.md).
+
+| Platform | Extraction (pdfium, pdf-extract, rbook) | Docling sidecar | Vector engines (100k) | Build cost |
+| --- | --- | --- | --- | --- |
+| macOS arm64 | ✅ CI and M5 Pro | ✅ CI and M5 Pro (built, ran the corpus) | ✅ CI; M5 Pro also at 1M | ✅ CI and M5 Pro |
+| Windows x64 | ✅ CI | ✅ CI | ✅ CI | ✅ CI |
+| Linux x64 | ✅ CI | ✅ CI | ✅ CI | ✅ CI |
+
+CI: Spikes workflow run
+[42505069661](https://github.com/markcheno/Atlas/actions/runs/42505069661)
+(2026-11-08, branch `slice-09`), 12 of 12 jobs green. On every OS:
+- the extraction scores were identical;
+- no candidate crashed or hung on any malformed file;
+- every vector engine built and passed its delete and crash tests.
+
+App checks: `just ci` passed on the M5 Pro after the slice number moved to
+0.9; app CI runs on the merge to `main` as usual.
+
+**Not verified in Slice 0.9:**
+- extraction of the user's own documents (by design, only the committed
+  corpus was used);
+- real embeddings;
+- OCR;
+- ARM Windows and Linux;
+- Docling's peak memory on Windows (the measurement read 0).
+
 ## Manual checklist for Windows and Linux
 
 CI runs an automated smoke test on Windows and Linux (Slice 0.8, below),

@@ -1,0 +1,2698 @@
+Peerify: Benchmarking Peer-Review Claim Verification
+
+Alireza Daghighfarsoodeh
+
+Affiliation: Reviewerly
+
+Email: daqiq@reviewerly.ca
+
+Sajad Ebrahimi
+
+Affiliation: Reviewerly
+
+Affiliation: University of Toronto
+
+Email: aligh@reviewerly.ca
+
+Ali Ghorbanpour
+
+Affiliation: Reviewerly
+
+Email: soroush@reviewerly.ca
+
+Soroush Sadeghian
+
+Affiliation: Reviewerly
+
+Email: radin@reviewerly.ca
+
+Radin Cheraghi
+
+Affiliation: Reviewerly
+
+Email: arabzadeh@reviewerly.ca
+
+Negar Arabzadeh
+
+Affiliation: Reviewerly
+
+Affiliation: University of California, Berkeley
+Correspondence:s.ebrahimi@utoronto.ca
+
+Email: s.ebrahimi@utoronto.ca
+
+Ebrahim Bagheri
+
+Affiliation: Reviewerly
+
+Affiliation: University of Toronto
+
+Email: ebrahim.bagheri@utoronto.ca
+
+Abstract
+
+Peer review plays a central role in scholarly publishing, yet verifying whether reviewer claims are supported by manuscript evidence remains a largely manual and time-consuming process. We present Peerify, a pipeline for manuscript-grounded verification of peer-review claims. Given a manuscript and a review comment, Peerify pipeline decomposes reviews into atomic claims, retrieves relevant manuscript evidence, and determines whether each claim is supported by the paper. To support the development and evaluation of the pipeline, we construct a benchmark of 800 claims derived from authentic peer-review interactions collected from NeurIPS 2024 and ICLR 2024, including a 300-claim hand-labeled subset used to audit the automated supervision. We evaluate state-of-the-art language models and retrieval strategies within Peerify pipeline, together with entailment baselines. Our results demonstrate the importance of retrieval-centered verification and claim decomposition, while highlighting the challenges posed by ambiguous and interpretive reviewer claims. Automated labels agree with human consensus on 90.3% of audited claims ( \kappa=0.87 ), while off-the-shelf entailment models stay below 0.24 macro-F1.
+
+1 Introduction
+
+Peer review plays a central role in how scientific knowledge is evaluated and incorporated into the scholarly record
+and help establish confidence in scientific findings (Lee et al., 2013; Bornmann, 2011; Smith, 2006; Arabzadeh et al., 2024).
+As submission volumes grow, editors, area chairs, and program committees must assess more reviews under tighter timelines.
+Maintaining review quality and consistency at scale has therefore become an important operational challenge for scholarly publishing (Ebrahimi et al., 2025b; Mulligan et al., 2013; Arabzadeh et al., 2025; Ebrahimi et al., 2026).
+
+A substantial portion of the review process relies on claims made by reviewers which often influence publication outcomes. However, verifying whether such statements are supported by the contents of the manuscript remains largely a manual process. In practice, editorial stakeholders rarely have time to systematically examine every review statement against the corresponding paper. Consequently, unsupported claims and misunderstandings of a manuscript may persist throughout the review process without systematic verification Ghorbanpour et al. (2026).
+
+The growing adoption of Large Language Models (LLMs) within scholarly workflows further amplifies the importance of this problem (Bender et al., 2021; Arabzadeh et al., 2026b). LLMs are increasingly used to assist with manuscript preparation, review drafting, and editorial support tasks (Liang et al., 2024; Yuan et al., 2022; Sadeghian et al., 2026). While these technologies offer substantial opportunities for improving efficiency, they also increase the need for mechanisms that can assess whether statements contained in reviews are faithfully grounded in the manuscript (Maynez et al., 2020; Huang et al., 2025). Reliable verification of review claims is therefore becoming an increasingly important component of research integrity
+within modern publishing ecosystems.
+
+Although claim verification has been extensively studied in NLP (Dagan et al., 2006; Thorne et al., 2018; Wadden et al., 2020), peer-review claim verification differs in both scope and motivation. Existing work on LLM-assisted peer review focuses on review generation or quality assessment (Yuan et al., 2022; Liang et al., 2024; Hua et al., 2019; Rogers and Augenstein, 2020; Ebrahimi et al., 2025a). However, to the best of our knowledge, verifying whether individual reviewer claims are grounded in the manuscript remains underexplored.
+Scientific claims frequently depend on methodological assumptions, dataset characteristics, and experimental conditions that must be interpreted together rather than in isolation. Furthermore, review statements often combine objectively verifiable assertions with subjective judgments, requiring systems to distinguish between components that can be grounded in evidence and those that reflect reviewer opinion (Metropolitansky and Larson, 2025; Pavlick and Kwiatkowski, 2019; Plank, 2022). Operationalizing review groundedness thus requires robust document understanding, evidence retrieval, multi-hop reasoning, and careful treatment of ambiguity (Pavlick and Kwiatkowski, 2019; Plank, 2022; Arabzadeh et al., 2026a). We provide a more comprehensive discussion of related work in Appendix B.
+
+We identify manuscript-grounded peer-review claim verification as an important but underexplored challenge in scholarly publishing.
+To address this challenge, we propose Peerify, an end-to-end pipeline for peer-review claim verification. Peerify pipeline decomposes reviews into atomic, self-contained claims, retrieves relevant manuscript evidence for each claim, and performs groundedness assessment. Peerify pipeline was designed with practical deployment requirements in mind, including scalability to large review volumes, transparent evidence attribution, robustness across diverse claim types, and compatibility with existing editorial processes.
+We use production-ready in an engineering sense: the pipeline is complete, runs on commodity hardware, and is designed for a human-in-the-loop workflow in which Peerify triages reviewer claims and surfaces the supporting passages, and an area chair or author acts on them (Appendix E).
+
+To systematically evaluate this task and pipeline, we construct a benchmark of 800 atomic review claims derived from publicly available NeurIPS 2024 and ICLR 2024 submissions, together with their reviews and author–reviewer discussion threads. The benchmark captures diverse verification scenarios, including explicitly supported claims, claims requiring evidence aggregation, ambiguous claims, and claims that cannot be resolved from the manuscript alone.
+
+Using this benchmark, we evaluate Peerify pipeline end to end and analyze each of its core components, including claim extraction, evidence retrieval, retrieval configurations, and state-of-the-art language-model verifiers. Our results show that retrieval-centered verification and claim decomposition are important for manuscript-grounded review verification, but also reveal that ambiguous, interpretive, and partially supported reviewer claims remain challenging for current methods. We release Peerify pipeline, the benchmark, labels, prompts, and code to support reproducible research at https://github.com/Reviewerly-Inc/Peerify/.
+
+Peerify makes the following contributions:
+
+1. 
+
+Task. We formalize manuscript-grounded peer-review claim verification as an intra-document verification task, where claims from peer reviews are assessed strictly against the reviewed manuscript.
+
+2. 
+
+System. We propose Peerify, an end-to-end verification pipeline that decomposes reviews into atomic claims, retrieves relevant manuscript evidence, and predicts explicit evidence attribution.
+
+3. 
+
+Benchmark and evaluation. We construct an 800-claim benchmark from NeurIPS 2024 and ICLR 2024 peer-review interactions, with six evaluation variants and quality-controlled slices to evaluate Peerify pipeline, including a 300-claim human-audited subset that covers 37.5% of the benchmark.
+
+2 Peerify Pipeline
+
+2.1 Problem Definition
+
+Let P denote a scientific manuscript and R denote an associated peer review. The objective of review-groundedness verification is to determine whether verifiable claims contained within R are supported by evidence present in P . Formally, a review R can be represented as a collection of atomic claims C=\{c_{1},\ldots,c_{m}\} . For each claim c_{i} , the system identifies a set of supporting evidence candidates E_{i}=\{e_{1},\ldots,e_{k}\} from the manuscript and predicts a groundedness label y_{i}=f(c_{i},E_{i}) .
+
+This formulation differs from traditional fact verification and textual entailment settings (Dagan et al., 2006; Thorne et al., 2018; Wadden et al., 2020) in several important respects. First, the evidence space is restricted to a single scientific manuscript rather than an external corpus.
+Second, evidence supporting a review claim may be distributed across multiple sections, tables, appendices, and more.
+Third, review claims frequently involve methodological choices, experimental design decisions, and interpretations of empirical findings whose validity depends on contextual qualifiers and evidence aggregation.
+
+2.2 Operationalization in Peerify
+
+Peerify operationalizes review-groundedness verification as a three-stage pipeline:
+
+Step 1: Claim extraction.
+Review comments often contain several assertions in a single sentence, mixing factual observations with subjective judgments or recommendations. Direct verification is difficult because different portions may require distinct evidence. Peerify therefore adopts a claim decomposition strategy, breaking each review comment into atomic, self-contained claims that can be verified independently. This step preserves the reviewer’s intended meaning while isolating factual assertions to be checked against the manuscript.
+
+Step 2: Evidence retrieval.
+The manuscript is segmented into retrieval units such as paragraphs, figure captions, tables, and appendix passages. Given a claim, Peerify retrieves the top- k relevant passages based on semantic similarity between the claim and indexed manuscript segments. Since supporting evidence may be distributed across multiple locations, Peerify retrieves a set of evidence candidates rather than a single passage, allowing downstream verification to reason over complementary evidence throughout the document.
+
+Step 3: Groundedness assessment.
+Finally, Peerify verifies each claim against the retrieved evidence, building on evidence-based verification paradigms from textual entailment, fact verification, and scientific claim verification (Dagan et al., 2006; Thorne et al., 2018; Wadden et al., 2020). The verifier jointly reasons over the claim and manuscript evidence to determine the extent of support, assigning one of four labels: Supported, Partially Supported, Not Supported, or Not Determined. Each prediction is paired with the evidence used for the decision, making the output transparent and traceable for human inspection.
+
+Table 1: Peerify benchmark statistics overview.
+
+Dataset
+
+#Papers
+
+#Claims
+
+Partially
+
+Not
+
+Not
+
+ICLR
+
+NeurIPS
+
+Reject
+
+Accept
+
+Supported
+
+Supported
+
+Supported
+
+Determined
+
+NeurIPS 2024
+
+4236
+
+-
+
+-
+
+-
+
+-
+
+-
+
+-
+
+100%
+
+86.0%
+
+14.0%
+
+ICLR 2024
+
+5778
+
+-
+
+-
+
+-
+
+-
+
+-
+
+100%
+
+-
+
+31.3%
+
+68.7%
+
+PaperSourced (3.4)
+
+100
+
+500
+
+500
+
+0
+
+0
+
+0
+
+52.0%
+
+48.0%
+
+27.0%
+
+73.0%
+
+RebuttalSourced (3.4)
+
+84
+
+800
+
+217
+
+310
+
+189
+
+84
+
+61.0%
+
+39.0%
+
+34.9%
+
+65.1%
+
+LLMJudged (3.4)
+
+84
+
+800
+
+207
+
+93
+
+141
+
+359
+
+61.0%
+
+39.0%
+
+34.9%
+
+65.1%
+
+HighAgreement (3.4)
+
+71
+
+175
+
+60
+
+39
+
+43
+
+33
+
+63.4%
+
+36.6%
+
+37.1%
+
+62.9%
+
+verifiable-only (3.4)
+
+67
+
+131
+
+56
+
+29
+
+25
+
+21
+
+64.9%
+
+35.1%
+
+36.6%
+
+63.4%
+
+Human-Verified (3.4)
+
+75
+
+300
+
+77
+
+107
+
+78
+
+38
+
+57.3%
+
+42.7%
+
+34%
+
+66%
+
+3 Benchmarking Peerify
+
+The Peerify pipeline requires an evaluation framework that reflects the challenges of real peer-review workflows. Existing claim-verification resources such as FEVER (Thorne et al., 2018) and SciFact (Wadden et al., 2020) evaluate claims against external corpora, but do not capture manuscript-bounded verification, author–reviewer interactions, or the mix of factual and subjective assertions common in peer review (see Appendix B). We therefore develop the Peerify benchmark, which operationalizes review groundedness as an intra-document verification task and supports the development, validation, and evaluation of review-groundedness verification systems.
+To ensure ecological validity, all claims are derived from authentic peer-review interactions and evaluated against the manuscripts under review. The resulting benchmark contains 800 review-derived claims from publicly available NeurIPS 2024 and ICLR 2024 submissions. This is at or above standard expert-annotated claim-verification sets, with every label grounded in a manuscript (Appendix D.8).
+
+3.1 Source Collection
+
+We collected manuscripts, reviews, author responses, and discussion threads from publicly available submissions in NeurIPS 2024 and ICLR 2024. These venues provide complete review artifacts, including reviewer comments and author rebuttals, so each instance pairs a manuscript with its review and discussion history and supports multiple sources of evidence about a claim’s validity.
+As reported in Table 1, the collected papers are well balanced across review outcomes, covering both accepted and rejected submissions.
+
+3.2 Claim Construction
+
+Review comments contain summaries, questions, recommendations, methodological critiques, and subjective opinions. Since review-groundedness verification operates at the level of individual factual assertions, raw review text was transformed into atomic claims suitable for independent verification.
+
+To construct these claims, we evaluated three extraction approaches: Qwen3-4B (Yang et al., 2025), prompted to produce atomic, decontextualized assertions; Fenice (Scirè et al., 2024), which uses dependency parsing and semantic role labeling to identify proposition structures; and Gemma, a general-purpose instruction-tuned model prompted to list atomic claims from each passage.
+
+We run a controlled comparison of the three extractors and adopt Qwen3-4B for all benchmark construction, as it gives the best balance of atomicity, decontextualization, and semantic fidelity. The full evaluation protocol and results are deferred to Appendix A.1.
+We also scored o4-mini and GPT-5-mini as extractors: both are stronger on F1 (0.895 and 0.915 against 0.707), but the gap is mostly recall rather than precision (0.889), and extraction is the high-volume stage where API cost and rate limits bite (Appendix A.2). A human audit of the semantic-equivalence judge behind these scores gives 89.3% agreement (Appendix A.3).
+Extracted claims were subsequently post-processed through exact and near-duplicate removal, string normalization, and filtering of rhetorical questions, speculative statements, and non-verifiable meta-commentary.
+
+3.3 Groundedness Annotation
+
+Each extracted claim is assigned one of the four labels of Supported, Not Supported, Partially Supported or Not Determined.
+Each claim is additionally tagged as factual or subjective (automatically, with o4-mini; criteria in Appendix A.5), and the verifiable-only slice retains only factual claims. This ensures groundedness is evaluated on assertions checkable against the manuscript rather than on inherently subjective reviewer opinions.
+The split is close to even (444 objective, 356 subjective), and objective claims counter-intuitively need a human tie-breaker more often, 41.4% against 38.2% (Appendix A.6).
+
+3.4 Evaluation Variants
+
+Peerify includes four core benchmark variants and two quality-controlled slices, capturing complementary notions of groundedness and label confidence.
+
+PaperSourced.
+PaperSourced provides a controlled diagnostic setting in which claims are extracted directly from manuscript content.
+These claims are verifiable by construction and are expected to be labeled Supported. We use this subset as a sanity check to isolate errors in retrieval and verification from ambiguity in review-derived content.
+
+RebuttalSourced.
+This variant derives supervision from realistic author–reviewer discussion threads, assigning each claim a label by interpreting the author response signal (agreement, correction, clarification, or explicit dispute). Two language models (GPT-5-mini and Claude-Sonnet-4-6) label each claim independently from the discussion context, with a human arbitrating disagreements to produce the canonical label (Appendix A.10). This interaction-grounded supervision, captures how authors themselves judge the correctness of reviewer claims.
+
+LLMJudged.
+This subset provides scalable supervision by judging each claim directly against the manuscript. The same two labelers (GPT-5-mini and Claude-Sonnet-4-6) independently assign one of four labels under strict document-bounded evidence constraints, and a human annotator arbitrates the cases where they disagree to produce the canonical label (More details in Appendix A.10). We evaluate label quality against the Human-Verified labels in Appendix A.8.
+
+Human-Verified
+To provide high-fidelity reference labels and audit automated supervision, we manually annotated a subset of 300 RebuttalSourced instances, which is 37.5% of the benchmark.
+Two annotators with formal training in computer science independently labeled each instance following detailed guidelines with concrete examples. Inter-annotator reliability was near-perfect (Cohen’s \kappa\approx 0.96 ) for the four-way nominal task, with disagreements resolved through consensus.
+Against these labels the automated supervision is correct on 90.3% of the 300 claims under strict four-way exact match ( \kappa=0.87 ), 97.0% allowing a one-step difference, with hard polarity flips in 1.0% of cases. Reliability is flat across claim types, 90.5% objective against 90.1% subjective, which is where a labeler-inherited bias would surface first (Appendix A.9).
+
+Figure 1: Full-context verification accuracy across all six Peerify benchmark variants.
+
+Quality-Controlled Slices
+we additionally release slices that improve label reliability.
+First, the HighAgreement slice retains only instances where two supervision signals with disjoint evidence, RebuttalSourced and LLMJudged, agree, yielding a high-confidence subset less sensitive to labeling noise.
+Both signals come from the same two labeler models, so a match is not annotator consensus; what differs is the evidence, since RebuttalSourced reads only the discussion thread and LLMJudged only the manuscript, and agreement across disjoint inputs signals claim clarity (see Limitations). Second, to isolate assertions checkable directly against the manuscript, the verifiable-only slice uses o4-mini to filter out subjective or normative claims such as novelty, significance, or impact. Specifically, the model predicts whether a claim is (i) grounded in factual content observable in the manuscript, such as missing experiments or absent figures, or (ii) an opinion, recommendation, or forward-looking judgment not directly verifiable from the paper alone.
+Table 1 shows the support-level distributions across different variants. PaperSourced is entirely Supported (500/500) by construction and serves as a controlled diagnostic. RebuttalSourced is far more heterogeneous (217 Supported, 310 Partially Supported, 189 Not Supported, 84 Not Determined), reflecting corrections, and unresolved disagreement in author–reviewer exchanges. LLMJudged shifts heavily toward Not Determined (207 Supported, 93 Partially Supported, 141 Not Supported, 359 Not Determined), indicating that many review statements cannot be decisively validated from the manuscript alone.
+
+4 Experimental setup
+
+Table 2: RAG accuracy across five models and four retrievers on all six Peerify benchmarks. 
+
+Model
+
+Retriever
+
+Paper
+
+Sourced
+
+Rebuttal
+
+Sourced
+
+LLM
+
+Judged
+
+High
+
+Agreement
+
+Verifiable
+
+-only
+
+Human
+
+Verified
+
+o4-mini
+
+BM25
+
+0.818
+
+0.234
+
+0.491
+
+0.514
+
+0.466
+
+0.243
+
+BM25+Reranker
+
+0.870
+
+0.234
+
+0.496
+
+0.514
+
+0.519
+
+0.237
+
+Dense
+
+0.852
+
+0.244
+
+0.514
+
+0.509
+
+0.466
+
+0.230
+
+Dense+Reranker
+
+0.904
+
+0.240
+
+0.499
+
+0.497
+
+0.466
+
+0.257
+
+GPT-5-mini
+
+BM25
+
+0.796
+
+0.289
+
+0.412
+
+0.509
+
+0.496
+
+0.273
+
+BM25+Reranker
+
+0.856
+
+0.294
+
+0.417
+
+0.491
+
+0.496
+
+0.290
+
+Dense
+
+0.820
+
+0.294
+
+0.414
+
+0.503
+
+0.511
+
+0.297
+
+Dense+Reranker
+
+0.852
+
+0.286
+
+0.405
+
+0.491
+
+0.466
+
+0.257
+
+Claude-Haiku
+
+BM25
+
+0.786
+
+0.280
+
+0.381
+
+0.440
+
+0.389
+
+0.270
+
+BM25+Reranker
+
+0.822
+
+0.270
+
+0.372
+
+0.451
+
+0.405
+
+0.240
+
+Dense
+
+0.808
+
+0.256
+
+0.386
+
+0.429
+
+0.374
+
+0.237
+
+Dense+Reranker
+
+0.844
+
+0.297
+
+0.374
+
+0.480
+
+0.427
+
+0.300
+
+Qwen3-8B
+
+BM25
+
+0.744
+
+0.274
+
+0.393
+
+0.440
+
+0.382
+
+0.257
+
+BM25+Reranker
+
+0.816
+
+0.281
+
+0.364
+
+0.440
+
+0.389
+
+0.297
+
+Dense
+
+0.800
+
+0.287
+
+0.371
+
+0.400
+
+0.321
+
+0.283
+
+Dense+Reranker
+
+0.814
+
+0.265
+
+0.385
+
+0.423
+
+0.374
+
+0.277
+
+Qwen2.5-7B
+
+BM25
+
+0.844
+
+0.319
+
+0.211
+
+0.263
+
+0.267
+
+0.300
+
+BM25+Reranker
+
+0.872
+
+0.323
+
+0.211
+
+0.297
+
+0.305
+
+0.340
+
+Dense
+
+0.832
+
+0.324
+
+0.209
+
+0.263
+
+0.260
+
+0.307
+
+Dense+Reranker
+
+0.860
+
+0.295
+
+0.228
+
+0.291
+
+0.305
+
+0.287
+
+We evaluate Peerify in two deployment configurations. Full-Context feeds the whole manuscript and claim to the verifier, serving as an upper bound when the paper fits within the context window; over-length papers are excluded per model. Retrieval-Augmented (RAG) retrieves evidence per claim and conditions the verifier only on the top- k passages, with or without a cross-encoder reranker, enabling deployment on long manuscripts. All prompts are listed in Appendix C.
+
+We instantiate Peerify pipeline with five state-of-the-art models spanning proprietary and open-weight families: o4-mini (200K-context reasoning model), GPT-5-mini (compact, long-context), Claude-Haiku-4.5 (low-latency, 200K context), and the open-weight Qwen3-8B and Qwen2.5-7B, the last two evaluated mainly under RAG due to context-window limits. All models receive identical label definitions and prompts, and outputs are mapped to the four support level labels.
+
+We evaluate retrieval with recall@ k , nDCG@ k , and MRR on PaperSourced (BM25 or a dense retriever, optionally reranked by a cross-encoder; retriever and reranker checkpoints, top- k , and chunking are detailed in Appendix D.9), and verification with Accuracy and Macro-F1, taking Macro-F1 as the primary metric since it is robust to label imbalance. Retrieval metrics are reported only on PaperSourced because gold evidence spans exist only there, so they are inapplicable to the review-derived variants by construction rather than omitted (Appendix D.11).
+
+Non-LLM baselines. We add three zero-shot MNLI entailment baselines (Liu et al., 2019; Lewis et al., 2020a; He et al., 2021), with the top-3 retrieved chunks as premise and the claim as hypothesis, run under all four retrieval configurations so a weak result cannot be blamed on one retriever (Appendix D.5).
+
+5 Results and Findings
+
+In this section, we evaluate Peerify pipeline from several complementary perspectives.
+
+5.1 Full-context Verification 
+
+Figure 1 reports verification accuracy across the six evaluation variants, revealing a clear difficulty gradient. Performance is highest on PaperSourced, where claims come directly from manuscript content and evidence is explicit; o4-mini reaches 0.866, and four of five verifiers exceed 0.75.
+Accuracy drops on review-derived settings such as LLMJudged and HighAgreement, where claims require reasoning over dispersed evidence and reviewer intent. Even the strongest verifier reaches only 0.442 on LLMJudged, showing that review-groundedness verification goes beyond simple evidence localization. The hardest setting is RebuttalSourced, where claims come from real author–reviewer interactions and often mix factual observations. Human-Verified behaves the same way, with no verifier clearing 0.38 across its 300 hand-labeled claims.
+
+5.2 Retrieval-Centered Verification.
+
+A key design decision in Peerify is separating evidence retrieval from groundedness assessment. Table 2 evaluates four retrieval configurations, including BM25, dense retrieval, and their reranked variants. Retrieval quality substantially affects verification accuracy, but no retriever dominates across all settings. On PaperSourced, where evidence is explicit, reranking consistently improves performance. Dense+Reranker increases o4-mini from 0.852 to 0.904, and BM25+Reranker increases GPT-5-mini from 0.796 to 0.856. On review-derived benchmarks, however, gains are less consistent. For example, Dense retrieval performs best for o4-mini on LLMJudged (0.514), while BM25-based retrieval works best for GPT-5-mini (0.417) and Qwen3-8B (0.393).
+Similar variability is observed on HighAgreement and Human-Verified, indicating that retrieval effectiveness depends not only on evidence quality but also on how each verification engine consumes retrieved context. Better retrieval therefore helps most when the task requires explicit evidence localization, and much less on RebuttalSourced and Human-Verified, where claims require interpreting reviewer intent and resolving partial support: retrieval is necessary but not sufficient.
+
+Figure 2: Predicted vs. ground-truth (GT) labels on RebuttalSourced. Models exhibit different calibration biases: some over-predict Not Supported, while others over-predict Partially Supported or better match the GT distribution.
+
+Zero-shot entailment models reach at most 0.24 macro-F1, roughly half the weakest LLM verifier. Swapping the LLM verifier for an off-the-shelf NLI model, everything else fixed, does not come close: across three MNLI models and all four retrievers, macro-F1 never exceeds 0.24 on any variant, against 0.45 to 0.50 for the best LLM configuration on the document-decidable splits (Appendix D.5). Two structural causes explain this: three-way NLI cannot express Partially Supported, the largest class in RebuttalSourced, and a 512-token premise limit truncates most of the retrieved evidence. The retriever moves these numbers by at most two points, so the shortfall belongs to the formulation, which needs long-context reasoning.
+
+5.3 Error Analysis
+
+The largest error source is RebuttalSourced, where reviewer claims mix factual observations with interpretive judgments, and calibration differences across verification engines (Figure 2) show that calibration matters as much as reasoning capability. A second failure mode emerges on LLMJudged and HighAgreement, where verification requires multi-step reasoning over dispersed evidence, limiting even the strongest verifier to 0.442 and 0.536 accuracy. The primary bottlenecks are therefore reasoning over distributed evidence and handling interpretive or partially supported claims, a diagnosis confirmed by full-context verification, which removes retrieval entirely and still does not lift accuracy on these splits (Appendix D.11).
+
+Nine in ten PaperSourced errors are strictness or retrieval, not faulty reasoning. PaperSourced is the one split where the gold label is known for every instance without appeal to a judge, which makes it the right place to ask what a residual error actually consists of. We manually inspected a stratified sample of 150 errors, 30 per verifier under RAG, and assigned each to one of three categories that proved exhaustive. Overly strict specificity accounts for 83 errors (55.3%): the verifier retrieves the correct passage and then declines to call the claim Supported because one fine detail, an exact count or an appendix pointer, is not restated verbatim. Retrieval misses account for 54 (36.0%): the supporting passage never enters the top- k chunks, so the verifier correctly reports that the evidence in front of it does not contain the claim. The remaining 13 (8.7%) are malformed outputs that cannot be parsed into a label.
+
+6 Conclusion
+
+We presented Peerify, a pipeline and benchmark for verifying peer reviews. Our evaluation shows that verifying interpretive claims requires long-context, four-way reasoning rather than simple entailment. Furthermore, retrieval and reasoning create distinct bottlenecks depending on the claim, and raw accuracy is often misleading, making macro-F1 a necessary evaluation metric.
+Our automated labeling proved highly reliable, matching human consensus on 90.3% of an audited subset. Designed for a human-in-the-loop editorial workflow, Peerify accelerates review verification by triaging questionable claims and surfacing manuscript evidence. Future extensions include verifying claims against external literature, joint training, and exploring abstention-aware objectives. We release the pipeline, benchmark, and all artifacts to support this work.
+
+Limitations
+
+Peerify performs intra-document verification, assessing review claims only against the corresponding manuscript; claims requiring external literature or background knowledge are out of scope. The benchmark is built from public OpenReview data for NeurIPS 2024 and ICLR 2024, so its distribution may not transfer to other fields or venues with different review norms. Some variants rely on weak supervision (author–reviewer discussions and LLM judgments); we mitigate this with the HighAgreement and verifiable-only slices, but residual ambiguity in review language remains. Finally, models show strong calibration bias (e.g., Qwen3-8B predicts Partially Supported for 60.5% of RebuttalSourced claims vs. a 38.8% ground-truth rate), so accuracy alone can mislead; we recommend reporting macro-F1 alongside accuracy.
+
+Ethics Statement
+
+The benchmark uses only publicly accessible OpenReview submissions, reviews, and discussions from NeurIPS 2024 and ICLR 2024; no private or proprietary data are used, and no reviewer or author is identified beyond what is already public. The 150 Human-Verified instances were labeled by two graduate-level researchers following explicit guidelines after a calibration round; no crowdsourced or low-paid labor was involved. Peerify is intended as an assistive tool that supplements rather than replaces human judgment, and should not be used to rank or target specific reviewers, authors, or submissions. Because LLM-based judges and extractors can carry systematic biases (Section 5), automated labels should not be treated as ground truth without further validation. We release all data, labels, prompts, and code under open licenses with documentation of provenance and known limitations.
+
+References
+
+Arabzadeh et al. (2026a)
+
+Negar Arabzadeh, Sajad Ebrahimi, Alireza Daghighfarsoodeh, Soroush Sadeghian, Seyed Mohammad Hosseini, Hai Son Le, Mahdi Bashari, and Ebrahim Bagheri. 2026a.
+
+From doxa to logos in scientific peer review.
+
+In Proceedings of the 49th International ACM SIGIR Conference on Research and Development in Information Retrieval, page 4464–4468. ACM.
+
+Arabzadeh et al. (2025)
+
+Negar Arabzadeh, Sajad Ebrahimi, Ali Ghorbanpour, Soroush Sadeghian, Sara Salamat, Muhan Li, Hai Son Le, Mahdi Bashari, and Ebrahim Bagheri. 2025.
+
+Building trustworthy peer review quality assessment systems.
+
+In Proceedings of the 34th ACM International Conference on Information and Knowledge Management, CIKM ’25, page 6863–6864, New York, NY, USA. Association for Computing Machinery.
+
+Arabzadeh et al. (2026b)
+
+Negar Arabzadeh, Sajad Ebrahimi, Soroush Sadeghian, Seyed Mohammad Hosseini, Alireza Daqiq, Hai Son Le, Mahdi Bashari, and Ebrahim Bagheri. 2026b.
+
+Can llms uphold research integrity? evaluating the role of llms in peer review quality.
+
+In Proceedings of the Nineteenth ACM International Conference on Web Search and Data Mining, WSDM ’26, page 1341–1342, New York, NY, USA. Association for Computing Machinery.
+
+Arabzadeh et al. (2024)
+
+Negar Arabzadeh, Sajad Ebrahimi, Sara Salamat, Mahdi Bashari, and Ebrahim Bagheri. 2024.
+
+Reviewerly: Modeling the reviewer assignment task as an information retrieval problem.
+
+In Proceedings of the 33rd ACM International Conference on Information and Knowledge Management, CIKM ’24, page 5554–5555, New York, NY, USA. Association for Computing Machinery.
+
+Bender et al. (2021)
+
+Emily Bender and 1 others. 2021.
+
+On the dangers of stochastic parrots.
+
+Proceedings of FAccT.
+
+Bornmann (2011)
+
+Lutz Bornmann. 2011.
+
+Scientific peer review.
+
+Annual Review of Information Science and Technology.
+
+Cohen (1960)
+
+Jacob Cohen. 1960.
+
+A coefficient of agreement for nominal scales.
+
+Educational and Psychological Measurement, 20(1):37–46.
+
+Dagan et al. (2006)
+
+Ido Dagan, Oren Glickman, and Bernardo Magnini. 2006.
+
+The pascal recognising textual entailment challenge.
+
+In Proceedings of the First PASCAL Challenges Workshop on Recognising Textual Entailment.
+
+Ebrahimi et al. (2026)
+
+Sajad Ebrahimi, Soroush Sadeghian, Ali Ghorbanpour, Negar Arabzadeh, Sara Salamat, Seyed Mohammad Hosseini, Hai Son Le, Mahdi Bashari, and Ebrahim Bagheri. 2026.
+
+Peeriscope: A multi-faceted framework for evaluating peer review quality.
+
+In Companion Proceedings of the ACM Web Conference 2026, WWW Companion ’26, page 168–171, New York, NY, USA. Association for Computing Machinery.
+
+Ebrahimi et al. (2025a)
+
+Sajad Ebrahimi, Soroush Sadeghian, Ali Ghorbanpour, Negar Arabzadeh, Sara Salamat, Muhan Li, Hai Son Le, Mahdi Bashari, and Ebrahim Bagheri. 2025a.
+
+Rottenreviews: Benchmarking review quality with human and llm-based judgments.
+
+In Proceedings of the 34th ACM International Conference on Information and Knowledge Management, CIKM ’25, pages 5642–5649.
+
+Ebrahimi et al. (2025b)
+
+Sajad Ebrahimi, Sara Salamat, Negar Arabzadeh, Mahdi Bashari, and Ebrahim Bagheri. 2025b.
+
+exHarmony: Authorship and Citations for Benchmarking the Reviewer Assignment Problem, page 1–16.
+
+Springer Nature Switzerland.
+
+Evans et al. (2023)
+
+Michael Evans, Dominik Soos, Ethan Landers, and Jian Wu. 2023.
+
+MSVEC: A multidomain testing dataset for scientific claim verification.
+
+In Proceedings of the 2023 ACM Southeast Conference (ACM SE), pages 117–123.
+
+Ghorbanpour et al. (2026)
+
+Ali Ghorbanpour, Soroush Sadeghian, Alireza Daghighfarsoodeh, Sajad Ebrahimi, Negar Arabzadeh, Seyed Mohammad Hosseini, and Ebrahim Bagheri. 2026.
+
+Peerispect: Claim verification in scientific peer reviews.
+
+In Proceedings of the 49th International ACM SIGIR Conference on Research and Development in Information Retrieval, SIGIR ’26, page 5161–5165, New York, NY, USA. Association for Computing Machinery.
+
+He et al. (2021)
+
+Pengcheng He, Xiaodong Liu, Jianfeng Gao, and Weizhu Chen. 2021.
+
+DeBERTa: Decoding-enhanced BERT with disentangled attention.
+
+In International Conference on Learning Representations (ICLR).
+
+Hosseini et al. (2024)
+
+Mohammad Javad Hosseini, Yang Gao, Tim Baumgärtner, Alex Fabrikant, and Reinald Kim Amplayo. 2024.
+
+Scalable and domain-general abstractive proposition segmentation.
+
+arXiv preprint arXiv:2406.19803.
+
+Hua et al. (2019)
+
+Xinyu Hua, Mitko Nikolov, Nikhil Badugu, and Lu Wang. 2019.
+
+Argument mining for understanding peer reviews.
+
+In Proceedings of the 2019 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies (NAACL-HLT), pages 2131–2137.
+
+Huang et al. (2025)
+
+Lei Huang, Weijiang Yu, Weitao Ma, Weihong Zhong, Zhangyin Feng, Haotian Wang, Qianglong Chen, Weihua Peng, Xiaocheng Feng, Bing Qin, and 1 others. 2025.
+
+A survey on hallucination in large language models: Principles, taxonomy, challenges, and open questions.
+
+ACM Transactions on Information Systems, 43(2):1–55.
+
+Izacard and Grave (2021)
+
+Gautier Izacard and Edouard Grave. 2021.
+
+Distilling knowledge from reader to retriever for question answering.
+
+In Proceedings of ICLR.
+
+Kamalloo et al. (2024)
+
+Ehsan Kamalloo, Nandan Thakur, Carlos Lassance, Xueguang Ma, Jheng-Hong Yang, and Jimmy Lin. 2024.
+
+Resources for brewing beir: Reproducible reference models and statistical analyses.
+
+In Proceedings of the 47th International ACM SIGIR Conference on Research and Development in Information Retrieval, SIGIR ’24, page 1431–1440, New York, NY, USA. Association for Computing Machinery.
+
+Kang et al. (2018)
+
+Dongyeop Kang, Waleed Ammar, Bhavana Dalvi, Madeleine van Zuylen, Sebastian Kohlmeier, Eduard Hovy, and Roy Schwartz. 2018.
+
+A dataset of peer reviews (PeerRead): Collection, insights and NLP applications.
+
+In Proceedings of the 2018 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies, Volume 1 (Long Papers). Association for Computational Linguistics.
+
+Kotonya and Toni (2020)
+
+Neema Kotonya and Francesca Toni. 2020.
+
+Explainable automated fact-checking for public health claims.
+
+In Proceedings of EMNLP.
+
+Landis and Koch (1977)
+
+J. Richard Landis and Gary G. Koch. 1977.
+
+The measurement of observer agreement for categorical data.
+
+Biometrics, 33(1):159–174.
+
+Lee et al. (2013)
+
+Carole Lee, Cassidy Sugimoto, Guo Zhang, and Blaise Cronin. 2013.
+
+Bias in peer review.
+
+Journal of the American Society for Information Science and Technology.
+
+Lewis et al. (2020a)
+
+Mike Lewis, Yinhan Liu, Naman Goyal, Marjan Ghazvininejad, Abdelrahman Mohamed, Omer Levy, Veselin Stoyanov, and Luke Zettlemoyer. 2020a.
+
+BART: Denoising sequence-to-sequence pre-training for natural language generation, translation, and comprehension.
+
+In Proceedings of the 58th Annual Meeting of the Association for Computational Linguistics (ACL), pages 7871–7880.
+
+Lewis et al. (2020b)
+
+Patrick Lewis, Ethan Perez, Aleksandra Piktus, and 1 others. 2020b.
+
+Retrieval-augmented generation for knowledge-intensive NLP tasks.
+
+In Proceedings of NeurIPS.
+
+Liang et al. (2024)
+
+Weixin Liang, Yuhui Zhang, Hancheng Cao, Binglu Wang, Daisy Ding, Xinyu Yang, Kailas Vodrahalli, and 1 others. 2024.
+
+Can large language models provide useful feedback on research papers? a large-scale empirical analysis.
+
+NEJM AI.
+
+Liu et al. (2019)
+
+Yinhan Liu, Myle Ott, Naman Goyal, Jingfei Du, Mandar Joshi, Danqi Chen, Omer Levy, Mike Lewis, Luke Zettlemoyer, and Veselin Stoyanov. 2019.
+
+RoBERTa: A robustly optimized BERT pretraining approach.
+
+arXiv preprint arXiv:1907.11692.
+
+Malon (2018)
+
+Christopher Malon. 2018.
+
+Team papelo: Transformer networks at FEVER.
+
+In Proceedings of the First Workshop on Fact Extraction and Verification (FEVER).
+
+Maynez et al. (2020)
+
+Joshua Maynez and 1 others. 2020.
+
+On faithfulness and factuality in abstractive summarization.
+
+In ACL.
+
+Metropolitansky and Larson (2025)
+
+Dasha Metropolitansky and Jonathan Larson. 2025.
+
+Towards effective extraction and evaluation of factual claims (claimify).
+
+In Proceedings of the 63rd Annual Meeting of the Association for Computational Linguistics (ACL).
+
+Min et al. (2023)
+
+Sewon Min, Kalpesh Krishna, Xinxi Lyu, Mike Lewis, Wen-tau Yih, Pang Wei Koh, Mohit Iyyer, Luke Zettlemoyer, and Hannaneh Hajishirzi. 2023.
+
+FActScore: Fine-grained atomic evaluation of factual precision in long form text generation.
+
+In Proceedings of the 2023 Conference on Empirical Methods in Natural Language Processing (EMNLP).
+
+Mulligan et al. (2013)
+
+Adrian Mulligan, Louisa Hall, and Ellen S. Raphael. 2013.
+
+Peer review in a changing world: An international study measuring the attitudes of researchers.
+
+J. Assoc. Inf. Sci. Technol., 64:132–161.
+
+Pavlick and Kwiatkowski (2019)
+
+Ellie Pavlick and Tom Kwiatkowski. 2019.
+
+Inherent disagreements in human textual inferences.
+
+Transactions of the Association for Computational Linguistics, 7:677–694.
+
+Plank (2022)
+
+Barbara Plank. 2022.
+
+The “problem” of human label variation: On ground truth in data, modeling and evaluation.
+
+In Proceedings of the 2022 Conference on Empirical Methods in Natural Language Processing, pages 10671–10682, Abu Dhabi, United Arab Emirates. Association for Computational Linguistics.
+
+Rogers and Augenstein (2020)
+
+Anna Rogers and Isabelle Augenstein. 2020.
+
+What can we do to improve peer review in NLP?
+
+In Findings of the Association for Computational Linguistics: EMNLP 2020, pages 1256–1262.
+
+Saakyan et al. (2021)
+
+Arkadiy Saakyan, Tuhin Chakrabarty, and Smaranda Muresan. 2021.
+
+COVID-fact: Fact extraction and verification of real-world claims on COVID-19 pandemic.
+
+In Proceedings of the 59th Annual Meeting of the Association for Computational Linguistics (ACL), pages 2116–2129.
+
+Sadeghian et al. (2026)
+
+Soroush Sadeghian, Alireza Daghighfarsoodeh, Radin Cheraghi, Sajad Ebrahimi, Negar Arabzadeh, and Ebrahim Bagheri. 2026.
+
+Peerprism: Peer evaluation expertise vs review-writing ai.
+
+In Proceedings of the 49th International ACM SIGIR Conference on Research and Development in Information Retrieval, SIGIR ’26, page 3381–3387, New York, NY, USA. Association for Computing Machinery.
+
+Sarrouti et al. (2021)
+
+Mourad Sarrouti, Asma Ben Abacha, Yassine M’rabet, and Dina Demner-Fushman. 2021.
+
+Evidence-based fact-checking of health-related claims.
+
+In Findings of the Association for Computational Linguistics: EMNLP 2021, pages 3499–3512.
+
+Scirè et al. (2024)
+
+Alessandro Scirè, Karim Ghonim, and Roberto Navigli. 2024.
+
+FENICE: Factuality evaluation of summarization based on natural language inference and claim extraction.
+
+In Findings of the Association for Computational Linguistics: ACL 2024, pages 14148–14161.
+
+Smith (2006)
+
+Richard Smith. 2006.
+
+Peer review: A flawed process at the heart of science.
+
+Journal of the Royal Society of Medicine.
+
+Thorne et al. (2018)
+
+James Thorne, Andreas Vlachos, Christos Christodoulopoulos, and Arpit Mittal. 2018.
+
+FEVER: a large-scale dataset for fact extraction and verification.
+
+In Proceedings of NAACL-HLT.
+
+Tomkins et al. (2017)
+
+Andrew Tomkins, Min Zhang, and William D Heavlin. 2017.
+
+Reviewer bias in single-versus double-blind peer review.
+
+Proceedings of the National Academy of Sciences, 114(48):12708–12713.
+
+Ullrich et al. (2025)
+
+Herbert Ullrich, Tomáš Mlynář, and Jan Drchal. 2025.
+
+Claim extraction for fact-checking: Data, models, and automated metrics.
+
+Wadden et al. (2020)
+
+David Wadden, Shanchuan Lin, Kyle Lo, Lucy Lu Wang, Madeleine van Zuylen, Arman Cohan, and Hannaneh Hajishirzi. 2020.
+
+Fact or fiction: Verifying scientific claims.
+
+In Proceedings of EMNLP.
+
+Wadden and Lo (2021)
+
+David Wadden and Kyle Lo. 2021.
+
+Overview and insights from the SciVer shared task on scientific claim verification.
+
+In Proceedings of the Second Workshop on Scholarly Document Processing (SDP), pages 124–129.
+
+Williams et al. (2018)
+
+Adina Williams, Nikita Nangia, and Samuel Bowman. 2018.
+
+A broad-coverage challenge corpus for sentence understanding through inference.
+
+In Proceedings of the 2018 Conference of the North American Chapter of the Association for Computational Linguistics (NAACL), pages 1112–1122.
+
+Wright et al. (2022)
+
+Dustin Wright, David Wadden, Kyle Lo, Bailey Kuehl, Arman Cohan, Isabelle Augenstein, and Lucy Lu Wang. 2022.
+
+Generating scientific claims for zero-shot scientific fact checking.
+
+In Proceedings of the 60th Annual Meeting of the Association for Computational Linguistics (Volume 1: Long Papers), pages 2448–2460, Dublin, Ireland. Association for Computational Linguistics.
+
+Xu et al. (2026)
+
+Hang Xu, Ling Yue, Chaoqian Ouyang, Yuchen Liu, Libin Zheng, Shaowu Pan, Shimin Di, and Min-Ling Zhang. 2026.
+
+Factreview: Evidence-grounded reviews with literature positioning and execution-based claim verification.
+
+arXiv preprint arXiv:2604.04074.
+
+Yang et al. (2025)
+
+An Yang, Anfeng Li, Baosong Yang, Beichen Zhang, Binyuan Hui, Bo Zheng, Bowen Yu, Chang Gao, Chengen Huang, Chenxu Lv, and 1 others. 2025.
+
+Qwen3 technical report.
+
+arXiv preprint arXiv:2505.09388.
+
+Yuan et al. (2022)
+
+Weizhe Yuan, Pengfei Liu, and Graham Neubig. 2022.
+
+Can we automate scientific reviewing?
+
+Journal of Artificial Intelligence Research, 75:171–212.
+
+Appendix
+
+Appendix Overview.
+
+The appendix is organized around the three questions a reader is most likely to bring to the paper.
+How was the benchmark built, and can its labels be trusted? Appendix A covers the construction pipeline end to end: the extractor comparison and why we run an open-weight model despite lower F1 (A.1, A.2), the human audit of the semantic-equivalence judge (A.3), label definitions and the factual/subjective split (A.4, A.5, A.6), and the two reliability analyses that matter most, agreement between the automated labels and human consensus (A.9) and the two-labeler arbitration protocol behind the canonical labels (A.10).
+What exactly was the model asked? Appendix C reproduces every prompt verbatim.
+What do the numbers look like beyond the main tables? Appendix D holds the per-model results (D.1, D.2, D.3, D.4), the non-LLM entailment baselines (D.5), the manual error taxonomy and the calibration effect behind the PaperSourced ordering (D.6, D.7), benchmark size in context (D.8), retrieval quality and cost (D.9, D.10), and the reason intrinsic retrieval metrics apply to only one split (D.11).
+Appendix B gives the extended related work, and Appendix E closes with the intended deployment setting.
+
+Appendix A Benchmark Construction and Annotation
+
+A.1 Claim Extraction Evaluation
+
+A critical step in the Peerify pipeline is accurately decomposing dense, multi-faceted reviewer comments into isolated and verifiable statements. Because reviewer feedback often blends factual assertions with subjective interpretation, the claim extraction module must distill these paragraphs into atomic claims while strictly preserving the original intent of the reviewer.
+To determine the most robust approach for this task, table 3 compares the performance of three distinct claim extractors (Fenice (Scirè et al., 2024), Gemma (Hosseini et al., 2024), and Qwen3-4B (Yang et al., 2025)) across two evaluation axes: semantic alignment with a reference extraction (LLM-as-a-judge) and intrinsic structural quality (reference-free). The two axes are complementary: reference-based metrics capture coverage, while reference-free metrics capture whether individual claims are verification-ready.
+The evaluation focuses on how effectively each model parses authentic review text from our NeurIPS and ICLR 2024 dataset into self-contained propositions suitable for downstream retrieval and verification.
+
+A.1.1 Reference-Based Evaluation.
+
+To establish a strong comparison signal, we use o4-mini as a high-quality reasoning model to generate a reference set of claims that are manually verified to be atomic and decontextualized. We treat this reference extraction as a stronger summarization-style signal and evaluate how well each candidate extraction method aligns with it. Agreement is measured using an LLM-as-a-judge protocol. We employ GPT-5-mini as a semantic judge: for each extracted claim, we identify the most similar reference claim and ask the judge whether the two express the same atomic proposition. Based on these semantic equivalence decisions, we compute precision, recall, and F1 scores.
+
+For the reference-based axis, o4-mini is used only to generate the high-fidelity reference set against which the three candidate extractors are scored; it is not used to produce any of the 800 benchmark claims. The benchmark claims are sourced exclusively from Qwen3-4B, which achieves the best overall balance and is therefore used for all benchmark construction, ensuring extraction quality and reproducibility.
+
+A.1.2 Reference-Free Evaluation.
+
+Regardless of the reference set, a useful claim must meet specific structural and linguistic criteria for downstream verification (Ullrich et al., 2025; Wright et al., 2022). We use o4-mini to audit each method’s output against three core dimensions. Atomicity measures whether a claim expresses exactly one checkable assertion. Faithfulness assesses whether the claim remains grounded in the original reviewer’s text without introducing hallucinations or scope-creep. Decontextualization checks whether the claim is self-contained and does not rely on unresolved references such as “the method” or “Figure 1” that require surrounding context to interpret.
+
+Table 3: Claim-extraction quality: LLM-as-a-judge (GPT-5-mini, reference-based) and reference-free intrinsic metrics.
+
+Reference-Based
+
+Reference-Free
+
+Extractor
+
+count
+
+Prec.
+
+Rec.
+
+F1
+
+Atom.
+
+Flue.
+
+Deco.
+
+Fenice
+
+739
+
+0.872
+
+0.538
+
+0.665
+
+0.314
+
+0.788
+
+0.362
+
+Gemma
+
+2464
+
+0.868
+
+0.762
+
+0.811
+
+0.379
+
+0.781
+
+0.329
+
+Qwen3-4b
+
+923
+
+0.889
+
+0.587
+
+0.707
+
+0.451
+
+0.927
+
+0.524
+
+Gemma extracts the most claims; Qwen3-4B extracts the most usable ones.
+
+The evaluation reveals distinct operational profiles among the extracted models. Fenice exhibits a high-precision, low-recall regime by extracting 739 claims with a precision of 0.872 and a recall of 0.538, effectively minimizing false positives at the expense of comprehensive coverage. Conversely, Gemma prioritizes recall by achieving a rate of 76.2% and an F1 score of 0.811, but it generates a substantially larger volume of 2,464 candidate claims. Qwen3-4B optimizes this balance by producing 923 claims with a precision of 0.889, thereby maintaining strict semantic control. In the context of downstream verification, the implications of this tradeoff are asymmetric: while unextracted claims merely reduce total evaluation coverage, poorly formulated claims systematically confound reliable classification.
+
+Intrinsic quality is the discriminating dimension.
+
+Beyond semantic alignment, intrinsic structural quality emerges as the critical factor determining extractor viability. Qwen3-4B demonstrates significantly superior performance across essential structural metrics. Specifically, it achieves an atomicity score of 0.451, which exceeds the scores of 0.379 for Gemma and 0.314 for Fenice. Furthermore, its fluency score of 0.927 surpasses both Gemma and Fenice as well. Finally, Qwen3-4B records a decontextualization score of 0.524, notably outperforming the respective scores of 0.329 and 0.362 achieved by Gemma and Fenice. These structural properties are foundational to downstream verification accuracy. Consequently, the high-fidelity benchmark slices, specifically Verifiable-Only and HighAgreement, are constructed exclusively using Qwen3-4B extractions. Robust claim extraction is a prerequisite for reliable evaluation, meaning these extraction quality differentials directly determine the diagnostic validity of the resulting benchmark partitions.
+
+A.2 Extraction Cost, Latency, and Model Choice
+
+Table 3 compares the three open-weight extractors on quality alone. That comparison leaves an obvious question open, since o4-mini and GPT-5-mini already appear elsewhere in the pipeline: if those models are good enough to generate the reference claims and to judge semantic equivalence, why not use one of them to extract? Table 4 answers it with measurements instead of an assertion, scoring all five candidates under the same protocol and adding median latency per review and average API cost per review.
+
+Table 4: Claim-extraction quality, latency, and cost for all five candidate extractors, scored against the same reference claim set with the GPT-5-mini semantic-equivalence judge. Latency is the median wall-clock time per review, measured locally on a single NVIDIA RTX 3090 for open-weight models and over the network for API models. Cost is the average API spend per review. †GPT-5-mini also generated the reference claims, so its F1 is a self-consistency upper bound rather than a comparable score; o4-mini is the fair proprietary reference point.
+
+Extractor
+
+Prec.
+
+Rec.
+
+F1
+
+Latency (s)
+
+Cost
+
+Fenice
+
+0.872
+
+0.538
+
+0.665
+
+01.97
+
+open-weight
+
+Qwen3-4B
+
+0.889
+
+0.587
+
+0.707
+
+08.20
+
+open-weight
+
+Gemma
+
+0.868
+
+0.762
+
+0.811
+
+21.76
+
+open-weight
+
+o4-mini
+
+0.990
+
+0.817
+
+0.895
+
+09.62
+
+$0.29
+
+GPT-5-mini
+
+0.994
+
+0.849
+
+0.915†
+
+24.43
+
+$0.11
+
+The proprietary models are clearly better extractors. o4-mini reaches 0.895 F1 and GPT-5-mini 0.915, against 0.707 for Qwen3-4B. We note that the GPT-5-mini figure is not directly comparable, because the same model generated the reference claims, so 0.915 is a self-consistency ceiling; o4-mini at 0.895 is the honest cross-model number.
+
+We still extract with Qwen3-4B, for three reasons that the table makes concrete. First, cost scales with volume, and extraction is the highest-volume stage: it runs over every sentence of every review, whereas verification runs once per extracted claim. At $0.11 to $0.29 per review, extracting a full conference cycle through an API is a real budget line and a rate-limit exposure, and it puts the expensive model at the cheap end of the pipeline. We would rather spend that budget on verification, which is where the reasoning difficulty actually is. Second, reproducibility: an open-weight extractor lets anyone regenerate or extend the benchmark, whereas a versioned API can be updated or deprecated underneath a published dataset. Third, the quality gap sits mostly in recall (0.587 against 0.817), not precision (0.889 against 0.990). For a benchmark that evaluates claim verification rather than exhaustive claim mining, missing a claim reduces coverage while a badly formed claim corrupts a verification unit, so precision is the axis that matters and the local model is close to the frontier there.
+
+A.3 Human Validation of the Semantic-Equivalence Judge
+
+The reference-based scores in Table 3 rest on GPT-5-mini deciding whether an extracted claim and a reference claim express the same proposition. Since that decision drives which extractor we adopt, we validate it against human annotation like every other automated component of the benchmark. An annotator who had not worked on the extraction pipeline independently re-decided 50 randomly sampled equivalence judgements per extractor, 150 in total, seeing the claim pair but not the judge’s verdict.
+
+Table 5: Human validation of the GPT-5-mini semantic-equivalence judge used for the reference-based extraction scores. An annotator who was not involved in the automated pipeline independently re-decided 50 randomly sampled equivalence judgements per extractor.
+
+Extractor
+
+Agreement
+
+Rate
+
+Fenice
+
+45 / 50
+
+90.0%
+
+Gemma
+
+42 / 50
+
+84.0%
+
+Qwen3-4B
+
+47 / 50
+
+94.0%
+
+Overall
+
+134 / 150
+
+89.3%
+
+Agreement is 89.3% overall and is consistent across extractors, from 84.0% on Gemma to 94.0% on Qwen3-4B (Table 5). This is close to the rate at which our groundedness labels match human consensus (Appendix A.9), which suggests the judge is a reasonable stand-in for a human on this narrow decision, and it supports applying it across the whole extraction evaluation rather than reporting a hand-checked subset. The Gemma figure is the lowest of the three, which is consistent with its output profile: it produces 2,464 claims, many of them long or under-decontextualized, and those are exactly the pairs where equivalence is a judgement call rather than a lookup.
+
+A.4 Label Definitions and Examples
+
+Each review claim receives one of the four labels defined in Section 2.1, determined by whether the manuscript provides sufficient evidence under a strict document-bounded grounding criterion. Worked examples follow.
+
+• 
+
+Supported: The manuscript provides clear and sufficient evidence that fully substantiates the claim. Example: A reviewer states “The authors evaluate on CIFAR-100,” and the paper explicitly reports CIFAR-100 experiments.
+
+• 
+
+Not Supported: The manuscript contradicts the claim or the asserted content is demonstrably absent. Example: A reviewer states “No ablation study is provided,” but the paper contains a dedicated ablation section.
+
+• 
+
+Partially Supported: The manuscript supports only a qualified or incomplete version of the claim. Example: A reviewer states “The method outperforms all baselines,” but the paper shows it outperforms most but not all.
+
+• 
+
+Not Determined: The manuscript does not contain sufficient information to resolve the claim in either direction. This label applies when (i) the claim references external knowledge or prior work not discussed in the paper, (ii) the claim is too vague or ambiguous to verify, or (iii) the relevant evidence is absent without any contradicting assertion.
+
+A.5 Factual vs. Subjective Claims
+
+Each claim is tagged as factual or subjective using o4-mini: factual if its validity is grounded in content observable in the manuscript (e.g., a missing experiment or an absent figure), and subjective if it is an opinion, recommendation, or forward-looking judgment about novelty, significance, or impact that cannot be resolved from the paper alone. The verifiable-only slice retains only factual claims, so verification on that slice targets assertions checkable against the manuscript rather than reviewer opinion.
+
+A.6 Claim Types and Arbitration
+
+We used GPT-5-mini to sort the 800 benchmark claims into objective claims, whose truth follows from something written in the manuscript, and subjective claims, which are judgements about novelty, significance, or direction. The split is 444 objective and 356 subjective. We then measured how often each type required human arbitration, meaning the two automated labelers disagreed and a person had to break the tie.
+
+Table 6: Arbitration on RebuttalSourced broken down by claim type. Arbitrated counts claims where the two automated labelers disagreed and a human tie-breaker was needed. Neither counts disagreements where the human annotator supplied a third label because both candidates were wrong.
+
+Claim type
+
+Total
+
+Arbitrated
+
+Arbitration rate
+
+Objective
+
+444
+
+184
+
+41.4%
+
+Subjective
+
+356
+
+136
+
+38.2%
+
+Overall
+
+800
+
+320
+
+40.0%
+
+Arbitration outcome
+
+Objective
+
+Subjective
+
+Labelers agree (no arbitration)
+
+260 (58.6%)
+
+220 (61.8%)
+
+GPT-5-mini upheld
+
+093 (21.0%)
+
+065 (18.3%)
+
+Claude-Sonnet-4-6 upheld
+
+079 (17.8%)
+
+057 (16.0%)
+
+Neither upheld
+
+012 (2.7%)
+
+014 (3.9%)
+
+The result runs against intuition. Objective claims are arbitrated more often than subjective ones, 41.4% against 38.2% (Table 6). The explanation is that objectivity in a peer review is not the same as ease of verification. Settling “the paper does not compare against baseline X” or “the reported IoU is 44.91” requires finding one specific fact somewhere in a long manuscript, and two labelers that retrieve different passages will reach different conclusions. Subjective claims are vaguer, but that vagueness gives the labelers less to disagree about: both tend to land on Partially Supported or Not Determined.
+
+The arbitration outcomes point the same way. GPT-5-mini is upheld somewhat more often than Claude-Sonnet-4-6 in both categories (21.0% against 17.8% on objective claims, 18.3% against 16.0% on subjective ones), so neither labeler dominates and the arbitration is not a systematic correction of one model. Cases where the human annotator had to supply a third label because both candidates were wrong are rare, 2.7% on objective claims and 3.9% on subjective ones. The slightly higher rate on subjective claims is the expected direction: when a reviewer’s remark is genuinely interpretive, there is sometimes no label either model would have proposed.
+
+A.7 Benchmark Label Distributions
+
+Table 1 in Section 2 reports the full Peerify benchmark statistics overview, including label distributions across all six benchmark variants and dataset provenance (venue and acceptance decision). The PaperSourced variant is all-Supported by construction; the remaining variants show progressively more heterogeneous label distributions as claims become more interaction-grounded and ambiguous. The four Human-Verified label counts are the human-consensus totals of Table 7.
+
+A.8 Inter-Source Agreement
+
+The HighAgreement slice is constructed by retaining only instances where RebuttalSourced and LLMJudged labels agree. This section describes the agreement analysis underlying this design choice.
+
+Automated supervision sources.
+
+RebuttalSourced labels are derived from author–reviewer interaction dynamics: the model infers whether the author’s response confirms or refutes the reviewer’s claim. LLMJudged labels are derived from direct document-bounded verification: the model checks whether the manuscript supports the claim without consulting the discussion thread. These two sources are therefore independent in both mechanism and evidence source, making their agreement a meaningful signal of claim clarity and label reliability.
+
+Across the 800 core review-derived claims, the canonical RebuttalSourced and LLMJudged labels agree on 175 instances (21.9%), forming the HighAgreement slice. The relatively low raw agreement rate reflects the genuine difficulty of peer-review claims and the different perspectives captured by the two supervision sources: interaction-grounded labels capture how authors interpret their own work, while document-grounded labels capture what the manuscript literally supports.
+
+Automated supervision vs. human labels.
+
+To validate automated supervision quality, we compare both RebuttalSourced and LLMJudged labels against the Human-Verified consensus labels. Inter-annotator agreement between the two human annotators is near-perfect (Cohen’s \kappa\approx 0.96 ), indicating that the high human–automated agreement is not an artifact of low human reliability. These results support the use of RebuttalSourced and LLMJudged as reliable large-scale supervision sources, with Human-Verified serving as a gold-standard reference for validation and error analysis. Appendix A.9 gives the full confusion matrix and a per-claim-type breakdown.
+
+A.9 Human-Verified Label Quality
+
+Most of the benchmark is labeled automatically, so the question that matters is not whether those labels look plausible but how far they can be trusted. The Human-Verified subset exists to answer it: 300 claims, 37.5% of the benchmark, labeled by hand under the guidelines of Section 3.4 and used as the reference against which the automated supervision is scored.
+
+Table 7: Confusion matrix between automated (LLMJudged) labels and human consensus labels on the expanded Human-Verified subset ( n=300 ). Rows are automated labels, columns are human labels. Exact four-way agreement is the diagonal, 271/300=90.3\% (Cohen’s \kappa=0.87 ).
+
+Human
+
+Automated
+
+Supp.
+
+Part. Supp.
+
+Not Supp.
+
+Not Det.
+
+Supported
+
+65
+
+2
+
+1
+
+1
+
+Partially Supported
+
+8
+
+102
+
+7
+
+0
+
+Not Supported
+
+2
+
+3
+
+69
+
+2
+
+Not Determined
+
+2
+
+0
+
+1
+
+35
+
+Automated labels match human consensus on 90.3% of claims ( \kappa=0.87 ).
+
+Under a strict four-way exact-match criterion, the automated labels agree with human consensus on 271 of 300 claims, 90.3%, with Cohen’s \kappa=0.87 (Cohen, 1960), which falls in the “almost perfect” band on the conventional scale (Landis and Koch, 1977). Table 7 shows where the 29 disagreements sit, and their shape matters more than their count. They cluster on the Partially Supported boundary: 8 claims the humans called Supported were labeled Partially Supported, and 7 they called Not Supported were labeled the same way. Under an ordinal-tolerant criterion, where a one-step difference on the Supported, Partially Supported, Not Supported scale is acceptable, agreement rises to 97.0%. Hard polarity flips, where one side says clearly supported and the other says clearly unsupported, occur 3 times in 300, or 1.0%. The automated supervision is therefore not making a different kind of judgement from the humans; it draws the partial-support line in a slightly different place, which is the same place two human annotators need a consensus discussion.
+
+Table 8: Agreement between automated labels and human consensus on the expanded Human-Verified subset, broken down by claim type. Reliability is essentially unchanged between objective and subjective claims, which is the case an annotation-bias account would predict to diverge.
+
+Slice
+
+n
+
+Agreement
+
+Cohen’s \kappa 
+
+Overall
+
+300
+
+90.3%
+
+0.866
+
+Objective / factual
+
+158
+
+90.5%
+
+0.866
+
+Subjective
+
+142
+
+90.1%
+
+0.858
+
+Reliability is the same on objective and subjective claims.
+
+A bias inherited from the labeler models would most plausibly show up as degraded reliability on exactly the claims where reviewer language is interpretive. It does not. Table 8 splits the subset by claim type: 90.5% agreement and \kappa=0.866 on the 158 objective claims, 90.1% and \kappa=0.858 on the 142 subjective ones. A 0.4-point difference at this sample size is not a signal. The automated labels track human judgement about equally well on both, which is the evidence we can offer that they reflect claim groundedness rather than an artifact of the annotation procedure. It does not prove the absence of a bias that the models and the guidelines share, and we say so in the Limitations section.
+
+Table 9: RAG accuracy on the expanded Human-Verified subset ( n=300 ), by retriever. These are the values reported in the Human-Verified column of Table 2. No model clears 0.35 under any retriever, and swapping retrievers moves accuracy by at most a few points, which is the pattern we use to argue that reasoning rather than retrieval is the binding constraint on this split.
+
+Model
+
+BM25
+
+BM25+R
+
+Dense
+
+Dense+R
+
+o4-mini
+
+0.243
+
+0.237
+
+0.230
+
+0.257
+
+GPT-5-mini
+
+0.273
+
+0.290
+
+0.297
+
+0.257
+
+Claude-Haiku
+
+0.270
+
+0.240
+
+0.237
+
+0.300
+
+Qwen3-8B
+
+0.257
+
+0.297
+
+0.283
+
+0.277
+
+Qwen2.5-7B
+
+0.300
+
+0.340
+
+0.307
+
+0.287
+
+No verifier clears 0.38 on the hand-labeled claims.
+
+Human-Verified is among the hardest splits in the benchmark. No verifier clears 0.38 in full-context (Table 14) or 0.34 under any retriever (Table 9). Qwen3-8B is the strongest full-context model here at 0.377, which is consistent with the subset being dominated by Partially Supported claims (107 of 300) and with that model’s tendency to over-predict exactly that label (Figure 2). Because the human labels are the reference rather than a proxy, these numbers are the cleanest available estimate of how far current verifiers are from the task.
+
+A.10 Annotator Disagreement and Arbitration
+
+The canonical labels for RebuttalSourced and LLMJudged are produced by a two-annotator protocol with human arbitration. Each of the 800 atomic reviewer claims is labeled twice and independently: GPT-5-mini (Annotator A) and Claude-Sonnet-4-6 (Annotator B) receive the same claim and the same source material (the author response for RebuttalSourced and the paper content for LLMJudged) under identical prompts. For every record where the two annotators disagree, a human annotator is shown the claim, the relevant source material, and both candidate labels (with model identity anonymized and presentation order randomized per record), and either selects the correct label or assigns a new one when both candidates are wrong. This arbitrated label is taken as canonical.
+
+Inter-annotator agreement before arbitration.
+
+Table 10 reports raw agreement between the two annotators. Claude-Sonnet-4-6 is systematically more conservative than GPT-5-mini: on RebuttalSourced it reclassifies many Supported calls as Partially Supported or Not Supported, and on LLMJudged it shifts confident labels into Not Determined. The two models agree almost entirely on Not Determined itself (52/67 on RebuttalSourced, 193/251 on LLMJudged) but diverge on the confident labels.
+
+Table 10: Inter-annotator agreement (GPT-5-mini vs. Claude-Sonnet-4-6) before arbitration.
+
+Benchmark
+
+n
+
+Annotators agree
+
+Rate
+
+RebuttalSourced
+
+800
+
+480
+
+60.0%
+
+LLMJudged
+
+800
+
+459
+
+57.4%
+
+Arbitration verdicts.
+
+Table 11 shows, among the disagreements, how often each annotator was upheld by the human annotator. GPT-5-mini is correct slightly more often ( \sim 49%) than Claude-Sonnet-4-6 ( \sim 41%), but in roughly one in ten disagreements neither candidate was correct and the annotator supplied a third label.
+
+Table 11: Quantitative breakdown of arbitration verdicts on annotator disagreements. Annotator A and B denote the GPT-5-mini and Claude-Sonnet-4-6, respectively.
+
+Benchmark
+
+#Disagree
+
+A correct
+
+B correct
+
+Neither
+
+RebuttalSourced
+
+320
+
+158 (49.4%)
+
+136 (42.5%)
+
+26 (8.1%)
+
+LLMJudged
+
+341
+
+168 (49.3%)
+
+137 (40.2%)
+
+35 (10.3%)
+
+Canonical distribution and derived slices.
+
+Table 12 gives the arbitrated label distribution. The LLMJudged distribution is heavily weighted toward Not Determined, reflecting that a meaningful share of reviewer claims have no verifiable answer in the paper text alone. After arbitration, the HighAgreement slice (canonical RebuttalSourced label equals canonical LLMJudged label) contains 175 instances, and the verifiable-only slice contains 131.
+
+Table 12: Canonical label distribution (post-arbitration).
+
+Label
+
+RebuttalSourced
+
+LLMJudged
+
+Supported
+
+217
+
+207
+
+Partially Supported
+
+310
+
+93
+
+Not Supported
+
+189
+
+141
+
+Not Determined
+
+84
+
+359
+
+Appendix B Related Works
+
+LLMs for Peer Review.
+
+A growing body of work explores the use of large language models to support scholarly peer review through tasks such as review generation, review assistance, reviewer recommendation, and manuscript assessment (Yuan et al., 2022; Liang et al., 2024; Tomkins et al., 2017). A related line analyzes peer-review content and dynamics, including review quality, argumentation, sentiment, and reviewer behavior (Hua et al., 2019; Rogers and Augenstein, 2020; Kang et al., 2018; Ebrahimi et al., 2025a). These efforts demonstrate that state-of-the-art language models can generate meaningful feedback and shed light on how reviews are written and how they function socially. However, their primary objective is to produce, evaluate, or characterize reviews rather than to determine whether specific claims made within a review are supported by evidence contained in the reviewed manuscript. As a result, the problem of manuscript-grounded review verification remains largely unexplored.
+
+Scientific Claim Verification.
+
+Peerify is also related to scientific claim verification and evidence-based fact checking, studied extensively through textual entailment and natural language inference, from early RTE-style formulations (Dagan et al., 2006) to large-scale benchmarks such as FEVER (Thorne et al., 2018), SciFact (Wadden et al., 2020), PubHealth (Kotonya and Toni, 2020), and scientific verification tasks (Malon, 2018; Wadden and Lo, 2021). These datasets have enabled systems that retrieve evidence and determine whether a claim is supported, contradicted, or unsupported, and retrieval-augmented approaches (Lewis et al., 2020b; Izacard and Grave, 2021) have further improved evidence-grounded and multi-hop reasoning. While these settings share similarities with review verification, they typically treat claims as standalone statements and assume open-domain retrieval or citation-based reasoning across multiple sources, with evaluation centered on short claims whose supporting evidence is relatively concentrated. In contrast, peer-review claims often contain methodological observations, novelty assessments, and experimental critiques whose supporting evidence may be distributed across multiple sections of a single manuscript. Review verification is therefore a document-bounded grounding problem that requires reasoning over long, highly structured scientific documents while accounting for contextual qualifiers, experimental assumptions, and evidence aggregation.
+
+Claim Decomposition.
+
+A further challenge arises from the fact that review comments frequently contain multiple assertions expressed within a single sentence or paragraph. Recent work on claim decomposition has shown that breaking complex statements into atomic claims improves the reliability and interpretability of downstream verification (Metropolitansky and Larson, 2025; Min et al., 2023; Scirè et al., 2024). Peer reviews complicate this step because they often mix subjective assessment with factual assertions and rely on hedging or implicit references. Peerify adopts a similar atomic-claim perspective and adapts extraction using multiple supervision signals, enabling more precise evidence attribution and systematic, manuscript-grounded groundedness assessment in an end-to-end evaluation.
+
+Concurrent Work.
+
+A closely related concurrent system is FactReview (Xu et al., 2026), which also targets evidence-grounded peer review assessment. FactReview focuses on author-written claims extracted from the submitted manuscript, using literature retrieval and code execution to verify whether reported results are reproducible and positioned correctly relative to prior work. Peerify is complementary in scope and emphasis: we focus on reviewer-authored claims, statements made in the review about the paper rather than by the paper, and derive supervision from author–reviewer interaction dynamics and multiple independent label sources. This distinction matters because reviewer claims introduce interpretive and normative language absent from author-written text, and their groundedness must be assessed against a single manuscript rather than the broader literature. Our multi-benchmark design, spanning six supervision variants with different reliability and ambiguity profiles, enables systematic evaluation of the task difficulty spectrum.
+
+Appendix C Prompts
+
+This section lists every prompt used in the pipeline verbatim. Figure 3 gives the groundedness verification prompt shared by all five verifiers, Figure 4 the claim-extraction prompt, and Figure 5 the two labeling prompts behind RebuttalSourced and LLMJudged.
+
+C.1 Verification Prompt Template
+
+We use the following prompt template for all LLM verifiers in full-context mode. The same label definitions are used across all dataset variants. For RAG-based verification, the {manuscript} field is replaced with the concatenation of top- k retrieved passages, ranked by the chosen retrieval configuration.
+
+Figure 3: Groundedness verification prompt, shared by all five verifiers. Under RAG the {manuscript} field carries the top- k retrieved passages instead of the full paper.
+
+C.2 Claim Extraction Prompt
+
+The prompted extractor (Qwen3-4B) decomposes each review into atomic claims with the prompt in Figure 4.
+
+Figure 4: Claim-extraction prompt used to decompose each review comment into atomic, self-contained claims.
+
+Table 13: PaperSourced Dense+R accuracy vs. the Oracle upper bound (gold paragraph fed directly) for all five models. Full four-retriever results in Table 2.
+
+Model
+
+Dense+Reranker
+
+Oracle
+
+o4-mini
+
+0.904
+
+0.988
+
+GPT-5-mini
+
+0.852
+
+0.958
+
+Claude-Haiku
+
+0.844
+
+0.860
+
+Qwen3-8B
+
+0.814
+
+0.872
+
+Qwen2.5-7B
+
+0.860
+
+0.816
+
+C.3 Labeling Prompts
+
+The two automated annotators (GPT-5-mini and Claude-Sonnet-4-6) use the prompts in Figure 5 for the RebuttalSourced and LLMJudged variants. The raw Contradicted label corresponds to Not Supported in the four-way scheme.
+
+Figure 5: The two labeling prompts. They differ only in the evidence they see: RebuttalSourced reads the author–reviewer thread and never the manuscript, LLMJudged reads the manuscript and never the thread. This disjointness is what makes their agreement informative (Appendix A.8).
+
+Appendix D Additional Results
+
+D.1 Full-Context Verification Results
+
+Table 14: Full-context accuracy (five models, six benchmarks). Qwen2.5-7B excludes 9 over-length papers (Section 2). Human-Verified is the expanded 300-instance subset; Table compares it against the original 150 instances.
+
+Benchmark
+
+o4-mini
+
+GPT-5-mini
+
+Claude-Haiku
+
+Qwen3-8B
+
+Qwen2.5-7B
+
+PaperSourced
+
+0.866
+
+0.792
+
+0.764
+
+0.618
+
+0.753
+
+RebuttalSourced
+
+0.245
+
+0.280
+
+0.295
+
+0.276
+
+0.278
+
+LLMJudged
+
+0.442
+
+0.379
+
+0.295
+
+0.171
+
+0.170
+
+HighAgreement
+
+0.536
+
+0.513
+
+0.445
+
+0.302
+
+0.213
+
+verifiable-only
+
+0.495
+
+0.518
+
+0.388
+
+0.320
+
+0.250
+
+Human-Verified
+
+0.267
+
+0.317
+
+0.300
+
+0.377
+
+0.256
+
+Table 14 reports the precise full-context verification accuracy for all five models across the six benchmarks, complementing Figure 1.
+
+D.2 Accuracy vs. Macro-F1
+
+Table 15: Accuracy vs. macro-F1 (full-context FC and best-retriever RAG) on RebuttalSourced and LLMJudged. A large Acc - F1 gap reflects label-distribution bias, not reasoning. Qwen2.5-7B FC excludes 9 over-length papers.
+
+Full-Context
+
+RAG (best retriever)
+
+RebuttalSourced
+
+LLMJudged
+
+RebuttalSourced
+
+LLMJudged
+
+Model
+
+Acc
+
+F1
+
+Acc
+
+F1
+
+Acc
+
+F1
+
+Acc
+
+F1
+
+o4-mini
+
+0.245
+
+0.246
+
+0.442
+
+0.416
+
+0.244 {}_{\text{D}} 
+
+0.236
+
+0.514 {}_{\text{D}} 
+
+0.454
+
+GPT-5-mini
+
+0.280
+
+0.275
+
+0.379
+
+0.381
+
+0.294 {}_{\text{D}} 
+
+0.279
+
+0.414 {}_{\text{D}} 
+
+0.399
+
+Claude-Haiku
+
+0.295
+
+0.294
+
+0.295
+
+0.293
+
+0.297 {}_{\text{DR}} 
+
+0.275
+
+0.374 {}_{\text{DR}} 
+
+0.336
+
+Qwen3-8B
+
+0.276
+
+0.268
+
+0.171
+
+0.192
+
+0.287 {}_{\text{D}} 
+
+0.271
+
+0.371 {}_{\text{D}} 
+
+0.336
+
+Qwen2.5-7B
+
+0.278
+
+0.269
+
+0.170
+
+0.190
+
+0.324 {}_{\text{D}} 
+
+0.277
+
+0.209 {}_{\text{D}} 
+
+0.200
+
+Table 15 reports accuracy and macro-F1 for both full-context and RAG paradigms. In the RAG setting, Qwen2.5-7B Dense achieves the highest RebuttalSourced accuracy (0.324, macro-F1 0.277), followed by GPT-5-mini Dense (Acc 0.294, F1 0.279) and o4-mini Dense (Acc 0.244, F1 0.236). The large accuracy–macro-F1 gaps for some models reflect calibration bias rather than genuine reasoning, motivating macro-F1 as a complementary metric robust to label imbalance.
+
+D.3 PaperSourced RAG Results
+
+Table 13 reports the PaperSourced Oracle upper bound alongside Dense+R for all five models; the full four-retriever PaperSourced results are in the main RAG table (Table 2). Oracle feeds the gold-standard supporting paragraph directly to the verifier, providing an upper bound under perfect retrieval.
+
+The Oracle upper bound reveals that PaperSourced is nearly solvable when retrieval is perfect: o4-mini reaches 0.988, GPT-5-mini 0.958, Qwen3-8B 0.872, and Claude-Haiku 0.860. The gap between Oracle and Dense+R directly quantifies accuracy lost to retrieval imperfection: 0.084 for o4-mini (0.988 \to 0.904) and 0.106 for GPT-5-mini. One anomaly: Qwen2.5-7B Dense+R (0.860) exceeds its own Oracle (0.816), because Dense+R supplies ten passages (including adjacent context) while Oracle supplies only the single gold paragraph. For a model with limited long-context capacity, richer surrounding context improves its ability to confirm supported claims even when the exact evidence is present in both conditions.
+
+D.4 Extended RAG Analysis
+
+This section collects secondary RAG findings deferred from Section 5.
+
+Performance gap narrows on interpretive claims.
+
+On RebuttalSourced, all retrieval configurations cluster between 0.234 and 0.244 for o4-mini, closely tracking the full-context result of 0.245. For LLMJudged, the picture inverts: Qwen2.5-7B accuracy collapses to 0.209–0.228 with macro-F1 close to accuracy (e.g., 0.200 for Dense), confirming that its RebuttalSourced accuracy advantage does not transfer to semantically harder claims.
+
+Qwen2.5-7B collapses on LLMJudged yet leads on Human-Verified.
+
+On LLMJudged, among the models scored by re-scoring RebuttalSourced predictions, GPT-5-mini leads (best: BM25-R 0.417), while Qwen2.5-7B collapses to 0.209–0.228, a 2 \times gap confirming a hard capability boundary on semantic entailment. On Human-Verified, Qwen2.5-7B recovers sharply: BM25-R reaches 0.367, the highest Human-Verified score across all models and retrievers, consistent with its tendency to over-predict Supported and Partially Supported, the dominant categories in the human-annotated set.
+
+Retriever choice matters most for grounded claims.
+
+Across PaperSourced and verifiable-only, BM25+Reranker is usually the strongest retriever, beating pure BM25 and dense retrieval for every model on PaperSourced and for most on verifiable-only (the exception is GPT-5-mini, where dense retrieval is marginally higher). Reranking improves precision at low ranks, which is critical when the verifier’s context is restricted to a small passage set. For LLMJudged, dense retrieval surpasses the reranker for o4-mini (0.514 vs. 0.499), suggesting that semantic embeddings better capture paraphrased or implicit evidence that lexical matching misses.
+
+D.5 Classical Non-LLM Baselines
+
+A fair question about any LLM-based system is whether the LLM is doing work that a smaller, cheaper model could do. We tested this directly with three zero-shot entailment models trained on MultiNLI (Williams et al., 2018): RoBERTa-large-MNLI (Liu et al., 2019), BART-large-MNLI (Lewis et al., 2020a), and DeBERTa-large-MNLI (He et al., 2021). For each claim, the premise is the concatenation of the top-3 retrieved chunks and the hypothesis is the claim, and the three-way output is mapped onto our schema (entailment to Supported, contradiction to Not Supported, neutral to Not Determined). We ran every model under all four retrieval configurations, so that a weak result could not be attributed to one bad retriever.
+
+Table 16: Zero-shot NLI baselines under all four retrieval configurations, reported as Accuracy / macro-F1 on all six Peerify benchmarks. Best LLM is the single highest-accuracy model–retriever pair per benchmark, taken from Table 2. No NLI configuration exceeds a macro-F1 of 0.24 on any benchmark, and the ranking is stable across retrievers, so the gap is a property of the task formulation rather than of a particular retriever. ‡NLI baselines and the matched Best LLM reference on Human-Verified are computed on the original 150-instance subset.
+
+Method
+
+Retriever
+
+Paper
+
+Sourced
+
+Rebuttal
+
+Sourced
+
+LLM
+
+Judged
+
+High
+
+Agreement
+
+Verifiable
+
+-only
+
+Human
+
+Verified‡
+
+RoBERTa-MNLI
+
+BM25
+
+0.070 / 0.044
+
+0.147 / 0.116
+
+0.401 / 0.212
+
+0.234 / 0.162
+
+0.206 / 0.152
+
+0.167 / 0.106
+
+BM25+Reranker
+
+0.072 / 0.045
+
+0.136 / 0.108
+
+0.386 / 0.205
+
+0.206 / 0.143
+
+0.168 / 0.126
+
+0.147 / 0.103
+
+Dense
+
+0.066 / 0.041
+
+0.145 / 0.121
+
+0.384 / 0.206
+
+0.206 / 0.152
+
+0.168 / 0.132
+
+0.153 / 0.120
+
+Dense+Reranker
+
+0.068 / 0.042
+
+0.136 / 0.108
+
+0.390 / 0.205
+
+0.194 / 0.137
+
+0.168 / 0.131
+
+0.147 / 0.106
+
+BART-MNLI
+
+BM25
+
+0.426 / 0.199
+
+0.176 / 0.129
+
+0.359 / 0.232
+
+0.303 / 0.224
+
+0.260 / 0.204
+
+0.153 / 0.124
+
+BM25+Reranker
+
+0.490 / 0.219
+
+0.191 / 0.143
+
+0.356 / 0.230
+
+0.326 / 0.238
+
+0.275 / 0.213
+
+0.167 / 0.134
+
+Dense
+
+0.372 / 0.181
+
+0.175 / 0.134
+
+0.367 / 0.238
+
+0.314 / 0.236
+
+0.275 / 0.218
+
+0.173 / 0.145
+
+Dense+Reranker
+
+0.512 / 0.226
+
+0.188 / 0.142
+
+0.351 / 0.228
+
+0.314 / 0.237
+
+0.267 / 0.215
+
+0.173 / 0.141
+
+DeBERTa-MNLI
+
+BM25
+
+0.184 / 0.104
+
+0.166 / 0.133
+
+0.406 / 0.226
+
+0.280 / 0.205
+
+0.229 / 0.178
+
+0.187 / 0.140
+
+BM25+Reranker
+
+0.216 / 0.118
+
+0.149 / 0.121
+
+0.422 / 0.233
+
+0.257 / 0.186
+
+0.214 / 0.166
+
+0.147 / 0.114
+
+Dense
+
+0.176 / 0.100
+
+0.136 / 0.109
+
+0.374 / 0.198
+
+0.211 / 0.153
+
+0.206 / 0.162
+
+0.133 / 0.105
+
+Dense+Reranker
+
+0.290 / 0.150
+
+0.135 / 0.105
+
+0.400 / 0.221
+
+0.240 / 0.176
+
+0.191 / 0.146
+
+0.153 / 0.118
+
+Best LLM
+
+best per benchmark
+
+0.904 / 0.237
+
+0.324 / 0.157
+
+0.514 / 0.454
+
+0.514 / 0.499
+
+0.519 / 0.486
+
+0.367 / 0.300
+
+Table 16 reports all 72 configurations. Macro-F1 never exceeds 0.24 on any benchmark under any retriever, against 0.45 to 0.50 for the best LLM configuration on the document-decidable splits. Two structural causes explain the gap, and neither is a tuning problem. Three-way NLI has no output for Partially Supported, which is the single largest class in RebuttalSourced at 310 of 800 claims, so the ceiling is imposed by the label space before inference begins. And MNLI models cap the premise at 512 tokens, which truncates most of a 10-chunk evidence set, so the model frequently decides on evidence it never read.
+
+The accuracy column occasionally looks less bad than the macro-F1 column, and that discrepancy is itself informative. BART-MNLI reaches 0.512 accuracy on PaperSourced with a macro-F1 of 0.226, and RoBERTa-MNLI reaches 0.401 accuracy on LLMJudged at 0.212 macro-F1. Both come from predicting one label heavily on a skewed split, the same distribution-matching effect we discuss for Qwen2.5-7B in Appendix D.7. Read on macro-F1, the ranking is stable: off-the-shelf entailment is not a viable substitute here, and the value of the LLM verifiers lies in long-context, four-way reasoning performed zero-shot, not in raw entailment ability.
+
+D.6 Error Analysis on PaperSourced
+
+PaperSourced is the only split where we know the correct label for every instance without appeal to a judge, since each claim is extracted from a manuscript passage and is genuinely Supported by construction. That makes it a clean setting for asking what the remaining errors actually are, rather than only how many there are. We sampled 150 errors, stratified as 30 per verifier under the RAG setting, and read each one against the retrieved evidence and the source passage. Table 17 gives the breakdown; the categories are described below.
+
+Table 17: Error taxonomy on PaperSourced under RAG, from manual inspection of a stratified sample of 150 errors (30 per verifier). Every claim in this split is genuinely Supported, so any other predicted label counts as an error.
+
+Error type
+
+Share
+
+Overly strict specificity (downgrade to Part. Supp.)
+
+55.3%
+
+Retrieval and evidence localization miss
+
+36.0%
+
+Verifier output or parse failure
+
+08.7%
+
+• 
+
+Overly strict specificity (55.3%). The verifier retrieves the right passage, recognizes the substance of the claim, and then downgrades it to Partially Supported because one detail is not restated verbatim: an exact count, a pointer to a theorem or appendix, a numeric threshold. The evidence supports the claim; the grader is stricter than the label definition intends.
+
+• 
+
+Retrieval and localization miss (36.0%). The supporting passage is not among the top-10 retrieved chunks, so the verifier correctly reports that the evidence in front of it does not contain the claim and hedges to Not Determined. This is a retrieval failure presented as a verification error, and it is consistent with Recall@10 staying below 0.55 for every retriever (Appendix D.9).
+
+• 
+
+Output or parse failure (8.7%). The verifier emits a malformed response that cannot be mapped to a label, and the harness defaults to Not Determined.
+
+Taken together, 91.3% of the error mass is strictness or retrieval rather than faulty inference on evidence the model actually saw. The practical consequence is that raw PaperSourced accuracy overstates the reasoning error rate, and that two different fixes are indicated: better retrieval for the second category, and a calibration or rubric adjustment for the first. Neither requires a stronger reasoner.
+
+D.7 Predicted-Label Distribution on PaperSourced
+
+Qwen2.5-7B outperforming GPT-5-mini on PaperSourced under RAG looks anomalous next to the rest of the results. It is not, and the mechanism is worth making explicit because it applies to any single-class evaluation.
+
+Table 18: Predicted-label distribution (%) on PaperSourced under RAG, aggregated over all four retrievers. Every gold label in this split is Supported, so this is a single-row confusion matrix and the Supported column equals accuracy.
+
+Model
+
+Supported
+
+Part. Supp.
+
+Not Det.
+
+Not Supp.
+
+GPT-5-mini
+
+83.1
+
+9.5
+
+5.1
+
+2.3
+
+Qwen2.5-7B
+
+85.2
+
+7.0
+
+5.4
+
+2.4
+
+Every gold label in PaperSourced is Supported, so the predicted-label distribution is a one-row confusion matrix and the Supported column is the accuracy. Table 18 shows the two models side by side, aggregated over all four retrievers. Qwen2.5-7B says Supported 85.2% of the time; GPT-5-mini says it 83.1% of the time and hedges to Partially Supported or Not Determined more often. The 2.1-point difference is the whole margin. On a split where the correct answer is always the confident one, willingness to commit is rewarded and caution is punished, even when caution is the better-calibrated behavior. Two claims from our sample illustrate the pattern: for a claim quoting an exact mean IoU of 44.91%, GPT-5-mini returns Not Determined because it will not certify the precise figure, and for a claim describing several cache-compression techniques evaluated under five settings it returns Partially Supported because it reads the enumeration as incomplete. Both are gold Supported.
+
+The same prior is costly wherever the label set is not degenerate. In full-context evaluation, GPT-5-mini leads Qwen2.5-7B 0.379 to 0.170 on LLMJudged, 0.513 to 0.213 on HighAgreement, and 0.518 to 0.250 on verifiable-only (Table 14). So the PaperSourced ordering reflects a Supported-prior meeting an all-Supported split, not stronger verification, and it is the reason we report macro-F1 alongside accuracy throughout.
+
+D.8 Benchmark Size in Context
+
+At 800 claims, Peerify is small next to open-domain fact-verification corpora, and it is reasonable to ask whether conclusions drawn from it are stable. The relevant comparison is not to web-scale datasets but to claim-verification benchmarks with expert, evidence-grounded annotation, where size is bounded by annotation cost rather than by data availability.
+
+Table 19: Evaluation size and evidence scope of Peerify relative to expert-annotated scientific claim-verification benchmarks. Evidence scope matters as much as raw count: our labels are grounded in the full manuscript rather than an abstract or a single reference passage.
+
+Dataset
+
+#Claims
+
+Annotation
+
+Evidence scope
+
+MSVEC (Evans et al., 2023)
+
+200
+
+Expert
+
+Reference paper
+
+SciFact (test) (Wadden et al., 2020)
+
+300
+
+Expert
+
+Abstract
+
+Peerify (Human-Verified)
+
+300
+
+Human-audited
+
+Full manuscript
+
+Peerify (full)
+
+800
+
+LLM + human-audited
+
+Full manuscript
+
+Table 19 places our benchmark against that reference class. The full 800-claim set exceeds the SciFact test split (300) (Wadden et al., 2020) and the MSVEC evaluation corpus (200) (Evans et al., 2023), and the hand-audited 300-claim subset matches them exactly. Larger corpora in this space, such as COVID-Fact (Saakyan et al., 2021) and HealthVer (Sarrouti et al., 2021), reach scale through crowdsourced or automatically derived labels over abstracts and web text; we deliberately traded that scale for manuscript-grounded reliability, since a label for a review claim is only meaningful with respect to the full paper the reviewer read. Annotating against a whole manuscript is substantially more expensive per claim than annotating against an abstract, which is the constraint the size reflects.
+
+D.9 Retrieval Quality Analysis
+
+Retrieval configuration.
+
+The dense retriever uses all-MiniLM-L6-v2 sentence embeddings, and the cross-encoder reranker uses cross-encoder/ms-marco-MiniLM-L-6-v2. Manuscripts are segmented with Docling structure-aware (section/heading-based) chunking, producing variable-length chunks with no fixed token window (median 133 words per chunk, mean 132, p90 188). For each claim we retrieve an initial pool of k\!=\!20 candidate passages; when reranking is enabled, these are reranked down to the final top- 10 passages fed to the verifier, and non-reranked configurations directly take the top- 10 .
+
+Table 20: Retrieval quality on PaperSourced.
+
+Retriever
+
+Recall@5
+
+Recall@10
+
+nDCG@10
+
+MRR@10
+
+BM25
+
+0.398
+
+0.474
+
+0.570
+
+0.289
+
+BM25 + Reranker
+
+0.434
+
+0.492
+
+0.608
+
+0.331
+
+Dense
+
+0.420
+
+0.528
+
+0.644
+
+0.299
+
+Dense + Reranker
+
+0.452
+
+0.530
+
+0.684
+
+0.346
+
+Table 20 compares four retrieval strategies on PaperSourced, where the ground-truth supporting section is known, enabling intrinsic evaluation. Dense+Reranker achieves the best performance across all metrics (Recall@5: 0.452, Recall@10: 0.530, nDCG@10: 0.684, MRR: 0.346), while BM25 alone is weakest.
+
+Consistent with prior work (Kamalloo et al., 2024), reranking substantially boosts BM25. BM25+Reranker surpasses standalone dense retrieval at Recall@5 (0.434 vs. 0.420) but lags at Recall@10 (0.492 vs. 0.528), suggesting that lexical matching excels at placing relevant chunks at shallow ranks while dense representations improve deeper recall. Despite this, Recall@10 remains below 0.55 across all configurations: the ground-truth section is absent from the top-10 retrieved passages in nearly half of all cases. The Oracle upper bound (Table 13) makes this bottleneck concrete: the 8.4-point gap between Oracle (0.988) and Dense+R (0.904) for o4-mini is attributable entirely to retrieval imperfection.
+
+D.10 Token Efficiency and Operating Cost
+
+RAG-based verification substantially reduces token consumption relative to full-context processing. Tables 21, 22, and 23 report average token usage per claim across all six benchmarks in both settings.
+
+Table 21: Tokens per claim, RAG verification (four retrievers, six benchmarks).
+
+Benchmark
+
+BM25
+
+FAISS
+
+Dense+R
+
+BM25+R
+
+PaperSourced
+
+2,235.85
+
+2,231.82
+
+2,384.76
+
+2,291.40
+
+RebuttalSourced
+
+2,156.78
+
+2,128.87
+
+2,371.78
+
+2,236.87
+
+LLMJudged
+
+2,156.78
+
+2,128.87
+
+2,371.78
+
+2,236.87
+
+HighAgreement
+
+2,112.56
+
+2,085.18
+
+2,262.94
+
+2,205.61
+
+verifiable-only
+
+2,153.54
+
+2,240.62
+
+2,253.42
+
+2,244.24
+
+Human-Verified
+
+1,922.49
+
+1,986.74
+
+1,976.66
+
+1,945.26
+
+Average
+
+2,123.00
+
+2,133.68
+
+2,270.22
+
+2,193.38
+
+Table 22: Tokens per claim, full-context verification (six benchmarks).
+
+Benchmark
+
+Tokens per Claim
+
+PaperSourced
+
+21,648.85
+
+RebuttalSourced
+
+21,130.27
+
+LLMJudged
+
+21,130.27
+
+HighAgreement
+
+22,323.60
+
+verifiable-only
+
+21,333.30
+
+Human-Verified
+
+18,912.43
+
+Average
+
+21,079.79
+
+Table 23: Token efficiency, RAG vs. full-context. Reduction = full-context/RAG token ratio.
+
+Benchmark
+
+Full-Context
+
+RAG (Avg)
+
+Reduction
+
+PaperSourced
+
+21,648.85
+
+2,285.96
+
+9.47 \times 
+
+RebuttalSourced
+
+21,130.27
+
+2,223.57
+
+9.50 \times 
+
+LLMJudged
+
+21,130.27
+
+2,223.57
+
+9.50 \times 
+
+HighAgreement
+
+22,323.60
+
+2,166.57
+
+10.30 \times 
+
+verifiable-only
+
+21,333.30
+
+2,222.96
+
+9.60 \times 
+
+Human-Verified
+
+18,912.43
+
+1,957.79
+
+9.66 \times 
+
+Overall Average
+
+21,079.79
+
+2,180.07
+
+9.67 \times 
+
+On average, RAG reduces token consumption by roughly 9.7\times relative to full-context verification, consistently across all six benchmarks, from 9.47\times on PaperSourced to 10.30\times on HighAgreement. This is what makes the pipeline runnable at venue scale rather than only on a sample, and it is also what lets open-weight models with restricted context windows participate at all. The saving does not cost accuracy on grounded benchmarks, and on PaperSourced it improves it: Dense+R reaches 0.904 for o4-mini against 0.866 in full-context, because a focused evidence set is easier to reason over than a whole manuscript.
+
+Together with the extraction costs in Table 4, this fixes the operating cost of a deployment. Extraction runs locally at no inference cost and a median of 8.2 seconds per review, and verification consumes about 2.2K tokens per claim rather than 21K. These are the measurements behind the deployment discussion in Appendix E.
+
+D.11 Where Intrinsic Retrieval Metrics Apply
+
+Recall@ k , nDCG@ k , and MRR are reported only on PaperSourced, and the Oracle upper bound is computed there as well. This is a constraint of the data rather than a choice about what to report. All three metrics need a gold evidence span, and spans exist only where a claim was drawn from a known passage. For RebuttalSourced, LLMJudged, and Human-Verified, the label comes from an author–reviewer exchange or from a whole-manuscript reading, and neither procedure identifies the paragraph that settles the claim. Some claims are settled by an absence, such as “no ablation is reported,” which has no supporting span anywhere in the document. Annotating spans for those splits would mean inventing a ground truth we do not have.
+
+The question behind the metric, whether retrieval or reasoning limits performance, can still be answered on those splits, by removing retrieval instead of measuring it. Full-context verification passes the entire manuscript to the verifier and skips the retrieval stage, so it is a retrieval-free upper bound. If retrieval were binding, accuracy should rise sharply. It does not: on Human-Verified, GPT-5-mini reaches 0.317 in full-context against 0.297 with its best retriever, and o4-mini reaches 0.267 against 0.257 (Tables 14 and 9). Perfect retrieval buys a point or two, so what limits these splits is verification reasoning. PaperSourced behaves in exactly the opposite way, where the 8.4-point Oracle-to-Dense+R gap for o4-mini is retrieval and nothing else, which is why we keep both regimes in the evaluation.
+
+Appendix E Deployment Setting and Intended Use
+
+The pipeline runs at the scale of a real venue.
+
+All three stages are implemented end to end and are cheap enough to apply to an entire submission cycle. Claim extraction runs locally on a single consumer GPU at a median of 8.2 seconds per review with no API cost (Appendix A.2), and retrieval-augmented verification consumes roughly 9.7\times fewer tokens per claim than passing the verifier a whole manuscript (Appendix D.10). Because both figures are measured rather than estimated, a venue can compute the cost of a deployment in advance. This is what we mean when we describe Peerify as production-ready: the engineering is complete, the throughput is known, and nothing in the design assumes a research-scale workload.
+
+Every prediction ships with its evidence.
+
+The output of the pipeline is not a bare label. Each claim is returned together with the manuscript passages the verifier conditioned on, so a decision can always be traced back to the text that produced it. This is what makes the system useful in an editorial workflow: a reader can confirm or overturn any prediction in seconds by looking at the passages already retrieved for them, without opening the paper and searching from scratch.
+
+The intended workflow is human-in-the-loop by design.
+
+Peerify is built to be an assistant to editorial judgement rather than a replacement for it. An area chair opens a review and sees which reviewer claims the system flagged as needing a closer look, each attached to the relevant manuscript passages, and directs attention accordingly. Authors can use the same view when preparing a rebuttal, and reviewers can use it to self-check a draft review before submitting. The value the system delivers is triage and evidence retrieval at scale, which is precisely the part of the task that does not scale for humans, while the final judgement stays where it belongs.
+
+The benchmark is deliberately demanding.
+
+Peerify ships with an evaluation suite built to remain informative as models improve. The variants span the full difficulty range, from PaperSourced, where evidence is explicit and the best verifier reaches 0.904 under RAG, through to RebuttalSourced, where claims are drawn from live author–reviewer disputes and mix factual observation with interpretation. Setting the harder end of that range beyond what current frontier models saturate is a design goal rather than a shortcoming: it gives the community headroom to measure progress on manuscript-grounded verification for several model generations, and it keeps the assistive framing above honest about which claims a human should look at first.

@@ -4,7 +4,7 @@ Atlas is a local-first personal AI librarian for large private collections of
 PDFs, EPUBs, books and papers. *Collect freely. Organize minimally. Retrieve
 intelligently.*
 
-**Status: Phase 0, Slice 0.8.** Atlas asks where to keep its library and
+**Status: Phase 0, Slice 0.9 (the last Phase 0 slice).** Atlas asks where to keep its library and
 which folders hold your books and papers, then catalogs every PDF and EPUB
 in them in the background, read-only. Cataloging slows on battery, pauses
 when the battery is low or the drive is nearly full, survives quitting and
@@ -23,10 +23,20 @@ Linux, measures cataloging performance on all three, and produces
 unsigned development installers. See [packaging](docs/packaging.md) and
 [benchmarks](docs/benchmarks.md). Plugged in, cataloging is throttled to 500
 folder entries a second (30,000 files in 80–100 s on the tested machines),
-using
-about 7% of one core on an M5 Pro and around 20 MiB of memory. Browsing
+using about 7% of one core on an M5 Pro and around 20 MiB of memory. Browsing
 stays responsive meanwhile: under 4 ms at the 95th percentile with 1,000
 files and under 130 ms with 30,000.
+
+Phase 1 will read the documents' text. A measured spike
+([results](docs/spike-0.9.md), [ADR 0008](docs/adr/0008-extraction-and-vector-engines.md))
+chose the libraries for that and for semantic search later:
+- **PDFium** for PDFs, running in a helper process;
+- **rbook** for EPUBs;
+- **usearch** for vector search.
+
+Docling was measured as a bundled alternative, and wasn't bundled: about 1 GB
+compressed, 3.8 GB of memory, and no better reading order than PDFium.
+None of this is in the app yet.
 
 | Capability | Status |
 | --- | --- |
@@ -38,13 +48,15 @@ files and under 130 ms with 30,000.
 | Browse, filename search, open and reveal originals | Working |
 | AI endpoint connection test | Working |
 | CI, installers, cross-platform smoke test, benchmarks | Working (development builds, unsigned) |
-| Extraction and vector-engine decision | Slice 0.9 |
+| Extraction and vector-engine decision | Decided ([ADR 0008](docs/adr/0008-extraction-and-vector-engines.md)); built in Phase 1 and 2 |
 
 Specifications: [product](docs/product-spec.md), [Phase 0](docs/phase0-spec.md),
 [architecture](docs/architecture.md), [ADRs](docs/adr/). Evidence:
 [platform validation](docs/platform-validation.md),
 [benchmarks](docs/benchmarks.md), [packaging](docs/packaging.md),
-[dependency licenses](docs/dependency-licenses.md).
+[extraction and vector spike](docs/spike-0.9.md),
+[dependency licenses](docs/dependency-licenses.md)
+([spike candidates](docs/spike-dependency-licenses.md)).
 
 ## Install a development build
 
@@ -103,6 +115,19 @@ just e2e              # WebDriver smoke test of the debug build (Windows/Linux; 
 just ci-status        # recent CI runs for this branch
 ```
 
+The Slice 0.9 spike has its own commands (they need [uv](https://docs.astral.sh/uv/);
+see [spikes/README.md](spikes/README.md)):
+
+```sh
+just spike-tools      # pinned PDFium, protoc and typst into spikes/.tools
+just spike-corpus     # verify the spike corpus (checksums, licenses)
+just spike-extract    # PDF/EPUB extraction comparison
+just spike-docling    # freeze the Docling sidecar (~2 GB download)
+just spike-vectors    # vector engines at 100k (pass 1000000 for 1M)
+just spike-builds     # clean build time and size per candidate
+just spike-licenses   # docs/spike-dependency-licenses.md
+```
+
 Run `just` with no arguments to list every recipe.
 
 ## Build
@@ -137,6 +162,7 @@ e2e/                  WebDriver smoke test (Windows, Linux)
 fixtures/             how to generate synthetic test libraries
 docs/                 specifications, architecture, ADRs, evidence, licenses
 scripts/              fixtures, benchmarks, bundle sizes, license report, bindings check
+spikes/               Slice 0.9 extraction and vector spike (not part of the app)
 .github/              CI workflow and shared setup action
 ```
 

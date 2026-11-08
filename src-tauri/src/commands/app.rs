@@ -7,7 +7,7 @@ use crate::error::AtlasResult;
 use crate::state::AppState;
 
 /// The Phase 0 slice this build implements.
-pub const CURRENT_SLICE: &str = "0.8";
+pub const CURRENT_SLICE: &str = "0.9";
 
 /// (id, label, delivering slice, implemented in this build)
 const FEATURES: &[(&str, &str, &str, bool)] = &[
