@@ -52,6 +52,7 @@ None of this is in the app yet.
 
 Specifications: [product](docs/product-spec.md), [Phase 0](docs/phase0-spec.md),
 [architecture](docs/architecture.md), [ADRs](docs/adr/). Evidence:
+[Phase 0 close-out review](docs/phase0-closeout.md),
 [platform validation](docs/platform-validation.md),
 [benchmarks](docs/benchmarks.md), [packaging](docs/packaging.md),
 [extraction and vector spike](docs/spike-0.9.md),

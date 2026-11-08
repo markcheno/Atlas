@@ -458,7 +458,10 @@ describe('device check', () => {
     );
     const user = await launchOpen();
     await user.click(screen.getByRole('button', { name: 'Settings' }));
-    expect(await screen.findByTestId('policy-sentence')).toHaveTextContent(sentence);
+    const line = await screen.findByTestId('policy-sentence');
+    expect(line).toHaveTextContent(sentence);
+    // Cataloging exists; the copy must not promise it for a later slice.
+    expect(line).not.toHaveTextContent(/slice|coming/i);
   });
 });
 

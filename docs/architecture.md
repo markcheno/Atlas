@@ -89,7 +89,7 @@ section 9, abstraction budget). They are defined in
 
 | Trait | Purpose | First adapter |
 | --- | --- | --- |
-| `CatalogRepository` | Source roots, file instances, later scan sessions | **0.3 (`SqliteCatalog`: source roots)**; 0.5 / 0.6 |
+| `CatalogRepository` | Source-root records (scan sessions live in `inventory::db`; browse and open queries in `library` and `source_open`, on the read-only pool) | **0.3 (`SqliteCatalog`)** |
 | `InventorySource` | Streamed, read-only directory listing | **0.5 (`LocalFsSource`)** |
 | `VolumeInspector` | Free space, filesystem type, network or cloud-synced | **0.2 (`OsVolumeInspector`)** |
 | `ResourceMonitor` | Device snapshot for the data-root volume | **0.4 (`OsResourceMonitor`, `SimulatedMonitor`)** |
@@ -182,7 +182,9 @@ Implemented in `src-tauri/src/services/sources/`; rationale in
   source tree before and after add, list and remove.
 - **Storage.** `source_roots` (migration 0002) keeps the canonical path
   (`dunce::canonicalize`, so Windows paths keep their ordinary `C:\…` form
-  rather than the verbatim `\\?\C:\…` one) as platform-tagged native bytes (`infrastructure/native_path.rs`) plus a
+  rather than the verbatim `\\?\C:\…` one where that is safe; names that
+  aren't valid Unicode stay verbatim, so path comparisons go through
+  `native_path::comparable`) as platform-tagged native bytes (`infrastructure/native_path.rs`) plus a
   lossy display string. There is no stored status column: availability is
   probed live each time the list is shown, with a 2 second budget per call
   so a hung network mount cannot freeze the UI.

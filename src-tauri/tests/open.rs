@@ -1,5 +1,6 @@
 //! Slice 0.6: opening and revealing originals (phase0-spec §9; P0-16).
 
+use std::ffi::OsString;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
@@ -44,6 +45,11 @@ struct Lib {
 impl Lib {
     /// A scanned library over `<base>/Books` containing `files`.
     fn with_files(files: &[&str]) -> Self {
+        Self::with_paths(&files.iter().map(OsString::from).collect::<Vec<_>>())
+    }
+
+    /// The same, with native file names (which needn't be valid Unicode).
+    fn with_paths(files: &[OsString]) -> Self {
         let env = Env::new();
         let h = InventoryHarness::new(fast_config());
         let mut ws = env.workspace_with_inventory(h.deps.clone());
@@ -244,4 +250,34 @@ fn legacy_icloud_placeholder_is_revealed_not_opened() {
         [lib.books.join(".Cosmos.pdf.icloud")]
     );
     assert!(lib.opened().is_empty());
+}
+
+/// A file name that isn't valid Unicode: invalid UTF-8 on Linux, an
+/// unpaired surrogate on Windows. macOS file systems refuse both.
+#[cfg(target_os = "linux")]
+fn odd_name() -> OsString {
+    use std::os::unix::ffi::OsStringExt;
+    OsString::from_vec(b"caf\xe9 book.pdf".to_vec())
+}
+
+#[cfg(windows)]
+fn odd_name() -> OsString {
+    use std::os::windows::ffi::OsStringExt;
+    let mut wide: Vec<u16> = "caf".encode_utf16().collect();
+    wide.push(0xD800);
+    wide.extend(" book.pdf".encode_utf16());
+    OsString::from_wide(&wide)
+}
+
+/// P0-24: such a file is listed with a replacement character and opened
+/// from its exact native name.
+#[cfg(any(target_os = "linux", windows))]
+#[test]
+fn p0_24_odd_names_open_from_native_bytes() {
+    let name = odd_name();
+    let lib = Lib::with_paths(std::slice::from_ref(&name));
+    let display = name.to_string_lossy().into_owned();
+    assert!(display.contains('\u{FFFD}'));
+    lib.open(&lib.id_of(&display)).unwrap();
+    assert_eq!(lib.opened(), [lib.books.join(&name)]);
 }

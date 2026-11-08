@@ -122,10 +122,7 @@
     {#if device}
       <DeviceReadings snapshot={device.snapshot} />
       <p data-testid="policy-sentence">
-        When Atlas catalogs your folders (coming in slice 0.5), it will {policySentence(
-          device.policy,
-          device.snapshot,
-        )}
+        When Atlas catalogs your folders, it will {policySentence(device.policy, device.snapshot)}
       </p>
       <p class="muted small">
         Atlas pauses bulk work when the battery reaches 20% and resumes at 25% or when plugged in.

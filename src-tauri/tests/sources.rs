@@ -323,6 +323,32 @@ fn p0_24_non_utf8_folder_names() {
     assert_eq!(lib.list()[0].status, SourceRootStatus::Available);
 }
 
+/// P0-24 on Windows: a folder name with an unpaired surrogate (valid on
+/// NTFS, not valid Unicode) is stored losslessly.
+#[cfg(windows)]
+#[test]
+fn p0_24_unpaired_surrogate_folder_names() {
+    use std::ffi::OsString;
+    use std::os::windows::ffi::OsStringExt;
+    let lib = Lib::new();
+    let mut wide: Vec<u16> = "caf".encode_utf16().collect();
+    wide.push(0xD800);
+    wide.extend("-books".encode_utf16());
+    let odd = lib.env.base.join(OsString::from_wide(&wide));
+    fs::create_dir_all(&odd).unwrap();
+    let added = lib.add(&odd).unwrap();
+    assert!(added.display_path.contains('\u{FFFD}'));
+    let root = lib.ws.require_open().unwrap();
+    let stored = SqliteCatalog::new(root.catalog())
+        .list_source_root_records()
+        .unwrap();
+    assert_eq!(
+        native_path::decode(&stored[0].path_bytes).unwrap(),
+        dunce::canonicalize(&odd).unwrap()
+    );
+    assert_eq!(lib.list()[0].status, SourceRootStatus::Available);
+}
+
 #[test]
 fn a_path_from_another_platform_is_unavailable_not_fatal() {
     let lib = Lib::new();

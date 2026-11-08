@@ -87,7 +87,9 @@ pub fn resolve(source_root: &Path, rel: &Path) -> AtlasResult<Resolved> {
     else {
         return Err(AtlasError::FileMissing);
     };
-    if !canonical.starts_with(&canonical_root) {
+    // Compare in one form: a name that isn't valid Unicode keeps Windows'
+    // verbatim prefix while its folder doesn't (native_path::comparable).
+    if !native_path::comparable(&canonical).starts_with(native_path::comparable(&canonical_root)) {
         return Err(AtlasError::FileOutsideFolder);
     }
     Ok(Resolved::File {

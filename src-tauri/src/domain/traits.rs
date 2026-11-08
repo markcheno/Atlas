@@ -14,10 +14,7 @@ use std::future::Future;
 use std::path::Path;
 use std::time::SystemTime;
 
-use super::dto::{
-    ConnectionResult, DeviceSnapshot, DocumentPage, DocumentQuery, FileInstance, FileType,
-    ProviderKind, VolumeKind,
-};
+use super::dto::{ConnectionResult, DeviceSnapshot, FileType, ProviderKind, VolumeKind};
 use crate::error::AtlasResult;
 
 /// A stored source root. `path_bytes` is the platform-tagged native path
@@ -32,10 +29,12 @@ pub struct SourceRootRecord {
     pub last_scan_at: Option<String>,
 }
 
-/// Catalog persistence (SQLite adapter: `services::catalog::repository`).
-/// Source roots arrived in Slice 0.3; scan sessions and the directory
-/// frontier are added in 0.5, and document queries are implemented in 0.6.
-/// All writes go through the one dedicated writer connection.
+/// Source-root persistence (SQLite adapter: `services::catalog::repository`).
+/// All writes go through the one dedicated writer connection. Other catalog
+/// access lives with the services that own it: scan sessions and the
+/// directory frontier in `services::inventory::db` (writer), browse queries
+/// in `services::library` and open/reveal lookups in `services::source_open`
+/// (both on the read-only pool, so they never wait behind writes).
 pub trait CatalogRepository {
     /// Ordered by display path.
     fn list_source_root_records(&self) -> AtlasResult<Vec<SourceRootRecord>>;
@@ -44,8 +43,6 @@ pub trait CatalogRepository {
     /// Removes the record only; never touches files on disk. Returns
     /// whether a record existed.
     fn delete_source_root(&self, id: &str) -> AtlasResult<bool>;
-    fn list_documents(&self, query: &DocumentQuery) -> AtlasResult<DocumentPage>;
-    fn file_instance(&self, id: &str) -> AtlasResult<Option<FileInstance>>;
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

@@ -72,6 +72,8 @@ pub fn relation(candidate: &Path, existing: &Path) -> Relation {
 /// Purely lexical comparison of canonical paths. Deterministic and
 /// independent of what is currently mounted.
 pub fn relation_by_components(candidate: &Path, existing: &Path) -> Relation {
+    let candidate = &native_path::comparable(candidate);
+    let existing = &native_path::comparable(existing);
     if candidate == existing {
         Relation::Same
     } else if candidate.starts_with(existing) {
