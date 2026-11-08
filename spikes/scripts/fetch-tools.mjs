@@ -38,7 +38,10 @@ const layout = {
     ),
     license: path.join(dir, 'LICENSE'),
   }),
-  protoc: (dir) => ({ bin: path.join(dir, 'bin', exe('protoc')), include: path.join(dir, 'include') }),
+  protoc: (dir) => ({
+    bin: path.join(dir, 'bin', exe('protoc')),
+    include: path.join(dir, 'include'),
+  }),
   typst: (dir) => {
     const inner = fs.readdirSync(dir).find((d) => d.startsWith('typst-'));
     return { bin: path.join(dir, inner ?? '', exe('typst')) };

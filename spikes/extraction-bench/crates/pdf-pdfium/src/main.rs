@@ -18,8 +18,12 @@ thread_local! {
 
 fn classify(e: PdfiumError) -> Failure {
     match e {
-        PdfiumError::PdfiumLibraryInternalError(PdfiumInternalError::PasswordError) => Failure::Encrypted(format!("{e:?}")),
-        PdfiumError::PdfiumLibraryInternalError(PdfiumInternalError::SecurityError) => Failure::Encrypted(format!("{e:?}")),
+        PdfiumError::PdfiumLibraryInternalError(PdfiumInternalError::PasswordError) => {
+            Failure::Encrypted(format!("{e:?}"))
+        }
+        PdfiumError::PdfiumLibraryInternalError(PdfiumInternalError::SecurityError) => {
+            Failure::Encrypted(format!("{e:?}"))
+        }
         other => Failure::Malformed(format!("{other:?}")),
     }
 }
@@ -31,10 +35,17 @@ fn extract(path: &Path) -> Result<Extracted, Failure> {
         for page in doc.pages().iter() {
             pages.push(page.text().map_err(classify)?.all());
         }
-        Ok(Extracted { meta: json!({ "pageCount": pages.len() }), pages })
+        Ok(Extracted {
+            meta: json!({ "pageCount": pages.len() }),
+            pages,
+        })
     })
 }
 
 fn main() {
-    xbench::main_with("pdfium", "pdfium-render 0.9.5, PDFium chromium/8125", extract);
+    xbench::main_with(
+        "pdfium",
+        "pdfium-render 0.9.5, PDFium chromium/8125",
+        extract,
+    );
 }

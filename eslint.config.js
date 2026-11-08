@@ -7,7 +7,19 @@ import svelteConfig from './svelte.config.js';
 
 export default ts.config(
   {
-    ignores: ['dist/', 'node_modules/', 'src-tauri/', 'src/lib/api/bindings/', 'coverage/'],
+    ignores: [
+      'dist/',
+      'node_modules/',
+      'src-tauri/',
+      'src/lib/api/bindings/',
+      'coverage/',
+      // Spike build outputs and downloaded tools (spikes/README.md).
+      'spikes/.tools/',
+      'spikes/**/target/',
+      'spikes/**/.venv/',
+      'spikes/**/build/',
+      'spikes/extraction-bench/corpus/',
+    ],
   },
   js.configs.recommended,
   ...ts.configs.recommended,

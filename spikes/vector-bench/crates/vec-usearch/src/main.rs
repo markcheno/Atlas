@@ -31,7 +31,10 @@ struct USearch {
 
 impl USearch {
     fn file(&self) -> String {
-        self.dir.join("index.usearch").to_string_lossy().into_owned()
+        self.dir
+            .join("index.usearch")
+            .to_string_lossy()
+            .into_owned()
     }
 
     fn index(&self) -> &Index {
@@ -40,7 +43,13 @@ impl USearch {
 
     fn save(&self) -> Result<()> {
         self.index().save(&self.file())?;
-        fs::write(self.dir.join("roots.u16"), self.roots.iter().flat_map(|r| r.to_le_bytes()).collect::<Vec<u8>>())?;
+        fs::write(
+            self.dir.join("roots.u16"),
+            self.roots
+                .iter()
+                .flat_map(|r| r.to_le_bytes())
+                .collect::<Vec<u8>>(),
+        )?;
         Ok(())
     }
 
@@ -62,7 +71,9 @@ impl USearch {
                 .map(|mine| {
                     s.spawn(move || -> std::result::Result<(), String> {
                         for &id in mine {
-                            index.add(id as u64, data.vector(id)).map_err(|e| e.to_string())?;
+                            index
+                                .add(id as u64, data.vector(id))
+                                .map_err(|e| e.to_string())?;
                         }
                         Ok(())
                     })
@@ -103,7 +114,10 @@ impl Engine for USearch {
     }
 
     fn knobs(&self) -> Vec<Knob> {
-        [16.0, 32.0, 64.0, 128.0, 256.0, 512.0].iter().map(|v| knob("ef", *v)).collect()
+        [16.0, 32.0, 64.0, 128.0, 256.0, 512.0]
+            .iter()
+            .map(|v| knob("ef", *v))
+            .collect()
     }
 
     fn set_knob(&mut self, k: &Knob) -> Result<()> {
@@ -178,7 +192,9 @@ impl Engine for USearch {
                 let answer = self.search(data.query(0), K, None)?;
                 Ok(json!({ "rows": rows, "searchReturned": answer.len(), "usable": true }))
             }
-            Err(e) => Ok(json!({ "usable": false, "error": e.to_string(), "recovery": "rebuild from the catalog" })),
+            Err(e) => Ok(
+                json!({ "usable": false, "error": e.to_string(), "recovery": "rebuild from the catalog" }),
+            ),
         }
     }
 }
@@ -200,8 +216,18 @@ fn make(dir: &Path, variant: Option<&str>) -> Result<Box<dyn Engine>> {
         expansion_search: 64,
         multi: false,
     };
-    let threads = thread::available_parallelism().map(|n| n.get()).unwrap_or(4);
-    Ok(Box::new(USearch { dir: dir.to_path_buf(), options, label, index: None, roots: Vec::new(), view_open_ms: None, threads }))
+    let threads = thread::available_parallelism()
+        .map(|n| n.get())
+        .unwrap_or(4);
+    Ok(Box::new(USearch {
+        dir: dir.to_path_buf(),
+        options,
+        label,
+        index: None,
+        roots: Vec::new(),
+        view_open_ms: None,
+        threads,
+    }))
 }
 
 fn main() {

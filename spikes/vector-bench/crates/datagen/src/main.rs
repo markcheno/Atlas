@@ -48,13 +48,29 @@ fn rng_for(seed: u64, stream: u64, chunk: u64) -> ChaCha8Rng {
 
 /// `count` points around `centres`, generated in parallel chunks, each with
 /// its own seeded RNG so the output doesn't depend on the thread count.
-fn points(centres: &[f32], dim: usize, count: usize, seed: u64, stream: u64) -> (Vec<f32>, Vec<u16>) {
+fn points(
+    centres: &[f32],
+    dim: usize,
+    count: usize,
+    seed: u64,
+    stream: u64,
+) -> (Vec<f32>, Vec<u16>) {
     let n_centres = centres.len() / dim;
     let mut out = vec![0f32; count * dim];
     let mut roots = vec![0u16; count];
-    let cumulative: Vec<f64> = ROOT_WEIGHTS.iter().scan(0.0, |s, w| { *s += w; Some(*s) }).collect();
+    let cumulative: Vec<f64> = ROOT_WEIGHTS
+        .iter()
+        .scan(0.0, |s, w| {
+            *s += w;
+            Some(*s)
+        })
+        .collect();
     thread::scope(|s| {
-        for (c, (vs, rs)) in out.chunks_mut(CHUNK * dim).zip(roots.chunks_mut(CHUNK)).enumerate() {
+        for (c, (vs, rs)) in out
+            .chunks_mut(CHUNK * dim)
+            .zip(roots.chunks_mut(CHUNK))
+            .enumerate()
+        {
             let cumulative = &cumulative;
             s.spawn(move || {
                 let mut rng = rng_for(seed, stream, c as u64);
@@ -67,7 +83,10 @@ fn points(centres: &[f32], dim: usize, count: usize, seed: u64, stream: u64) -> 
                     }
                     normalize(v);
                     let u = uniform(&mut rng);
-                    *r = cumulative.iter().position(|c| u < *c).unwrap_or(ROOT_WEIGHTS.len() - 1) as u16;
+                    *r = cumulative
+                        .iter()
+                        .position(|c| u < *c)
+                        .unwrap_or(ROOT_WEIGHTS.len() - 1) as u16;
                 }
             });
         }
@@ -105,7 +124,9 @@ fn ground_truth(base: &[f32], roots: &[u16], queries: &[f32], dim: usize) -> Vec
     let lists = 1 + FILTER_ROOTS.len();
     let mut result = vec![vec![Top::new(); nq]; lists];
     let blocks: Vec<usize> = (0..nq).step_by(BLOCK).collect();
-    let threads = thread::available_parallelism().map(|n| n.get()).unwrap_or(4);
+    let threads = thread::available_parallelism()
+        .map(|n| n.get())
+        .unwrap_or(4);
     let per = blocks.len().div_ceil(threads);
     let partial: Vec<Vec<(usize, Vec<Top>)>> = thread::scope(|s| {
         let handles: Vec<_> = blocks
@@ -118,7 +139,10 @@ fn ground_truth(base: &[f32], roots: &[u16], queries: &[f32], dim: usize) -> Vec
                         let mut tops = vec![Top::new(); (end - start) * lists];
                         for (id, v) in base.chunks_exact(dim).enumerate() {
                             let root = roots[id];
-                            for (qi, q) in queries[start * dim..end * dim].chunks_exact(dim).enumerate() {
+                            for (qi, q) in queries[start * dim..end * dim]
+                                .chunks_exact(dim)
+                                .enumerate()
+                            {
                                 let score: f32 = q.iter().zip(v).map(|(a, b)| a * b).sum();
                                 tops[qi * lists].push(score, id as u32);
                                 if let Some(f) = FILTER_ROOTS.iter().position(|r| *r == root) {
@@ -132,7 +156,10 @@ fn ground_truth(base: &[f32], roots: &[u16], queries: &[f32], dim: usize) -> Vec
                 })
             })
             .collect();
-        handles.into_iter().map(|h| h.join().expect("ground truth thread")).collect()
+        handles
+            .into_iter()
+            .map(|h| h.join().expect("ground truth thread"))
+            .collect()
     });
     for (start, tops) in partial.into_iter().flatten() {
         for (offset, chunk) in tops.chunks(lists).enumerate() {
@@ -170,24 +197,43 @@ fn run() -> Result<()> {
     }
     let (base, roots) = points(&centres, dim, n, seed, 1);
     let (queries, _) = points(&centres, dim, nq, seed, 2);
-    eprintln!("datagen: {n} × {dim} generated in {:.1} s", t.elapsed().as_secs_f64());
+    eprintln!(
+        "datagen: {n} × {dim} generated in {:.1} s",
+        t.elapsed().as_secs_f64()
+    );
 
     let t = Instant::now();
     write_fvecs(&out.join("base.fvecs"), dim, &base)?;
     write_fvecs(&out.join("queries.fvecs"), dim, &queries)?;
-    fs::write(out.join("roots.u16"), roots.iter().flat_map(|r| r.to_le_bytes()).collect::<Vec<u8>>())?;
+    fs::write(
+        out.join("roots.u16"),
+        roots
+            .iter()
+            .flat_map(|r| r.to_le_bytes())
+            .collect::<Vec<u8>>(),
+    )?;
     eprintln!("datagen: written in {:.1} s", t.elapsed().as_secs_f64());
 
     let t = Instant::now();
     let gt = ground_truth(&base, &roots, &queries, dim);
-    write_ivecs(&out.join("gt.ivecs"), &gt[0].iter().map(Top::ids).collect::<Vec<_>>())?;
+    write_ivecs(
+        &out.join("gt.ivecs"),
+        &gt[0].iter().map(Top::ids).collect::<Vec<_>>(),
+    )?;
     let mut filters = Vec::new();
     for (i, root) in FILTER_ROOTS.iter().enumerate() {
-        write_ivecs(&out.join(format!("gt-root{root}.ivecs")), &gt[1 + i].iter().map(Top::ids).collect::<Vec<_>>())?;
+        write_ivecs(
+            &out.join(format!("gt-root{root}.ivecs")),
+            &gt[1 + i].iter().map(Top::ids).collect::<Vec<_>>(),
+        )?;
         let count = roots.iter().filter(|r| *r == root).count();
-        filters.push(json!({ "root": root, "count": count, "selectivity": count as f64 / n as f64 }));
+        filters
+            .push(json!({ "root": root, "count": count, "selectivity": count as f64 / n as f64 }));
     }
-    eprintln!("datagen: exact top-{K} for {nq} queries in {:.1} s", t.elapsed().as_secs_f64());
+    eprintln!(
+        "datagen: exact top-{K} for {nq} queries in {:.1} s",
+        t.elapsed().as_secs_f64()
+    );
 
     let meta = json!({
         "n": n, "dim": dim, "queries": nq, "seed": seed, "centres": n_centres, "sigma": SIGMA,

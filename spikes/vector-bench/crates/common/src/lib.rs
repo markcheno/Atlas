@@ -51,7 +51,10 @@ pub fn read_fvecs(path: &Path) -> Result<(usize, Vec<f32>)> {
             r.read_exact(&mut head)?;
         }
         r.read_exact(&mut row)?;
-        out.extend(row.chunks_exact(4).map(|b| f32::from_le_bytes([b[0], b[1], b[2], b[3]])));
+        out.extend(
+            row.chunks_exact(4)
+                .map(|b| f32::from_le_bytes([b[0], b[1], b[2], b[3]])),
+        );
     }
     Ok((dim, out))
 }
@@ -113,9 +116,22 @@ impl Data {
         for f in meta["filters"].as_array().ok_or("meta.json: no filters")? {
             let root = f["root"].as_u64().ok_or("filter root")? as u16;
             let sel = f["selectivity"].as_f64().ok_or("filter selectivity")?;
-            filters.push((root, sel, read_ivecs(&dir.join(format!("gt-root{root}.ivecs")))?));
+            filters.push((
+                root,
+                sel,
+                read_ivecs(&dir.join(format!("gt-root{root}.ivecs")))?,
+            ));
         }
-        Ok(Data { dir: dir.to_path_buf(), dim, base, queries, roots, gt, filters, meta })
+        Ok(Data {
+            dir: dir.to_path_buf(),
+            dim,
+            base,
+            queries,
+            roots,
+            gt,
+            filters,
+            meta,
+        })
     }
 
     pub fn n(&self) -> usize {
@@ -142,7 +158,10 @@ pub fn recall(found: &[u64], truth: &[u32]) -> f64 {
     if want == 0 {
         return 1.0;
     }
-    let hit = truth[..want].iter().filter(|t| found.contains(&(**t as u64))).count();
+    let hit = truth[..want]
+        .iter()
+        .filter(|t| found.contains(&(**t as u64)))
+        .count();
     hit as f64 / want as f64
 }
 
@@ -169,11 +188,17 @@ pub fn peak_rss_bytes() -> u64 {
         let mut u: libc::rusage = std::mem::zeroed();
         libc::getrusage(libc::RUSAGE_SELF, &mut u);
         // ru_maxrss is bytes on macOS and KiB on Linux.
-        if cfg!(target_os = "macos") { u.ru_maxrss as u64 } else { u.ru_maxrss as u64 * 1024 }
+        if cfg!(target_os = "macos") {
+            u.ru_maxrss as u64
+        } else {
+            u.ru_maxrss as u64 * 1024
+        }
     }
     #[cfg(windows)]
     unsafe {
-        use windows_sys::Win32::System::ProcessStatus::{GetProcessMemoryInfo, PROCESS_MEMORY_COUNTERS};
+        use windows_sys::Win32::System::ProcessStatus::{
+            GetProcessMemoryInfo, PROCESS_MEMORY_COUNTERS,
+        };
         use windows_sys::Win32::System::Threading::GetCurrentProcess;
         let mut c: PROCESS_MEMORY_COUNTERS = std::mem::zeroed();
         c.cb = std::mem::size_of::<PROCESS_MEMORY_COUNTERS>() as u32;
@@ -183,7 +208,9 @@ pub fn peak_rss_bytes() -> u64 {
 }
 
 pub fn dir_bytes(path: &Path) -> u64 {
-    let Ok(meta) = fs::symlink_metadata(path) else { return 0 };
+    let Ok(meta) = fs::symlink_metadata(path) else {
+        return 0;
+    };
     if meta.is_file() {
         return meta.len();
     }
@@ -202,10 +229,16 @@ impl Args {
     }
     pub fn get(&self, name: &str) -> Option<&str> {
         let flag = format!("--{name}");
-        self.0.iter().position(|a| *a == flag).and_then(|i| self.0.get(i + 1)).map(|s| s.as_str())
+        self.0
+            .iter()
+            .position(|a| *a == flag)
+            .and_then(|i| self.0.get(i + 1))
+            .map(|s| s.as_str())
     }
     pub fn path(&self, name: &str) -> Result<PathBuf> {
-        Ok(PathBuf::from(self.get(name).ok_or_else(|| format!("missing --{name}"))?))
+        Ok(PathBuf::from(
+            self.get(name).ok_or_else(|| format!("missing --{name}"))?,
+        ))
     }
     pub fn num(&self, name: &str, default: usize) -> Result<usize> {
         match self.get(name) {
@@ -228,7 +261,10 @@ pub struct Knob {
 }
 
 pub fn knob(label: &str, value: f64) -> Knob {
-    Knob { label: label.into(), value }
+    Knob {
+        label: label.into(),
+        value,
+    }
 }
 
 pub trait Engine {
@@ -266,7 +302,11 @@ pub fn run(engine: &mut dyn Engine, data: &Data, queries: usize) -> Result<Value
     engine.build(data)?;
     let build = t.elapsed();
     let disk = engine.disk_bytes();
-    eprintln!("vbench: built in {:.1} s, {:.1} MiB on disk", build.as_secs_f64(), disk as f64 / 1048576.0);
+    eprintln!(
+        "vbench: built in {:.1} s, {:.1} MiB on disk",
+        build.as_secs_f64(),
+        disk as f64 / 1048576.0
+    );
 
     let t = Instant::now();
     engine.reopen()?;
@@ -280,7 +320,11 @@ pub fn run(engine: &mut dyn Engine, data: &Data, queries: usize) -> Result<Value
     let first_query = t.elapsed();
 
     // Recall/latency sweep, single thread, unfiltered.
-    let settings = if knobs.is_empty() { vec![knob("exact", 0.0)] } else { knobs.clone() };
+    let settings = if knobs.is_empty() {
+        vec![knob("exact", 0.0)]
+    } else {
+        knobs.clone()
+    };
     let mut sweep = Vec::new();
     for s in &settings {
         if !knobs.is_empty() {
@@ -299,7 +343,10 @@ pub fn run(engine: &mut dyn Engine, data: &Data, queries: usize) -> Result<Value
             rec += recall(&found, &data.gt[i]);
         }
         let point = json!({ "knob": s.label, "value": s.value, "recall": rec / nq as f64, "latency": latency(times) });
-        eprintln!("vbench: {} {} recall {:.4} p95 {} ms", s.label, s.value, point["recall"], point["latency"]["p95Ms"]);
+        eprintln!(
+            "vbench: {} {} recall {:.4} p95 {} ms",
+            s.label, s.value, point["recall"], point["latency"]["p95Ms"]
+        );
         sweep.push(point);
     }
 
@@ -322,7 +369,10 @@ pub fn run(engine: &mut dyn Engine, data: &Data, queries: usize) -> Result<Value
             let found = engine.search(data.query(i), K, Some(*root))?;
             times.push(t.elapsed());
             rec += recall(&found, &gt[i]);
-            wrong_root += found.iter().filter(|id| data.roots[**id as usize] != *root).count();
+            wrong_root += found
+                .iter()
+                .filter(|id| data.roots[**id as usize] != *root)
+                .count();
         }
         filtered.push(json!({
             "root": root, "selectivity": sel, "knob": settings[chosen].label, "value": settings[chosen].value,
@@ -337,7 +387,11 @@ pub fn run(engine: &mut dyn Engine, data: &Data, queries: usize) -> Result<Value
     let delete = t.elapsed();
     let mut resurrected = 0;
     for i in 0..nq.min(200) {
-        resurrected += engine.search(data.query(i), K, None)?.iter().filter(|id| *id % 100 == 0).count();
+        resurrected += engine
+            .search(data.query(i), K, None)?
+            .iter()
+            .filter(|id| *id % 100 == 0)
+            .count();
     }
     let disk_after_delete = engine.disk_bytes();
     let t = Instant::now();
@@ -377,7 +431,10 @@ pub fn app_libraries() -> Value {
     let sqlite = rusqlite::Connection::open_in_memory()
         .and_then(|c| c.query_row("select sqlite_version()", [], |r| r.get::<_, String>(0)))
         .unwrap_or_default();
-    let tokio = tokio::runtime::Builder::new_multi_thread().worker_threads(1).build().is_ok();
+    let tokio = tokio::runtime::Builder::new_multi_thread()
+        .worker_threads(1)
+        .build()
+        .is_ok();
     json!({ "sqlite": sqlite, "tokio": tokio })
 }
 
@@ -400,7 +457,12 @@ fn main_inner(make: impl Fn(&Path, Option<&str>) -> Result<Box<dyn Engine>>) -> 
     let variant = args.get("variant");
     let t = Instant::now();
     let data = Data::load(&data_dir)?;
-    eprintln!("vbench: loaded {} × {} in {:.1} s", data.n(), data.dim, t.elapsed().as_secs_f64());
+    eprintln!(
+        "vbench: loaded {} × {} in {:.1} s",
+        data.n(),
+        data.dim,
+        t.elapsed().as_secs_f64()
+    );
     match args.mode() {
         "bench" => {
             if index.exists() {

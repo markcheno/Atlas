@@ -354,6 +354,35 @@ platform-required and contain no Atlas data.
   cataloging rather than itself. Method and results:
   [benchmarks](benchmarks.md).
 
+## Spikes (Slice 0.9)
+
+[`spikes/`](../spikes/README.md) holds experiments that inform decisions
+and are not part of the app: `src-tauri` depends on nothing there, and
+`ci.yml` doesn't build it. The phase0 spec's layout names
+`spikes/extraction-bench/`; the vector comparison sits beside it in
+`spikes/vector-bench/`. Both are separate Cargo workspaces with their own
+lockfiles, so each candidate's build time and binary size can be measured
+alone.
+
+- **Extraction** candidates are small binaries (or, for Docling, a frozen
+  Python program) that share one contract: file paths in, one JSON line per
+  file out. A driver runs every document in its own process (to record
+  crashes and hangs) and then all of them in one process (throughput), and
+  a scorer compares the text with the corpus truth.
+- **Vector** engines implement one `Engine` trait (build, reopen, search,
+  filtered search, delete, crash-insert, crash-verify) and run the same
+  scenario on the same synthetic data with exact ground truth.
+- **CI**: `.github/workflows/spikes.yml` runs the drivers on all three OSes
+  when dispatched by hand. It uses the shared setup action with
+  `app: 'false'` (no WebKitGTK or npm packages) and `rust-cache: 'false'`
+  (cold builds are part of what's measured).
+- **Tools** (PDFium, protoc, typst) are pinned in `spikes/tools.lock.json`
+  and downloaded with their SHA-256 checked into `spikes/.tools/`; nothing
+  is installed system-wide.
+
+The decision is [ADR 0008](adr/0008-extraction-and-vector-engines.md);
+the measurements are in [the spike results](spike-0.9.md).
+
 ## Reproducibility
 
 - `rust-toolchain.toml` pins Rust 1.95.0. `Cargo.lock` is committed and CI

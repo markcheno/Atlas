@@ -15,7 +15,10 @@ fn extract(path: &Path) -> Result<Extracted, Failure> {
             Failure::Malformed(msg)
         }
     })?;
-    Ok(Extracted { meta: json!({ "pageCount": pages.len() }), pages })
+    Ok(Extracted {
+        meta: json!({ "pageCount": pages.len() }),
+        pages,
+    })
 }
 
 fn main() {

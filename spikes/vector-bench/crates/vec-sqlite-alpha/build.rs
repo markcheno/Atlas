@@ -8,7 +8,10 @@ fn main() {
     let arch = std::env::var("CARGO_CFG_TARGET_ARCH").unwrap_or_default();
     let env = std::env::var("CARGO_CFG_TARGET_ENV").unwrap_or_default();
     let mut b = cc::Build::new();
-    b.file("csrc/sqlite-vec.c").include("csrc").include(include).define("SQLITE_CORE", None);
+    b.file("csrc/sqlite-vec.c")
+        .include("csrc")
+        .include(include)
+        .define("SQLITE_CORE", None);
     let simd = match (arch.as_str(), env.as_str()) {
         ("aarch64", e) if e != "msvc" => {
             b.define("SQLITE_VEC_ENABLE_NEON", None);

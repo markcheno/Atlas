@@ -21,8 +21,17 @@ impl Flat {
     fn save(&self) -> Result<()> {
         let bytes: Vec<u8> = self.vectors.iter().flat_map(|x| x.to_le_bytes()).collect();
         fs::write(self.dir.join("vectors.f32"), bytes)?;
-        fs::write(self.dir.join("roots.u16"), self.roots.iter().flat_map(|r| r.to_le_bytes()).collect::<Vec<u8>>())?;
-        fs::write(self.dir.join("deleted.bin"), self.deleted.iter().map(|d| *d as u8).collect::<Vec<u8>>())?;
+        fs::write(
+            self.dir.join("roots.u16"),
+            self.roots
+                .iter()
+                .flat_map(|r| r.to_le_bytes())
+                .collect::<Vec<u8>>(),
+        )?;
+        fs::write(
+            self.dir.join("deleted.bin"),
+            self.deleted.iter().map(|d| *d as u8).collect::<Vec<u8>>(),
+        )?;
         Ok(())
     }
 }
@@ -45,7 +54,10 @@ impl Engine for Flat {
             .chunks_exact(2)
             .map(|b| u16::from_le_bytes([b[0], b[1]]))
             .collect();
-        self.deleted = fs::read(self.dir.join("deleted.bin"))?.into_iter().map(|b| b != 0).collect();
+        self.deleted = fs::read(self.dir.join("deleted.bin"))?
+            .into_iter()
+            .map(|b| b != 0)
+            .collect();
         Ok(())
     }
 
@@ -108,7 +120,13 @@ impl Engine for Flat {
 }
 
 fn make(dir: &Path, _variant: Option<&str>) -> Result<Box<dyn Engine>> {
-    Ok(Box::new(Flat { dir: dir.to_path_buf(), dim: 0, vectors: Vec::new(), roots: Vec::new(), deleted: Vec::new() }))
+    Ok(Box::new(Flat {
+        dir: dir.to_path_buf(),
+        dim: 0,
+        vectors: Vec::new(),
+        roots: Vec::new(),
+        deleted: Vec::new(),
+    }))
 }
 
 fn main() {

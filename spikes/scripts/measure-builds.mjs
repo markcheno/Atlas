@@ -24,7 +24,8 @@ const opt = (name, fallback) => {
 const out = path.resolve(opt('out', path.join(os.tmpdir(), 'atlas-spikes')));
 const only = opt('only', null)?.split(',');
 // Short paths on Windows (LanceDB's build tree is deep).
-const scratch = process.platform === 'win32' ? 'C:\\b' : path.join(os.tmpdir(), 'atlas-spike-builds');
+const scratch =
+  process.platform === 'win32' ? 'C:\\b' : path.join(os.tmpdir(), 'atlas-spike-builds');
 
 const TARGETS = [
   { workspace: 'extraction-bench', pkg: 'baseline', bin: 'baseline', role: 'baseline' },
@@ -51,19 +52,33 @@ function strip(file) {
   if (process.platform === 'win32') return fs.statSync(file).size; // debug info lives in the .pdb
   const copy = `${file}.stripped`;
   fs.copyFileSync(file, copy);
-  const r = spawnSync('strip', process.platform === 'darwin' ? ['-x', copy] : ['--strip-all', copy]);
+  const r = spawnSync(
+    'strip',
+    process.platform === 'darwin' ? ['-x', copy] : ['--strip-all', copy],
+  );
   const size = r.status === 0 ? fs.statSync(copy).size : null;
   fs.rmSync(copy);
   return size;
 }
 
 function depCount(workspace, pkg) {
-  const r = spawnSync('cargo', ['tree', '--locked', '-e', 'normal,build', '-p', pkg, '--prefix', 'none', '--no-dedupe'], {
-    cwd: path.join(spikes, workspace),
-    encoding: 'utf8',
-    maxBuffer: 64 << 20,
-  });
-  return r.status === 0 ? new Set(r.stdout.split('\n').filter(Boolean).map((l) => l.split(' (')[0].trim())).size : null;
+  const r = spawnSync(
+    'cargo',
+    ['tree', '--locked', '-e', 'normal,build', '-p', pkg, '--prefix', 'none', '--no-dedupe'],
+    {
+      cwd: path.join(spikes, workspace),
+      encoding: 'utf8',
+      maxBuffer: 64 << 20,
+    },
+  );
+  return r.status === 0
+    ? new Set(
+        r.stdout
+          .split('\n')
+          .filter(Boolean)
+          .map((l) => l.split(' (')[0].trim()),
+      ).size
+    : null;
 }
 
 fs.mkdirSync(out, { recursive: true });
@@ -76,13 +91,17 @@ for (const t of TARGETS) {
   fs.rmSync(target, { recursive: true, force: true });
   console.log(`builds: ${t.workspace}/${t.pkg}…`);
   const started = Date.now();
-  const r = spawnSync('cargo', ['build', '--release', '--locked', '--offline', '-p', t.pkg, '--bin', t.bin], {
-    cwd,
-    env: { ...env, CARGO_TARGET_DIR: target },
-    stdio: ['ignore', 'ignore', 'pipe'],
-    encoding: 'utf8',
-    maxBuffer: 64 << 20,
-  });
+  const r = spawnSync(
+    'cargo',
+    ['build', '--release', '--locked', '--offline', '-p', t.pkg, '--bin', t.bin],
+    {
+      cwd,
+      env: { ...env, CARGO_TARGET_DIR: target },
+      stdio: ['ignore', 'ignore', 'pipe'],
+      encoding: 'utf8',
+      maxBuffer: 64 << 20,
+    },
+  );
   const seconds = (Date.now() - started) / 1000;
   const exe = path.join(target, 'release', process.platform === 'win32' ? `${t.bin}.exe` : t.bin);
   const ok = r.status === 0 && fs.existsSync(exe);
@@ -95,24 +114,48 @@ for (const t of TARGETS) {
     crates: depCount(t.workspace, t.pkg),
     error: ok ? undefined : r.stderr.trim().split('\n').slice(-5).join('\n'),
   };
-  console.log(`  ${ok ? 'ok' : 'FAILED'} in ${seconds.toFixed(0)} s${ok ? `, ${(row.binaryBytes / 2 ** 20).toFixed(1)} MiB` : ''}`);
+  console.log(
+    `  ${ok ? 'ok' : 'FAILED'} in ${seconds.toFixed(0)} s${ok ? `, ${(row.binaryBytes / 2 ** 20).toFixed(1)} MiB` : ''}`,
+  );
   results.push(row);
   fs.rmSync(target, { recursive: true, force: true });
 }
 
-const machine = { os: `${os.type()} ${os.release()}`, platform: process.platform, arch: process.arch, cpu: os.cpus()[0]?.model, cores: os.cpus().length, ci: Boolean(process.env.CI) };
-const lines = [`## Build cost: ${machine.os} ${machine.arch}`, '', `${machine.cpu} · ${machine.cores} logical cores · clean release build, one binary per fresh target directory, after cargo fetch`, ''];
-lines.push('| Workspace | Binary | Clean build s | Δ vs baseline s | Binary MiB | Stripped MiB | Δ stripped MiB | Crates |');
+const machine = {
+  os: `${os.type()} ${os.release()}`,
+  platform: process.platform,
+  arch: process.arch,
+  cpu: os.cpus()[0]?.model,
+  cores: os.cpus().length,
+  ci: Boolean(process.env.CI),
+};
+const lines = [
+  `## Build cost: ${machine.os} ${machine.arch}`,
+  '',
+  `${machine.cpu} · ${machine.cores} logical cores · clean release build, one binary per fresh target directory, after cargo fetch`,
+  '',
+];
+lines.push(
+  '| Workspace | Binary | Clean build s | Δ vs baseline s | Binary MiB | Stripped MiB | Δ stripped MiB | Crates |',
+);
 lines.push('| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: |');
 const mib = (b) => (b === null || b === undefined ? '–' : (b / 2 ** 20).toFixed(1));
 for (const r of results) {
   const base = results.find((x) => x.workspace === r.workspace && x.role === 'baseline');
   const dt = r.role === 'baseline' || !base ? '–' : (r.seconds - base.seconds).toFixed(0);
-  const ds = r.role === 'baseline' || !base?.strippedBytes || !r.strippedBytes ? '–' : mib(r.strippedBytes - base.strippedBytes);
-  lines.push(`| ${r.workspace} | ${r.bin} | ${r.ok ? r.seconds.toFixed(0) : 'failed'} | ${dt} | ${mib(r.binaryBytes)} | ${mib(r.strippedBytes)} | ${ds} | ${r.crates ?? '–'} |`);
+  const ds =
+    r.role === 'baseline' || !base?.strippedBytes || !r.strippedBytes
+      ? '–'
+      : mib(r.strippedBytes - base.strippedBytes);
+  lines.push(
+    `| ${r.workspace} | ${r.bin} | ${r.ok ? r.seconds.toFixed(0) : 'failed'} | ${dt} | ${mib(r.binaryBytes)} | ${mib(r.strippedBytes)} | ${ds} | ${r.crates ?? '–'} |`,
+  );
 }
 const md = lines.join('\n') + '\n';
-fs.writeFileSync(path.join(out, `builds-${process.platform}.json`), JSON.stringify({ machine, results }, null, 2));
+fs.writeFileSync(
+  path.join(out, `builds-${process.platform}.json`),
+  JSON.stringify({ machine, results }, null, 2),
+);
 fs.writeFileSync(path.join(out, `builds-${process.platform}.md`), md);
 if (process.env.GITHUB_STEP_SUMMARY) fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, md + '\n');
 console.log(md);

@@ -15,6 +15,13 @@ smoke test (`just e2e`) generate their own copies in a temporary folder.
 The 30k set is a permanent benchmark asset (phase0-spec §11): later phases
 add synthetic body text and chunk counts without changing its layout.
 
+The one exception to "never commit real books or papers" is the Slice 0.9
+**spike corpus** in [`spikes/extraction-bench/corpus/`](../spikes/extraction-bench/corpus/):
+a few MiB of public-domain and CC BY 4.0 documents (Project Gutenberg,
+arXiv, the Federal Register, an 1894 scan) plus generated PDFs, each listed
+with its source, license and SHA-256 in `manifest.json`. It measures text
+extraction; `just spike-corpus` verifies it. See [spikes/README.md](../spikes/README.md).
+
 The output folder must be empty or new, outside this repository, and not
 inside an Atlas data root; the generator refuses otherwise. It prints a JSON
 summary including `catalogableFiles`, the number of PDF/EPUB files Atlas

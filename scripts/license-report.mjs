@@ -2,13 +2,16 @@
 // Generates docs/dependency-licenses.md from `cargo metadata` and
 // `pnpm licenses list`. Run with `pnpm license-report`; commit the result.
 //
+// With --spikes it instead writes docs/spike-dependency-licenses.md for the
+// Slice 0.9 spike workspaces (spikes/), which are not part of the app.
+//
 // Cargo metadata is not filtered by platform, so crates used only on
 // Windows or Linux are included. A dependency is flagged when it cannot be
 // used under a permissive license: every OR-alternative contains a copyleft
 // or unknown term. "A OR B" where one side is permissive is not flagged.
 
 import { execFileSync } from 'node:child_process';
-import { writeFileSync } from 'node:fs';
+import { existsSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -25,6 +28,11 @@ function flag(license) {
   const alternatives = normalized.split(/\s+OR\s+/i);
   const permissive = alternatives.some((alt) => !COPYLEFT.test(alt));
   return permissive ? null : 'copyleft in every alternative';
+}
+
+if (process.argv.includes('--spikes')) {
+  spikeReport();
+  process.exit(0);
 }
 
 // ---- Rust crates
@@ -60,19 +68,21 @@ const prodNames = new Set(npmProd.map((p) => p.name));
 const npmDev = npm(false).filter((p) => !prodNames.has(p.name));
 
 // ---- render
-const counts = (rows) => {
+function counts(rows) {
   const c = new Map();
   for (const r of rows) c.set(r.license, (c.get(r.license) ?? 0) + 1);
   return [...c.entries()].sort((a, b) => b[1] - a[1]);
-};
-const table = (rows) =>
-  ['| Package | Version | License |', '| --- | --- | --- |']
+}
+function table(rows) {
+  return ['| Package | Version | License |', '| --- | --- | --- |']
     .concat(rows.map((r) => `| ${r.name} | ${r.version} | ${r.license} |`))
     .join('\n');
-const summary = (rows) =>
-  ['| License expression | Count |', '| --- | --- |']
+}
+function summary(rows) {
+  return ['| License expression | Count |', '| --- | --- |']
     .concat(counts(rows).map(([l, n]) => `| ${l} | ${n} |`))
     .join('\n');
+}
 const flagged = [
   ...crates.map((r) => ({ ...r, scope: 'Rust crate (runtime, build-time, or other-platform)' })),
   ...npmProd.map((r) => ({ ...r, scope: 'npm (shipped in UI bundle)' })),
@@ -110,7 +120,10 @@ ${
 
 Not covered: system libraries the OS provides at runtime (WebKit on macOS,
 WebView2 on Windows, WebKitGTK and GTK on Linux). They are not bundled.
-Bundled native binaries (for example PDFium) will be added in Slice 0.9.
+The libraries and models the Slice 0.9 spike measured (PDFium, Docling and
+its models, vector engines) are in
+[spike-dependency-licenses.md](spike-dependency-licenses.md); one joins
+this report only when the app adopts it (ADR 0008).
 
 ## Summary
 
@@ -145,3 +158,192 @@ writeFileSync(join(root, 'docs', 'dependency-licenses.md'), md);
 console.log(
   `Wrote docs/dependency-licenses.md: ${crates.length} crates, ${npmProd.length} runtime npm, ${npmDev.length} dev npm, ${flagged.length} flagged.`,
 );
+
+// ---- Slice 0.9 spikes
+
+// Native libraries, tools and models a candidate would ship or need, which
+// Cargo and Python metadata don't describe. Kept by hand.
+function nativeComponents() {
+  return [
+    [
+      'PDFium (bblanchon/pdfium-binaries chromium/8125)',
+      'shipped with the app if pdfium is adopted',
+      "BSD-3-Clause (PDFium); bundled third-party code under FreeType (FTL), libjpeg-turbo (IJG/BSD), OpenJPEG (BSD-2), Little CMS (MIT), zlib, Abseil (Apache-2.0) and others; full list in the archive's licenses/ folder",
+    ],
+    [
+      'Docling layout model (docling-project/docling-layout-heron)',
+      'bundled in the Docling sidecar',
+      'Apache-2.0',
+    ],
+    [
+      'Docling TableFormer models (docling-project/docling-models)',
+      'bundled in the Docling sidecar',
+      'CDLA-Permissive-2.0',
+    ],
+    [
+      'PyInstaller bootloader',
+      'part of the frozen Docling sidecar',
+      'GPL-2.0-or-later with the bootloader exception (frozen apps may be distributed under any license)',
+    ],
+    ['CPython 3.12 runtime', 'part of the frozen Docling sidecar', 'PSF-2.0'],
+    ['protoc 36.2', 'build tool for LanceDB only (not shipped)', 'BSD-3-Clause'],
+    ['typst 0.15.1', 'corpus generator only (not shipped)', 'Apache-2.0'],
+    [
+      'sqlite-vec C sources (vendored in spikes/vector-bench)',
+      'compiled into the binary',
+      'MIT OR Apache-2.0',
+    ],
+  ];
+}
+
+function spikeReport() {
+  const sections = [];
+  const allFlagged = [];
+  for (const ws of ['extraction-bench', 'vector-bench']) {
+    const meta = JSON.parse(
+      run('cargo', [
+        'metadata',
+        '--format-version',
+        '1',
+        '--locked',
+        '--manifest-path',
+        `spikes/${ws}/Cargo.toml`,
+      ]),
+    );
+    const byId = new Map(meta.packages.map((p) => [p.id, p]));
+    const nodes = new Map(meta.resolve.nodes.map((n) => [n.id, n]));
+    const members = meta.workspace_members.map((id) => byId.get(id));
+    const memberIds = new Set(meta.workspace_members);
+    const rows = [];
+    for (const m of members.filter((p) => p.targets.some((t) => t.kind.includes('bin')))) {
+      // Every crate reachable from this binary (normal and build deps, all platforms).
+      const seen = new Set();
+      const stack = [m.id];
+      while (stack.length) {
+        const id = stack.pop();
+        for (const d of nodes.get(id)?.deps ?? []) {
+          if (d.dep_kinds.some((k) => k.kind !== 'dev') && !seen.has(d.pkg)) {
+            seen.add(d.pkg);
+            stack.push(d.pkg);
+          }
+        }
+      }
+      const deps = [...seen].filter((id) => !memberIds.has(id)).map((id) => byId.get(id));
+      const flagged = deps
+        .map((p) => ({
+          name: p.name,
+          version: p.version,
+          license: p.license ?? 'UNKNOWN',
+          reason: flag(p.license),
+        }))
+        .filter((r) => r.reason);
+      allFlagged.push(...flagged.map((f) => ({ ...f, scope: `${ws}/${m.name}` })));
+      rows.push(
+        `| ${m.name} | ${deps.length} | ${flagged.length ? flagged.map((f) => `${f.name} ${f.version} (${f.license})`).join('; ') : 'none'} |`,
+      );
+    }
+    const crates = meta.packages
+      .filter((p) => !memberIds.has(p.id))
+      .map((p) => ({ name: p.name, version: p.version, license: p.license ?? 'UNKNOWN' }))
+      .sort((a, b) => a.name.localeCompare(b.name) || a.version.localeCompare(b.version));
+    sections.push(`## spikes/${ws}
+
+| Binary | Crates it pulls in | Flagged |
+| --- | ---: | --- |
+${rows.join('\n')}
+
+${summary(crates)}
+`);
+  }
+
+  // Python packages of the Docling sidecar, if its environment exists.
+  let python =
+    'The Docling environment was not present when this report was generated (`just spike-docling` creates it).';
+  const venvPython = join(
+    root,
+    'spikes/extraction-bench/sidecar/docling/.venv',
+    process.platform === 'win32' ? 'Scripts/python.exe' : 'bin/python',
+  );
+  if (existsSync(venvPython)) {
+    // License-Expression (PEP 639), else a short License field, else the
+    // classifiers; read with the environment's own Python.
+    const probe = [
+      'import json, importlib.metadata as md',
+      'out = []',
+      'for d in md.distributions():',
+      '    m = d.metadata',
+      '    lic = m.get("License-Expression") or ""',
+      '    if not lic and m.get("License") and len(m.get("License")) < 80: lic = m.get("License")',
+      '    if not lic:',
+      '        cls = [c.split(" :: ")[-1] for c in (m.get_all("Classifier") or []) if c.startswith("License ::")]',
+      '        lic = " OR ".join(cls)',
+      '    out.append({"Name": m["Name"], "Version": m["Version"], "License": lic or "UNKNOWN"})',
+      'print(json.dumps(out))',
+    ].join('\n');
+    const pkgs = JSON.parse(run(venvPython, ['-c', probe]));
+    const rows = pkgs
+      .map((p) => ({ name: p.Name, version: p.Version, license: p.License }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+    const flagged = rows.map((r) => ({ ...r, reason: flag(r.license) })).filter((r) => r.reason);
+    allFlagged.push(...flagged.map((f) => ({ ...f, scope: 'Docling sidecar (Python)' })));
+    python = `${rows.length} packages in the frozen sidecar's environment.
+
+${summary(rows)}
+
+<details><summary>All Python packages</summary>
+
+${table(rows)}
+
+</details>`;
+  }
+
+  const md = `# Spike dependency licenses (Slice 0.9)
+
+Generated by \`pnpm spike:licenses\` (scripts/license-report.mjs --spikes). Do not edit by hand.
+
+The Slice 0.9 spike (spikes/, [ADR 0008](adr/0008-extraction-and-vector-engines.md))
+measures candidates that are **not** part of the app. This is what each would
+bring if adopted. The app's own report is
+[dependency-licenses.md](dependency-licenses.md).
+
+## Needs review
+
+${
+  allFlagged.length
+    ? ['| Package | Version | License | Where | Reason |', '| --- | --- | --- | --- | --- |']
+        .concat(
+          allFlagged.map(
+            (r) => `| ${r.name} | ${r.version} | ${r.license} | ${r.scope} | ${r.reason} |`,
+          ),
+        )
+        .join('\n')
+    : 'None.'
+}
+
+Flagged means no permissive alternative in the license metadata. MPL-2.0 is
+file-level weak copyleft: shipping unmodified copies is compatible with a
+permissive or commercial Atlas, but modified MPL files must be published.
+PyInstaller is GPL-2.0-or-later with a bootloader exception that lets frozen
+programs be distributed under any license; only PyInstaller itself is GPL.
+See [the spike results](spike-0.9.md#licenses).
+
+## Native libraries, tools and models
+
+Not described by Cargo or Python metadata; kept by hand in scripts/license-report.mjs.
+
+| Component | Role | License |
+| --- | --- | --- |
+${nativeComponents()
+  .map(([a, b, c]) => `| ${a} | ${b} | ${c} |`)
+  .join('\n')}
+
+Excluded before measuring: MuPDF and PyMuPDF (AGPL-3.0), the \`epub\` crate (GPL-3.0).
+
+${sections.join('\n')}
+## Docling sidecar (Python)
+
+${python}
+`;
+  writeFileSync(join(root, 'docs', 'spike-dependency-licenses.md'), md);
+  console.log(`Wrote docs/spike-dependency-licenses.md: ${allFlagged.length} flagged.`);
+}

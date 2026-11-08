@@ -55,10 +55,18 @@ pub fn main_with(name: &str, version: &str, extract: Extract) {
         let result = catch_unwind(AssertUnwindSafe(|| extract(Path::new(file))));
         let ms = started.elapsed().as_secs_f64() * 1e3;
         let line = match result {
-            Ok(Ok(x)) => json!({ "file": file, "outcome": "ok", "pages": x.pages, "meta": x.meta, "ms": ms }),
-            Ok(Err(Failure::Encrypted(e))) => json!({ "file": file, "outcome": "encrypted", "error": e, "ms": ms }),
-            Ok(Err(Failure::Malformed(e))) => json!({ "file": file, "outcome": "malformed", "error": e, "ms": ms }),
-            Ok(Err(Failure::Unsupported(e))) => json!({ "file": file, "outcome": "unsupported", "error": e, "ms": ms }),
+            Ok(Ok(x)) => {
+                json!({ "file": file, "outcome": "ok", "pages": x.pages, "meta": x.meta, "ms": ms })
+            }
+            Ok(Err(Failure::Encrypted(e))) => {
+                json!({ "file": file, "outcome": "encrypted", "error": e, "ms": ms })
+            }
+            Ok(Err(Failure::Malformed(e))) => {
+                json!({ "file": file, "outcome": "malformed", "error": e, "ms": ms })
+            }
+            Ok(Err(Failure::Unsupported(e))) => {
+                json!({ "file": file, "outcome": "unsupported", "error": e, "ms": ms })
+            }
             Err(p) => {
                 let msg = p
                     .downcast_ref::<String>()
@@ -80,7 +88,10 @@ pub fn app_libraries() -> Value {
     let sqlite = rusqlite::Connection::open_in_memory()
         .and_then(|c| c.query_row("select sqlite_version()", [], |r| r.get::<_, String>(0)))
         .unwrap_or_default();
-    let tokio = tokio::runtime::Builder::new_multi_thread().worker_threads(1).build().is_ok();
+    let tokio = tokio::runtime::Builder::new_multi_thread()
+        .worker_threads(1)
+        .build()
+        .is_ok();
     let nfkc: String = "ﬁ".nfkc().collect();
     json!({ "sqlite": sqlite, "tokio": tokio, "unicodeNormalization": nfkc == "fi" })
 }
@@ -91,11 +102,17 @@ pub fn peak_rss_bytes() -> u64 {
     unsafe {
         let mut u: libc::rusage = std::mem::zeroed();
         libc::getrusage(libc::RUSAGE_SELF, &mut u);
-        if cfg!(target_os = "macos") { u.ru_maxrss as u64 } else { u.ru_maxrss as u64 * 1024 }
+        if cfg!(target_os = "macos") {
+            u.ru_maxrss as u64
+        } else {
+            u.ru_maxrss as u64 * 1024
+        }
     }
     #[cfg(windows)]
     unsafe {
-        use windows_sys::Win32::System::ProcessStatus::{GetProcessMemoryInfo, PROCESS_MEMORY_COUNTERS};
+        use windows_sys::Win32::System::ProcessStatus::{
+            GetProcessMemoryInfo, PROCESS_MEMORY_COUNTERS,
+        };
         use windows_sys::Win32::System::Threading::GetCurrentProcess;
         let mut c: PROCESS_MEMORY_COUNTERS = std::mem::zeroed();
         c.cb = std::mem::size_of::<PROCESS_MEMORY_COUNTERS>() as u32;
@@ -243,7 +260,10 @@ pub fn gutenberg_body(text: &str) -> &str {
         .find("*** START OF")
         .and_then(|i| text[i..].find('\n').map(|j| i + j + 1))
         .unwrap_or(0);
-    let end = text[start..].find("*** END OF").map(|i| start + i).unwrap_or(text.len());
+    let end = text[start..]
+        .find("*** END OF")
+        .map(|i| start + i)
+        .unwrap_or(text.len());
     &text[start..end]
 }
 
@@ -306,7 +326,10 @@ mod tests {
 
     #[test]
     fn cjk_characters_are_tokens() {
-        assert_eq!(t("道可道，非常道。"), vec!["道", "可", "道", "非", "常", "道"]);
+        assert_eq!(
+            t("道可道，非常道。"),
+            vec!["道", "可", "道", "非", "常", "道"]
+        );
     }
 
     #[test]

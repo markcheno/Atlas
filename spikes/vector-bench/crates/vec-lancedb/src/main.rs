@@ -18,7 +18,9 @@ use std::sync::Arc;
 
 use futures::TryStreamExt;
 use lancedb::arrow::arrow_array::types::Float32Type;
-use lancedb::arrow::arrow_array::{Array, FixedSizeListArray, Int32Array, RecordBatch, UInt64Array};
+use lancedb::arrow::arrow_array::{
+    Array, FixedSizeListArray, Int32Array, RecordBatch, UInt64Array,
+};
 use lancedb::arrow::arrow_schema::{DataType, Field, Schema};
 use lancedb::index::Index;
 use lancedb::index::scalar::BitmapIndexBuilder;
@@ -31,7 +33,15 @@ use tokio::runtime::Runtime;
 use vbench::{Data, Engine, K, Knob, Result, knob};
 
 /// (nprobes, refine_factor) settings for IVF-PQ, cheapest first.
-const PQ_SETTINGS: [(usize, u32); 7] = [(5, 2), (10, 5), (20, 10), (20, 20), (50, 20), (50, 50), (100, 100)];
+const PQ_SETTINGS: [(usize, u32); 7] = [
+    (5, 2),
+    (10, 5),
+    (20, 10),
+    (20, 20),
+    (50, 20),
+    (50, 50),
+    (100, 100),
+];
 const BATCH: usize = 10_000;
 
 #[derive(Clone, Copy, PartialEq)]
@@ -55,7 +65,14 @@ fn schema(dim: usize) -> Arc<Schema> {
     Arc::new(Schema::new(vec![
         Field::new("id", DataType::UInt64, false),
         Field::new("root", DataType::Int32, false),
-        Field::new("vector", DataType::FixedSizeList(Arc::new(Field::new("item", DataType::Float32, true)), dim as i32), true),
+        Field::new(
+            "vector",
+            DataType::FixedSizeList(
+                Arc::new(Field::new("item", DataType::Float32, true)),
+                dim as i32,
+            ),
+            true,
+        ),
     ]))
 }
 
@@ -67,7 +84,10 @@ fn batch(data: &Data, range: std::ops::Range<usize>) -> Result<RecordBatch> {
         range.map(|i| Some(data.vector(i).iter().map(|x| Some(*x)).collect::<Vec<_>>())),
         dim as i32,
     );
-    Ok(RecordBatch::try_new(schema(dim), vec![Arc::new(ids), Arc::new(roots), Arc::new(vectors)])?)
+    Ok(RecordBatch::try_new(
+        schema(dim),
+        vec![Arc::new(ids), Arc::new(roots), Arc::new(vectors)],
+    )?)
 }
 
 impl Lance {
@@ -104,19 +124,28 @@ impl Engine for Lance {
     fn build(&mut self, data: &Data) -> Result<()> {
         self.dim = data.dim;
         let n = data.n();
-        let batches: Vec<RecordBatch> =
-            (0..n).step_by(BATCH).map(|s| batch(data, s..(s + BATCH).min(n))).collect::<Result<_>>()?;
+        let batches: Vec<RecordBatch> = (0..n)
+            .step_by(BATCH)
+            .map(|s| batch(data, s..(s + BATCH).min(n)))
+            .collect::<Result<_>>()?;
         let uri = self.uri();
         let variant = self.variant;
         let table = self.rt.block_on(async move {
             let db = connect(&uri).execute().await?;
             let table = db.create_table("v", batches).execute().await?;
             let index = match variant {
-                Variant::IvfPq => Index::IvfPq(IvfPqIndexBuilder::default().distance_type(DistanceType::Cosine)),
-                Variant::HnswSq => Index::IvfHnswSq(IvfHnswSqIndexBuilder::default().distance_type(DistanceType::Cosine)),
+                Variant::IvfPq => {
+                    Index::IvfPq(IvfPqIndexBuilder::default().distance_type(DistanceType::Cosine))
+                }
+                Variant::HnswSq => Index::IvfHnswSq(
+                    IvfHnswSqIndexBuilder::default().distance_type(DistanceType::Cosine),
+                ),
             };
             table.create_index(&["vector"], index).execute().await?;
-            table.create_index(&["root"], Index::Bitmap(BitmapIndexBuilder::default())).execute().await?;
+            table
+                .create_index(&["root"], Index::Bitmap(BitmapIndexBuilder::default()))
+                .execute()
+                .await?;
             lancedb::Result::Ok(table)
         })?;
         self.table = Some(table);
@@ -135,7 +164,10 @@ impl Engine for Lance {
                 .enumerate()
                 .map(|(i, (p, r))| knob(&format!("nprobes={p} refine={r}"), i as f64))
                 .collect(),
-            Variant::HnswSq => [10.0, 20.0, 40.0, 80.0, 160.0, 320.0].iter().map(|v| knob("ef", *v)).collect(),
+            Variant::HnswSq => [10.0, 20.0, 40.0, 80.0, 160.0, 320.0]
+                .iter()
+                .map(|v| knob("ef", *v))
+                .collect(),
         }
     }
 
@@ -158,7 +190,10 @@ impl Engine for Lance {
             match variant {
                 Variant::IvfPq => {
                     let (nprobes, refine) = PQ_SETTINGS[setting.min(PQ_SETTINGS.len() - 1)];
-                    query = query.minimum_nprobes(nprobes)?.maximum_nprobes(Some(nprobes))?.refine_factor(refine);
+                    query = query
+                        .minimum_nprobes(nprobes)?
+                        .maximum_nprobes(Some(nprobes))?
+                        .refine_factor(refine);
                 }
                 Variant::HnswSq => query = query.ef(setting),
             }
@@ -169,7 +204,10 @@ impl Engine for Lance {
             let mut ids = Vec::new();
             for b in batches {
                 let col = b.column_by_name("id").ok_or("no id column")?;
-                let col = col.as_any().downcast_ref::<UInt64Array>().ok_or("id is not u64")?;
+                let col = col
+                    .as_any()
+                    .downcast_ref::<UInt64Array>()
+                    .ok_or("id is not u64")?;
                 ids.extend((0..col.len()).map(|i| col.value(i)));
             }
             Result::Ok(ids)
@@ -184,7 +222,8 @@ impl Engine for Lance {
             return Err("this engine only implements the runner's delete pattern".into());
         }
         let table = self.table().clone();
-        self.rt.block_on(async move { table.delete("id % 100 = 0").await })?;
+        self.rt
+            .block_on(async move { table.delete("id % 100 = 0").await })?;
         Ok(())
     }
 
@@ -231,7 +270,8 @@ impl Engine for Lance {
             let end = (start + 1000).min(n);
             let b = batch(data, start..end)?;
             let table = self.table().clone();
-            self.rt.block_on(async move { table.add(b).execute().await })?;
+            self.rt
+                .block_on(async move { table.add(b).execute().await })?;
             vbench::committed(end);
         }
         Ok(())
@@ -243,8 +283,14 @@ impl Engine for Lance {
             return Ok(json!({ "usable": false, "error": e.to_string() }));
         }
         let table = self.table().clone();
-        let rows = self.rt.block_on(async move { table.count_rows(None).await })?;
-        self.setting = if self.variant == Variant::IvfPq { 3 } else { 80 };
+        let rows = self
+            .rt
+            .block_on(async move { table.count_rows(None).await })?;
+        self.setting = if self.variant == Variant::IvfPq {
+            3
+        } else {
+            80
+        };
         let answer = self.search(data.query(0), K, None)?;
         Ok(json!({ "rows": rows, "searchReturned": answer.len(), "usable": true }))
     }
@@ -257,8 +303,18 @@ fn make(dir: &Path, variant: Option<&str>) -> Result<Box<dyn Engine>> {
         "hnswsq" => Variant::HnswSq,
         other => return Err(format!("unknown variant {other} (ivfpq, hnswsq)").into()),
     };
-    let rt = tokio::runtime::Builder::new_multi_thread().enable_all().build()?;
-    Ok(Box::new(Lance { dir: dir.to_path_buf(), variant, label, rt, table: None, setting: 0, dim: 0 }))
+    let rt = tokio::runtime::Builder::new_multi_thread()
+        .enable_all()
+        .build()?;
+    Ok(Box::new(Lance {
+        dir: dir.to_path_buf(),
+        variant,
+        label,
+        rt,
+        table: None,
+        setting: 0,
+        dim: 0,
+    }))
 }
 
 fn main() {

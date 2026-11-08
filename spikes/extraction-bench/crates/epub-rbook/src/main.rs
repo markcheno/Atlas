@@ -28,10 +28,15 @@ fn extract(path: &Path) -> Result<Extracted, Failure> {
         pages.push(text);
     }
     if drm {
-        return Err(Failure::Encrypted("META-INF/encryption.xml present (DRM)".into()));
+        return Err(Failure::Encrypted(
+            "META-INF/encryption.xml present (DRM)".into(),
+        ));
     }
     let title = epub.metadata().title().map(|t| t.value().to_string());
-    Ok(Extracted { meta: json!({ "spineDocuments": pages.len(), "title": title }), pages })
+    Ok(Extracted {
+        meta: json!({ "spineDocuments": pages.len(), "title": title }),
+        pages,
+    })
 }
 
 fn main() {

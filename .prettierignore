@@ -5,3 +5,9 @@ src-tauri/gen/
 src/lib/api/bindings/
 pnpm-lock.yaml
 *.md
+# Spike build outputs, downloaded tools, and the byte-exact corpus
+spikes/.tools/
+spikes/**/target/
+spikes/**/.venv/
+spikes/**/build/
+spikes/extraction-bench/corpus/

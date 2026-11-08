@@ -9,7 +9,10 @@ use xbench::{Extracted, Failure};
 
 fn extract(path: &Path) -> Result<Extracted, Failure> {
     let bytes = std::fs::metadata(path).map(|m| m.len()).unwrap_or(0);
-    Ok(Extracted { pages: Vec::new(), meta: json!({ "bytes": bytes }) })
+    Ok(Extracted {
+        pages: Vec::new(),
+        meta: json!({ "bytes": bytes }),
+    })
 }
 
 fn main() {
