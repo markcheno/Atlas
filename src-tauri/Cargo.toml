@@ -18,6 +18,7 @@ tauri-build = { version = "2.7.4", features = [] }
 [dependencies]
 dunce = "1.0.5"
 keyring-core = "1.0.1"
+pdfium-render = { version = "=0.9.5", default-features = false, features = ["pdfium_8125"] }
 reqwest = { version = "0.13.5", default-features = false, features = ["rustls", "json"] }
 rusqlite = { version = "0.41.1", features = ["bundled"] }
 same-file = "1.0.6"
@@ -40,7 +41,13 @@ libc = "0.2.191"
 
 [target."cfg(windows)".dependencies]
 windows-native-keyring-store = "1.1.0"
-windows-sys = { version = "0.61.2", features = ["Win32_Storage_FileSystem", "Win32_Foundation"] }
+libc = "0.2.191"
+windows-sys = { version = "0.61.2", features = [
+    "Win32_Storage_FileSystem",
+    "Win32_Foundation",
+    "Win32_System_Console",
+    "Win32_System_Threading",
+] }
 
 [target.'cfg(target_os = "macos")'.dependencies]
 apple-native-keyring-store = { version = "1.0.2", default-features = false, features = ["keychain"] }

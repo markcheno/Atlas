@@ -1,0 +1,9 @@
+{
+  "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
+  "bundle": {
+    "resources": {
+      "vendor/pdfium/win32-x64/bin/pdfium.dll": "pdfium.dll",
+      "vendor/pdfium/win32-x64/notices/": "licenses/pdfium/"
+    }
+  }
+}

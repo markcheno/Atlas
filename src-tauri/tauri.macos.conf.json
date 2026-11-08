@@ -1,0 +1,12 @@
+{
+  "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
+  "bundle": {
+    "macOS": {
+      "frameworks": ["vendor/pdfium/darwin-arm64/lib/libpdfium.dylib"],
+      "entitlements": "Entitlements.plist"
+    },
+    "resources": {
+      "vendor/pdfium/darwin-arm64/notices/": "licenses/pdfium/"
+    }
+  }
+}

@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!--
+	  The extraction worker loads the bundled PDFium (Contents/Frameworks).
+	  With the hardened runtime and an ad-hoc signature (no Team ID), library
+	  validation refuses it ("different Team IDs"). Signed with a Developer
+	  ID, the app and library share a Team ID and this can be dropped; review
+	  it with notarization (phase1-spec §14, docs/packaging.md).
+	-->
+	<key>com.apple.security.cs.disable-library-validation</key>
+	<true/>
+</dict>
+</plist>

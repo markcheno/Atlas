@@ -1,8 +1,9 @@
 # ADR 0009: General jobs, and the extraction job
 
 - **Status:** Proposed. The jobs part is accepted and built (Phase 1,
-  Slice 1.1). The extraction part is recorded here when Slice 1.3 builds
-  it.
+  Slice 1.1). The worker process is accepted and built as a skeleton
+  (Slice 1.2). The rest of extraction is recorded here when Slice 1.3
+  builds it.
 - **Date:** 2026-11-08
 - **Context documents:** [Phase 1 spec](../phase1-spec.md) §6.1, §7.1, §9;
   [Phase 0 spec](../phase0-spec.md) §6 ("migrate `scan_sessions` into the
@@ -70,6 +71,39 @@ idempotent per source root and kind. Status stays per kind: the
 cataloging overview, the folder lines and the Library's "scanning" flag
 consider scans only.
 
+**The extraction worker is a mode of the app executable** (Slice 1.2).
+`atlas --extract-worker`, checked first in `main.rs`, starts no window,
+plugin or workspace; PDFium is loaded only there, never in the app process.
+The spec allowed a separate `[[bin]] atlas-extract` sidecar if starting the
+GUI executable in worker mode took more than about 300 ms to reach `hello`
+on any OS. It takes about 15–20 ms on the M5 Pro (debug, release, from the
+signed `.app` and from a DMG copy) and comparable times on the CI runners
+([benchmarks](../benchmarks.md#extraction-worker-start)), so there is no
+sidecar. The first start of a newly signed or copied binary on macOS takes
+240–390 ms once, while the OS checks the signature; a sidecar would be a
+second binary paying the same cost.
+
+**`hello` proves PDFium works.** Before its first line the worker finds the
+library, binds it, and extracts a two-page PDF compiled into the binary,
+checking its page count and marker phrase. `hello` carries the self-test
+result; `unavailable {reason}` (`not_found`, `load_failed`,
+`self_test_failed`) and exit code 3 replace it when PDFium can't be used.
+The spec's Slice 1.2 gate said "extracts one PDF" from the bundle; the
+self-test does that without adding the `extract` request before Slice 1.3.
+
+**The protocol stream is protected.** The worker keeps a duplicate of
+stdout for JSON lines and points descriptor 1 (and on Windows the standard
+output handle and the C runtime's descriptor 1) at stderr before loading
+PDFium. Reasons are fixed codes; library messages go to stderr only.
+
+**Signing.** With the hardened runtime and an ad-hoc signature, macOS
+library validation refused the bundled PDFium ("different Team IDs": an
+ad-hoc signature has none). The app is therefore signed with
+`com.apple.security.cs.disable-library-validation` (`src-tauri/Entitlements.plist`),
+the spec's planned fallback. Signed with a Developer ID, the app and the
+library would share a Team ID and the entitlement could be dropped; it is
+reviewed with notarization.
+
 ## Consequences
 
 - One state machine, one recovery path (`requeue_interrupted` on open), and
@@ -84,6 +118,8 @@ consider scans only.
   with its frontier intact) and P1-02 (a scan and a scripted extract job
   run together, and each pauses without touching the other), in
   `src-tauri/tests/jobs.rs`.
-- Extraction-specific decisions (worker process, documents by hash,
-  per-file status, the duty-cycle policy) are added to this ADR in
-  Slice 1.3.
+- Every Rust build needs the pinned PDFium (`just setup`), so Atlas builds
+  only on the platforms it is pinned for: macOS arm64, Windows x64 and
+  Linux x64.
+- Extraction-specific decisions (supervision, documents by hash, per-file
+  status, the duty-cycle policy) are added to this ADR in Slice 1.3.

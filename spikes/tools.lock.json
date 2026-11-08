@@ -1,25 +1,6 @@
 {
-  "comment": "Pinned tool downloads for the Slice 0.9 spike. fetch-tools.mjs verifies each SHA-256 before unpacking into spikes/.tools/.",
+  "comment": "Pinned tool downloads for the Slice 0.9 spike. fetch-tools.mjs verifies each SHA-256 before unpacking into spikes/.tools/. PDFium, which the app now ships, is pinned in the root tools.lock.json (Slice 1.2); fetch-tools.mjs reads it from there.",
   "tools": {
-    "pdfium": {
-      "version": "chromium/8125",
-      "license": "BSD-3-Clause (PDFium) plus bundled third-party notices; build scripts Apache-2.0/MIT (bblanchon/pdfium-binaries)",
-      "why": "pdfium-render 0.9.5 binds up to feature pdfium_8125",
-      "assets": {
-        "darwin-arm64": {
-          "url": "https://github.com/bblanchon/pdfium-binaries/releases/download/chromium/8125/pdfium-mac-arm64.tgz",
-          "sha256": "4939bd935ac83ddc09a3a4f038bc43a19cea1660316a3667f26cb07a070e139d"
-        },
-        "linux-x64": {
-          "url": "https://github.com/bblanchon/pdfium-binaries/releases/download/chromium/8125/pdfium-linux-x64.tgz",
-          "sha256": "e1c3ce6e270cb5e0c20816b379ad9f2c1309972697c505f508de92bf5e7d6659"
-        },
-        "win32-x64": {
-          "url": "https://github.com/bblanchon/pdfium-binaries/releases/download/chromium/8125/pdfium-win-x64.tgz",
-          "sha256": "9a964261760cff52570aabf038ab346d3a5034dd8b30d0d5fe8861235d356b8b"
-        }
-      }
-    },
     "protoc": {
       "version": "36.2",
       "license": "BSD-3-Clause",

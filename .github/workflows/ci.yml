@@ -166,6 +166,22 @@ jobs:
       - name: Build debug bundles
         run: pnpm tauri build --debug --ci --bundles ${{ matrix.bundles }}
 
+      # PDFium is bundled and signed, and the extraction worker loads it and
+      # passes its self-test from the bundle (phase1-spec §14, Slice 1.2).
+      - name: PDFium in the signed bundle (macOS)
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          app=src-tauri/target/debug/bundle/macos/Atlas.app
+          codesign --verify --deep --strict --verbose=2 "$app"
+          codesign -dv "$app/Contents/Frameworks/libpdfium.dylib"
+          node scripts/worker-hello.mjs "$app/Contents/MacOS/atlas" --label "${{ matrix.name }} debug .app"
+
+      - name: Extraction worker says hello (Windows, Linux)
+        if: runner.os != 'macOS'
+        shell: bash
+        run: node scripts/worker-hello.mjs "src-tauri/target/debug/atlas${{ runner.os == 'Windows' && '.exe' || '' }}" --label "${{ matrix.name }} debug build"
+
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: atlas-${{ runner.os }}-${{ runner.arch }}-debug
@@ -265,6 +281,38 @@ jobs:
       - name: Bundle sizes
         shell: bash
         run: node scripts/bundle-sizes.mjs src-tauri/target/release | tee -a "$GITHUB_STEP_SUMMARY"
+
+      # The worker finds PDFium where each installer puts it.
+      - name: PDFium in the signed release bundle (macOS)
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          app=src-tauri/target/release/bundle/macos/Atlas.app
+          codesign --verify --deep --strict --verbose=2 "$app"
+          codesign -d --entitlements - "$app"
+          node scripts/worker-hello.mjs "$app/Contents/MacOS/atlas" --label "${{ matrix.name }} release .app"
+
+      - name: Extraction worker in the .deb and AppImage layouts (Linux)
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          deb="$RUNNER_TEMP/deb"
+          dpkg-deb -x src-tauri/target/release/bundle/deb/*.deb "$deb"
+          find "$deb/usr/lib" -maxdepth 2
+          node scripts/worker-hello.mjs "$deb/usr/bin/atlas" --label "Linux .deb layout"
+          appimage=$(ls src-tauri/target/release/bundle/appimage/*.AppImage)
+          APPIMAGE_EXTRACT_AND_RUN=1 node scripts/worker-hello.mjs "$appimage" --runs 3 --label "Linux AppImage"
+
+      - name: Extraction worker after a per-user install (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $installer = Get-ChildItem src-tauri/target/release/bundle/nsis/*-setup.exe | Select-Object -First 1
+          $dir = Join-Path $env:RUNNER_TEMP 'AtlasInstall'
+          Start-Process -Wait -FilePath $installer.FullName -ArgumentList '/S', "/D=$dir"
+          Get-ChildItem $dir | Format-Table Name, Length
+          $exe = Get-ChildItem $dir -Filter *.exe | Where-Object { $_.Name -notmatch 'uninstall' } | Select-Object -First 1
+          node scripts/worker-hello.mjs $exe.FullName --label "Windows installed"
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: atlas-${{ runner.os }}-${{ runner.arch }}-release

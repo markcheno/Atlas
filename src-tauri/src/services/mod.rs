@@ -4,6 +4,7 @@
 //! same functions.
 
 pub mod catalog;
+pub mod extraction;
 pub mod inventory;
 pub mod jobs;
 pub mod library;

@@ -29,7 +29,7 @@ Not described by Cargo or Python metadata; kept by hand in scripts/license-repor
 
 | Component | Role | License |
 | --- | --- | --- |
-| PDFium (bblanchon/pdfium-binaries chromium/8125) | shipped with the app if pdfium is adopted | BSD-3-Clause (PDFium); bundled third-party code under FreeType (FTL), libjpeg-turbo (IJG/BSD), OpenJPEG (BSD-2), Little CMS (MIT), zlib, Abseil (Apache-2.0) and others; full list in the archive's licenses/ folder |
+| PDFium (bblanchon/pdfium-binaries chromium/8125) | adopted: shipped with the app since Slice 1.2 (see dependency-licenses.md) | BSD-3-Clause (licenses/pdfium.txt, not the archive's root LICENSE, which is the build scripts' MIT licence) plus the third-party notices in licenses/ |
 | Docling layout model (docling-project/docling-layout-heron) | bundled in the Docling sidecar | Apache-2.0 |
 | Docling TableFormer models (docling-project/docling-models) | bundled in the Docling sidecar | CDLA-Permissive-2.0 |
 | PyInstaller bootloader | part of the frozen Docling sidecar | GPL-2.0-or-later with the bootloader exception (frozen apps may be distributed under any license) |

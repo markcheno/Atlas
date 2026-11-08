@@ -1,0 +1,9 @@
+{
+  "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
+  "bundle": {
+    "resources": {
+      "vendor/pdfium/linux-x64/lib/libpdfium.so": "libpdfium.so",
+      "vendor/pdfium/linux-x64/notices/": "licenses/pdfium/"
+    }
+  }
+}

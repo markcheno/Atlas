@@ -1,0 +1,30 @@
+{
+  "comment": "Native libraries the app ships, pinned with their SHA-256. scripts/fetch-pdfium.mjs verifies each download before unpacking it into src-tauri/vendor/ (gitignored). The spike tools are pinned in spikes/tools.lock.json.",
+  "tools": {
+    "pdfium": {
+      "version": "chromium/8125",
+      "pdfiumVersion": "158.0.8125.0",
+      "license": "BSD-3-Clause (PDFium, licenses/pdfium.txt) plus the third-party notices in licenses/ (FreeType, libjpeg-turbo, OpenJPEG, Little CMS, libpng, zlib, Abseil, HarfBuzz, ICU and others); build scripts MIT (bblanchon/pdfium-binaries, LICENSE)",
+      "why": "PDF text extraction (ADR 0008); pdfium-render 0.9.5 binds up to feature pdfium_8125",
+      "library": {
+        "darwin-arm64": "lib/libpdfium.dylib",
+        "linux-x64": "lib/libpdfium.so",
+        "win32-x64": "bin/pdfium.dll"
+      },
+      "assets": {
+        "darwin-arm64": {
+          "url": "https://github.com/bblanchon/pdfium-binaries/releases/download/chromium/8125/pdfium-mac-arm64.tgz",
+          "sha256": "4939bd935ac83ddc09a3a4f038bc43a19cea1660316a3667f26cb07a070e139d"
+        },
+        "linux-x64": {
+          "url": "https://github.com/bblanchon/pdfium-binaries/releases/download/chromium/8125/pdfium-linux-x64.tgz",
+          "sha256": "e1c3ce6e270cb5e0c20816b379ad9f2c1309972697c505f508de92bf5e7d6659"
+        },
+        "win32-x64": {
+          "url": "https://github.com/bblanchon/pdfium-binaries/releases/download/chromium/8125/pdfium-win-x64.tgz",
+          "sha256": "9a964261760cff52570aabf038ab346d3a5034dd8b30d0d5fe8861235d356b8b"
+        }
+      }
+    }
+  }
+}

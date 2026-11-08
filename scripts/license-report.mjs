@@ -11,11 +11,12 @@
 // or unknown term. "A OR B" where one side is permissive is not flagged.
 
 import { execFileSync } from 'node:child_process';
-import { existsSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
+const pdfiumPin = JSON.parse(readFileSync(join(root, 'tools.lock.json'), 'utf8')).tools.pdfium;
 const run = (cmd, args) =>
   execFileSync(cmd, args, { cwd: root, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
 
@@ -118,10 +119,22 @@ ${
     : 'None.'
 }
 
+## Native libraries shipped with the app
+
+Not described by Cargo or npm metadata; kept by hand in scripts/license-report.mjs.
+Their notices ship in every bundle under \`licenses/\`.
+
+| Component | Where | License |
+| --- | --- | --- |
+${appNativeComponents()
+  .map(([a, b, c]) => `| ${a} | ${b} | ${c} |`)
+  .join('\n')}
+
 Not covered: system libraries the OS provides at runtime (WebKit on macOS,
-WebView2 on Windows, WebKitGTK and GTK on Linux). They are not bundled.
-The libraries and models the Slice 0.9 spike measured (PDFium, Docling and
-its models, vector engines) are in
+WebView2 on Windows, WebKitGTK and GTK on Linux). They are not bundled,
+except that the Linux AppImage carries WebKitGTK and GTK (docs/packaging.md).
+The other libraries and models the Slice 0.9 spike measured (Docling and its
+models, vector engines) are in
 [spike-dependency-licenses.md](spike-dependency-licenses.md); one joins
 this report only when the app adopts it (ADR 0008).
 
@@ -159,6 +172,17 @@ console.log(
   `Wrote docs/dependency-licenses.md: ${crates.length} crates, ${npmProd.length} runtime npm, ${npmDev.length} dev npm, ${flagged.length} flagged.`,
 );
 
+// Native libraries the app ships (Slice 1.2 on). Kept by hand.
+function appNativeComponents() {
+  return [
+    [
+      `PDFium ${pdfiumPin.version} (${pdfiumPin.pdfiumVersion}), bblanchon/pdfium-binaries`,
+      'shared library loaded by the extraction worker; notices in licenses/pdfium/',
+      'BSD-3-Clause (licenses/pdfium.txt); bundled third-party code under FreeType (FTL), libjpeg-turbo (IJG/BSD-3), OpenJPEG (BSD-2), Little CMS (MIT), libpng, zlib, Abseil (Apache-2.0), HarfBuzz (MIT), ICU (Unicode-3.0), Highway (Apache-2.0), simdutf, fast_float, dragonbox, AGG 2.3 and LLVM libc; the build scripts are MIT (LICENSE)',
+    ],
+  ];
+}
+
 // ---- Slice 0.9 spikes
 
 // Native libraries, tools and models a candidate would ship or need, which
@@ -167,8 +191,8 @@ function nativeComponents() {
   return [
     [
       'PDFium (bblanchon/pdfium-binaries chromium/8125)',
-      'shipped with the app if pdfium is adopted',
-      "BSD-3-Clause (PDFium); bundled third-party code under FreeType (FTL), libjpeg-turbo (IJG/BSD), OpenJPEG (BSD-2), Little CMS (MIT), zlib, Abseil (Apache-2.0) and others; full list in the archive's licenses/ folder",
+      'adopted: shipped with the app since Slice 1.2 (see dependency-licenses.md)',
+      "BSD-3-Clause (licenses/pdfium.txt, not the archive's root LICENSE, which is the build scripts' MIT licence) plus the third-party notices in licenses/",
     ],
     [
       'Docling layout model (docling-project/docling-layout-heron)',

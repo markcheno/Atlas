@@ -1,7 +1,8 @@
 # Atlas architecture
 
-Status: Phase 1, Slice 1.1 (general jobs). Phase 0 is complete; the rest of
-Phase 1 is specified in [phase1-spec.md](phase1-spec.md) and not yet built.
+Status: Phase 1, Slice 1.2 (foundations: text fixtures, bundled PDFium, the
+extraction worker skeleton). Phase 0 is complete; the rest of Phase 1 is
+specified in [phase1-spec.md](phase1-spec.md) and not yet built.
 This document describes what is built, and marks what is only planned. Decisions with lasting
 consequences are recorded as ADRs in [adr/](adr/).
 
@@ -9,7 +10,10 @@ consequences are recorded as ADRs in [adr/](adr/).
 
 Atlas is one desktop process. The Tauri 2 runtime hosts the native window, an
 OS webview that renders the Svelte UI, and the Rust core. There is no HTTP
-server, background daemon, database server, or Python runtime.
+server, background daemon, database server, or Python runtime. Text
+extraction will run in a child process, the same executable started as the
+[extraction worker](#extraction-worker) (built in Slice 1.2; used from
+Slice 1.3), so PDFium never runs in the app process.
 
 ```text
 ┌──────────────────────── Atlas process ────────────────────────┐
@@ -359,8 +363,56 @@ The webview also creates its own website-data and cache folders, on macOS
 `~/Library/WebKit/<bundle>` and `~/Library/Caches/<bundle>`. These are
 platform-required and contain no Atlas data.
 
+## Extraction worker
+
+Implemented in `src-tauri/src/services/extraction/` (Slice 1.2, the
+skeleton); rationale in [ADR 0009](adr/0009-jobs-and-extraction.md) and
+[ADR 0008](adr/0008-extraction-and-vector-engines.md).
+
+- **Process.** `atlas --extract-worker` is checked first in `main.rs`, so
+  the worker starts no window, plugin or workspace. It reaches `hello` in
+  about 16 ms on the M5 Pro ([benchmarks](benchmarks.md#extraction-worker-start)),
+  well under the 300 ms at which the spec would switch to a separate
+  sidecar binary, so it stays a mode of the app executable.
+- **Protocol.** JSON lines over stdin and stdout
+  (`extraction/protocol.rs`). The first line is
+  `{"type":"hello","protocol":1,"extractorVersion":…,"pdfiumVersion":"chromium/8125","selfTest":{"pages":2,"chars":…}}`,
+  or `{"type":"unavailable","reason":"not_found|load_failed|self_test_failed"}`
+  followed by exit code 3. Until Slice 1.3 every request is answered with
+  `{"type":"error","reason":"unknown_request"}`. Reasons are fixed codes,
+  never paths; the loader's own message goes to stderr.
+- **Output hygiene.** Before PDFium loads, the worker keeps a duplicate of
+  stdout for the protocol and points descriptor 1 (and on Windows the
+  standard output handle and the C runtime's descriptor 1) at stderr, so
+  anything a library prints can't corrupt the stream. A test writes to
+  descriptor 1 on purpose to prove it.
+- **Self-test.** PDFium opens a two-page PDF compiled into the binary
+  (`extraction/selftest.pdf`, written by the fixture generator) and must
+  find its marker phrase before the worker says hello. This proves the
+  bundled, signed library loads and works.
+- **Finding PDFium** (`extraction/locate.rs`). Debug builds honour
+  `ATLAS_PDFIUM_LIBRARY` as the only candidate. Otherwise: macOS
+  `Contents/Frameworks/libpdfium.dylib`; Windows and Linux the Tauri
+  resource folder (next to the executable on Windows and in Cargo's
+  `target/`, `../lib/Atlas`, `$APPDIR/usr/lib/Atlas` or `/usr/lib/Atlas` on
+  Linux), mirroring `tauri_utils::platform::resource_dir`. Debug builds fall
+  back to `src-tauri/vendor/pdfium/<platform>/`.
+- **The main process never loads PDFium.** `pdfium-render` binds it at run
+  time (`dlopen`/`LoadLibrary`), and only the worker calls it.
+
 ## Build, CI and measurement
 
+- **PDFium** (Slice 1.2) is pinned in `tools.lock.json` (bblanchon/pdfium-binaries
+  chromium/8125, SHA-256 per platform). `scripts/fetch-pdfium.mjs` verifies
+  and unpacks it into gitignored `src-tauri/vendor/pdfium/<platform>/` and
+  collects its notices into `notices/`. tauri-build checks bundled files on
+  every compile, so `just setup` and the CI setup action (cached by the lock
+  file's hash) fetch it before any Rust build. The per-OS configs bundle it:
+  `tauri.macos.conf.json` lists it under `bundle.macOS.frameworks`
+  (`Contents/Frameworks`, signed with the app, with the
+  `disable-library-validation` entitlement, see [packaging](packaging.md));
+  `tauri.windows.conf.json` and `tauri.linux.conf.json` ship it as a
+  resource. Every bundle carries the notices in `licenses/pdfium/`.
 - **CI** (`.github/workflows/ci.yml`, shared setup in
   `.github/actions/setup`) has three tiers (Slice 1.1). A `plan` job picks
   one and writes it to the run summary:
@@ -368,15 +420,20 @@ platform-required and contain no Atlas data.
   | Tier | When | What runs | Wall time |
   | --- | --- | --- | --- |
   | full | Pushes to `main`, tags, pull requests, manual runs (`just ci-remote`) | Every job below on macOS arm64, Windows x64 and Linux x64 | 7–9 min warm; 10 min with cold caches |
-  | quick | Pushes to `slice-*` branches, `just ci-remote quick` | Linux only: Rust format, clippy and tests, bindings, lint, typecheck, frontend tests | 5 min with a cold cache (3.5 min of it compiling); less once warm |
+  | quick | Pushes to `slice-*` branches, `just ci-remote quick` | Linux only: Rust format, clippy and tests, bindings, lint, typecheck, frontend tests | 2.5 min warm; 5 min with a cold cache (3.5 min of it compiling) |
   | docs | Branch pushes that change only `*.md`, `docs/` or `spikes/` | ESLint and Prettier (which checks Markdown) | 35 s |
 
   The full tier runs:
   - `check-and-build`: every check and test, then debug bundles. On Windows
-    and Linux it also runs the WebDriver smoke test.
+    and Linux it also runs the WebDriver smoke test. On every OS
+    `scripts/worker-hello.mjs` starts the extraction worker from the build
+    and requires `hello`; on macOS it first runs
+    `codesign --verify --deep --strict` on the `.app`.
   - `bench`: the benchmark suite, whose tables become the job summary.
     Numbers never fail the build.
-  - `package`: unsigned release bundles, except on pull requests.
+  - `package`: unsigned release bundles, except on pull requests. The worker
+    must say hello from the signed release `.app`, the unpacked `.deb`, the
+    AppImage, and a silent per-user NSIS install.
 
   The quick tier shares the full Linux job's Rust cache (`rust-shared-key`
   in the setup action), so a new slice branch starts warm from `main`'s.
@@ -440,11 +497,17 @@ the measurements are in [the spike results](spike-0.9.md).
 - `package.json` pins exact npm versions and the pnpm version.
   `pnpm-lock.yaml` is committed and CI uses `--frozen-lockfile`.
 - GitHub Actions are pinned to full commit SHAs.
+- Native libraries the app ships (PDFium) are pinned with SHA-256 in
+  `tools.lock.json`; the spike's tools in `spikes/tools.lock.json`.
+- Fixtures are deterministic: the same generator arguments give the same
+  bytes on every machine (`scripts/generate-fixtures.test.mjs`).
 
 ## Next phase
 
 Phase 1 adds a general jobs table, text extraction in a helper process
 (PDFium and rbook), content hashing with logical documents, and FTS5
 full-text search. It is specified in [phase1-spec.md](phase1-spec.md).
-Slice 1.1 built the jobs table and runners ([Jobs](#jobs)). The rest is not
-in the code yet; this document is updated slice by slice as it lands.
+Slice 1.1 built the jobs table and runners ([Jobs](#jobs)); Slice 1.2 the
+text fixtures, PDFium delivery and the [extraction worker](#extraction-worker)
+skeleton. The rest is not in the code yet; this document is updated slice
+by slice as it lands.

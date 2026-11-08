@@ -549,6 +549,66 @@ Benchmarks before and after are within noise
 (CI runs P1-01 and the migration test on all three OSes); a second job
 kind doing real work (extraction arrives in Slice 1.3).
 
+## Slice 1.2
+
+Slice 1.2 adds no screens; the status bar reads "Phase 1 slice 1.2". It
+bundles PDFium on every OS and adds the extraction worker skeleton
+(`atlas --extract-worker`), which must load PDFium and pass a self-test
+from every installer format.
+
+| Platform | Bundles build | PDFium in the bundle | Worker says hello | Signature |
+| --- | --- | --- | --- | --- |
+| macOS arm64 | ✅ CI and M5 Pro (debug and release `.app`, DMG) | ✅ `Contents/Frameworks` | ✅ CI debug and release `.app`; M5 Pro debug, release and DMG copy | ✅ `codesign --verify --deep --strict`, ad hoc with the hardened runtime and `disable-library-validation` |
+| Windows x64 | ✅ CI (NSIS) | ✅ next to `atlas.exe` | ✅ CI debug build and a silent per-user install | unsigned (as before) |
+| Linux x64 | ✅ CI (`.deb`, AppImage) | ✅ `/usr/lib/Atlas/` | ✅ CI debug build, unpacked `.deb`, AppImage | unsigned (as before) |
+
+CI: full runs on branch `slice-12`,
+[42531070487](https://github.com/markcheno/Atlas/actions/runs/42531070487)
+(macOS and Linux green; Windows failed in the PDFium fetch, see below) and
+[42531636951](https://github.com/markcheno/Atlas/actions/runs/42531636951)
+(10 of 10 jobs green, including the WebDriver smoke tests on Windows and
+Linux). Start times are in [benchmarks](benchmarks.md#extraction-worker-start).
+
+What the gate found:
+
+- **Library validation.** The first signed debug `.app` refused PDFium:
+  "mapping process and mapped file (non-platform) have different Team IDs".
+  An ad-hoc signature has no Team ID, so the hardened runtime's library
+  validation can't match the app and the library. The spec's fallback
+  entitlement, `com.apple.security.cs.disable-library-validation`, fixed it
+  ([packaging](packaging.md#macos)).
+- **Windows `tar`.** Under `shell: bash`, CI's `tar` is Git's GNU tar,
+  which reads `D:\…` as a remote host. `fetch-pdfium.mjs` now unpacks with
+  relative paths.
+
+### macOS arm64, Slice 1.2 (2026-11-08)
+
+All on scratch data: a copy of the Slice 1.1 scratch library, under a
+scratch `HOME` for the release build.
+
+1. `just fetch-pdfium` downloaded the macOS archive (3.4 MiB), verified its
+   SHA-256 and unpacked it; a second run kept it.
+2. `just ci` passed: the generator tests (including the Phase 0 golden
+   hash), `tests/pdfium.rs` (PDFium reads every page and marker of a text
+   fixture) and `tests/extraction_worker.rs` (hello, unknown requests, a
+   missing and a non-library file, stray output on descriptor 1), 3 runs of 3.
+3. The release `.app` (`pnpm tauri build --bundles app,dmg`) verifies with
+   `codesign --verify --deep --strict`, carries the entitlement, and has
+   `Contents/Frameworks/libpdfium.dylib` and
+   `Contents/Resources/licenses/pdfium/` (19 notice files).
+4. Launched with the scratch `HOME`, it opened the copied library ("30,006
+   files", "Atlas 0.1.0 · Phase 1 slice 1.2"), and **Rescan** finished with
+   30,006 files and none missing.
+5. While it ran, `vmmap` and `lsof` showed no PDFium in the app process
+   (`vmmap` listed WebKit, so it could see the process's libraries).
+6. Mounted the release DMG read-only, copied `Atlas.app` out, and the copy
+   verified and its worker said hello (median 18 ms).
+
+**Not verified in Slice 1.2:** a quarantined (downloaded) DMG with the new
+entitlement; Gatekeeper's prompt is expected to be unchanged. Windows and
+Linux installers were checked by CI only. Extraction of library files
+arrives in Slice 1.3.
+
 ## Manual checklist for Windows and Linux
 
 CI runs an automated smoke test on Windows and Linux (Slice 0.8, below),
@@ -676,6 +736,18 @@ build:
 4. Open the migrated copy with the Phase 0 build again. Confirm it shows
    "This library needs a newer version of Atlas" and the catalog file is
    unchanged.
+
+### Extraction worker (Slice 1.2)
+
+1. After installing, find the PDFium library: Windows `pdfium.dll` next to
+   `atlas.exe` in the install folder; Linux `/usr/lib/Atlas/libpdfium.so`
+   (`.deb`). Confirm `licenses/pdfium/` is beside it.
+2. From a terminal, run the installed executable with `--extract-worker`.
+   The first line must be `{"type":"hello",…,"selfTest":{"pages":2,…}}`.
+   Type `{}` and Enter: it must answer
+   `{"type":"error","reason":"unknown_request"}`. Close the input (Ctrl+D on
+   Linux, Ctrl+Z then Enter on Windows) and the process must exit.
+3. Start Atlas normally and confirm it opens as before.
 
 ### Library, search, open (Slice 0.6)
 

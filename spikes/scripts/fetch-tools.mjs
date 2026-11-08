@@ -16,6 +16,9 @@ import { fileURLToPath } from 'node:url';
 const spikes = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const toolsDir = path.join(spikes, '.tools');
 const lock = JSON.parse(fs.readFileSync(path.join(spikes, 'tools.lock.json'), 'utf8'));
+// PDFium moved to the app's lock file (Slice 1.2); the spike uses the same pin.
+const appLock = JSON.parse(fs.readFileSync(path.join(spikes, '..', 'tools.lock.json'), 'utf8'));
+lock.tools = { pdfium: appLock.tools.pdfium, ...lock.tools };
 
 export const platformKey = () => {
   const key = `${process.platform}-${process.arch}`;
@@ -36,7 +39,9 @@ const layout = {
       process.platform === 'win32' ? 'bin' : 'lib',
       { darwin: 'libpdfium.dylib', linux: 'libpdfium.so', win32: 'pdfium.dll' }[process.platform],
     ),
-    license: path.join(dir, 'LICENSE'),
+    // PDFium's BSD-3-Clause licence; the archive's root LICENSE is the MIT
+    // licence of bblanchon's build scripts.
+    license: path.join(dir, 'licenses', 'pdfium.txt'),
   }),
   protoc: (dir) => ({
     bin: path.join(dir, 'bin', exe('protoc')),

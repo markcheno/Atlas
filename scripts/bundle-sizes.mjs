@@ -26,5 +26,12 @@ console.log('| File | Size MiB |');
 console.log('| --- | ---: |');
 for (const p of rows) console.log(`| ${path.basename(p)} | ${mib(p)} |`);
 if (exe) console.log(`| ${path.basename(exe)} (app binary) | ${mib(exe)} |`);
+// PDFium: in the macOS bundle's Frameworks, or next to the binary elsewhere.
+const pdfium = [
+  path.join(bundle, 'macos', 'Atlas.app', 'Contents', 'Frameworks', 'libpdfium.dylib'),
+  path.join(root, 'pdfium.dll'),
+  path.join(root, 'libpdfium.so'),
+].find((p) => fs.existsSync(p));
+if (pdfium) console.log(`| ${path.basename(pdfium)} (PDFium, bundled) | ${mib(pdfium)} |`);
 console.log('');
 if (rows.length === 0) process.exitCode = 1;

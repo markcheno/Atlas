@@ -1,8 +1,13 @@
 #!/usr/bin/env node
 // Generates a synthetic, copyright-free library for testing and benchmarks
-// (phase0-spec §11). Files are tiny stubs; nothing is downloaded.
+// (phase0-spec §11, phase1-spec §11). Nothing is downloaded.
 //
-//   node scripts/generate-fixtures.mjs <output-dir> [--files N] [--flat N]
+//   node scripts/generate-fixtures.mjs <output-dir> [--files N] [--flat N] [--text-kb N]
+//
+// Without --text-kb, files are tiny identical stubs, byte for byte as in
+// Phase 0. With --text-kb N, every PDF and EPUB gets about N KiB of
+// deterministic body text with a unique marker phrase ("<subject> marker
+// <i>"); PDFs have about 3,000 characters a page and EPUBs are valid zips.
 //
 // <output-dir> must not exist yet (or be empty), must be outside this
 // repository, and must not be inside an Atlas data root.
@@ -11,11 +16,13 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { authorFor, bodyText, textEpub, textPdf } from './lib/fixture-text.mjs';
+
 const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
 function usage(message) {
   if (message) console.error(`error: ${message}`);
-  console.error('usage: generate-fixtures.mjs <output-dir> [--files N] [--flat N]');
+  console.error('usage: generate-fixtures.mjs <output-dir> [--files N] [--flat N] [--text-kb N]');
   process.exit(2);
 }
 
@@ -31,6 +38,7 @@ const opt = (name, fallback) => {
 };
 const fileCount = opt('files', 1000);
 const flatCount = opt('flat', 0);
+const textKb = opt('text-kb', 0);
 
 const target = path.resolve(out);
 const inside = (child, parent) => {
@@ -87,6 +95,27 @@ const quirks = [
 
 let pdfOrEpub = 0;
 let other = 0;
+let pdfPages = 0;
+let epubChapters = 0;
+
+/** The Phase 0 stub, or (with --text-kb) a document with its own text. */
+function document(kind, subject, i, title) {
+  if (textKb === 0) return kind === 'epub' ? EPUB : PDF;
+  const doc = {
+    id: `${subject}-${i}`,
+    title,
+    author: authorFor(i),
+    paragraphs: bodyText(subject, i, textKb),
+  };
+  if (kind === 'epub') {
+    const { bytes, chapters } = textEpub(doc);
+    epubChapters += chapters;
+    return bytes;
+  }
+  const { bytes, pages } = textPdf(doc);
+  pdfPages += pages;
+  return bytes;
+}
 const write = (rel, data) => {
   const file = path.join(target, rel);
   fs.mkdirSync(path.dirname(file), { recursive: true });
@@ -101,16 +130,19 @@ for (let i = 0; i < fileCount; i++) {
   const quirk = i % 17 === 0 ? `${quirks[i % quirks.length]} ` : '';
   const isEpub = i % 3 === 0;
   const ext = isEpub ? (i % 2 ? 'EPUB' : 'epub') : i % 11 === 0 ? 'PDF' : 'pdf';
+  const stem = `${quirk}book ${String(i).padStart(6, '0')}`;
   write(
-    path.join(...dirs, `${quirk}book ${String(i).padStart(6, '0')}.${ext}`),
-    isEpub ? EPUB : PDF,
+    path.join(...dirs, `${stem}.${ext}`),
+    document(isEpub ? 'epub' : 'pdf', subject, i, `${subject} ${stem.trim()}`),
   );
   pdfOrEpub++;
 }
 
-// Same file name in different folders.
+// Same file name in different folders. With text they share one text, so
+// they are also the same content (duplicates by hash).
+const introduction = document('pdf', 'Introduction', 0, 'Introduction');
 for (const subject of subjects) {
-  write(path.join(subject, 'duplicates', 'Introduction.pdf'), PDF);
+  write(path.join(subject, 'duplicates', 'Introduction.pdf'), introduction);
   pdfOrEpub++;
 }
 
@@ -125,7 +157,8 @@ fs.mkdirSync(path.join(target, 'empty', 'nested-empty'), { recursive: true });
 
 // One huge flat folder.
 for (let i = 0; i < flatCount; i++) {
-  write(path.join('flat', `flat-${String(i).padStart(6, '0')}.pdf`), PDF);
+  const stem = `flat-${String(i).padStart(6, '0')}`;
+  write(path.join('flat', `${stem}.pdf`), document('pdf', 'Flat', i, stem));
   pdfOrEpub++;
 }
 
@@ -160,6 +193,10 @@ const summary = {
   unreadableFolder: unreadable ? path.join(target, 'locked') : null,
   outsideFolder: symlinks ? outsideDir : null,
 };
+if (textKb > 0) {
+  // Pages and chapters of distinct documents (the six duplicates count once).
+  Object.assign(summary, { textKb, pdfPages, epubChapters, marker: '<subject> marker <i>' });
+}
 console.log(JSON.stringify(summary, null, 2));
 if (unreadable) {
   console.log(

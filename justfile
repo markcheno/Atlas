@@ -17,10 +17,15 @@ default:
 
 # ---------------------------------------------------------------- setup
 
-# Install the pinned Rust toolchain and locked npm dependencies
+# Install the pinned Rust toolchain, locked npm dependencies, and the pinned PDFium (needed before any Rust build)
 setup:
     rustup toolchain install
     pnpm install --frozen-lockfile
+    node scripts/fetch-pdfium.mjs
+
+# Download and verify the pinned PDFium (tools.lock.json) into src-tauri/vendor/pdfium/; kept when already verified
+fetch-pdfium:
+    node scripts/fetch-pdfium.mjs
 
 # ------------------------------------------------------------------ run
 
@@ -103,11 +108,16 @@ bundle-release bundles=default_bundles:
 open-bundle:
     open src-tauri/target/debug/bundle/macos/Atlas.app
 
-# Generate a synthetic test library outside the repo, e.g. `just fixtures ~/atlas-fx 10000 20000` (30k with a 20k flat folder)
-fixtures dir files="1000" flat="0":
-    node scripts/generate-fixtures.mjs {{ dir }} --files {{ files }} --flat {{ flat }}
+# Generate a synthetic library outside the repo, e.g. `just fixtures ~/fx 2000`, the 30k set `just fixtures ~/fx30k 10000 20000`, or with body text `just fixtures ~/fx 1000 0 20` (see fixtures/README.md)
+fixtures dir files="1000" flat="0" text_kb="0":
+    node scripts/generate-fixtures.mjs {{ dir }} --files {{ files }} --flat {{ flat }} --text-kb {{ text_kb }}
 
 # ------------------------------------------------- benchmarks and smoke
+
+# Start the extraction worker 10 times and check it says hello, e.g. `just worker-hello` or `just worker-hello src-tauri/target/debug/bundle/macos/Atlas.app/Contents/MacOS/atlas`
+worker-hello exe="src-tauri/target/debug/atlas":
+    cargo build --manifest-path {{ manifest }} --locked
+    node scripts/worker-hello.mjs {{ exe }}
 
 # Benchmark suite (1k and 30k fixtures, release build); results in the temp dir unless `out` is given
 bench out="":
