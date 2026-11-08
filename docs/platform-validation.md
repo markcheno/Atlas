@@ -505,12 +505,17 @@ CI on branch `slice-11` (2026-11-08): the push ran the new quick tier,
 (Linux checks and tests, green in 5 min 15 s from a cold cache). The full
 tier, dispatched with `just ci-remote` as
 [42526247859](https://github.com/markcheno/Atlas/actions/runs/42526247859),
-ran 11 of 11 jobs green in 10 min 14 s: checks, tests and debug bundles on
+ran 10 of 10 jobs green (the plan job and 9 on the three OSes) in 10 min 14 s: checks, tests and debug bundles on
 three OSes, smoke tests on Windows and Linux, benchmarks, and release
 bundles. The full run built from cold because the check jobs moved to a
 shared cache key. A docs-only push then ran the docs tier,
 [42527143995](https://github.com/markcheno/Atlas/actions/runs/42527143995):
-plan and lint only, green in 35 s.
+plan and lint only, green in 35 s. After the merge, the full tier passed
+on `main`
+([42527727223](https://github.com/markcheno/Atlas/actions/runs/42527727223))
+and on the tag `phase1/slice-01`
+([42527727023](https://github.com/markcheno/Atlas/actions/runs/42527727023)),
+10 of 10 jobs each.
 
 ### macOS arm64, Slice 1.1 (2026-11-08)
 
