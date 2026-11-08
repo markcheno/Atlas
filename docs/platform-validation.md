@@ -500,6 +500,16 @@ plus the 6→7 migration unit test with foreign-key checks. Removing the scan
 filter from the cataloging overview, or from the Library's "scanning"
 flag, makes P1-02 fail.
 
+CI on branch `slice-11` (2026-11-08): the push ran the new quick tier,
+[42525777085](https://github.com/markcheno/Atlas/actions/runs/42525777085)
+(Linux checks and tests, green in 5 min 15 s from a cold cache). The full
+tier, dispatched with `just ci-remote` as
+[42526247859](https://github.com/markcheno/Atlas/actions/runs/42526247859),
+ran 11 of 11 jobs green in 10 min 14 s: checks, tests and debug bundles on
+three OSes, smoke tests on Windows and Linux, benchmarks, and release
+bundles. The full run built from cold because the check jobs moved to a
+shared cache key.
+
 ### macOS arm64, Slice 1.1 (2026-11-08)
 
 Upgrade of a real Phase 0 library, using scratch copies only:

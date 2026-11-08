@@ -367,8 +367,8 @@ platform-required and contain no Atlas data.
 
   | Tier | When | What runs | Wall time |
   | --- | --- | --- | --- |
-  | full | Pushes to `main`, tags, pull requests, manual runs (`just ci-remote`) | Every job below on macOS arm64, Windows x64 and Linux x64 | 7–9 min |
-  | quick | Pushes to `slice-*` branches, `just ci-remote quick` | Linux only: Rust format, clippy and tests, bindings, lint, typecheck, frontend tests | about 4 min |
+  | full | Pushes to `main`, tags, pull requests, manual runs (`just ci-remote`) | Every job below on macOS arm64, Windows x64 and Linux x64 | 7–9 min warm; 10 min with cold caches |
+  | quick | Pushes to `slice-*` branches, `just ci-remote quick` | Linux only: Rust format, clippy and tests, bindings, lint, typecheck, frontend tests | 5 min with a cold cache (3.5 min of it compiling); less once warm |
   | docs | Branch pushes that change only `*.md`, `docs/` or `spikes/` | ESLint and Prettier (which checks Markdown) | about 1 min |
 
   The full tier runs:
