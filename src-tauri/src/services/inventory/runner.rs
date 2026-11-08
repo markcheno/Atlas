@@ -71,8 +71,7 @@ impl InventoryRunner {
             seq: Mutex::new(0),
             cv: Condvar::new(),
         });
-        let data_root =
-            std::fs::canonicalize(data_root).unwrap_or_else(|_| data_root.to_path_buf());
+        let data_root = dunce::canonicalize(data_root).unwrap_or_else(|_| data_root.to_path_buf());
         let worker = Worker {
             catalog,
             data_root_handle: Handle::from_path(&data_root).ok(),

@@ -228,6 +228,7 @@ name = "atlas"
 version = "0.1.0"
 dependencies = [
  "apple-native-keyring-store",
+ "dunce",
  "keyring-core",
  "libc",
  "objc2-foundation",

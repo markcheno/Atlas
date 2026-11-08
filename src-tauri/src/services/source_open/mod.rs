@@ -83,7 +83,7 @@ pub fn resolve(source_root: &Path, rel: &Path) -> AtlasResult<Resolved> {
         return Err(AtlasError::FileNotRegular);
     }
     let (Ok(canonical), Ok(canonical_root)) =
-        (fs::canonicalize(&path), fs::canonicalize(source_root))
+        (dunce::canonicalize(&path), dunce::canonicalize(source_root))
     else {
         return Err(AtlasError::FileMissing);
     };

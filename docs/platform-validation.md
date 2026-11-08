@@ -351,6 +351,108 @@ Not verified:
 - **Hosted HTTPS services** (OpenAI and others), and the keychain
   access prompt that an installed (signed) build may show.
 
+## Slice 0.8
+
+| Platform | CI checks and tests | Bundles | Smoke | Benchmarks |
+| --- | --- | --- | --- | --- |
+| macOS arm64 | ✅ CI | ✅ `.app`, `.dmg` (debug and release) | ✅ manual, release DMG, on a real Mac | ✅ local and CI |
+| Windows x64 | ✅ CI | ✅ NSIS `-setup.exe` (debug and release) | ✅ automated, WebView2 | ✅ CI |
+| Linux x64 | ✅ CI | ✅ `.AppImage`, `.deb` (debug and release) | ✅ automated, Xvfb | ✅ CI |
+
+CI run: [42487239937](https://github.com/markcheno/Atlas/actions/runs/42487239937)
+(2026-11-08, branch `slice-08`), all nine jobs green; the main-branch run
+after merging is linked in the README. Benchmark numbers are in
+[benchmarks.md](benchmarks.md) and bundle sizes in
+[packaging.md](packaging.md).
+
+### Automated smoke (Windows and Linux CI)
+
+`e2e/smoke.mjs` drives the debug build through `tauri-driver` (WebKitWebDriver
+on Linux, msedgedriver on Windows) with a scratch configuration, a scratch
+data folder, and a fresh 1,000-file fixture. Debug-only hooks
+(`src-tauri/src/infrastructure/e2e.rs`) answer the two native folder pickers
+with fixed paths and record open/reveal requests in a file instead of
+calling the OS. Release builds compile the hooks out.
+
+Steps: launch shows the welcome screen; choose the data folder; add the
+fixture and see Library rows; pause and resume; cataloging finishes with
+the expected count; search "CAFE creme" finds "Café crème …"; Open sends the
+right path (inside the folder, existing); Settings shows AI Models; quit and
+relaunch reopens the same library without onboarding. Screenshots and
+`e2e-<os>.json` are uploaded as the `e2e-<OS>` artifact.
+
+| | Linux x64 (Ubuntu 24.04, Xvfb) | Windows x64 (Server 2025, build 26100) |
+| --- | ---: | ---: |
+| Result | ✅ all 9 steps | ✅ all 9 steps |
+| Launch to welcome screen | 0.95 s | 2.9 s |
+| Folder selection to first rows (clicks included) | 0.64 s | 0.48 s |
+| Cataloging 1,006 files after resume | 2.0 s | 4.3 s |
+| Relaunch to the reopened library | 1.0 s | 1.7 s |
+| Whole run | 24 s | 29 s |
+
+These are debug builds on shared runners, so treat the timings as rough.
+
+Three problems were found and fixed on the way:
+
+- **Windows paths:** the first passing run's screenshots showed every path
+  in Windows' verbatim form (`\\?\C:\Users\…`), because folders were
+  canonicalized with `std::fs::canonicalize`. Atlas now uses
+  `dunce::canonicalize`, which gives the ordinary `C:\…` form whenever
+  that is unambiguous. The smoke test fails if a verbatim path is shown or
+  sent to the OS.
+- **Linux:** without a D-Bus session, every launch waited about 25 s for the
+  accessibility bus (32 s to the welcome screen). The smoke test now runs
+  under `dbus-run-session`, as a real desktop would; 0.95 s.
+- **Windows:** msedgedriver couldn't attach ("DevToolsActivePort file
+  doesn't exist"), because wry always sets WebView2's browser arguments and
+  so overrides the remote-debugging arguments the driver passes through
+  `WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS`. The main window is now created in
+  code, and debug builds add the driver's arguments to wry's defaults
+  (`infrastructure/e2e.rs`). Release builds get wry's defaults only, as
+  before.
+
+### macOS arm64, Slice 0.8 (2026-11-08)
+
+MacBook Pro (Mac17,9), Apple M5 Pro, 18 cores, 64 GB, macOS 27.0.1. The
+**release** bundle (`just bundle-release`) was mounted from its DMG and launched directly with
+a scratch `HOME`, so the real configuration and library were never read or
+written (checked before and after). Driven through the accessibility tree;
+timings are from polling and are good to about ±300 ms.
+
+- **Launch to the welcome screen:** 1.45 s. The suggested data folder was
+  under the scratch home.
+- **Data folder** picked through the real macOS folder dialog; the library
+  was created there.
+- **Library folder:** the 30,006-file fixture added through the real dialog.
+  On battery power, the status bar read "Slowed on battery".
+- **Pause:** "Paused by you · 24,673 files so far", unchanged 3 s later.
+  Quit from the app menu and relaunched: still paused (relaunch to the
+  paused status: 2.0 s). Resume then finished at "Up to date · 30,006 files".
+- **Search** "CAFE creme" found the "Café crème" files.
+- **Open** showed "Café crème book 000136.pdf" in Preview; **Show in
+  Finder** selected the file in its folder. Only those windows were closed
+  afterwards.
+- **Quit Atlas** left no process running.
+- **CI-built DMG:** downloaded from the run's artifact (so quarantined),
+  `codesign --verify --deep --strict` passes (ad-hoc, hardened runtime,
+  sealed resources). `spctl --assess` rejects it, as expected for an
+  unnotarized app. The Gatekeeper dialog itself was not opened: that needs a
+  Finder launch, which would use the real profile.
+
+### Not verified in Slice 0.8
+
+- **Windows and Linux native folder dialogs** and **opening or revealing
+  files in the OS**: the smoke test bypasses both (by design; see above).
+- **Windows Credential Manager and Linux Secret Service** storing a real key.
+- **Real removable-drive unplugging and real battery hardware** on Windows
+  and Linux (simulated in tests).
+- **Windows long paths** (over 260 characters) and network shares.
+- **Installing** the Windows and Linux bundles on a real desktop, including
+  SmartScreen; the Gatekeeper dialog on macOS.
+- **Other Linux distributions**, Wayland, and ARM.
+
+The manual checklist below covers these.
+
 ## Manual checklist for Windows and Linux
 
 CI runs an automated smoke test on Windows and Linux (Slice 0.8, below),

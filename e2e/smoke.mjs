@@ -218,6 +218,9 @@ async function run() {
     const box = await wd.waitFor("//input[@placeholder='Search file names and folders']");
     await wd.type(box, 'CAFE creme');
     await wd.waitFor("//button[starts-with(@aria-label, 'Open Café crème')]");
+    // Paths are shown in their ordinary form, never Windows' verbatim \\?\ form.
+    const page = await wd.execute('return document.body.innerText');
+    if (page.includes('\\\\?\\')) throw new Error('a path is shown in verbatim (\\\\?\\) form');
   });
 
   await step('open asks the OS to open the original', async () => {
@@ -226,8 +229,8 @@ async function run() {
       const text = fs.existsSync(openerLog) ? fs.readFileSync(openerLog, 'utf8') : '';
       return text.split('\n').find((l) => l.startsWith('open ') && l.includes('Café crème'));
     });
-    // Windows may report a verbatim (\\?\) path; compare without it.
-    const opened = line.slice('open '.length).replace(/^\\\\\?\\/, '');
+    const opened = line.slice('open '.length);
+    if (opened.startsWith('\\\\?\\')) throw new Error(`verbatim path sent to the OS: ${opened}`);
     if (!fs.existsSync(opened)) throw new Error(`opened a path that doesn't exist: ${opened}`);
     const rel = path.relative(fs.realpathSync.native(fixture), fs.realpathSync.native(opened));
     if (rel.startsWith('..') || path.isAbsolute(rel)) throw new Error('opened outside the folder');

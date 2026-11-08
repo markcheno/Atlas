@@ -251,7 +251,7 @@ impl Workspace {
         let Some(root) = self.open_root() else {
             return false;
         };
-        match (fs::canonicalize(path), fs::canonicalize(&root.path)) {
+        match (dunce::canonicalize(path), dunce::canonicalize(&root.path)) {
             (Ok(a), Ok(b)) => a == b,
             _ => false,
         }

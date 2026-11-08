@@ -180,8 +180,9 @@ Implemented in `src-tauri/src/services/sources/`; rationale in
   after the first call), `canonicalize`, and read-only directory opens for
   identity checks. Integration tests snapshot names, sizes and mtimes of a
   source tree before and after add, list and remove.
-- **Storage.** `source_roots` (migration 0002) keeps the canonical path as
-  platform-tagged native bytes (`infrastructure/native_path.rs`) plus a
+- **Storage.** `source_roots` (migration 0002) keeps the canonical path
+  (`dunce::canonicalize`, so Windows paths keep their ordinary `C:\…` form
+  rather than the verbatim `\\?\C:\…` one) as platform-tagged native bytes (`infrastructure/native_path.rs`) plus a
   lossy display string. There is no stored status column: availability is
   probed live each time the list is shown, with a 2 second budget per call
   so a hung network mount cannot freeze the UI.
@@ -339,8 +340,13 @@ platform-required and contain no Atlas data.
   or observe the OS opening a file, so debug builds read
   `ATLAS_E2E_PICK_DATA_ROOT`, `ATLAS_E2E_PICK_SOURCES` and
   `ATLAS_E2E_OPENER_LOG` (`infrastructure/e2e.rs`). Release builds ignore
-  them, as they ignore `ATLAS_CONFIG_DIR`. macOS has no WebDriver for
-  WKWebView, so it uses the manual checklist.
+  them, as they ignore `ATLAS_CONFIG_DIR`. On Windows, wry always sets
+  WebView2's browser arguments, which hides the remote-debugging arguments
+  msedgedriver passes through `WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS`. So
+  the main window is created in `setup` (`"create": false` in
+  `tauri.conf.json`), and debug builds append the driver's arguments to
+  wry's defaults. macOS has no WebDriver for WKWebView, so it uses the
+  manual checklist.
 - **Benchmarks** (`src-tauri/benches/inventory.rs`, driven by
   `scripts/bench.mjs`). Release build, real filesystem and SQLite, and
   simulated power for repeatable AC and battery runs. The harness follows

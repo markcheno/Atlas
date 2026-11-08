@@ -107,5 +107,5 @@ for cloud-offloaded files it would trigger a download.
   deleted files.
 - Throughput is bounded by the policy rate: 500 entries per second
   plugged in and 100 when slowed (ADR 0004, retuned in Slice 0.8).
-  Unthrottled, a warm 30,000-file tree takes about 1.3 seconds on an M5
+  Unthrottled, a warm 30,000-file tree takes about 1.2 seconds on an M5
   Pro ([benchmarks](../benchmarks.md)).

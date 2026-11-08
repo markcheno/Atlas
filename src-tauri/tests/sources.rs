@@ -93,8 +93,10 @@ fn added_folders_persist_across_reopen() {
     assert_eq!(added.status, SourceRootStatus::Available);
     assert_eq!(
         PathBuf::from(&added.display_path),
-        fs::canonicalize(&books).unwrap()
+        dunce::canonicalize(&books).unwrap()
     );
+    // People see `C:\…`, never the verbatim `\\?\C:\…` form.
+    assert!(!added.display_path.starts_with(r"\\?\"));
     assert!(!added.contains_data_root);
     assert_eq!(added.nested_in_root_id, None);
 
@@ -192,9 +194,9 @@ fn p0_06_nested_and_containing_folders_are_refused() {
 #[test]
 fn p0_06_existing_overlaps_resolve_to_the_outermost_root() {
     let lib = Lib::new();
-    let outer = fs::canonicalize(lib.folder("A")).unwrap();
-    let middle = fs::canonicalize(lib.folder("A/B")).unwrap();
-    let inner = fs::canonicalize(lib.folder("A/B/C")).unwrap();
+    let outer = dunce::canonicalize(lib.folder("A")).unwrap();
+    let middle = dunce::canonicalize(lib.folder("A/B")).unwrap();
+    let inner = dunce::canonicalize(lib.folder("A/B/C")).unwrap();
     let root = lib.ws.require_open().unwrap();
     let catalog = SqliteCatalog::new(root.catalog());
     for (id, path) in [("inner", &inner), ("outer", &outer), ("middle", &middle)] {
@@ -316,7 +318,7 @@ fn p0_24_non_utf8_folder_names() {
         .unwrap();
     assert_eq!(
         native_path::decode(&stored[0].path_bytes).unwrap(),
-        fs::canonicalize(&odd).unwrap()
+        dunce::canonicalize(&odd).unwrap()
     );
     assert_eq!(lib.list()[0].status, SourceRootStatus::Available);
 }

@@ -62,7 +62,7 @@ impl Lib {
             control::overview(ws.require_open().unwrap())
                 .is_ok_and(|o| o.active.is_none() && o.cataloged_files as usize == files.len())
         }));
-        let books = fs::canonicalize(&books).unwrap();
+        let books = dunce::canonicalize(&books).unwrap();
         Self {
             env,
             _h: h,
@@ -230,7 +230,7 @@ fn legacy_icloud_placeholder_is_revealed_not_opened() {
             .is_ok_and(|o| o.active.is_none() && o.cataloged_files == 1)
     }));
     let lib = Lib {
-        books: fs::canonicalize(&books).unwrap(),
+        books: dunce::canonicalize(&books).unwrap(),
         env,
         _h: h,
         ws,

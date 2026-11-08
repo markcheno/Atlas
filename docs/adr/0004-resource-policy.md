@@ -86,25 +86,27 @@ every policy state can be demonstrated on real hardware
 Spec §13 asks for the throttle to be revisited from measurements. The
 benchmark harness (`src-tauri/benches/inventory.rs`, release build, real
 filesystem and SQLite) cataloged the 30,006-file fixture at fixed rates on
-an Apple M5 Pro (18 cores, 64 GB, macOS 27.0.1, on AC):
+an Apple M5 Pro (18 cores, 64 GB, macOS 27.0.1, nothing else running;
+re-run 2026-11-08):
 
 | Rate (entries/s) | Wall time | Scan CPU, % of one core | Peak RSS |
 | ---: | ---: | ---: | ---: |
-| unthrottled | 1.3 s | 76.3 | 15 MiB |
-| 1,000 | 30 s | 11.1 | 19 MiB |
-| 500 | 61 s | 6.8 | 20 MiB |
-| 250 | 122 s | 4.5 | 20 MiB |
-| 100 (old full rate) | 304 s | 2.4 | 20 MiB |
+| unthrottled | 1.2 s | 77.8 | 18 MiB |
+| 1,000 | 30.4 s | 11.2 | 20 MiB |
+| 500 | 60.8 s | 7.2 | 20 MiB |
+| 250 | 121.5 s | 4.6 | 20 MiB |
+| 100 (old full rate) | 303.7 s | 2.5 | 20 MiB |
 
 The rule was the fastest rate that keeps average CPU at or below 25% of one
 core, with browsing p95 under 250 ms while scanning. 1,000 passes on this
 machine, but only by about 2×, and the minimum supported hardware is
-unknown. **500 was chosen**: 3.7× headroom, 30,000 files in about a
+unknown. **500 was chosen**: about 3.5× headroom, 30,000 files in about a
 minute, and browsing latency unaffected (see
 [benchmarks](../benchmarks.md)). Slowed work (battery, unknown power, a
 busy system) runs at 100, which is 30,000 files in about 5 minutes.
 
-The CI runners' numbers (shared VMs on all three OSes) are recorded in
-[benchmarks](../benchmarks.md) as a check that 500 stays within the rule on
-slower machines. Revisit when real users' hardware reports arrive, or when
+On the CI runners (shared 3–4 core VMs on all three OSes), 500 costs
+15–20% of one core even with browsing running alongside, and browse p95
+stays at 2–4 ms on 1k and at most 125 ms on 30k, so it stays within the
+rule on slower machines ([benchmarks](../benchmarks.md)). Revisit when real users' hardware reports arrive, or when
 Phase 1 adds per-file reading, which has a very different cost.

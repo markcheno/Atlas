@@ -93,7 +93,7 @@ fn map_access(err: std::io::Error) -> AtlasError {
 }
 
 fn canonical_data_root(root: &OpenRoot) -> PathBuf {
-    fs::canonicalize(root.path()).unwrap_or_else(|_| root.path().to_path_buf())
+    dunce::canonicalize(root.path()).unwrap_or_else(|_| root.path().to_path_buf())
 }
 
 /// Lists library folders with live status, ordered by display path.
@@ -157,7 +157,7 @@ pub fn add(root: &OpenRoot, path: &Path) -> AtlasResult<SourceRoot> {
         return Err(AtlasError::SourceNotAFolder);
     }
     drop(fs::read_dir(path).map_err(map_access)?);
-    let canonical = fs::canonicalize(path).map_err(map_access)?;
+    let canonical = dunce::canonicalize(path).map_err(map_access)?;
 
     match relation(&canonical, &canonical_data_root(root)) {
         Relation::Same | Relation::Inside => return Err(AtlasError::SourceIsDataRoot),
