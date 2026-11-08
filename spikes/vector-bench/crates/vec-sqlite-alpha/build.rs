@@ -18,7 +18,8 @@ fn main() {
             "neon"
         }
         ("x86_64", e) if e != "msvc" => {
-            b.define("SQLITE_VEC_ENABLE_AVX", None).flag("-mavx");
+            // The alpha's AVX path also uses AVX2 (Hamming distance).
+            b.define("SQLITE_VEC_ENABLE_AVX", None).flag("-mavx").flag("-mavx2");
             "avx"
         }
         _ => "none",

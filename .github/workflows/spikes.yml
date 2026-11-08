@@ -73,7 +73,7 @@ jobs:
 
       - name: Run engines
         shell: bash
-        run: node spikes/scripts/run-vectors.mjs --no-build --n "${{ inputs.n || '100000' }}" --out "$RUNNER_TEMP/spikes"
+        run: node spikes/scripts/run-vectors.mjs --no-build --n "${{ inputs.n || '100000' }}" --queries 200 --out "$RUNNER_TEMP/spikes"
 
       - name: Collect build timings
         if: always()

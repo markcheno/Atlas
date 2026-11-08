@@ -9,8 +9,8 @@
 // else should be running), runs the crash test on a 100k set, and writes
 // vectors-<platform>-<n>.json and .md into <out>.
 //
-// The sqlite-vec DiskANN alpha builds slowly; it runs only with --alpha or
-// at n ≤ 100,000.
+// The sqlite-vec DiskANN alpha is informational and builds its index
+// slowly; it runs only with --alpha.
 
 import { spawn, spawnSync } from 'node:child_process';
 import fs from 'node:fs';
@@ -279,7 +279,7 @@ async function main() {
   };
   for (const [bin, variant] of RUNS) {
     if (only && !only.includes(bin)) continue;
-    if (bin === 'vec-sqlite-alpha' && n > 100_000 && !flag('alpha')) continue;
+    if (bin === 'vec-sqlite-alpha' && !flag('alpha')) continue;
     if (!fs.existsSync(exe(bin))) continue;
     console.log(`vectors: ${bin} ${variant ?? ''} at ${n.toLocaleString('en-US')}…`);
     const r = runOne(bin, variant, data, n);
