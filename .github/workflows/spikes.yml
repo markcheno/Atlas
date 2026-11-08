@@ -1,8 +1,13 @@
 name: Spikes
 
 # Slice 0.9 extraction and vector-engine spike (docs/spike-0.9.md).
-# Manual only: it never runs on push, so app CI stays fast.
+# Manual only: it never runs on push to main, so app CI stays fast.
 on:
+  # TEMPORARY (remove before merging Slice 0.9): GitHub can dispatch a
+  # workflow only once it exists on the default branch.
+  push:
+    branches: ['slice-*']
+    paths: ['spikes/**', '.github/workflows/spikes.yml']
   workflow_dispatch:
     inputs:
       suite:
@@ -24,7 +29,7 @@ concurrency:
 jobs:
   vectors:
     name: Vectors ${{ matrix.name }}
-    if: inputs.suite == 'all' || inputs.suite == 'vectors'
+    if: (inputs.suite || 'all') == 'all' || inputs.suite == 'vectors'
     strategy:
       fail-fast: false
       matrix:
@@ -67,7 +72,7 @@ jobs:
 
       - name: Run engines
         shell: bash
-        run: node spikes/scripts/run-vectors.mjs --no-build --n "${{ inputs.n }}" --out "$RUNNER_TEMP/spikes"
+        run: node spikes/scripts/run-vectors.mjs --no-build --n "${{ inputs.n || '100000' }}" --out "$RUNNER_TEMP/spikes"
 
       - name: Collect build timings
         if: always()
