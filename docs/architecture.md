@@ -638,8 +638,10 @@ Implemented in `src-tauri/src/services/search/` (Slice 1.4); rationale in
   drives the debug build through `tauri-driver`. The flow covers
   onboarding, adding a folder, pause and resume, completion, name search,
   open, quitting while text is being read (no `--extract-worker` process may
-  outlive the app), searching a passage from Home on the 1,000-file text
-  fixture (`--text-kb 4`), settings, and a relaunch. It waits for the native
+  outlive the app), pausing and resuming the reading after the relaunch,
+  searching a passage from Home on the 1,000-file text fixture
+  (`--text-kb 4`) and opening that result, duplicates, settings, and a
+  relaunch. It waits for the native
   driver's port and retries a session the driver refuses once, recording
   the retry (Slice 1.8: msedgedriver sometimes refused the first
   connection on Windows runners). WebDriver can't answer native folder dialogs
