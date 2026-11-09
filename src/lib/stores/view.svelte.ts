@@ -11,19 +11,21 @@ export type ViewId =
   | 'device-check'
   | 'unavailable'
   | 'home'
+  | 'search'
   | 'library'
   | 'settings';
 
-export type MainViewId = 'home' | 'library' | 'settings';
+export type MainViewId = 'home' | 'search' | 'library' | 'settings';
 
 export const NAV_VIEWS: ReadonlyArray<{ id: MainViewId; label: string }> = [
   { id: 'home', label: 'Home' },
+  { id: 'search', label: 'Search' },
   { id: 'library', label: 'Library' },
   { id: 'settings', label: 'Settings' },
 ];
 
 export function isMainView(id: ViewId): id is MainViewId {
-  return id === 'home' || id === 'library' || id === 'settings';
+  return NAV_VIEWS.some((v) => v.id === id);
 }
 
 class ViewState {

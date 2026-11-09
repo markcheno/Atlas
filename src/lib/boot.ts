@@ -7,7 +7,9 @@ import type { DataRootStatus } from './api/bindings/DataRootStatus';
 import { appInfo } from './stores/app.svelte';
 import { inventory } from './stores/inventory.svelte';
 import { extraction } from './stores/extraction.svelte';
+import { details } from './stores/details.svelte';
 import { library } from './stores/library.svelte';
+import { search } from './stores/search.svelte';
 import { sources } from './stores/sources.svelte';
 import { theme } from './stores/theme.svelte';
 import { view } from './stores/view.svelte';
@@ -21,6 +23,8 @@ import { workspace } from './stores/workspace.svelte';
 export async function applyStatus(status: DataRootStatus, opts: { justChosen?: boolean } = {}) {
   workspace.status = status;
   library.reset();
+  search.reset();
+  details.reset();
   if (!appInfo.status) void appInfo.load();
   if (status.state === 'open') {
     await Promise.all([

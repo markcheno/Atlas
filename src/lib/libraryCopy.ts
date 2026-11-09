@@ -3,7 +3,7 @@ import type { FileInstance } from './api/bindings/FileInstance';
 import type { OsKind } from './api/bindings/OsKind';
 import { formatBytes } from './format';
 
-export function statusLabel(item: FileInstance): string {
+export function statusLabel(item: Pick<FileInstance, 'availability' | 'storage'>): string {
   switch (item.availability) {
     case 'missing':
       return 'Missing';

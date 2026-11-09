@@ -8,6 +8,8 @@ vi.mock('@tauri-apps/api/core', () => import('./test/tauriMock'));
 vi.mock('@tauri-apps/api/event', () => import('./test/eventMock'));
 
 const { library: libraryStore } = await import('./lib/stores/library.svelte');
+const { search: searchStore } = await import('./lib/stores/search.svelte');
+const { details: detailsStore } = await import('./lib/stores/details.svelte');
 const { providers: providersStore } = await import('./lib/stores/providers.svelte');
 
 const { default: App } = await import('./App.svelte');
@@ -41,6 +43,8 @@ function resetAll() {
   sources.clear();
   inventory.clear();
   extraction.clear();
+  searchStore.reset();
+  detailsStore.reset();
   theme.apply('system');
 }
 
@@ -205,10 +209,12 @@ describe('main shell', () => {
 
   it('keyboard shortcuts switch views', async () => {
     const user = await launchOpen();
-    await user.keyboard('{Control>}3{/Control}');
+    await user.keyboard('{Control>}4{/Control}');
     expect(await h1('Settings')).toHaveFocus();
-    await user.keyboard('{Control>}2{/Control}');
+    await user.keyboard('{Control>}3{/Control}');
     expect(await h1('Library')).toHaveFocus();
+    await user.keyboard('{Control>}2{/Control}');
+    expect(await h1('Search')).toHaveFocus();
   });
 
   it('theme choice is applied and saved to the library settings', async () => {
@@ -729,14 +735,6 @@ describe('library table', () => {
       { timeout: 2000 },
     );
   });
-
-  it('Home search goes to the Library with the query', async () => {
-    tauri.setHandler('list_source_roots', () => [tauri.sourceRoot()]);
-    const user = await launchOpen();
-    await user.type(screen.getByLabelText('Search file names and folders'), 'meteor{Enter}');
-    await screen.findByRole('heading', { level: 1, name: 'Library' });
-    await waitFor(() => expect(lastQuery().text).toBe('meteor'));
-  });
 });
 
 describe('reading text', () => {
@@ -1100,5 +1098,452 @@ describe('AI models settings', () => {
     expect(within(aiSection()).getByText('Remove this service and its key?')).toBeInTheDocument();
     await user.click(within(aiSection()).getByRole('button', { name: 'Remove' }));
     expect(tauri.invoke).toHaveBeenCalledWith('delete_provider_profile', { id: 'p1' });
+  });
+});
+
+describe('search', () => {
+  beforeEach(() => {
+    resetAll();
+    libraryStore.reset();
+  });
+
+  const searches = () => tauri.invoke.mock.calls.filter(([c]) => c === 'search_documents');
+  const lastSearch = () => (searches().at(-1)![1] as { query: Record<string, unknown> }).query;
+
+  /** Launch, then search from Home's box. */
+  async function searchFor(text: string, page = tauri.searchPage()) {
+    tauri.setHandler('list_source_roots', () => [tauri.sourceRoot()]);
+    tauri.setHandler('search_documents', () => page);
+    const user = await launchOpen();
+    await user.type(screen.getByLabelText('Search your library'), `${text}{Enter}`);
+    await h1('Search');
+    return user;
+  }
+
+  const results = [
+    tauri.searchHit({ fileInstanceId: 'h1', why: 'both', otherLocations: 2 }),
+    tauri.searchHit({
+      fileInstanceId: 'h2',
+      documentId: null,
+      title: null,
+      displayName: 'drive notes.epub',
+      fileType: 'epub',
+      location: null,
+      pageNo: null,
+      snippet: [],
+      why: 'name',
+      allWords: false,
+      otherLocations: 1,
+    }),
+    tauri.searchHit({
+      fileInstanceId: 'h3',
+      title: 'Gears',
+      displayName: 'gears.epub',
+      fileType: 'epub',
+      location: 'Chapter 3, part 2',
+      availability: 'missing',
+    }),
+  ];
+  const resultsPage = tauri.searchPage({ hits: results, matchedDocuments: 3 });
+
+  it('is a main tab that shows only help before the first search', async () => {
+    const user = await launchOpen();
+    const nav = screen.getByRole('navigation', { name: 'Main' });
+    expect(
+      within(nav)
+        .getAllByRole('button')
+        .map((b) => b.textContent?.trim()),
+    ).toEqual(['Home', 'Search', 'Library', 'Settings']);
+    await user.click(within(nav).getByRole('button', { name: 'Search' }));
+    await h1('Search');
+    expect(screen.getByText(/Use quotes for an exact phrase/)).toBeInTheDocument();
+    expect(screen.queryAllByTestId('search-hit')).toHaveLength(0);
+    expect(searches()).toHaveLength(0);
+  });
+
+  it('Home describes the search and submits to the Search view', async () => {
+    tauri.setHandler('list_source_roots', () => [tauri.sourceRoot()]);
+    const user = await launchOpen();
+    expect(
+      screen.getByText(
+        'Searches the text of your books and papers, and their names. Use quotes for an exact phrase. End a word with * to match its beginning.',
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/not AI search/)).not.toBeInTheDocument();
+    await user.type(screen.getByLabelText('Search your library'), '"harmonic drive"{Enter}');
+    await h1('Search');
+    expect(lastSearch()).toEqual({
+      text: '"harmonic drive"',
+      sourceRootId: null,
+      fileType: null,
+      includeMissing: false,
+      page: 0,
+      pageSize: 20,
+    });
+    expect(screen.getByLabelText('Search your library')).toHaveValue('"harmonic drive"');
+  });
+
+  it('shows each result with where, a highlighted snippet and why it matched', async () => {
+    await searchFor('harmonic drive', resultsPage);
+    const hits = await screen.findAllByTestId('search-hit');
+    expect(hits).toHaveLength(3);
+
+    const [first, second, third] = hits.map((h) => within(h));
+    expect(first.getByRole('heading', { name: 'Harmonic Drives' })).toBeInTheDocument();
+    expect(first.getByText('Page 12')).toBeInTheDocument();
+    expect(first.getByText('Books')).toBeInTheDocument();
+    expect(first.getByText('harmonic.pdf')).toBeInTheDocument();
+    const marks = hits[0].querySelectorAll('mark');
+    expect([...marks].map((m) => m.textContent)).toEqual(['harmonic drive']);
+    expect(first.getByTestId('snippet')).toHaveTextContent('… a harmonic drive has no backlash …');
+    expect(first.getByText('In the text and the name')).toBeInTheDocument();
+    expect(first.getByText('Also in 2 other places')).toBeInTheDocument();
+    expect(first.queryByText('Some of your words')).not.toBeInTheDocument();
+
+    // No title: the file name is the heading. Found by the any-words fallback.
+    expect(second.getByRole('heading', { name: 'drive notes.epub' })).toBeInTheDocument();
+    expect(second.getByText('In the name')).toBeInTheDocument();
+    expect(second.getByText('Some of your words')).toBeInTheDocument();
+    expect(second.getByText('Also in 1 other place')).toBeInTheDocument();
+    expect(second.queryByTestId('snippet')).not.toBeInTheDocument();
+
+    expect(third.getByText('Chapter 3, part 2')).toBeInTheDocument();
+    expect(third.getByText('In the text')).toBeInTheDocument();
+    expect(third.getByText('Missing')).toBeInTheDocument();
+    expect(third.getByRole('button', { name: 'Open gears.epub' })).toBeDisabled();
+    expect(screen.getByTestId('search-range')).toHaveTextContent('Showing 1–3 of 3 documents');
+  });
+
+  it('renders snippet text as text, never as markup', async () => {
+    const hostile = tauri.searchHit({
+      snippet: [
+        { text: '<b>bold</b> <img src=x onerror="alert(1)"> ', hit: false },
+        { text: '<i>drive</i>', hit: true },
+      ],
+    });
+    await searchFor('drive', tauri.searchPage({ hits: [hostile], matchedDocuments: 1 }));
+    const snippet = await screen.findByTestId('snippet');
+    expect(snippet.querySelector('b, img, i')).toBeNull();
+    expect(snippet).toHaveTextContent('<b>bold</b> <img src=x onerror="alert(1)"> <i>drive</i>');
+    expect(snippet.querySelector('mark')?.textContent).toBe('<i>drive</i>');
+  });
+
+  it('filters and pages send the right query, with honest totals', async () => {
+    const hits = Array.from({ length: 20 }, (_, i) =>
+      tauri.searchHit({ fileInstanceId: `s${i}`, title: `Book ${i}` }),
+    );
+    const user = await searchFor('drive', tauri.searchPage({ hits, matchedDocuments: 45 }));
+    expect(await screen.findByTestId('search-range')).toHaveTextContent(
+      'Showing 1–20 of 45 documents',
+    );
+    expect(screen.getByRole('button', { name: 'Previous' })).toBeDisabled();
+    await user.click(screen.getByRole('button', { name: 'Next' }));
+    expect(lastSearch()).toMatchObject({ text: 'drive', page: 1 });
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Type' }), 'epub');
+    expect(lastSearch()).toMatchObject({ fileType: 'epub', page: 0 });
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Folder' }), 'root-books');
+    expect(lastSearch()).toMatchObject({ sourceRootId: 'root-books', fileType: 'epub' });
+
+    tauri.setHandler('search_documents', () =>
+      tauri.searchPage({ hits, matchedDocuments: 500, capped: true }),
+    );
+    await user.clear(screen.getByLabelText('Search your library'));
+    await user.type(screen.getByLabelText('Search your library'), 'the{Enter}');
+    await waitFor(() =>
+      expect(screen.getByTestId('search-range')).toHaveTextContent(
+        'Showing 1–20 of 500 or more documents',
+      ),
+    );
+  });
+
+  it('asks for a word when the query is only punctuation, without searching', async () => {
+    await searchFor('"*" -- !!');
+    expect(await screen.findByText('Type a word to search for.')).toBeInTheDocument();
+    expect(searches()).toHaveLength(0);
+  });
+
+  it('says when nothing has been read yet', async () => {
+    await searchFor('zebra', tauri.searchPage({ textReadFiles: 0, totalFiles: 12 }));
+    expect(
+      await screen.findByText("Atlas hasn't read any text yet. It searches file names meanwhile."),
+    ).toBeInTheDocument();
+    expect(screen.getByText('No file names match “zebra”.')).toBeInTheDocument();
+  });
+
+  it('says how much has been read when nothing matches', async () => {
+    await searchFor('zebra', tauri.searchPage({ textReadFiles: 7, totalFiles: 10 }));
+    expect(
+      await screen.findByText('Nothing in your library mentions “zebra”.'),
+    ).toBeInTheDocument();
+    expect(screen.getByText('Atlas has read the text of 7 of 10 files.')).toBeInTheDocument();
+  });
+
+  it('explains a search that fails', async () => {
+    tauri.setHandler('list_source_roots', () => [tauri.sourceRoot()]);
+    tauri.setHandler('search_documents', () => {
+      throw tauri.apiError('database_error', 'The library could not be read.', 'Restart Atlas.');
+    });
+    const user = await launchOpen();
+    await user.type(screen.getByLabelText('Search your library'), 'drive{Enter}');
+    expect(await screen.findByText("Atlas couldn't search your library")).toBeInTheDocument();
+    expect(screen.getByText('Restart Atlas.')).toBeInTheDocument();
+  });
+
+  it('Home notes that reading continues', async () => {
+    tauri.setHandler('get_extraction_status', () =>
+      tauri.extractionOverview({
+        active: tauri.extractionStatus(),
+        counts: tauri.extractionCounts({
+          done: 12_000,
+          needsOcr: 400,
+          pending: 17_606,
+          total: 30_006,
+        }),
+      }),
+    );
+    await launchOpen();
+    expect(await screen.findByTestId('reading-note')).toHaveTextContent(
+      "Atlas is still reading text: 12,400 of 30,006 files so far. Search covers what's been read.",
+    );
+  });
+
+  it('shows the reading note with results and refreshes them as text is read', async () => {
+    await searchFor(
+      'drive',
+      tauri.searchPage({
+        hits: [results[0]],
+        matchedDocuments: 1,
+        readingText: true,
+        textReadFiles: 4,
+        totalFiles: 10,
+      }),
+    );
+    expect(await screen.findByTestId('reading-note')).toHaveTextContent(
+      'Atlas is still reading text: 4 of 10 files so far.',
+    );
+    const before = searches().length;
+    for (let i = 0; i < 4; i++) {
+      events.emit(
+        'extraction-status',
+        tauri.extractionOverview({ counts: tauri.extractionCounts({ done: 5 + i, total: 10 }) }),
+      );
+    }
+    await waitFor(() => expect(searches().length).toBe(before + 1), { timeout: 3000 });
+  });
+
+  it('opens a result, asking before downloading a cloud-only file', async () => {
+    tauri.setHandler('open_original', (args) => {
+      if (!args?.allowDownload) {
+        throw tauri.apiError('file_cloud_only', 'This file is stored only in the cloud.');
+      }
+      return null;
+    });
+    const cloud = tauri.searchHit({ fileInstanceId: 'c1', storage: 'cloud_only' });
+    const user = await searchFor('drive', tauri.searchPage({ hits: [cloud], matchedDocuments: 1 }));
+    const hit = within(await screen.findByTestId('search-hit'));
+    expect(hit.getByText('Only in the cloud')).toBeInTheDocument();
+    await user.click(hit.getByRole('button', { name: 'Open harmonic.pdf' }));
+    expect(
+      await hit.findByText('This file is stored in the cloud. Opening it will download it.'),
+    ).toBeInTheDocument();
+    await user.click(hit.getByRole('button', { name: 'Download and open' }));
+    expect(tauri.invoke).toHaveBeenCalledWith('open_original', {
+      fileId: 'c1',
+      allowDownload: true,
+    });
+    await user.click(hit.getByRole('button', { name: 'Show in Finder: harmonic.pdf' }));
+    expect(tauri.invoke).toHaveBeenCalledWith('reveal_original', { fileId: 'c1' });
+  });
+});
+
+describe('document details', () => {
+  beforeEach(() => {
+    resetAll();
+    libraryStore.reset();
+  });
+
+  const row = tauri.fileInstance({
+    id: 'f1',
+    displayName: 'harmonic.pdf',
+    displayPath: '/Users/test/Books/harmonic.pdf',
+    sizeBytes: 4_200_000,
+    documentId: 'doc-1',
+    extraction: { state: 'done', reason: null },
+  });
+
+  async function openLibrary(detail: unknown) {
+    tauri.setHandler('list_source_roots', () => [tauri.sourceRoot()]);
+    tauri.setHandler('get_inventory_status', () => tauri.overview({ catalogedFiles: 1 }));
+    tauri.setHandler('list_documents', () => tauri.documentPage({ items: [row], matchedSoFar: 1 }));
+    tauri.setHandler('get_document_detail', () => detail);
+    const user = await launchOpen();
+    await user.click(screen.getByRole('button', { name: 'Library' }));
+    await screen.findByRole('table');
+    return user;
+  }
+
+  const dialog = () => screen.findByRole('dialog');
+  const field = (d: HTMLElement, term: string) =>
+    within(d).getByText(term, { selector: 'dt' }).nextElementSibling;
+
+  it('opens from a Library row with everything Atlas knows, including other copies', async () => {
+    const detail = tauri.documentDetail({
+      file: row,
+      authors: ['Ada Lin', 'Bo Okafor'],
+      alsoAt: [
+        tauri.fileInstance({
+          id: 'f2',
+          displayName: 'harmonic copy.pdf',
+          displayPath: '/Users/test/Books/old/harmonic copy.pdf',
+          documentId: 'doc-1',
+        }),
+        tauri.fileInstance({
+          id: 'f3',
+          displayName: 'harmonic (1).pdf',
+          displayPath: '/Users/test/Books/harmonic (1).pdf',
+          availability: 'missing',
+          documentId: 'doc-1',
+        }),
+      ],
+    });
+    const user = await openLibrary(detail);
+    await user.click(screen.getByRole('button', { name: 'Details for harmonic.pdf' }));
+    expect(tauri.invoke).toHaveBeenCalledWith('get_document_detail', { fileId: 'f1' });
+    const d = await dialog();
+    expect(d).toHaveAccessibleName('Harmonic Drives');
+    expect(within(d).getByText('harmonic.pdf')).toBeInTheDocument();
+    expect(field(d, 'Authors')).toHaveTextContent('Ada Lin, Bo Okafor');
+    expect(field(d, 'Language')).toHaveTextContent('English');
+    expect(field(d, 'Pages')).toHaveTextContent('312');
+    expect(field(d, 'Size')).toHaveTextContent('4.2 MB');
+    expect(field(d, 'Folder')).toHaveTextContent('Books');
+    expect(field(d, 'Path')).toHaveTextContent('/Users/test/Books/harmonic.pdf');
+    expect(within(d).getByTestId('text-status')).toHaveTextContent('Text ready');
+
+    const also = within(within(d).getByRole('region', { name: 'Also at' }));
+    const copies = also.getAllByRole('listitem');
+    expect(copies).toHaveLength(2);
+    expect(within(copies[1]).getByText('Missing')).toBeInTheDocument();
+    expect(also.getByRole('button', { name: 'Open harmonic (1).pdf' })).toBeDisabled();
+    await user.click(also.getByRole('button', { name: 'Open harmonic copy.pdf' }));
+    expect(tauri.invoke).toHaveBeenCalledWith('open_original', {
+      fileId: 'f2',
+      allowDownload: false,
+    });
+  });
+
+  it('falls back to the file name and explains a file without text', async () => {
+    const scanned = {
+      ...row,
+      extraction: { state: 'needs_ocr' as const, reason: 'no_text_layer' },
+    };
+    const user = await openLibrary(
+      tauri.documentDetail({
+        file: scanned,
+        documentId: null,
+        title: null,
+        authors: [],
+        language: null,
+        pageCount: null,
+        charCount: null,
+      }),
+    );
+    await user.click(screen.getByRole('button', { name: 'Details for harmonic.pdf' }));
+    const d = await dialog();
+    expect(d).toHaveAccessibleName('harmonic.pdf');
+    expect(within(d).queryByText('Authors')).not.toBeInTheDocument();
+    expect(within(d).queryByText('Pages')).not.toBeInTheDocument();
+    expect(within(d).getByTestId('text-reason')).toHaveTextContent(
+      "This PDF has no readable text layer. It looks scanned; Atlas can't read it without OCR.",
+    );
+    expect(within(d).queryByRole('region', { name: 'Also at' })).not.toBeInTheDocument();
+  });
+
+  it('says a file has not been read yet', async () => {
+    const pending = {
+      ...row,
+      documentId: null,
+      extraction: { state: 'pending' as const, reason: null },
+    };
+    const user = await openLibrary(
+      tauri.documentDetail({ file: pending, documentId: null, title: null, pageCount: null }),
+    );
+    await user.click(screen.getByRole('button', { name: 'Details for harmonic.pdf' }));
+    expect(within(await dialog()).getByTestId('text-reason')).toHaveTextContent(
+      "Atlas hasn't read this file yet.",
+    );
+  });
+
+  it('closes with Escape or Close and returns focus to the row', async () => {
+    const user = await openLibrary(tauri.documentDetail({ file: row }));
+    const trigger = screen.getByRole('button', { name: 'Details for harmonic.pdf' });
+    await user.click(trigger);
+    await dialog();
+    expect(screen.getByRole('button', { name: 'Close details' })).toHaveFocus();
+    await user.keyboard('{Escape}');
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+    expect(trigger).toHaveFocus();
+
+    await user.keyboard('{Enter}');
+    await dialog();
+    await user.click(screen.getByRole('button', { name: 'Close details' }));
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+    expect(trigger).toHaveFocus();
+  });
+
+  it('keeps Tab inside the open panel', async () => {
+    const user = await openLibrary(tauri.documentDetail({ file: row }));
+    await user.click(screen.getByRole('button', { name: 'Details for harmonic.pdf' }));
+    const d = await dialog();
+    for (let i = 0; i < 6; i++) {
+      await user.tab();
+      expect(d).toContainElement(document.activeElement as HTMLElement);
+    }
+  });
+
+  it('shows loading, then a problem it can explain', async () => {
+    let fail: (e: unknown) => void = () => {};
+    const user = await openLibrary(null);
+    tauri.setHandler('get_document_detail', () => new Promise((_, reject) => (fail = reject)));
+    await user.click(screen.getByRole('button', { name: 'Details for harmonic.pdf' }));
+    expect(within(await dialog()).getByText('Loading details…')).toBeInTheDocument();
+    fail(tauri.apiError('file_not_found', 'Atlas no longer has this file in its library.'));
+    expect(await screen.findByText("Atlas couldn't show this file's details")).toBeInTheDocument();
+  });
+
+  it('opens from a search result', async () => {
+    tauri.setHandler('list_source_roots', () => [tauri.sourceRoot()]);
+    tauri.setHandler('search_documents', () =>
+      tauri.searchPage({ hits: [tauri.searchHit({ fileInstanceId: 'h1' })], matchedDocuments: 1 }),
+    );
+    const user = await launchOpen();
+    await user.type(screen.getByLabelText('Search your library'), 'drive{Enter}');
+    await user.click(await screen.findByRole('button', { name: 'Details for harmonic.pdf' }));
+    expect(tauri.invoke).toHaveBeenCalledWith('get_document_detail', { fileId: 'h1' });
+    expect(await dialog()).toHaveAccessibleName('Harmonic Drives');
+  });
+});
+
+describe('status bar with both jobs', () => {
+  beforeEach(resetAll);
+
+  it('shows cataloging and reading text at once, each with its own controls', async () => {
+    tauri.setHandler('list_source_roots', () => [tauri.sourceRoot()]);
+    tauri.setHandler('get_inventory_status', () =>
+      tauri.overview({ active: tauri.inventoryStatus({ state: 'running' }) }),
+    );
+    tauri.setHandler('get_extraction_status', () =>
+      tauri.extractionOverview({
+        active: tauri.extractionStatus(),
+        counts: tauri.extractionCounts({ done: 3, pending: 7, total: 10 }),
+      }),
+    );
+    const user = await launchOpen();
+    const bar = within(screen.getByRole('contentinfo', { name: 'Status' }));
+    expect(screen.getByTestId('inventory-status')).toBeInTheDocument();
+    expect(screen.getByTestId('extraction-status')).toBeInTheDocument();
+    expect(bar.getByRole('button', { name: 'Pause' })).toBeInTheDocument();
+    await user.click(bar.getByRole('button', { name: 'Pause reading text' }));
+    expect(tauri.invoke).toHaveBeenCalledWith('pause_job', { jobId: 'extract-1' });
   });
 });

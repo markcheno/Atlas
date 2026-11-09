@@ -11,6 +11,7 @@
   import OriginalNotice from '../lib/components/OriginalNotice.svelte';
   import TextBadge from '../lib/components/TextBadge.svelte';
   import { TEXT_FILTERS } from '../lib/extractionCopy';
+  import { details } from '../lib/stores/details.svelte';
   import { fromFile, originals } from '../lib/stores/originals.svelte';
   import { extraction } from '../lib/stores/extraction.svelte';
   import { inventory } from '../lib/stores/inventory.svelte';
@@ -168,7 +169,14 @@
           {#each page.items as item (item.id)}
             <tr>
               <th scope="row" class="name">
-                <span>{item.displayName}</span>
+                <button
+                  type="button"
+                  class="name-button"
+                  aria-label={`Details for ${item.displayName}`}
+                  onclick={(e) => details.open(item.id, e.currentTarget)}
+                >
+                  {item.displayName}
+                </button>
                 <span class="path">{item.displayPath}</span>
               </th>
               <td>{item.fileType.toUpperCase()}</td>
@@ -307,6 +315,21 @@
     display: grid;
     font-weight: 500;
     min-width: 240px;
+  }
+
+  .name-button {
+    justify-self: start;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+  }
+
+  .name-button:hover {
+    text-decoration: underline;
   }
 
   .path {

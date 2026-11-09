@@ -17,6 +17,7 @@
   --notice-border: #e8c766;
   --problem-bg: #fdeeee;
   --problem-border: #e3a3a3;
+  --mark-bg: #fbe38e;
 
   --radius: 10px;
   --radius-lg: 14px;
@@ -50,6 +51,7 @@
     --notice-border: #6b5a22;
     --problem-bg: #331d1d;
     --problem-border: #7a3b3b;
+    --mark-bg: #6a5512;
   }
 }
 
@@ -68,6 +70,7 @@
   --notice-border: #6b5a22;
   --problem-bg: #331d1d;
   --problem-border: #7a3b3b;
+  --mark-bg: #6a5512;
 }
 
 :root[data-theme='light'] {
@@ -213,6 +216,14 @@ select {
 .badge.text[data-text='encrypted'],
 .badge.text[data-text='unreadable'] {
   background: var(--notice-bg);
+}
+
+/* Matched words in search snippets; weight as well as colour. */
+mark {
+  background: var(--mark-bg);
+  color: inherit;
+  font-weight: 600;
+  border-radius: 2px;
 }
 
 .muted {

@@ -1,15 +1,18 @@
 <script lang="ts">
   import LibraryFoldersPanel from '../lib/components/LibraryFoldersPanel.svelte';
   import ViewHeading from '../lib/components/ViewHeading.svelte';
-  import { library } from '../lib/stores/library.svelte';
+  import { homeReadingNote, SEARCH_HELP } from '../lib/searchCopy';
+  import { extraction } from '../lib/stores/extraction.svelte';
+  import { search } from '../lib/stores/search.svelte';
   import { view } from '../lib/stores/view.svelte';
 
   let text = $state('');
+  const note = $derived(homeReadingNote(extraction.overview));
 
   function submit(event: SubmitEvent) {
     event.preventDefault();
-    library.setText(text, true);
-    view.go('library');
+    void search.submit(text);
+    view.go('search');
   }
 </script>
 
@@ -17,17 +20,18 @@
   <ViewHeading>What are you curious about?</ViewHeading>
 
   <form class="search" role="search" onsubmit={submit}>
-    <label for="home-search">Search file names and folders</label>
+    <label for="home-search">Search your library</label>
     <input
       id="home-search"
       type="search"
-      placeholder="For example: meteor, harmonic drive, café"
+      placeholder="For example: meteor, “harmonic drive”, café"
       bind:value={text}
       aria-describedby="home-search-help"
     />
-    <p id="home-search-help" class="muted small">
-      Matches file and folder names, ignoring case and accents. This is not AI search yet.
-    </p>
+    <p id="home-search-help" class="muted small">{SEARCH_HELP}</p>
+    {#if note}
+      <p class="small" data-testid="reading-note">{note}</p>
+    {/if}
   </form>
 
   <section aria-labelledby="home-library">
