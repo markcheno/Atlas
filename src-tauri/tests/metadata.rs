@@ -35,16 +35,17 @@ fn node(args: &[&str]) -> String {
 /// A text PDF with the given Info title and author.
 fn pdf_with(path: &Path, title: &str, author: &str) {
     let lib = repo().join("scripts/lib/fixture-text.mjs");
-    let script = format!(
-        "import {{ textPdf, bodyText }} from {lib:?};
-         import fs from 'node:fs';
-         const [out, title, author] = process.argv.slice(1);
-         fs.writeFileSync(out, textPdf({{ title, author, paragraphs: bodyText('Notes', 99, 4) }}).bytes);"
-    );
+    // A file:// URL: Node's loader refuses a bare `D:\...` path on Windows.
+    let script = "import fs from 'node:fs';
+         import { pathToFileURL } from 'node:url';
+         const [lib, out, title, author] = process.argv.slice(1);
+         const { textPdf, bodyText } = await import(pathToFileURL(lib).href);
+         fs.writeFileSync(out, textPdf({ title, author, paragraphs: bodyText('Notes', 99, 4) }).bytes);";
     node(&[
         "--input-type=module",
         "-e",
-        &script,
+        script,
+        &lib.to_string_lossy(),
         &path.to_string_lossy(),
         title,
         author,
