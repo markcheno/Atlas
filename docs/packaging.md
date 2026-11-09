@@ -23,17 +23,19 @@ days, debug bundles for 14).
 
 | Bundle | Size | Notes |
 | --- | ---: | --- |
-| `Atlas_0.1.0_aarch64.dmg` | 10.5 MiB | 26 MiB app once installed; includes PDFium (7.0 MiB) |
-| `Atlas_0.1.0_x64-setup.exe` | 7.6 MiB | Uses the system WebView2; includes PDFium (7.2 MiB) |
-| `Atlas_0.1.0_amd64.deb` | 12.6 MiB | Uses the distribution's WebKitGTK; includes PDFium (7.7 MiB) |
-| `Atlas_0.1.0_amd64.AppImage` | 86.5 MiB | Bundles WebKitGTK, GTK and their libraries, and PDFium |
+| `Atlas_0.2.0_aarch64.dmg` | 11.6 MiB | 29 MiB app once installed; includes PDFium (7.0 MiB) |
+| `Atlas_0.2.0_x64-setup.exe` | 8.3 MiB | Uses the system WebView2; includes PDFium (7.2 MiB) |
+| `Atlas_0.2.0_amd64.deb` | 13.6 MiB | Uses the distribution's WebKitGTK; includes PDFium (7.7 MiB) |
+| `Atlas_0.2.0_amd64.AppImage` | 87.4 MiB | Bundles WebKitGTK, GTK and their libraries, and PDFium |
 
-Release builds from CI runs
+Release builds of version 0.2.0 (the Phase 1 close-out) from CI run
+[42683848551](https://github.com/markcheno/Atlas/actions/runs/42683848551),
+2026-11-09. In Slice 1.2, with PDFium newly added, CI runs
 [42531070487](https://github.com/markcheno/Atlas/actions/runs/42531070487)
 (macOS, Linux) and
 [42531636951](https://github.com/markcheno/Atlas/actions/runs/42531636951)
-(Windows), 2026-11-08, Slice 1.2. Before PDFium (Slice 1.1 and earlier)
-they were 6.8, 4.7, 8.4 and 82.7 MiB.
+(Windows) measured 10.5, 7.6, 12.6 and 86.5 MiB; before PDFium (Slice 1.1
+and earlier) they were 6.8, 4.7, 8.4 and 82.7 MiB.
 
 Locally: `just bundle-release` (release) or `just bundle` (debug) builds
 the formats for the current OS and prints their sizes.

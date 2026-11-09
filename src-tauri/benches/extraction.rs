@@ -15,7 +15,15 @@
 //! ```text
 //! cargo bench --bench extraction -- --fixture <dir> [--label 1k-text]
 //!     [--duty run,slow,unthrottled] [--recovery] [--expect <files>]
-//!     [--out results.json]
+//!     [--require-all-read] [--out results.json]
+//! ```
+//!
+//! `--require-all-read` fails the run unless every cataloged file ends
+//! "Text ready" (the generated fixtures hold only well-formed files): the
+//! Phase 1 extraction gate (phase1-spec §1.3), which the close-out's
+//! evidence run checks on every OS.
+//!
+//! ```text
 //! ```
 
 use std::collections::HashMap;
@@ -95,6 +103,7 @@ struct Args {
     label: String,
     duties: Vec<Duty>,
     recovery: bool,
+    require_all_read: bool,
     expect: Option<u64>,
     out: Option<PathBuf>,
     child_config: Option<PathBuf>,
@@ -107,6 +116,7 @@ fn parse_args() -> Args {
         label: "fixture".into(),
         duties: vec![Duty::Run],
         recovery: false,
+        require_all_read: false,
         expect: None,
         out: None,
         child_config: None,
@@ -123,6 +133,7 @@ fn parse_args() -> Args {
             "--label" => a.label = value(),
             "--duty" => a.duties = value().split(',').map(Duty::parse).collect(),
             "--recovery" => a.recovery = true,
+            "--require-all-read" => a.require_all_read = true,
             "--expect" => a.expect = Some(value().parse().unwrap_or_else(|_| fail("--expect"))),
             "--out" => a.out = Some(PathBuf::from(value())),
             "--child-read" => a.child_config = Some(PathBuf::from(value())),
@@ -451,6 +462,36 @@ fn read_run(args: &Args, duty: Duty) -> Value {
         "SELECT COALESCE(SUM(length(CAST(text AS BLOB))), 0) FROM passages",
     );
     let page_size = one(&ws, "PRAGMA page_size");
+    let counts = ws
+        .require_open()
+        .unwrap()
+        .reader()
+        .read(|c| extraction_db::overview(c, None))
+        .unwrap()
+        .unwrap()
+        .counts;
+    let reasons: Vec<(String, i64)> = ws
+        .require_open()
+        .unwrap()
+        .reader()
+        .read(|c| {
+            c.prepare(
+                "SELECT COALESCE(d.reason, f.extract_error, d.state, f.extract_state), COUNT(*)
+                 FROM file_instances f LEFT JOIN documents d ON d.id = f.document_id
+                 WHERE f.extract_state <> 'linked' OR d.state <> 'done'
+                 GROUP BY 1 ORDER BY 2 DESC",
+            )?
+            .query_map([], |r| Ok((r.get(0)?, r.get(1)?)))?
+            .collect::<rusqlite::Result<Vec<_>>>()
+        })
+        .unwrap()
+        .unwrap_or_default();
+    if args.require_all_read && (counts.done != counts.total || counts.total as i64 != files) {
+        fail(&format!(
+            "not every file was read at {}: {counts:?}, other states {reasons:?}",
+            duty.label()
+        ));
+    }
 
     // Growth, measured as the catalog stands after a checkpoint.
     ws.require_open()
@@ -488,6 +529,17 @@ fn read_run(args: &Args, duty: Duty) -> Value {
         "workerKills": WorkerStats::get(&stats.kills),
         "peakWalMiB": mib(peak_wal),
         "policySeen": seen,
+        "countsByStatus": {
+            "total": counts.total,
+            "done": counts.done,
+            "pending": counts.pending,
+            "needsOcr": counts.needs_ocr,
+            "encrypted": counts.encrypted,
+            "cloudOnly": counts.cloud_only,
+            "unreadable": counts.unreadable,
+            "updating": counts.updating,
+            "notReadReasons": reasons.iter().map(|(r, n)| json!({ "reason": r, "files": n })).collect::<Vec<_>>(),
+        },
         "growth": {
             "pageSize": page_size,
             "textStoredBytes": text_stored,

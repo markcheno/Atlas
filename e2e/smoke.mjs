@@ -182,14 +182,36 @@ function workerProcesses() {
   }
 }
 
+// tauri-driver forwards the session to the native driver (msedgedriver on
+// Windows, WebKitWebDriver on Linux) on port 4445. On Windows runners that
+// driver sometimes refused the first connection (Slices 1.5–1.7), failing
+// the run before the app opened. Wait briefly for its port, and retry a
+// session that fails to connect once; the report records each retry.
+const NATIVE_PORT = 4445;
+const CONNECT_ERROR = /fetch failed|ECONNREFUSED|actively refused|client error \(Connect\)/i;
+
 async function launch() {
   const started = Date.now();
-  await wd.start({ 'tauri:options': { application: app } });
-  return started;
+  for (let attempt = 1; ; attempt += 1) {
+    try {
+      await wd.start({ 'tauri:options': { application: app } });
+      return started;
+    } catch (err) {
+      if (attempt >= 2 || !CONNECT_ERROR.test(String(err?.cause ?? err?.message ?? err))) throw err;
+      report.sessionRetries = (report.sessionRetries ?? 0) + 1;
+      console.log(`smoke: the driver refused the session (${err.message}); retrying once`);
+      await sleep(3_000);
+    }
+  }
 }
 
 async function run() {
   await waitForPort(4444, 30_000);
+  // Best effort: some versions start the native driver only per session.
+  report.nativeDriverReady = await waitForPort(NATIVE_PORT, 10_000).then(
+    () => true,
+    () => false,
+  );
 
   await step('launch shows the welcome screen', async () => {
     const started = await launch();
@@ -288,6 +310,28 @@ async function run() {
     return { workerSeenBeforeQuit: seen, readingBeforeQuit };
   });
 
+  // phase1-spec §14: smoke covers pausing and resuming extraction. After
+  // the relaunch about a tenth of the 1,000 files has been read (8–23 s of
+  // reading left on the runners), so the reading line has its controls.
+  await step('pause and resume reading', async () => {
+    await wd.click(
+      await wd.waitFor("//button[@aria-label='Pause reading text']", { timeout: 30_000 }),
+    );
+    const paused = await wd.until('reading paused', async () => {
+      const t = await readingStatus();
+      return t.startsWith('Paused reading text by you') && t;
+    });
+    await sleep(1_500);
+    const still = await readingStatus();
+    if (still !== paused) throw new Error(`reading went on while paused: ${paused} → ${still}`);
+    await wd.click(await wd.waitFor("//button[@aria-label='Resume reading text']"));
+    const resumed = await wd.until('reading resumed', async () => {
+      const t = await readingStatus();
+      return !t.startsWith('Paused') && t;
+    });
+    return { paused, resumed };
+  });
+
   await step('search finds a passage', async () => {
     const line = await wd.until(
       'text up to date',
@@ -313,6 +357,30 @@ async function run() {
     const text = await wd.text(hit);
     if (!/Astronomy marker 0/i.test(text)) throw new Error(`snippet lacks the phrase: ${text}`);
     return { status: line, result: text.split('\n').slice(0, 4).join(' / ') };
+  });
+
+  // phase1-spec §14: open from a result. The search view is still showing
+  // the hit for the passage found above.
+  await step('open from a search result', async () => {
+    const opens = () =>
+      (fs.existsSync(openerLog) ? fs.readFileSync(openerLog, 'utf8') : '')
+        .split('\n')
+        .filter((l) => l.startsWith('open ') && l.includes('Café crème book 000000'));
+    const before = opens().length;
+    await wd.click(
+      await wd.waitFor(
+        `//li[@data-testid='search-hit'][.//*[normalize-space(.)=${lit('Café crème book 000000.epub')}]]//button[starts-with(@aria-label, 'Open ')]`,
+      ),
+    );
+    const line = await wd.until('open request from the result', async () => {
+      const all = opens();
+      return all.length > before && all[all.length - 1];
+    });
+    const opened = line.slice('open '.length);
+    if (!fs.existsSync(opened)) throw new Error(`opened a path that doesn't exist: ${opened}`);
+    return {
+      opened: path.relative(fs.realpathSync.native(fixture), fs.realpathSync.native(opened)),
+    };
   });
 
   await step('duplicates list the six Introduction copies', async () => {

@@ -173,6 +173,7 @@ fn p1_11_crashing_and_hanging_files_do_not_stop_the_job() {
     );
     // Two tries each, a fresh worker after every crash.
     assert!(WorkerStats::get(&h.deps.stats.kills) >= 4);
+    assert_catalog_consistent(&ws);
     assert_eq!(originals(&books), before);
 }
 
@@ -204,6 +205,24 @@ fn read_only(dir: &Path) -> Option<rusqlite::Connection> {
         rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY,
     )
     .ok()
+}
+
+/// SQLite's and FTS5's own consistency checks pass (phase1-spec §12: after
+/// every crash test).
+fn assert_catalog_consistent(ws: &Workspace) {
+    // Both run through the writer: FTS5 runs its check as an INSERT command.
+    ws.require_open()
+        .unwrap()
+        .catalog()
+        .call(|w| {
+            let ok: String = w.query_row("PRAGMA integrity_check", [], |r| r.get(0))?;
+            assert_eq!(ok, "ok");
+            w.execute_batch(
+                "INSERT INTO passages_fts (passages_fts, rank) VALUES ('integrity-check', 1)",
+            )
+        })
+        .unwrap()
+        .expect("the full-text index matches the passages");
 }
 
 fn count(conn: &rusqlite::Connection, sql: &str) -> i64 {
@@ -329,23 +348,7 @@ fn p1_12_kill_mid_extraction_then_resume() {
         0,
         "no duplicate documents"
     );
-    let ok: String = c
-        .query_row("PRAGMA integrity_check", [], |r| r.get(0))
-        .unwrap();
-    assert_eq!(ok, "ok");
-    // The full-text index matches the passages (FTS5's own check; an error
-    // means corruption).
-    // FTS5 runs its check as an INSERT command, so through the writer.
-    ws.require_open()
-        .unwrap()
-        .catalog()
-        .call(|w| {
-            w.execute_batch(
-                "INSERT INTO passages_fts (passages_fts, rank) VALUES ('integrity-check', 1)",
-            )
-        })
-        .unwrap()
-        .expect("the full-text index is consistent after the kill");
+    assert_catalog_consistent(&ws);
     assert!(WorkerStats::get(&h.deps.stats.extracts) > 0);
     drop(ws);
     assert_eq!(originals(&dir.join("Books")), before);
@@ -431,4 +434,5 @@ fn p1_22_a_hung_worker_does_not_outlive_a_killed_app() {
         state_of(&ws, &books.join("hang-here.pdf")).0,
         ExtractionState::Done
     );
+    assert_catalog_consistent(&ws);
 }

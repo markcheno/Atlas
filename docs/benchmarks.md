@@ -419,4 +419,33 @@ unthrottled on the runners (2.0–5.6× before rests were pooled). Kill
 mid-read on every runner: 222–232 documents read, no partial documents,
 the worker gone within 55 ms, no duplicates, nothing left waiting.
 
+## Phase 1 summary (Slice 1.8)
+
+The close-out's numbers, on the final code (version 0.2.0), against the
+provisional targets of phase1-spec §13. The reference machine is the M5
+Pro (`just bench`, release build, 2026-11-09); the runners are CI run
+[42689464772](https://github.com/markcheno/Atlas/actions/runs/42689464772)
+(1k fixtures) and the evidence run
+[42685716386](https://github.com/markcheno/Atlas/actions/runs/42685716386)
+(the 30k text fixture, unthrottled, every file required to be read).
+
+| Measure | M5 Pro | macOS arm64 runner | Windows x64 runner | Linux x64 runner | Target |
+| --- | ---: | ---: | ---: | ---: | --- |
+| Search p95 while reading (P1-19) | 158 ms (30k) | 15 ms (1k) | 20 ms (1k) | 16 ms (1k) | under about 250 ms at 30k |
+| Reading at the Run duty cycle | 777 pages/s (30k) | 237 pages/s (1k) | 168 pages/s (1k) | 356 pages/s (1k) | at least 200 on the reference machine |
+| 30k text fixture read, unthrottled | 135 s, 32,006 of 32,006 | 445 s, all | 1,145 s, all | 431 s, all | 100% of well-formed files |
+| Catalog ÷ stored text | 1.62 (30k) | 1.62 (30k) | 1.62 (30k) | 1.62 (30k) | 1.5; 1.62 accepted |
+| Resume inside the 20k folder (P1-20) | 0.94 s | 0.95 s | 0.87 s | 0.93 s | under 3 s |
+| Kill mid-scan: duplicate rows | 0 | 0 | 0 | 0 | 0 |
+| Kill mid-read: duplicates, partial documents, workers left | 0, 0, 0 | 0, 0, 0 | 0, 0, 0 | 0, 0, 0 | 0 |
+
+On the M5 Pro the 30k search run read 32,006 files with 293,068 passages
+while querying: p95 158 ms (p50 61 ms, max 286 ms, a single any-words
+query), idle p95 176 ms, the first query of each kind after reopening
+34–173 ms; the index is 236 MiB and rebuilds in 6.7 s. The catalog is
+965 MiB, against 1.4 GB in Slice 1.4 before 16 KiB pages. Library ›
+Duplicates' first page takes 33 ms at p95 over 2,001 groups, and Settings
+› Storage 122 ms. Cataloging is unchanged since Phase 0: 483 files/s at
+the policy rate on 30k, browse p95 under 37 ms while scanning.
+
 <!-- results:end -->

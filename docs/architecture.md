@@ -606,14 +606,16 @@ Implemented in `src-tauri/src/services/search/` (Slice 1.4); rationale in
   `tauri.windows.conf.json` and `tauri.linux.conf.json` ship it as a
   resource. Every bundle carries the notices in `licenses/pdfium/`.
 - **CI** (`.github/workflows/ci.yml`, shared setup in
-  `.github/actions/setup`) has three tiers (Slice 1.1). A `plan` job picks
-  one and writes it to the run summary:
+  `.github/actions/setup`) has three tiers (Slice 1.1) and a manual
+  evidence run (Slice 1.8). A `plan` job picks one and writes it to the
+  run summary:
 
   | Tier | When | What runs | Wall time |
   | --- | --- | --- | --- |
   | full | Pushes to `main`, tags, pull requests, manual runs (`just ci-remote`) | Every job below on macOS arm64, Windows x64 and Linux x64 | 7–9 min warm; 10 min with cold caches |
   | quick | Pushes to `slice-*` branches, `just ci-remote quick` | Linux only: Rust format, clippy and tests, bindings, lint, typecheck, frontend tests | 2.5 min warm; 5 min with a cold cache (3.5 min of it compiling) |
   | docs | Branch pushes that change only `*.md`, `docs/` or `spikes/` | ESLint and Prettier (which checks Markdown) | 35 s |
+  | evidence | `just ci-remote evidence` only | `evidence`: the 30k text fixture read unthrottled on all three OSes, failing unless every file ends "Text ready" (`bench.mjs --evidence`, phase1-spec §1.3); its own concurrency group | up to 3 h |
 
   The full tier runs:
   - `check-and-build`: every check and test, then debug bundles. On Windows
@@ -636,8 +638,13 @@ Implemented in `src-tauri/src/services/search/` (Slice 1.4); rationale in
   drives the debug build through `tauri-driver`. The flow covers
   onboarding, adding a folder, pause and resume, completion, name search,
   open, quitting while text is being read (no `--extract-worker` process may
-  outlive the app), searching a passage from Home on the 1,000-file text
-  fixture (`--text-kb 4`), settings, and a relaunch. WebDriver can't answer native folder dialogs
+  outlive the app), pausing and resuming the reading after the relaunch,
+  searching a passage from Home on the 1,000-file text fixture
+  (`--text-kb 4`) and opening that result, duplicates, settings, and a
+  relaunch. It waits for the native
+  driver's port and retries a session the driver refuses once, recording
+  the retry (Slice 1.8: msedgedriver sometimes refused the first
+  connection on Windows runners). WebDriver can't answer native folder dialogs
   or observe the OS opening a file, so debug builds read
   `ATLAS_E2E_PICK_DATA_ROOT`, `ATLAS_E2E_PICK_SOURCES` and
   `ATLAS_E2E_OPENER_LOG` (`infrastructure/e2e.rs`), and catalogs at a fixed
@@ -704,7 +711,7 @@ the measurements are in [the spike results](spike-0.9.md).
 
 ## Next phase
 
-Phase 1 adds a general jobs table, text extraction in a helper process
+Phase 1 (complete) added a general jobs table, text extraction in a helper process
 (PDFium and rbook), content hashing with logical documents, and FTS5
 full-text search. It is specified in [phase1-spec.md](phase1-spec.md).
 Slice 1.1 built the jobs table and runners ([Jobs](#jobs)); Slice 1.2 the
@@ -715,5 +722,8 @@ Slice 1.6 [metadata, duplicates and storage](#metadata-duplicates-and-storage);
 Slice 1.7 the carry-overs: cheaper replays when resuming inside a large
 folder ([Inventory](#inventory)), the worker's [lifetime](#extraction-worker),
 16 KiB catalog pages ([Data root](#data-root)), and the extraction
-benchmark. The close-out (Slice 1.8) is evidence and documents; this
-document is updated slice by slice as it lands.
+benchmark; Slice 1.8 the evidence and the
+[close-out review](phase1-closeout.md) (version 0.2.0).
+
+Phase 2 (semantic search over the stored passages, product spec) is not
+specified yet; the close-out lists what it starts from.

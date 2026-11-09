@@ -888,6 +888,58 @@ app by hand (unit tests and the benchmark check it); pausing and resuming
 inside a large folder in the app by hand (the test and the benchmark on
 three OSes check it).
 
+## Slice 1.8
+
+The Phase 1 close-out ([review](phase1-closeout.md)): evidence and version
+0.2.0. Changes: the smoke test pauses and resumes reading and opens a
+search result, waits for the native driver and retries a refused session
+once; the extraction benchmark counts files by status and can require
+every file to be read; the opt-in evidence run; the integrity checks after
+every crash test.
+
+**30k evidence run** ([42685716386](https://github.com/markcheno/Atlas/actions/runs/42685716386),
+`just ci-remote evidence`): the 30k text fixture (32,006 files, 266,598 PDF
+pages) read unthrottled on each runner, every file "Text ready":
+
+| Runner | Read s | Pages/s | Files ready | Catalog ÷ text |
+| --- | ---: | ---: | ---: | ---: |
+| macOS arm64 (M1, 3 vCPU) | 445 | 599 | 32,006 of 32,006 | 1.62 |
+| Windows x64 (EPYC, 4 vCPU) | 1,145 | 233 | 32,006 of 32,006 | 1.62 |
+| Linux x64 (EPYC, 4 vCPU) | 431 | 618 | 32,006 of 32,006 | 1.62 |
+
+**CI on `slice-18`:** full runs
+[42683848551](https://github.com/markcheno/Atlas/actions/runs/42683848551)
+(10 of 10 green; the Windows smoke passed first time) and
+[42689464772](https://github.com/markcheno/Atlas/actions/runs/42689464772)
+(10 of 10 green, with the new smoke steps: "pause and resume reading" held
+the count at 137 of 1,006 files on Linux and 170 on Windows while paused,
+and "open from a search result" opened `Café crème book 000000.epub`; the
+native driver's port was open before the first session on both, so no
+retry was needed).
+
+### macOS arm64, Slice 1.8: release DMG smoke (2026-11-09)
+
+Run by the product owner from the
+[checklist](#release-dmg-smoke-slice-18), with the CI-built
+`Atlas_0.2.0_aarch64.dmg` (11.6 MiB, run 42683848551) started from
+Terminal with a scratch `HOME`, a fresh scratch library, and a scratch
+fixture of 112 files (the 1k generator at 100 files with 4 KB of text,
+plus six spike-corpus files), then a 3,006-file folder for the pause step.
+
+Every step passed: Welcome with no account or AI step; the native folder
+dialogs; cataloging and reading to "Text up to date"; the Text column and
+its reasons (Encrypted, Needs OCR, Couldn't read); phrase search with
+highlighting; Open in Preview and Show in Finder; Duplicates and Storage;
+pausing and resuming reading in the larger folder; quitting with no
+`--extract-worker` left and relaunching to the same library with nothing
+read again; light and dark mode.
+
+One expectation in the checklist was wrong, not the app: unquoted,
+`Astronomy marker 60` shows the two documents with all three words first
+(`book 000060.epub` at the top), then fills the page with "Some of your
+words" results, as decided in Slice 1.4. The product owner kept that
+behaviour, and the checklist now says so.
+
 ## Manual checklist for Windows and Linux
 
 CI runs an automated smoke test on Windows and Linux (Slice 0.8, below),
@@ -896,6 +948,45 @@ default app, the OS keychain, removable drives, or real batteries. This
 checklist covers those parts. Run it on a real machine with a CI-built
 installer or a local build, and record the OS version, architecture, and
 outcome of each step. Debug builds should use a scratch `ATLAS_CONFIG_DIR`.
+
+### Release DMG smoke (Slice 1.8)
+
+The Phase 1 close-out's macOS check of the CI-built release DMG, with
+PDFium inside. Use scratch folders: a release build ignores
+`ATLAS_CONFIG_DIR`, so start it from Terminal with `HOME=<scratch>` to keep
+its settings out of your own. Fixture: `just fixtures <scratch>/Books 100 0
+4` plus a few spike-corpus files (`drm.epub`, `user-password.pdf`,
+`synthetic-scan.pdf`, `truncated.pdf`, `pg11.epub`, an arXiv paper) in
+`Books/from-the-corpus/`.
+
+1. Copy `Atlas.app` out of the DMG and start it with the scratch `HOME`.
+   It opens on Welcome, with no account or AI step.
+2. Get Started, then choose an empty scratch folder for the library in the
+   native dialog. Add the `Books` folder, also in the native dialog.
+3. Cataloging finishes (112 files plus the unreadable `locked` folder
+   reported), then reading: the status line ends "Text up to date".
+4. Library, Text column: the generated files are "Text ready".
+   `drm.epub` and `user-password.pdf` are "Encrypted";
+   `synthetic-scan.pdf` "Needs OCR"; `truncated.pdf` "Couldn't read"; each
+   with a reason in Details.
+5. Search `"Astronomy marker 60"` (quoted): one result, `book 000060.epub`,
+   with the phrase highlighted. Without quotes, the documents with all
+   three words come first (`book 000060.epub` at the top), followed by
+   many marked "Some of your words": every generated file has a
+   "<subject> marker <n>" line, and the fallback fills the page (phase1-spec
+   revision notes, Slice 1.4). Search `"quiet harbour lights"`: many
+   results, the phrase highlighted. Search `rabbit-hole`: Alice.
+6. Open a PDF result: it opens in Preview. Show in Finder: Finder selects
+   it.
+7. Library › Duplicates: one group, the six `Introduction.pdf` copies.
+   Settings › Storage: sizes, the estimate and Clean caches.
+8. Add a second, larger folder (`just fixtures <scratch>/Big 3000 0 8`).
+   While its text is being read, press Pause on the reading line: the
+   counts stop. Resume: they carry on from where they stopped.
+9. Quit with Cmd+Q. In Terminal, `pgrep -fl -- --extract-worker` prints
+   nothing. Start it again: it opens the same library, with nothing read
+   again.
+10. Switch the system between light and dark mode: both are readable.
 
 ### Installers (Slice 0.8)
 
