@@ -8,6 +8,7 @@ import { appInfo } from './stores/app.svelte';
 import { inventory } from './stores/inventory.svelte';
 import { extraction } from './stores/extraction.svelte';
 import { details } from './stores/details.svelte';
+import { duplicates } from './stores/duplicates.svelte';
 import { library } from './stores/library.svelte';
 import { search } from './stores/search.svelte';
 import { sources } from './stores/sources.svelte';
@@ -24,6 +25,7 @@ export async function applyStatus(status: DataRootStatus, opts: { justChosen?: b
   workspace.status = status;
   library.reset();
   search.reset();
+  duplicates.reset();
   details.reset();
   if (!appInfo.status) void appInfo.load();
   if (status.state === 'open') {

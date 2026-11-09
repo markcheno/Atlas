@@ -11,7 +11,9 @@
   import OriginalNotice from '../lib/components/OriginalNotice.svelte';
   import TextBadge from '../lib/components/TextBadge.svelte';
   import { TEXT_FILTERS } from '../lib/extractionCopy';
+  import DuplicatesList from '../lib/components/DuplicatesList.svelte';
   import { details } from '../lib/stores/details.svelte';
+  import { duplicates } from '../lib/stores/duplicates.svelte';
   import { fromFile, originals } from '../lib/stores/originals.svelte';
   import { extraction } from '../lib/stores/extraction.svelte';
   import { inventory } from '../lib/stores/inventory.svelte';
@@ -35,8 +37,19 @@
     return s === 'modified_asc' ? 'ascending' : s === 'modified_desc' ? 'descending' : 'none';
   }
 
+  const showingDuplicates = $derived(library.mode === 'duplicates');
+  // The filters both lists share; each list keeps its own values.
+  const filters = $derived(showingDuplicates ? duplicates : library);
+
+  function setMode(mode: 'files' | 'duplicates') {
+    library.mode = mode;
+    if (mode === 'duplicates') void duplicates.load();
+    else void library.load();
+  }
+
   onMount(() => {
-    void library.load();
+    if (showingDuplicates) void duplicates.load();
+    else void library.load();
   });
 
   // Refresh the visible page as cataloging or reading makes progress
@@ -44,7 +57,9 @@
   // Both are read (no short-circuit), so either one changing refreshes.
   $effect(() => {
     const progress = [inventory.overview, extraction.overview];
-    if (progress.some(Boolean)) untrack(() => library.refreshLive());
+    if (progress.some(Boolean)) {
+      untrack(() => (showingDuplicates ? duplicates.refreshLive() : library.refreshLive()));
+    }
   });
 </script>
 
@@ -57,23 +72,48 @@
     </div>
   {:else}
     <div class="toolbar" role="search">
-      <label class="search">
-        <span class="visually-hidden">Search file names and folders</span>
-        <input
-          type="search"
-          placeholder="Search file names and folders"
-          value={library.text}
-          oninput={(e) => library.setText(e.currentTarget.value)}
-          onkeydown={(e) => {
-            if (e.key === 'Escape') library.setText('', true);
-          }}
-        />
-      </label>
+      <fieldset class="mode">
+        <legend class="visually-hidden">Show</legend>
+        <label>
+          <input
+            type="radio"
+            name="library-mode"
+            value="files"
+            checked={!showingDuplicates}
+            onchange={() => setMode('files')}
+          />
+          Files
+        </label>
+        <label>
+          <input
+            type="radio"
+            name="library-mode"
+            value="duplicates"
+            checked={showingDuplicates}
+            onchange={() => setMode('duplicates')}
+          />
+          Duplicates
+        </label>
+      </fieldset>
+      {#if !showingDuplicates}
+        <label class="search">
+          <span class="visually-hidden">Search file names and folders</span>
+          <input
+            type="search"
+            placeholder="Search file names and folders"
+            value={library.text}
+            oninput={(e) => library.setText(e.currentTarget.value)}
+            onkeydown={(e) => {
+              if (e.key === 'Escape') library.setText('', true);
+            }}
+          />
+        </label>
+      {/if}
       <label>
         <span class="muted small">Folder</span>
         <select
-          value={library.sourceRootId ?? ''}
-          onchange={(e) => library.setFilters({ sourceRootId: e.currentTarget.value || null })}
+          value={filters.sourceRootId ?? ''}
+          onchange={(e) => filters.setFilters({ sourceRootId: e.currentTarget.value || null })}
         >
           <option value="">All folders</option>
           {#each scannableRoots as root (root.id)}
@@ -84,9 +124,9 @@
       <label>
         <span class="muted small">Type</span>
         <select
-          value={library.fileType ?? ''}
+          value={filters.fileType ?? ''}
           onchange={(e) =>
-            library.setFilters({
+            filters.setFilters({
               fileType: (e.currentTarget.value || null) as 'pdf' | 'epub' | null,
             })}
         >
@@ -95,32 +135,36 @@
           <option value="epub">EPUB</option>
         </select>
       </label>
-      <label>
-        <span class="muted small">Text status</span>
-        <select
-          value={library.textStatus ?? ''}
-          onchange={(e) =>
-            library.setFilters({
-              textStatus: (e.currentTarget.value || null) as ExtractionState | null,
-            })}
-        >
-          <option value="">Any text status</option>
-          {#each TEXT_FILTERS as f (f.value)}
-            <option value={f.value}>{f.label}</option>
-          {/each}
-        </select>
-      </label>
+      {#if !showingDuplicates}
+        <label>
+          <span class="muted small">Text status</span>
+          <select
+            value={library.textStatus ?? ''}
+            onchange={(e) =>
+              library.setFilters({
+                textStatus: (e.currentTarget.value || null) as ExtractionState | null,
+              })}
+          >
+            <option value="">Any text status</option>
+            {#each TEXT_FILTERS as f (f.value)}
+              <option value={f.value}>{f.label}</option>
+            {/each}
+          </select>
+        </label>
+      {/if}
       <label class="check">
         <input
           type="checkbox"
-          checked={library.includeMissing}
-          onchange={(e) => library.setFilters({ includeMissing: e.currentTarget.checked })}
+          checked={filters.includeMissing}
+          onchange={(e) => filters.setFilters({ includeMissing: e.currentTarget.checked })}
         />
         Include missing files
       </label>
     </div>
 
-    {#if library.error}
+    {#if showingDuplicates}
+      <DuplicatesList />
+    {:else if library.error}
       <ProblemNotice
         title="Atlas couldn't list your files"
         message={library.error.message}
@@ -258,6 +302,41 @@
     border: 1px solid var(--border);
     border-radius: var(--radius);
     background: var(--surface);
+  }
+
+  .mode {
+    display: inline-flex;
+    gap: 0;
+    margin: 0;
+    padding: 2px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--surface);
+    min-height: 40px;
+  }
+
+  .mode label {
+    display: inline-flex;
+    align-items: center;
+    padding: 0 var(--space-3);
+    border-radius: calc(var(--radius) - 2px);
+    cursor: pointer;
+  }
+
+  .mode label:has(input:checked) {
+    background: var(--accent-soft);
+    font-weight: 500;
+  }
+
+  .mode label:has(input:focus-visible) {
+    outline: 2px solid var(--focus);
+    outline-offset: 1px;
+  }
+
+  .mode input {
+    position: absolute;
+    opacity: 0;
+    pointer-events: none;
   }
 
   .toolbar .check {

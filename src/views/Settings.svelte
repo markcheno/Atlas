@@ -7,6 +7,7 @@
   import LibraryFoldersPanel from '../lib/components/LibraryFoldersPanel.svelte';
   import AiModelsPanel from '../lib/components/AiModelsPanel.svelte';
   import ProblemNotice from '../lib/components/ProblemNotice.svelte';
+  import StoragePanel from '../lib/components/StoragePanel.svelte';
   import ViewHeading from '../lib/components/ViewHeading.svelte';
   import { PROVISIONAL_NOTE, policySentence } from '../lib/deviceCopy';
   import { formatBytes } from '../lib/format';
@@ -107,6 +108,8 @@
       <p class="muted small">
         Atlas keeps its catalog and generated data here. Your books stay where they are.
       </p>
+      <h3 class="subhead">What it takes</h3>
+      <StoragePanel />
       <div>
         <button type="button" class="button" onclick={() => view.go('data-location')}>
           Use a different location…
@@ -156,6 +159,11 @@
 </div>
 
 <style>
+  .subhead {
+    margin: var(--space-2) 0 0;
+    font-size: 15px;
+  }
+
   .view {
     display: grid;
     gap: var(--space-6);
