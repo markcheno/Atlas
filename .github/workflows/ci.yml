@@ -8,6 +8,10 @@ name: CI
 #          manual runs with scope=quick (`just ci-remote quick`).
 #   docs:  lint only (Prettier checks Markdown). Branch pushes that change
 #          only Markdown files, docs/, or spikes/ (spikes.yml covers spikes).
+#   evidence: manual only (`just ci-remote evidence`). Reads the 30k text
+#          fixture on every OS and fails unless every file is read (the
+#          Phase 1 close-out's extraction gate, phase1-spec §1.3). Nothing
+#          else runs; it has its own concurrency group.
 on:
   push:
     branches: [main, 'slice-*']
@@ -16,16 +20,16 @@ on:
   workflow_dispatch:
     inputs:
       scope:
-        description: 'full: every OS, smoke tests, benchmarks, release bundles. quick: Linux checks and tests.'
+        description: 'full: every OS, smoke tests, benchmarks, release bundles. quick: Linux checks and tests. evidence: 30k text extraction on every OS.'
         type: choice
-        options: [full, quick]
+        options: [full, quick, evidence]
         default: full
 
 permissions:
   contents: read
 
 concurrency:
-  group: ci-${{ github.ref }}
+  group: ci-${{ github.ref }}${{ inputs.scope == 'evidence' && '-evidence' || '' }}
   cancel-in-progress: true
 
 env:
@@ -75,7 +79,7 @@ jobs:
           {
             echo "### CI scope: $scope"
             echo
-            echo "Event \`$EVENT\` on \`$REF\`. To run more, use \`just ci-remote\` (full) or \`just ci-remote quick\`."
+            echo "Event \`$EVENT\` on \`$REF\`. To run more, use \`just ci-remote\` (full), \`just ci-remote quick\` or \`just ci-remote evidence\`."
             if [[ -n "$changed" ]]; then
               echo
               echo "Changed files: $(wc -l <<<"$changed" | tr -d ' ')"
@@ -258,6 +262,39 @@ jobs:
           path: |
             ${{ runner.temp }}/bench/*.json
             ${{ runner.temp }}/bench/*.md
+          if-no-files-found: warn
+          retention-days: 90
+
+  # Close-out evidence (phase1-spec §1.3, §14): the 30k text fixture read on
+  # every OS, every file "Text ready". Manual: `just ci-remote evidence`.
+  evidence:
+    name: Evidence ${{ matrix.name }}
+    needs: plan
+    if: needs.plan.outputs.scope == 'evidence'
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { name: macOS arm64, os: macos-latest }
+          - { name: Windows x64, os: windows-latest }
+          - { name: Linux x64, os: ubuntu-24.04 }
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: ./.github/actions/setup
+        with:
+          cache-key: release
+      - name: Read the 30k text fixture
+        shell: bash
+        run: node scripts/bench.mjs --out "$RUNNER_TEMP/evidence" --evidence
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: always()
+        with:
+          name: evidence-${{ runner.os }}
+          path: |
+            ${{ runner.temp }}/evidence/*.json
+            ${{ runner.temp }}/evidence/*.md
           if-no-files-found: warn
           retention-days: 90
 

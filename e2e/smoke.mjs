@@ -182,14 +182,36 @@ function workerProcesses() {
   }
 }
 
+// tauri-driver forwards the session to the native driver (msedgedriver on
+// Windows, WebKitWebDriver on Linux) on port 4445. On Windows runners that
+// driver sometimes refused the first connection (Slices 1.5–1.7), failing
+// the run before the app opened. Wait briefly for its port, and retry a
+// session that fails to connect once; the report records each retry.
+const NATIVE_PORT = 4445;
+const CONNECT_ERROR = /fetch failed|ECONNREFUSED|actively refused|client error \(Connect\)/i;
+
 async function launch() {
   const started = Date.now();
-  await wd.start({ 'tauri:options': { application: app } });
-  return started;
+  for (let attempt = 1; ; attempt += 1) {
+    try {
+      await wd.start({ 'tauri:options': { application: app } });
+      return started;
+    } catch (err) {
+      if (attempt >= 2 || !CONNECT_ERROR.test(String(err?.cause ?? err?.message ?? err))) throw err;
+      report.sessionRetries = (report.sessionRetries ?? 0) + 1;
+      console.log(`smoke: the driver refused the session (${err.message}); retrying once`);
+      await sleep(3_000);
+    }
+  }
 }
 
 async function run() {
   await waitForPort(4444, 30_000);
+  // Best effort: some versions start the native driver only per session.
+  report.nativeDriverReady = await waitForPort(NATIVE_PORT, 10_000).then(
+    () => true,
+    () => false,
+  );
 
   await step('launch shows the welcome screen', async () => {
     const started = await launch();

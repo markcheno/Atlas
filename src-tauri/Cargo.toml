@@ -1,6 +1,6 @@
 [package]
 name = "atlas"
-version = "0.1.0"
+version = "0.2.0"
 description = "Atlas: a local-first personal AI librarian"
 authors = ["Mark Chenoweth"]
 edition = "2024"

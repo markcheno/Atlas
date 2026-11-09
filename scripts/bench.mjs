@@ -16,7 +16,9 @@
 // the Slow duty cycle (simulated battery), which takes too long at 30k.
 // --sweep adds the 30k throttle sweep (about 10 minutes) used to choose
 // the cataloging rate. --search-only runs just the search benchmark,
-// --extraction-only just the extraction benchmark;
+// --extraction-only just the extraction benchmark; --evidence is the Phase 1
+// close-out's run (`just ci-remote evidence`): extraction only, on the 30k
+// text fixture, unthrottled, failing unless every file is read;
 // --max-p95-ms makes it fail above that search p95 while reading (the
 // reference machine's check, P1-19). Fixtures go in <out>/fixtures and are
 // reused.
@@ -36,7 +38,8 @@ const opt = (name, fallback) => {
 const out = path.resolve(opt('out', path.join(os.tmpdir(), 'atlas-bench')));
 const sweep = args.includes('--sweep');
 const searchOnly = args.includes('--search-only');
-const extractionOnly = args.includes('--extraction-only');
+const evidence = args.includes('--evidence');
+const extractionOnly = evidence || args.includes('--extraction-only');
 if (searchOnly && extractionOnly)
   throw new Error('--search-only and --extraction-only exclude each other');
 const runInventory = !searchOnly && !extractionOnly;
@@ -45,7 +48,7 @@ const runExtraction = !searchOnly;
 const maxP95 = opt('max-p95-ms', null);
 const searchSize = opt('search-size', '30k');
 if (!['30k', '1k'].includes(searchSize)) throw new Error('--search-size is 30k or 1k');
-const extractionSize = opt('extraction-size', searchSize);
+const extractionSize = evidence ? '30k' : opt('extraction-size', searchSize);
 if (!['30k', '1k'].includes(extractionSize)) throw new Error('--extraction-size is 30k or 1k');
 fs.mkdirSync(path.join(out, 'fixtures'), { recursive: true });
 
@@ -214,8 +217,12 @@ if (runExtraction) {
       '--label',
       extractionLabel,
       '--duty',
-      extractionSize === '30k' ? 'run,unthrottled' : 'run,slow,unthrottled',
-      '--recovery',
+      evidence
+        ? 'unthrottled'
+        : extractionSize === '30k'
+          ? 'run,unthrottled'
+          : 'run,slow,unthrottled',
+      ...(evidence ? ['--require-all-read'] : ['--recovery']),
       '--expect',
       String(extractionFixture.expect),
       '--out',
@@ -351,6 +358,18 @@ function summarizeExtraction(r) {
         .map(([k, n]) => `${k} ${n}`)
         .join(', ')} |`,
     );
+  }
+  lines.push(
+    '',
+    "| Text status after reading | Files | Text ready | Waiting | Needs OCR | Encrypted | Only in the cloud | Couldn't read |",
+    '| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |',
+  );
+  for (const x of r.runs) {
+    const c = x.countsByStatus;
+    if (c)
+      lines.push(
+        `| ${x.duty} | ${c.total} | ${c.done} | ${c.pending} | ${c.needsOcr} | ${c.encrypted} | ${c.cloudOnly} | ${c.unreadable} |`,
+      );
   }
   const g = r.runs[0].growth;
   lines.push(
