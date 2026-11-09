@@ -5,8 +5,12 @@
 // search` on the 30k text fixture, and writes JSON results plus a Markdown
 // summary.
 //
-//   node scripts/bench.mjs [--out <dir>] [--sweep] [--search-only] [--max-p95-ms 250]
+//   node scripts/bench.mjs [--out <dir>] [--sweep] [--search-only] [--search-size 30k|1k]
+//                          [--max-p95-ms 250]
 //
+// --search-size picks the search fixture: 30k (default; the P1-19 reference
+// measurement, run locally) or 1k (CI: the 30k text fixture takes over 40
+// minutes on Windows runners).
 // --sweep adds the 30k throttle sweep (about 10 minutes) used to choose
 // the cataloging rate. --search-only runs just the search benchmark;
 // --max-p95-ms makes it fail above that search p95 while reading (the
@@ -29,6 +33,8 @@ const out = path.resolve(opt('out', path.join(os.tmpdir(), 'atlas-bench')));
 const sweep = args.includes('--sweep');
 const searchOnly = args.includes('--search-only');
 const maxP95 = opt('max-p95-ms', null);
+const searchSize = opt('search-size', '30k');
+if (!['30k', '1k'].includes(searchSize)) throw new Error('--search-size is 30k or 1k');
 fs.mkdirSync(path.join(out, 'fixtures'), { recursive: true });
 
 function fixture(name, files, flat, textKb = 0) {
@@ -53,7 +59,9 @@ const small = searchOnly ? null : fixture('1k', 1000, 0);
 // §11: 30,000 files including one flat folder of 20,000.
 const large = searchOnly ? null : fixture('30k', 10000, 20000);
 // Phase 1 §11: the same layout with about 20 KiB of text per file.
-const largeText = fixture('30k-text', 10000, 20000, 20);
+const searchLabel = `${searchSize}-text`;
+const searchFixture =
+  searchSize === '30k' ? fixture('30k-text', 10000, 20000, 20) : fixture('1k-text', 1000, 0, 20);
 
 const scenarios = searchOnly
   ? []
@@ -137,8 +145,8 @@ for (const s of scenarios) {
   results.push({ id: s.id, ...JSON.parse(fs.readFileSync(file, 'utf8')) });
 }
 
-console.error('bench: 30k-text search');
-const searchFile = path.join(out, 'bench-30k-text-search.json');
+console.error(`bench: ${searchLabel} search`);
+const searchFile = path.join(out, `bench-${searchLabel}-search.json`);
 execFileSync(
   'cargo',
   [
@@ -150,11 +158,11 @@ execFileSync(
     'search',
     '--',
     '--fixture',
-    largeText.dir,
+    searchFixture.dir,
     '--label',
-    '30k-text',
+    searchLabel,
     '--expect',
-    String(largeText.expect),
+    String(searchFixture.expect),
     '--out',
     searchFile,
     ...(maxP95 ? ['--max-p95-ms', String(maxP95)] : []),

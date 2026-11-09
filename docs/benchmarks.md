@@ -267,8 +267,10 @@ reopening. M5 Pro, release build, 2026-11-09:
 | File name (`book 000042`) | 33 / 42 / 48 | – |
 
 Cold, the first query of each kind after reopening took 31–177 ms. P1-19
-(p95 under 250 ms while reading, on the reference machine) passes; CI
-reports the same table per OS without asserting it. On the 1k text fixture
+(p95 under 250 ms while reading, on the reference machine) passes. CI runs
+the search benchmark on the 1k text fixture on each OS and reports it
+without asserting: the 30k text fixture took over 40 minutes on a Windows
+runner, so the 30k measurement is a local one (`just bench-search`). On the 1k text fixture
 every query kind stays under 7 ms.
 
 The catalog holds the text and its index: 1.4 GB for 622 MB of text,
