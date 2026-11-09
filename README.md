@@ -84,10 +84,11 @@ with semantic search.
 | Settings › Storage: usage by category, indexing estimate, Clean caches | Working (Slice 1.6) |
 | Phase 1 carry-overs: fast resume inside large folders, Windows junctions and paths over 260 characters, no text reader outliving the app, extraction benchmark, a smaller catalog | Working (Slice 1.7) |
 | Phase 1 close-out: evidence on three OSes, version 0.2.0 | Done ([review](docs/phase1-closeout.md)); Windows and Linux verified in CI, with documented gaps |
-| Semantic search, related documents, chat with citations | Phase 2 and later (not started) |
+| Semantic search, related documents, Ask Atlas with citations | Phase 2, specified ([spec](docs/phase2-spec.md)); not started |
 
 Specifications: [product](docs/product-spec.md), [Phase 0](docs/phase0-spec.md),
-[Phase 1](docs/phase1-spec.md), [architecture](docs/architecture.md),
+[Phase 1](docs/phase1-spec.md), [Phase 2](docs/phase2-spec.md),
+[architecture](docs/architecture.md),
 [ADRs](docs/adr/). Evidence:
 [Phase 0 close-out review](docs/phase0-closeout.md),
 [Phase 1 close-out review](docs/phase1-closeout.md),

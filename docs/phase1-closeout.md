@@ -185,7 +185,9 @@ or is planned work.
 
 ## Carry into Phase 2
 
-From Phase 1's measurements and decisions, not new requirements:
+Taken up by the [Phase 2 implementation specification](phase2-spec.md)
+(2026-11-09). From Phase 1's measurements and decisions, not new
+requirements:
 
 - **Semantic search** (the product spec's Phase 2): embeddings of the
   stored passages, with usearch as the vector engine
@@ -205,4 +207,5 @@ From Phase 1's measurements and decisions, not new requirements:
 - **Before Phase 2 starts:** choose the default embedding model and its
   size budget (downloads are outside Phase 1), and the share of the
   evaluation questions semantic search must answer that full-text search
-  doesn't.
+  doesn't. Decided 2026-11-09: Qwen3-Embedding-0.6B through a connected
+  provider (no downloads by Atlas), and 80% of a new vague-question set.

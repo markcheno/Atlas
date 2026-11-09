@@ -134,4 +134,12 @@ The format, also used for personal question sets with `just eval`:
 
 `relevant` lists document ids from `spikes/extraction-bench/corpus/manifest.json`
 (for personal sets, file paths relative to a library folder). `kind` is
-`exact`, `phrase` or `paraphrase`.
+`exact`, `phrase`, `paraphrase` or `vague`.
+
+[`evaluation/questions-vague.json`](evaluation/questions-vague.json) is the
+Phase 2 set (phase2-spec §10): 40 questions in a reader's own words that
+avoid each document's distinctive wording, so full-text search alone should
+miss most of them. Written on 2026-11-09 before any semantic search was
+built and not edited to fit it. `scripts/evaluation-questions.test.mjs`
+keeps both sets well formed and every relevant id a readable corpus
+document.

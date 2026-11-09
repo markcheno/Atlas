@@ -725,5 +725,7 @@ folder ([Inventory](#inventory)), the worker's [lifetime](#extraction-worker),
 benchmark; Slice 1.8 the evidence and the
 [close-out review](phase1-closeout.md) (version 0.2.0).
 
-Phase 2 (semantic search over the stored passages, product spec) is not
-specified yet; the close-out lists what it starts from.
+Phase 2 (the AI librarian: embeddings through a connected model service,
+a usearch index derived from the catalog, hybrid search, related
+documents, and Ask Atlas with verified citations) is specified in
+[phase2-spec.md](phase2-spec.md); nothing of it is in the code yet.

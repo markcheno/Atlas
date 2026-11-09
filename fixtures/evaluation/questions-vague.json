@@ -1,0 +1,246 @@
+{
+  "version": 1,
+  "comment": "Retrieval evaluation for Phase 2 semantic search (phase2-spec §10). Forty questions in a reader's own words, deliberately avoiding each document's distinctive wording, so full-text search alone should miss most of them. Written from the corpus truth texts and from knowledge of the public-domain books on 2026-11-09, before any semantic search was built, and not edited to fit it. Document ids are spikes/extraction-bench/corpus/manifest.json's. A question passes when any relevant document is in the top 5 results of hybrid search.",
+  "questions": [
+    {
+      "id": "v01",
+      "kind": "vague",
+      "question": "a bored child on a riverbank wanders into a strange underground world",
+      "relevant": ["epub-pg11", "gen-book", "gen-one-column", "gen-owner-password"]
+    },
+    {
+      "id": "v02",
+      "kind": "vague",
+      "question": "a girl grows so tall she worries about who will put her shoes on",
+      "relevant": ["epub-pg11", "gen-book", "gen-two-column"]
+    },
+    {
+      "id": "v03",
+      "kind": "vague",
+      "question": "a tea party where it is always the same hour of the afternoon",
+      "relevant": ["epub-pg11"]
+    },
+    {
+      "id": "v04",
+      "kind": "vague",
+      "question": "a late-night visitor that only ever repeats a single word",
+      "relevant": ["epub-pg1065"]
+    },
+    {
+      "id": "v05",
+      "kind": "vague",
+      "question": "a mourner reading alone at night, haunted by the name of a lost love",
+      "relevant": ["epub-pg1065"]
+    },
+    {
+      "id": "v06",
+      "kind": "vague",
+      "question": "verses about a grief that refuses to end",
+      "relevant": ["epub-pg1065"]
+    },
+    {
+      "id": "v07",
+      "kind": "vague",
+      "question": "advice for a new monarch on keeping hold of power",
+      "relevant": ["epub-pg1232"]
+    },
+    {
+      "id": "v08",
+      "kind": "vague",
+      "question": "how a leader should treat the people of a territory he has just taken",
+      "relevant": ["epub-pg1232"]
+    },
+    {
+      "id": "v09",
+      "kind": "vague",
+      "question": "why hired soldiers cannot be trusted to defend a state",
+      "relevant": ["epub-pg1232"]
+    },
+    {
+      "id": "v10",
+      "kind": "vague",
+      "question": "Italian renaissance handbook of statecraft",
+      "relevant": ["epub-pg1232"]
+    },
+    {
+      "id": "v11",
+      "kind": "vague",
+      "question": "a naive young man travels the world and learns that everything is not for the best",
+      "relevant": ["epub-pg4650"]
+    },
+    {
+      "id": "v12",
+      "kind": "vague",
+      "question": "satire mocking blind optimism after a great earthquake",
+      "relevant": ["epub-pg4650"]
+    },
+    {
+      "id": "v13",
+      "kind": "vague",
+      "question": "a tutor who insists that ours is the best of all possible worlds",
+      "relevant": ["epub-pg4650"]
+    },
+    {
+      "id": "v14",
+      "kind": "vague",
+      "question": "ancient Chinese thoughts on ruling by doing nothing",
+      "relevant": ["epub-pg7337"]
+    },
+    {
+      "id": "v15",
+      "kind": "vague",
+      "question": "classic verses about the way that cannot be named",
+      "relevant": ["epub-pg7337"]
+    },
+    {
+      "id": "v16",
+      "kind": "vague",
+      "question": "a bilingual café bill with prices",
+      "relevant": ["gen-features"]
+    },
+    {
+      "id": "v17",
+      "kind": "vague",
+      "question": "clumsy clerks losing track of their forms and figures",
+      "relevant": ["gen-features"]
+    },
+    {
+      "id": "v18",
+      "kind": "vague",
+      "question": "software that keeps track of where experimental measurements came from so machine learning can use them",
+      "relevant": ["pdf-arxiv-2609.03105"]
+    },
+    {
+      "id": "v19",
+      "kind": "vague",
+      "question": "making laboratory data findable and reusable at a particle accelerator facility",
+      "relevant": ["pdf-arxiv-2609.03105"]
+    },
+    {
+      "id": "v20",
+      "kind": "vague",
+      "question": "giving permanent public identifiers to published experiment records",
+      "relevant": ["pdf-arxiv-2609.03105"]
+    },
+    {
+      "id": "v21",
+      "kind": "vague",
+      "question": "has the number of preprints in pure mathematics jumped since chatbots arrived",
+      "relevant": ["pdf-arxiv-2609.04872"]
+    },
+    {
+      "id": "v22",
+      "kind": "vague",
+      "question": "measuring a sudden surge of papers against a statistical counterfactual",
+      "relevant": ["pdf-arxiv-2609.04872"]
+    },
+    {
+      "id": "v23",
+      "kind": "vague",
+      "question": "are scientists publishing more because language models help them write",
+      "relevant": ["pdf-arxiv-2609.04872"]
+    },
+    {
+      "id": "v24",
+      "kind": "vague",
+      "question": "teaching a computer to read old notarial inventories from southern France",
+      "relevant": ["pdf-arxiv-2609.06266"]
+    },
+    {
+      "id": "v25",
+      "kind": "vague",
+      "question": "fixing a model's mistakes by hand and retraining it in rounds",
+      "relevant": ["pdf-arxiv-2609.06266"]
+    },
+    {
+      "id": "v26",
+      "kind": "vague",
+      "question": "grammar analysis tools that fail on medieval manuscripts",
+      "relevant": ["pdf-arxiv-2609.06266"]
+    },
+    {
+      "id": "v27",
+      "kind": "vague",
+      "question": "catalogue of open-source systems where language models run experiments by themselves",
+      "relevant": ["pdf-arxiv-2609.11975"]
+    },
+    {
+      "id": "v28",
+      "kind": "vague",
+      "question": "how many public projects exist for automating science with large language models",
+      "relevant": ["pdf-arxiv-2609.11975"]
+    },
+    {
+      "id": "v29",
+      "kind": "vague",
+      "question": "recurring patterns and missing combinations in the design of self-driving research software",
+      "relevant": ["pdf-arxiv-2609.11975"]
+    },
+    {
+      "id": "v30",
+      "kind": "vague",
+      "question": "automatically deciding whether a referee's criticism is actually true of the manuscript",
+      "relevant": ["pdf-arxiv-2609.25046"]
+    },
+    {
+      "id": "v31",
+      "kind": "vague",
+      "question": "dataset of reviewer statements from machine learning conferences",
+      "relevant": ["pdf-arxiv-2609.25046"]
+    },
+    {
+      "id": "v32",
+      "kind": "vague",
+      "question": "breaking a written critique into separate assertions that can each be checked",
+      "relevant": ["pdf-arxiv-2609.25046"]
+    },
+    {
+      "id": "v33",
+      "kind": "vague",
+      "question": "merging plane crash reports from many countries into one table without duplicates",
+      "relevant": ["pdf-arxiv-2610.37671"]
+    },
+    {
+      "id": "v34",
+      "kind": "vague",
+      "question": "matching the same incident across agencies when their identifiers differ",
+      "relevant": ["pdf-arxiv-2610.37671"]
+    },
+    {
+      "id": "v35",
+      "kind": "vague",
+      "question": "a worldwide list of air mishaps that records where each entry came from",
+      "relevant": ["pdf-arxiv-2610.37671"]
+    },
+    {
+      "id": "v36",
+      "kind": "vague",
+      "question": "government mortgage guarantee rule for buyers in the countryside",
+      "relevant": ["pdf-fr-2026-22772"]
+    },
+    {
+      "id": "v37",
+      "kind": "vague",
+      "question": "who may pay the buyer's broker under a federal home loan program",
+      "relevant": ["pdf-fr-2026-22772"]
+    },
+    {
+      "id": "v38",
+      "kind": "vague",
+      "question": "mandatory fix for a jetliner's height-above-ground instrument",
+      "relevant": ["pdf-fr-2026-22817"]
+    },
+    {
+      "id": "v39",
+      "kind": "vague",
+      "question": "regulator orders airlines to modify wiring on a widebody fleet",
+      "relevant": ["pdf-fr-2026-22817"]
+    },
+    {
+      "id": "v40",
+      "kind": "vague",
+      "question": "a dreamlike children's story with talking animals and a queen who orders beheadings",
+      "relevant": ["epub-pg11"]
+    }
+  ]
+}
