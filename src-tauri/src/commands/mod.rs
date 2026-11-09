@@ -12,6 +12,7 @@ pub mod extraction;
 pub mod inventory;
 pub mod library;
 pub mod providers;
+pub mod roles;
 pub mod search;
 pub mod settings;
 pub mod sources;
@@ -56,4 +57,9 @@ pub const COMMAND_NAMES: &[&str] = &[
     "delete_provider_profile",
     "test_provider_connection",
     "detect_local_providers",
+    "test_model_capability",
+    "get_model_roles",
+    "set_model_role",
+    "clear_model_role",
+    "get_model_recommendations",
 ];

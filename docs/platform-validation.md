@@ -1217,6 +1217,21 @@ and read:
 5. Linux without a Secret Service (for example a minimal window manager):
    confirm the key shows as "kept for this session only".
 
+### Model roles (Slice 2.1)
+
+1. With Ollama running and `qwen3-embedding:0.6b` pulled, add Ollama, then
+   under Models › Embeddings choose it, type or pick the model and press
+   Test: "Works for embeddings · 1,024 dimensions". Press Use; the role
+   shows the model and its dimensions.
+2. Under Chat, choose a chat model and press Test (the first test may wait
+   while the model loads): "Works for chat". Pick an embedding model for
+   Chat instead and confirm Atlas says it can't chat.
+3. Remove the service: both roles return to "Not set".
+4. With no embedding model installed, the recommendation card shows the
+   steps for your AI app and Atlas downloads nothing.
+5. Add a service at a LAN address and one at an internet address: the
+   cards say "Another computer" and "Internet service".
+
 ## Known platform notes
 
 - **Linux:** WebKitGTK 4.1 is required at runtime. CI builds on Ubuntu 24.04,

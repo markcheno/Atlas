@@ -51,10 +51,10 @@ pub async fn test_provider_connection(
 ) -> AtlasResult<ConnectionResult> {
     let vault = state.vault.clone();
     let prepared = state
-        .with_workspace(move |ws| profiles::prepare_test(ws.require_open()?, &vault, &target))
+        .with_workspace(move |ws| profiles::resolve(ws.require_open()?, &vault, &target))
         .await?;
     Ok(match prepared {
-        Prepared::Blocked(result) => result,
+        Prepared::Blocked(message) => Prepared::blocked_connection(message),
         Prepared::Ready {
             kind,
             endpoint,

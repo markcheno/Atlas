@@ -7,18 +7,22 @@
   import type { ProviderProfileInput } from '../api/bindings/ProviderProfileInput';
   import {
     CAPABILITY_NOTE,
+    INTERNET_NOTE,
     PRESETS,
     PRIVACY_NOTE,
     isSuccess,
     keychainName,
     kindLabel,
+    locationLabel,
     needsAcknowledgement,
     outcomeText,
     storageLabel,
   } from '../providerCopy';
   import { appInfo } from '../stores/app.svelte';
   import { providers } from '../stores/providers.svelte';
+  import { roles } from '../stores/roles.svelte';
   import ProblemNotice from './ProblemNotice.svelte';
+  import RolesPanel from './RolesPanel.svelte';
 
   type Form = {
     id: string | null;
@@ -148,13 +152,14 @@
           <div class="head">
             <div>
               <span class="name">{p.label}</span>
-              <span class="muted small"
-                >{kindLabel(p.kind)} · {p.onThisComputer
-                  ? 'This computer'
-                  : 'Another computer'}</span
+              <span class="muted small" data-testid="location"
+                >{kindLabel(p.kind)} · {locationLabel(p.location)}</span
               >
               <span class="url">{p.baseUrl}</span>
               <span class="muted small">{storageLabel(p.credentialStorage, os)}</span>
+              {#if p.location === 'internet'}
+                <span class="muted small">{INTERNET_NOTE}</span>
+              {/if}
             </div>
             <div class="actions">
               <button
@@ -179,9 +184,11 @@
                 <button
                   type="button"
                   class="button"
-                  onclick={() => {
+                  onclick={async () => {
                     confirmingRemove = null;
-                    void providers.remove(p.id);
+                    await providers.remove(p.id);
+                    // Removing a service clears the roles it held.
+                    await roles.refresh();
                   }}>Remove</button
                 >
                 <button type="button" class="button quiet" onclick={() => (confirmingRemove = null)}
@@ -328,6 +335,16 @@
       title="That didn't work"
       message={providers.error.message}
       recovery={providers.error.recovery}
+    />
+  {/if}
+
+  <RolesPanel />
+
+  {#if roles.error}
+    <ProblemNotice
+      title="That didn't work"
+      message={roles.error.message}
+      recovery={roles.error.recovery}
     />
   {/if}
 </div>

@@ -1,0 +1,186 @@
+{
+  "version": 1,
+  "comment": "Models Atlas recommends per role and runtime (phase2-spec §7.1, ADR 0012). Bundled with each release and read offline; Atlas never downloads a model. `match` lists model-id fragments (compared with every non-alphanumeric character removed, ignoring case) that identify an installed copy. `verified` means the runtime is known to serve this model: listed in its own catalog or checked with Atlas's capability test; otherwise the card says it hasn't been checked. Sizes are the runtime's download, rounded.",
+  "models": [
+    {
+      "id": "qwen3-embedding-0.6b",
+      "label": "Qwen3-Embedding 0.6B",
+      "role": "embedding",
+      "kind": "recommended",
+      "sizeBytes": 639000000,
+      "minMemoryGb": 8,
+      "dimensions": 1024,
+      "why": "Small and fast, good in many languages, and the model Atlas's search quality is measured with.",
+      "match": ["qwen3-embedding-0.6b", "qwen3-embedding:0.6b"],
+      "runtimes": [
+        {
+          "runtime": "omlx",
+          "modelId": "mlx-community/Qwen3-Embedding-0.6B-8bit",
+          "command": null,
+          "steps": [
+            "Open oMLX's admin page (http://localhost:8000/admin).",
+            "In Model Downloader, search for Qwen3-Embedding-0.6B and download the MLX build mlx-community/Qwen3-Embedding-0.6B-8bit.",
+            "Back in Atlas, choose it for Embeddings and press Test."
+          ],
+          "verified": false
+        },
+        {
+          "runtime": "ollama",
+          "modelId": "qwen3-embedding:0.6b",
+          "command": "ollama pull qwen3-embedding:0.6b",
+          "steps": [
+            "Run the command in Terminal (or Command Prompt).",
+            "Back in Atlas, choose qwen3-embedding:0.6b for Embeddings and press Test."
+          ],
+          "verified": true
+        },
+        {
+          "runtime": "lmstudio",
+          "modelId": "text-embedding-qwen3-embedding-0.6b",
+          "command": null,
+          "steps": [
+            "In LM Studio, open Discover and search for Qwen3 Embedding 0.6B.",
+            "Download a GGUF build and load it as a text-embedding model.",
+            "Back in Atlas, choose the id LM Studio shows for it and press Test."
+          ],
+          "verified": false
+        }
+      ]
+    },
+    {
+      "id": "qwen3-embedding-4b",
+      "label": "Qwen3-Embedding 4B",
+      "role": "embedding",
+      "kind": "higher_quality",
+      "sizeBytes": 2500000000,
+      "minMemoryGb": 16,
+      "dimensions": 2560,
+      "why": "Finds more by meaning than the 0.6B model, but indexing takes several times longer and the index is about two and a half times larger.",
+      "match": ["qwen3-embedding-4b", "qwen3-embedding:4b"],
+      "runtimes": [
+        {
+          "runtime": "omlx",
+          "modelId": "mlx-community/Qwen3-Embedding-4B-mxfp8",
+          "command": null,
+          "steps": [
+            "Open oMLX's admin page (http://localhost:8000/admin).",
+            "In Model Downloader, search for Qwen3-Embedding-4B and download an MLX build.",
+            "Back in Atlas, choose it for Embeddings and press Test."
+          ],
+          "verified": false
+        },
+        {
+          "runtime": "ollama",
+          "modelId": "qwen3-embedding:4b",
+          "command": "ollama pull qwen3-embedding:4b",
+          "steps": [
+            "Run the command in Terminal (or Command Prompt).",
+            "Back in Atlas, choose qwen3-embedding:4b for Embeddings and press Test."
+          ],
+          "verified": true
+        },
+        {
+          "runtime": "lmstudio",
+          "modelId": "text-embedding-qwen3-embedding-4b",
+          "command": null,
+          "steps": [
+            "In LM Studio, open Discover and search for Qwen3 Embedding 4B.",
+            "Download a GGUF build and load it as a text-embedding model.",
+            "Back in Atlas, choose the id LM Studio shows for it and press Test."
+          ],
+          "verified": false
+        }
+      ]
+    },
+    {
+      "id": "qwen3.5-9b",
+      "label": "Qwen3.5 9B",
+      "role": "chat",
+      "kind": "recommended",
+      "sizeBytes": 6600000000,
+      "minMemoryGb": 16,
+      "dimensions": null,
+      "why": "Answers questions about your library well on a 16 GB computer, and quickly.",
+      "match": ["qwen3.5-9b", "qwen3.5:9b"],
+      "runtimes": [
+        {
+          "runtime": "omlx",
+          "modelId": "Qwen3.5-9B",
+          "command": null,
+          "steps": [
+            "Open oMLX's admin page (http://localhost:8000/admin).",
+            "In Model Downloader, search for Qwen3.5-9B and download a 4-bit MLX build.",
+            "Back in Atlas, choose it for Chat and press Test."
+          ],
+          "verified": false
+        },
+        {
+          "runtime": "ollama",
+          "modelId": "qwen3.5:9b",
+          "command": "ollama pull qwen3.5:9b",
+          "steps": [
+            "Run the command in Terminal (or Command Prompt).",
+            "Back in Atlas, choose qwen3.5:9b for Chat and press Test."
+          ],
+          "verified": true
+        },
+        {
+          "runtime": "lmstudio",
+          "modelId": "qwen3.5-9b",
+          "command": null,
+          "steps": [
+            "In LM Studio, open Discover and search for Qwen3.5 9B.",
+            "Download it and load it.",
+            "Back in Atlas, choose the id LM Studio shows for it and press Test."
+          ],
+          "verified": false
+        }
+      ]
+    },
+    {
+      "id": "qwen3.5-27b",
+      "label": "Qwen3.5 27B",
+      "role": "chat",
+      "kind": "higher_quality",
+      "sizeBytes": 17000000000,
+      "minMemoryGb": 32,
+      "dimensions": null,
+      "why": "Richer, more careful answers; needs a computer with 32 GB of memory or more.",
+      "match": ["qwen3.5-27b", "qwen3.5:27b"],
+      "runtimes": [
+        {
+          "runtime": "omlx",
+          "modelId": "Qwen3.5-27B",
+          "command": null,
+          "steps": [
+            "Open oMLX's admin page (http://localhost:8000/admin).",
+            "In Model Downloader, search for Qwen3.5-27B and download a 4-bit MLX build.",
+            "Back in Atlas, choose it for Chat and press Test."
+          ],
+          "verified": false
+        },
+        {
+          "runtime": "ollama",
+          "modelId": "qwen3.5:27b",
+          "command": "ollama pull qwen3.5:27b",
+          "steps": [
+            "Run the command in Terminal (or Command Prompt).",
+            "Back in Atlas, choose qwen3.5:27b for Chat and press Test."
+          ],
+          "verified": true
+        },
+        {
+          "runtime": "lmstudio",
+          "modelId": "qwen3.5-27b",
+          "command": null,
+          "steps": [
+            "In LM Studio, open Discover and search for Qwen3.5 27B.",
+            "Download it and load it.",
+            "Back in Atlas, choose the id LM Studio shows for it and press Test."
+          ],
+          "verified": false
+        }
+      ]
+    }
+  ]
+}

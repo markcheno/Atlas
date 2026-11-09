@@ -1,173 +1,26 @@
 //! Slice 0.7: AI service connections (phase0-spec §5.7, §10; P0-17,
 //! P0-18, P0-19). Probes run against a tiny scripted HTTP server.
 
-use std::collections::HashMap;
 use std::fs;
-use std::io::{Read, Write};
-use std::net::{TcpListener, TcpStream};
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use atlas_lib::domain::dto::{
     ConnectionOutcome, ConnectionResult, ConnectionTestTarget, CredentialStorage, ProviderKind,
-    ProviderProfileInput,
+    ProviderLocation, ProviderProfileInput,
 };
 use atlas_lib::domain::traits::ModelProvider;
 use atlas_lib::error::{AtlasResult, ErrorCode};
 use atlas_lib::infrastructure::http_probe::{HttpModelProvider, ProbeConfig};
 use atlas_lib::services::providers::detect;
 use atlas_lib::services::providers::profiles::{self, Prepared};
-use atlas_lib::services::providers::secrets::{Secret, SecretStore, SecretVault};
+use atlas_lib::services::providers::secrets::{SecretStore, SecretVault};
 use atlas_lib::services::workspace::Workspace;
 use tauri::async_runtime::block_on;
 
 mod common;
+use common::http::{FakeKeychain, MockServer, Reply, closed_port, json};
 use common::{Env, code};
-
-// ---------------------------------------------------------------- mock HTTP
-
-#[derive(Clone)]
-struct Reply {
-    status: u16,
-    body: Vec<u8>,
-    headers: Vec<(String, String)>,
-    delay: Duration,
-}
-
-fn json(status: u16, body: &str) -> Reply {
-    Reply {
-        status,
-        body: body.as_bytes().to_vec(),
-        headers: vec![("Content-Type".into(), "application/json".into())],
-        delay: Duration::ZERO,
-    }
-}
-
-#[derive(Debug, Clone)]
-struct Seen {
-    method: String,
-    path: String,
-    authorization: Option<String>,
-    content_length: usize,
-}
-
-struct MockServer {
-    port: u16,
-    seen: Arc<Mutex<Vec<Seen>>>,
-}
-
-impl MockServer {
-    fn start(routes: Vec<(&str, Reply)>) -> Self {
-        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
-        let port = listener.local_addr().unwrap().port();
-        let routes: HashMap<String, Reply> =
-            routes.into_iter().map(|(p, r)| (p.to_owned(), r)).collect();
-        let seen = Arc::new(Mutex::new(Vec::new()));
-        let log = seen.clone();
-        std::thread::spawn(move || {
-            for stream in listener.incoming().flatten() {
-                let routes = routes.clone();
-                let log = log.clone();
-                std::thread::spawn(move || serve(stream, &routes, &log));
-            }
-        });
-        Self { port, seen }
-    }
-
-    fn url(&self, path: &str) -> String {
-        format!("http://127.0.0.1:{}{path}", self.port)
-    }
-
-    fn seen(&self) -> Vec<Seen> {
-        self.seen.lock().unwrap().clone()
-    }
-}
-
-fn serve(mut stream: TcpStream, routes: &HashMap<String, Reply>, log: &Mutex<Vec<Seen>>) {
-    let mut buf = Vec::new();
-    let mut chunk = [0u8; 4096];
-    while !buf.windows(4).any(|w| w == b"\r\n\r\n") {
-        match stream.read(&mut chunk) {
-            Ok(0) | Err(_) => return,
-            Ok(n) => buf.extend_from_slice(&chunk[..n]),
-        }
-    }
-    let head = String::from_utf8_lossy(&buf).to_string();
-    let mut lines = head.lines();
-    let mut first = lines.next().unwrap_or("").split_whitespace();
-    let method = first.next().unwrap_or("").to_owned();
-    let path = first.next().unwrap_or("").to_owned();
-    let header = |name: &str| {
-        head.lines()
-            .find(|l| {
-                l.to_ascii_lowercase()
-                    .starts_with(&format!("{}:", name.to_ascii_lowercase()))
-            })
-            .map(|l| l.split_once(':').unwrap().1.trim().to_owned())
-    };
-    log.lock().unwrap().push(Seen {
-        method,
-        authorization: header("authorization"),
-        content_length: header("content-length")
-            .and_then(|v| v.parse().ok())
-            .unwrap_or(0),
-        path: path.clone(),
-    });
-    let reply = routes
-        .get(&path)
-        .cloned()
-        .unwrap_or_else(|| json(404, r#"{"error":"not found"}"#));
-    std::thread::sleep(reply.delay);
-    let mut out = format!(
-        "HTTP/1.1 {} X\r\nContent-Length: {}\r\nConnection: close\r\n",
-        reply.status,
-        reply.body.len()
-    );
-    for (k, v) in &reply.headers {
-        out.push_str(&format!("{k}: {v}\r\n"));
-    }
-    out.push_str("\r\n");
-    let _ = stream.write_all(out.as_bytes());
-    let _ = stream.write_all(&reply.body);
-}
-
-fn closed_port() -> u16 {
-    let l = TcpListener::bind("127.0.0.1:0").unwrap();
-    l.local_addr().unwrap().port()
-}
-
-// ------------------------------------------------------------ fixtures
-
-#[derive(Default)]
-struct FakeKeychain {
-    items: Mutex<HashMap<String, String>>,
-    broken: bool,
-}
-
-impl SecretStore for FakeKeychain {
-    fn set(&self, account: &str, secret: &Secret) -> AtlasResult<()> {
-        if self.broken {
-            return Err(atlas_lib::error::AtlasError::SecretStoreFailed);
-        }
-        self.items
-            .lock()
-            .unwrap()
-            .insert(account.into(), secret.expose().into());
-        Ok(())
-    }
-    fn get(&self, account: &str) -> AtlasResult<Option<Secret>> {
-        Ok(self
-            .items
-            .lock()
-            .unwrap()
-            .get(account)
-            .map(|s| Secret::new(s.clone())))
-    }
-    fn delete(&self, account: &str) -> AtlasResult<()> {
-        self.items.lock().unwrap().remove(account);
-        Ok(())
-    }
-}
 
 struct Lib {
     env: Env,
@@ -212,8 +65,8 @@ fn test_with(
     target: ConnectionTestTarget,
     config: ProbeConfig,
 ) -> ConnectionResult {
-    match profiles::prepare_test(ws.require_open().unwrap(), vault, &target).unwrap() {
-        Prepared::Blocked(result) => result,
+    match profiles::resolve(ws.require_open().unwrap(), vault, &target).unwrap() {
+        Prepared::Blocked(message) => Prepared::blocked_connection(message),
         Prepared::Ready {
             kind,
             endpoint,
@@ -317,7 +170,7 @@ fn p0_18_api_key_never_leaves_the_keychain() {
         .unwrap();
     assert_eq!(saved.credential_storage, CredentialStorage::Keychain);
     assert!(saved.has_credential);
-    assert!(saved.on_this_computer);
+    assert_eq!(saved.location, ProviderLocation::ThisComputer);
 
     let result = lib.test(ConnectionTestTarget::SavedProfile {
         profile_id: saved.id.clone(),
@@ -427,6 +280,7 @@ fn failures_are_classified() {
                 body: b"<html>hello</html>".to_vec(),
                 headers: vec![("Content-Type".into(), "text/html".into())],
                 delay: Duration::ZERO,
+                chunks: Vec::new(),
             },
         ),
         ("/shape/models", json(200, r#"{"models":"nope"}"#)),
@@ -444,6 +298,7 @@ fn failures_are_classified() {
                 body: Vec::new(),
                 headers: vec![("Location".into(), "http://example.com/models".into())],
                 delay: Duration::ZERO,
+                chunks: Vec::new(),
             },
         ),
         (
@@ -521,7 +376,7 @@ fn p0_19_plain_http_rules() {
         })
         .unwrap();
     assert!(acknowledged.insecure_http_acknowledged);
-    assert!(!acknowledged.on_this_computer);
+    assert_eq!(acknowledged.location, ProviderLocation::AnotherComputer);
     // The acknowledgement belongs to that profile only.
     assert_eq!(
         code(lib.save(input(ProviderKind::Ollama, "http://192.168.1.21:11434"))),

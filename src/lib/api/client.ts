@@ -9,6 +9,10 @@
  */
 import { invoke, isTauri } from '@tauri-apps/api/core';
 import type { AddSourceRootsResult } from './bindings/AddSourceRootsResult';
+import type { AiRole } from './bindings/AiRole';
+import type { CapabilityResult } from './bindings/CapabilityResult';
+import type { ModelRoles } from './bindings/ModelRoles';
+import type { Recommendations } from './bindings/Recommendations';
 import type { AppStatus } from './bindings/AppStatus';
 import type { ConnectionResult } from './bindings/ConnectionResult';
 import type { ConnectionTestTarget } from './bindings/ConnectionTestTarget';
@@ -152,6 +156,17 @@ export const atlas = {
     call<ConnectionResult>('test_provider_connection', { target }),
   /** Checks well-known ports on this computer; only when the user asks. */
   detectLocalProviders: () => call<LocalProviderSuggestion[]>('detect_local_providers'),
+  /** Sends one fixed request to the model; nothing from the library. */
+  testModelCapability: (target: ConnectionTestTarget, role: AiRole, modelId: string) =>
+    call<CapabilityResult>('test_model_capability', { target, role, modelId }),
+  getModelRoles: () => call<ModelRoles>('get_model_roles'),
+  /** `result` must be a recent passing test of that model for that role. */
+  setModelRole: (role: AiRole, profileId: string, modelId: string, result: CapabilityResult) =>
+    call<ModelRoles>('set_model_role', { role, profileId, modelId, result }),
+  clearModelRole: (role: AiRole) => call<ModelRoles>('clear_model_role', { role }),
+  /** From the bundled catalog and this computer's memory; no network. */
+  getModelRecommendations: (listedModelIds: string[]) =>
+    call<Recommendations>('get_model_recommendations', { listedModelIds }),
 } as const;
 
 export type AtlasApi = typeof atlas;

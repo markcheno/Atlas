@@ -819,6 +819,19 @@ pub enum CredentialStorage {
     SessionOnly,
 }
 
+/// Where an AI service runs, judged from its address alone (ADR 0012):
+/// a label for the user, not a security boundary.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "snake_case")]
+#[ts(export)]
+pub enum ProviderLocation {
+    ThisComputer,
+    /// A private or local-network address, or a name only a local network
+    /// resolves.
+    AnotherComputer,
+    Internet,
+}
+
 /// A saved provider profile as the UI sees it. The key itself never
 /// crosses IPC after it is saved; only where it is kept.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
@@ -833,8 +846,8 @@ pub struct ProviderProfile {
     pub credential_storage: CredentialStorage,
     /// Per-profile acknowledgement for plain HTTP to a non-loopback host.
     pub insecure_http_acknowledged: bool,
-    /// The address is this computer (loopback), for the privacy indicator.
-    pub on_this_computer: bool,
+    /// Where the service runs, for the privacy label (from the address).
+    pub location: ProviderLocation,
     pub created_at: String,
     pub updated_at: String,
 }
@@ -928,6 +941,151 @@ pub struct ConnectionResult {
     pub message: String,
     pub server_version: Option<String>,
     pub tested_at: String,
+}
+
+// ----------------------------------------------------------- model roles
+
+/// What a model is used for (phase2-spec §7.1).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, TS)]
+#[serde(rename_all = "snake_case")]
+#[ts(export)]
+pub enum AiRole {
+    Chat,
+    Embedding,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "snake_case")]
+#[ts(export)]
+pub enum CapabilityOutcome {
+    /// The model answered the fixed test request for this role.
+    Works,
+    /// No model id was given; nothing was sent.
+    NeedsModelId,
+    ModelNotFound,
+    /// The model exists but can't do this job (a chat model asked for
+    /// embeddings, or the reverse).
+    WrongRole,
+    AuthenticationFailed,
+    ProtocolMismatch,
+    NetworkError,
+    Timeout,
+    InsecureUrlRejected,
+}
+
+/// The result of one capability test: a single fixed request, never
+/// anything from the library (ADR 0012).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct CapabilityResult {
+    pub role: AiRole,
+    pub model_id: String,
+    pub outcome: CapabilityOutcome,
+    /// Embeddings: the length of the vector the model returned.
+    pub dimensions: Option<u32>,
+    /// A short technical detail (for example the HTTP status). Never the
+    /// API key, and never the model's reply.
+    pub message: String,
+    pub elapsed_ms: u32,
+    pub tested_at: String,
+}
+
+/// The service and model assigned to a role.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct ModelRole {
+    pub role: AiRole,
+    pub profile_id: RecordId,
+    pub profile_label: String,
+    pub location: ProviderLocation,
+    pub model_id: String,
+    pub dimensions: Option<u32>,
+    /// When the capability test that justified the assignment passed.
+    pub tested_at: String,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct ModelRoles {
+    pub chat: Option<ModelRole>,
+    pub embedding: Option<ModelRole>,
+}
+
+/// A local AI runtime Atlas can give steps for.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "snake_case")]
+#[ts(export)]
+pub enum AiRuntime {
+    Omlx,
+    Ollama,
+    Lmstudio,
+}
+
+/// How to get one recommended model in one runtime.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct RuntimeSteps {
+    pub runtime: AiRuntime,
+    /// The id to use in Atlas once the model is installed.
+    pub model_id: String,
+    /// A command to copy, when the runtime has one.
+    pub command: Option<String>,
+    pub steps: Vec<String>,
+    /// Checked to work with this runtime; otherwise the card says so.
+    pub verified: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "snake_case")]
+#[ts(export)]
+pub enum RecommendationKind {
+    Recommended,
+    Faster,
+    HigherQuality,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct ModelRecommendation {
+    pub id: String,
+    pub label: String,
+    pub kind: RecommendationKind,
+    #[ts(type = "number")]
+    pub size_bytes: u64,
+    pub min_memory_gb: u32,
+    pub dimensions: Option<u32>,
+    pub why: String,
+    pub runtimes: Vec<RuntimeSteps>,
+    /// A model id the user's services already list that matches this
+    /// recommendation.
+    pub installed_as: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct RoleRecommendations {
+    pub role: AiRole,
+    /// Recommended first, then at most one faster and one higher-quality
+    /// alternative that fits this computer.
+    pub models: Vec<ModelRecommendation>,
+}
+
+/// From the catalog bundled with this release and the device check; no
+/// network involved.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct Recommendations {
+    pub catalog_version: u32,
+    pub total_memory_gb: Option<u32>,
+    pub embedding: RoleRecommendations,
+    pub chat: RoleRecommendations,
 }
 
 // ------------------------------------------------------------- data root

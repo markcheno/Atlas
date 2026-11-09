@@ -442,6 +442,14 @@ Do **not** add usearch, chunking or any embedding table before Slice 2.1's gate 
 - Embeddings are content-addressed BLOBs in the catalog; the usearch index is derived, atomic-saved and versioned per model; the embed job pauses on battery (the one per-kind policy difference); hybrid ranking is reciprocal rank fusion; the dimension default is decided by measurement in Slice 2.4.
 - The vague question set was committed with this document, before any semantic code, as Phase 1's set was.
 
+**2026-11-09, amended during Slice 2.1:**
+
+- Capability tests live in the Settings › AI Models › Models block, where a role's model is chosen, not as per-card buttons (§5.1): a test needs a model id, and choosing one for a role is where that happens.
+- The privacy settings (external-AI disclosure, remote embedding, "Disable all external AI") move to the slice that uses them, 2.6; migration 0011 is `model_roles` only.
+- The recommendation catalog is `src-tauri/src/services/providers/recommendations.json` (compiled in), not under `fixtures/`, which holds test data.
+- A role is assigned only with a passing capability test of that model at most 24 hours old (ADR 0012). The capability test's budget is two minutes, since local runtimes load a model on first use.
+- oMLX's README doesn't list Qwen3-Embedding among its embedding models; its recommendation entry is marked unverified until the reference machine's capability test confirms it.
+
 ### Primary reference documentation (verify current versions at implementation time)
 
 - usearch (Rust): <https://docs.rs/usearch/latest/usearch/> and <https://github.com/unum-cloud/usearch>

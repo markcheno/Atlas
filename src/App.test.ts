@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import * as events from './test/eventMock';
 import * as tauri from './test/tauriMock';
+import type { ProviderProfile } from './lib/api/bindings/ProviderProfile';
 
 vi.mock('@tauri-apps/api/core', () => import('./test/tauriMock'));
 vi.mock('@tauri-apps/api/event', () => import('./test/eventMock'));
@@ -11,6 +12,7 @@ const { library: libraryStore } = await import('./lib/stores/library.svelte');
 const { search: searchStore } = await import('./lib/stores/search.svelte');
 const { details: detailsStore } = await import('./lib/stores/details.svelte');
 const { providers: providersStore } = await import('./lib/stores/providers.svelte');
+const { roles: rolesStore } = await import('./lib/stores/roles.svelte');
 
 const { default: App } = await import('./App.svelte');
 const { view } = await import('./lib/stores/view.svelte');
@@ -937,6 +939,7 @@ describe('AI models settings', () => {
   beforeEach(() => {
     resetAll();
     providersStore.clear();
+    rolesStore.clear();
   });
 
   async function openAiSettings() {
@@ -977,8 +980,9 @@ describe('AI models settings', () => {
       target: expect.objectContaining({ target: 'candidate' }),
     });
     await user.click(within(form).getByRole('button', { name: 'Save' }));
-    expect(await within(aiSection()).findByText('Ollama')).toBeInTheDocument();
-    expect(within(aiSection()).getByText(/This computer/)).toBeInTheDocument();
+    const services = await within(aiSection()).findByRole('list', { name: 'AI services' });
+    expect(within(services).getByText('Ollama')).toBeInTheDocument();
+    expect(within(services).getByText(/This computer/)).toBeInTheDocument();
   });
 
   it('stores a key without ever showing it again, and explains key problems', async () => {
@@ -1016,16 +1020,18 @@ describe('AI models settings', () => {
     });
   });
 
-  it('shows models and never claims chat or embedding support', async () => {
+  it('lists models without claiming what they can do', async () => {
     const user = await openAiSettings();
     await user.click(within(aiSection()).getByRole('button', { name: 'Add a service…' }));
     const form = within(aiSection()).getByRole('form', { name: 'Add an AI service' });
     await user.click(within(form).getByRole('button', { name: 'Test' }));
     expect(await within(aiSection()).findByText('qwen3.5:9b')).toBeInTheDocument();
     expect(
-      within(aiSection()).getByText(/Atlas will check what each model can do/),
+      within(aiSection()).getByText(/Listing a model doesn't show what it can do/),
     ).toBeInTheDocument();
-    expect(aiSection().textContent).not.toMatch(/supports (chat|embeddings)/i);
+    // Only a passing capability test makes a claim (see "Model roles").
+    expect(aiSection().textContent).not.toMatch(/works for (chat|embeddings)/i);
+    expect(tauri.invoke).not.toHaveBeenCalledWith('test_model_capability', expect.anything());
   });
 
   it('requires an acknowledgement for plain HTTP to another computer', async () => {
@@ -1084,7 +1090,7 @@ describe('AI models settings', () => {
         hasCredential: false,
         credentialStorage: 'none',
         insecureHttpAcknowledged: false,
-        onThisComputer: true,
+        location: 'this_computer',
         createdAt: 't',
         updatedAt: 't',
       },
@@ -1110,6 +1116,207 @@ describe('AI models settings', () => {
     expect(within(aiSection()).getByText('Remove this service and its key?')).toBeInTheDocument();
     await user.click(within(aiSection()).getByRole('button', { name: 'Remove' }));
     expect(tauri.invoke).toHaveBeenCalledWith('delete_provider_profile', { id: 'p1' });
+  });
+});
+
+describe('Model roles', () => {
+  beforeEach(() => {
+    resetAll();
+    providersStore.clear();
+    rolesStore.clear();
+  });
+
+  const omlx: ProviderProfile = {
+    id: 'p1',
+    kind: 'openai_compatible',
+    label: 'oMLX',
+    baseUrl: 'http://localhost:8000/v1',
+    hasCredential: true,
+    credentialStorage: 'keychain',
+    insecureHttpAcknowledged: false,
+    location: 'this_computer',
+    createdAt: 't',
+    updatedAt: 't',
+  };
+
+  async function openModels(profiles = [omlx]) {
+    tauri.setHandler('list_provider_profiles', () => profiles);
+    const user = await launchOpen();
+    await user.click(screen.getByRole('button', { name: 'Settings' }));
+    await screen.findByRole('heading', { level: 3, name: 'Models' });
+    return user;
+  }
+
+  const role = (name: 'Embeddings' | 'Chat') => screen.getByRole('group', { name });
+
+  it('explains each role, and without a service recommends what to get', async () => {
+    const user = await openModels([]);
+    expect(within(role('Embeddings')).getByText('Not set.')).toBeInTheDocument();
+    expect(
+      within(role('Embeddings')).getByText(/Add the AI service that runs it above/),
+    ).toBeInTheDocument();
+    const rec = await screen.findByRole('group', { name: 'Recommended embeddings model' });
+    expect(within(rec).getByText('Qwen3-Embedding 0.6B')).toBeInTheDocument();
+    expect(within(rec).getByText('Atlas never downloads models itself.')).toBeInTheDocument();
+    // On a Mac with no service yet, oMLX's steps come first.
+    expect(within(rec).getByRole('radio', { name: 'oMLX' })).toBeChecked();
+    expect(within(rec).getByText(/Not yet checked with oMLX/)).toBeInTheDocument();
+    await user.click(within(rec).getByRole('radio', { name: 'Ollama' }));
+    expect(within(rec).getByText('ollama pull qwen3-embedding:0.6b')).toBeInTheDocument();
+    expect(within(rec).queryByText(/Not yet checked/)).not.toBeInTheDocument();
+    expect(screen.getByRole('group', { name: 'Recommended chat model' })).toHaveTextContent(
+      'Qwen3.5 9B',
+    );
+  });
+
+  it('tests a model and offers Use only after it passes', async () => {
+    let answer = tauri.capabilityResult({
+      role: 'embedding',
+      modelId: 'Qwen3.8-27B-MLX-4bit',
+      outcome: 'wrong_role',
+      dimensions: null,
+    });
+    tauri.setHandler('test_model_capability', () => answer);
+    const user = await openModels();
+    await user.click(
+      within(role('Embeddings')).getByRole('button', { name: 'Choose a model for embeddings' }),
+    );
+    const form = screen.getByRole('form', { name: 'Choose the embeddings model' });
+    await user.type(within(form).getByLabelText('Model'), 'Qwen3.8-27B-MLX-4bit');
+    await user.click(within(form).getByRole('button', { name: 'Test' }));
+    expect(
+      await within(form).findByText("This model can't make embeddings. Choose an embedding model."),
+    ).toBeInTheDocument();
+    expect(within(form).queryByRole('button', { name: 'Use' })).not.toBeInTheDocument();
+    expect(tauri.invoke).toHaveBeenCalledWith('test_model_capability', {
+      target: { target: 'saved_profile', profileId: 'p1' },
+      role: 'embedding',
+      modelId: 'Qwen3.8-27B-MLX-4bit',
+    });
+
+    const model = within(form).getByLabelText('Model');
+    await user.clear(model);
+    await user.type(model, 'mlx-community/Qwen3-Embedding-0.6B-8bit');
+    answer = tauri.capabilityResult({ modelId: 'mlx-community/Qwen3-Embedding-0.6B-8bit' });
+    await user.click(within(form).getByRole('button', { name: 'Test' }));
+    expect(
+      await within(form).findByText('Works for embeddings · 1,024 dimensions · answered in 0.4 s'),
+    ).toBeInTheDocument();
+
+    // Changing the model after the test hides Use again.
+    await user.type(model, 'x');
+    expect(within(form).queryByRole('button', { name: 'Use' })).not.toBeInTheDocument();
+    await user.type(model, '{Backspace}');
+    await user.click(within(form).getByRole('button', { name: 'Test' }));
+    await user.click(await within(form).findByRole('button', { name: 'Use' }));
+    expect(tauri.invoke).toHaveBeenCalledWith('set_model_role', {
+      role: 'embedding',
+      profileId: 'p1',
+      modelId: 'mlx-community/Qwen3-Embedding-0.6B-8bit',
+      result: expect.objectContaining({ outcome: 'works', dimensions: 1024 }),
+    });
+    expect(await screen.findByTestId('role-embedding')).toHaveTextContent(
+      'oMLX · mlx-community/Qwen3-Embedding-0.6B-8bit · 1,024 dimensions · tested 9 Nov',
+    );
+    expect(
+      screen.queryByRole('group', { name: 'Recommended embeddings model' }),
+    ).not.toBeInTheDocument();
+  });
+
+  it('says it may take a minute while the model loads', async () => {
+    let finish: (r: unknown) => void = () => {};
+    tauri.setHandler('test_model_capability', () => new Promise((resolve) => (finish = resolve)));
+    const user = await openModels();
+    await user.click(within(role('Chat')).getByRole('button', { name: 'Choose a model for chat' }));
+    const form = screen.getByRole('form', { name: 'Choose the chat model' });
+    await user.type(within(form).getByLabelText('Model'), 'Qwen3.8-27B-MLX-4bit');
+    await user.click(within(form).getByRole('button', { name: 'Test' }));
+    expect(await within(form).findByText(/Loading it can take a minute/)).toBeInTheDocument();
+    expect(within(form).getByRole('button', { name: 'Test' })).toBeDisabled();
+    finish(tauri.capabilityResult({ role: 'chat', modelId: 'Qwen3.8-27B-MLX-4bit' }));
+    expect(await within(form).findByText(/Works for chat/)).toBeInTheDocument();
+  });
+
+  it('clears a role, and removing its service clears it too', async () => {
+    const user = await openModels();
+    for (const [name, label] of [
+      ['Embeddings', 'embeddings'],
+      ['Chat', 'chat'],
+    ] as const) {
+      await user.click(
+        within(role(name)).getByRole('button', { name: `Choose a model for ${label}` }),
+      );
+      const form = screen.getByRole('form', { name: `Choose the ${label} model` });
+      await user.type(
+        within(form).getByLabelText('Model'),
+        name === 'Chat' ? 'qwen3.5:9b' : 'qwen3-embedding:0.6b',
+      );
+      await user.click(within(form).getByRole('button', { name: 'Test' }));
+      await user.click(await within(form).findByRole('button', { name: 'Use' }));
+    }
+    expect(await screen.findByTestId('role-chat')).toHaveTextContent('qwen3.5:9b');
+    await user.click(screen.getByRole('button', { name: 'Clear the chat model' }));
+    expect(await within(role('Chat')).findByText('Not set.')).toBeInTheDocument();
+    expect(screen.getByTestId('role-embedding')).toBeInTheDocument();
+
+    tauri.setHandler('list_provider_profiles', () => []);
+    await user.click(screen.getByRole('button', { name: 'Remove oMLX' }));
+    await user.click(screen.getByRole('button', { name: 'Remove' }));
+    expect(await within(role('Embeddings')).findByText('Not set.')).toBeInTheDocument();
+  });
+
+  it('offers an installed recommended model directly', async () => {
+    const recs = tauri.recommendations();
+    recs.embedding.models[0].installedAs = 'mlx-community/Qwen3-Embedding-0.6B-8bit';
+    tauri.setHandler('get_model_recommendations', () => recs);
+    tauri.setHandler('test_provider_connection', () =>
+      tauri.connectionResult({
+        modelIds: ['Qwen3.8-27B-MLX-4bit', 'mlx-community/Qwen3-Embedding-0.6B-8bit'],
+      }),
+    );
+    const user = await openModels();
+    await user.click(screen.getByRole('button', { name: 'Test oMLX' }));
+    const rec = await screen.findByRole('group', { name: 'Recommended embeddings model' });
+    expect(await within(rec).findByText(/is installed on oMLX/)).toBeInTheDocument();
+    expect(tauri.invoke).toHaveBeenCalledWith('get_model_recommendations', {
+      listedModelIds: ['Qwen3.8-27B-MLX-4bit', 'mlx-community/Qwen3-Embedding-0.6B-8bit'],
+    });
+    await user.click(within(rec).getByRole('button', { name: 'Choose it' }));
+    const form = screen.getByRole('form', { name: 'Choose the embeddings model' });
+    expect(within(form).getByLabelText('Model')).toHaveValue(
+      'mlx-community/Qwen3-Embedding-0.6B-8bit',
+    );
+  });
+
+  it('labels where each service runs', async () => {
+    await openModels([
+      omlx,
+      {
+        ...omlx,
+        id: 'p2',
+        label: 'Studio',
+        baseUrl: 'http://192.168.1.20:11434',
+        location: 'another_computer',
+      },
+      {
+        ...omlx,
+        id: 'p3',
+        label: 'OpenAI',
+        baseUrl: 'https://api.openai.com/v1',
+        location: 'internet',
+      },
+    ]);
+    const cards = await screen.findAllByTestId('location');
+    expect(cards.map((c) => c.textContent?.split('· ')[1])).toEqual([
+      'This computer',
+      'Another computer',
+      'Internet service',
+    ]);
+    expect(
+      screen.getByText(
+        'An internet service: Atlas will ask before sending anything from your library to it.',
+      ),
+    ).toBeInTheDocument();
   });
 });
 

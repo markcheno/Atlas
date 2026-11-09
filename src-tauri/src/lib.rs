@@ -169,6 +169,11 @@ pub fn run() {
             commands::providers::delete_provider_profile,
             commands::providers::test_provider_connection,
             commands::providers::detect_local_providers,
+            commands::roles::test_model_capability,
+            commands::roles::get_model_roles,
+            commands::roles::set_model_role,
+            commands::roles::clear_model_role,
+            commands::roles::get_model_recommendations,
         ])
         .build(tauri::generate_context!())
         .expect("error while building Atlas")

@@ -4,7 +4,7 @@ Atlas is a local-first personal AI librarian for large private collections of
 PDFs, EPUBs, books and papers. *Collect freely. Organize minimally. Retrieve
 intelligently.*
 
-**Status: Phase 1 complete (version 0.2.0, [close-out review](docs/phase1-closeout.md)); Phase 0 complete.** Atlas asks where to keep its library and
+**Status: Phase 2, Slice 2.1 (model roles and capability tests); Phases 0 and 1 complete (version 0.2.0, [close-out review](docs/phase1-closeout.md)).** Atlas asks where to keep its library and
 which folders hold your books and papers, then catalogs every PDF and EPUB
 in them in the background, read-only. Cataloging slows on battery, pauses
 when the battery is low or the drive is nearly full, survives quitting and
@@ -33,8 +33,14 @@ folder of 20,000 files picks up again in about a second, and if Atlas is
 force-quit or crashes, its text reader stops with it.
 In Settings › AI Models you can connect Ollama, oMLX, LM Studio, or another
 OpenAI-compatible service and test it; keys are stored in your system
-keychain. Atlas contacts a service only when you test it, and sends nothing
-from your library. AI features themselves come in a later phase.
+keychain. You then choose which model makes embeddings and which one chats:
+Atlas checks each with one short fixed request, reports the embedding
+model's dimensions, and, if nothing suitable is installed, recommends a
+model for your computer and your AI app with the steps to get it (it never
+downloads one). Each service is labelled as this computer, another
+computer, or an internet service. Atlas contacts a service only when you
+test it, and sends nothing from your library. The AI features that use
+these models arrive in the next Phase 2 slices.
 
 Every push to `main`, every release tag and every pull request is built
 and tested on macOS (Apple silicon), Windows x64, and Linux x64; pushes to
@@ -84,7 +90,8 @@ with semantic search.
 | Settings › Storage: usage by category, indexing estimate, Clean caches | Working (Slice 1.6) |
 | Phase 1 carry-overs: fast resume inside large folders, Windows junctions and paths over 260 characters, no text reader outliving the app, extraction benchmark, a smaller catalog | Working (Slice 1.7) |
 | Phase 1 close-out: evidence on three OSes, version 0.2.0 | Done ([review](docs/phase1-closeout.md)); Windows and Linux verified in CI, with documented gaps |
-| Semantic search, related documents, Ask Atlas with citations | Phase 2, specified ([spec](docs/phase2-spec.md)); not started |
+| Choosing the chat and embedding models, with a capability test and recommendations | Working (Phase 2, Slice 2.1) |
+| Semantic search, related documents, Ask Atlas with citations | Phase 2, in progress ([spec](docs/phase2-spec.md)): Slice 2.1 of 2.8 built |
 
 Specifications: [product](docs/product-spec.md), [Phase 0](docs/phase0-spec.md),
 [Phase 1](docs/phase1-spec.md), [Phase 2](docs/phase2-spec.md),

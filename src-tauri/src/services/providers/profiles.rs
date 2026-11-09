@@ -47,7 +47,7 @@ fn from_row(r: &Row) -> rusqlite::Result<StoredProfile> {
 fn to_dto(p: StoredProfile, vault: &SecretVault) -> ProviderProfile {
     let available = vault.available(&account_for(&p.id), p.storage);
     ProviderProfile {
-        on_this_computer: url::Url::parse(&p.base_url).is_ok_and(|u| url_policy::is_loopback(&u)),
+        location: url_policy::location_of(&p.base_url),
         has_credential: available,
         credential_storage: if available {
             p.storage
@@ -191,35 +191,43 @@ pub fn delete(root: &OpenRoot, vault: &SecretVault, id: &str) -> AtlasResult<()>
     Ok(())
 }
 
-/// What a connection test should contact, or why it must not.
+/// What a test should contact, or why it must not.
 pub enum Prepared {
     Ready {
         kind: ProviderKind,
         endpoint: Endpoint,
         key: Option<Secret>,
     },
-    Blocked(ConnectionResult),
+    /// The address breaks the URL rules; the message says how.
+    Blocked(&'static str),
+}
+
+impl Prepared {
+    /// A refused connection test, for [`Prepared::Blocked`].
+    pub fn blocked_connection(message: &str) -> ConnectionResult {
+        ConnectionResult {
+            outcome: ConnectionOutcome::InsecureUrlRejected,
+            model_ids: Vec::new(),
+            message: message.to_owned(),
+            server_version: None,
+            tested_at: now_rfc3339(),
+        }
+    }
 }
 
 fn blocked(problem: UrlProblem) -> Prepared {
-    let message = match problem {
+    Prepared::Blocked(match problem {
         UrlProblem::Invalid => "This isn't a web address Atlas can use.",
         UrlProblem::HasCredentials => "The address contains a user name or password.",
         UrlProblem::NeedsAcknowledgement => {
             "Unencrypted HTTP to another computer needs your confirmation first."
         }
-    };
-    Prepared::Blocked(ConnectionResult {
-        outcome: ConnectionOutcome::InsecureUrlRejected,
-        model_ids: Vec::new(),
-        message: message.to_owned(),
-        server_version: None,
-        tested_at: now_rfc3339(),
     })
 }
 
-/// Resolves a test target to an endpoint and key without any network I/O.
-pub fn prepare_test(
+/// Resolves a saved or candidate profile to an endpoint and key without
+/// any network I/O, for connection and capability tests alike.
+pub fn resolve(
     root: &OpenRoot,
     vault: &SecretVault,
     target: &ConnectionTestTarget,

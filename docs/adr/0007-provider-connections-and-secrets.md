@@ -15,7 +15,7 @@ and overstating what a service can do.
 
 ## Decision
 
-**A test only lists models.** Ollama gets `GET /api/version` and
+**A test only lists models.** *(Amended by [ADR 0012](0012-model-roles-and-capability-tests.md), Slice 2.1: a separate capability test sends one fixed request to one model, when the user presses Test.)* Ollama gets `GET /api/version` and
 `GET /api/tags`. OpenAI-compatible services get `GET {base}/models` with a
 bearer key when one is set. Requests have no body, so nothing from the
 library can be sent. A successful listing is reported as such and never as

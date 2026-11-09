@@ -61,6 +61,11 @@ pub const MIGRATIONS: &[Migration] = &[
         name: "documents_quality",
         sql: include_str!("../../../migrations/0010_documents_quality.sql"),
     },
+    Migration {
+        version: 11,
+        name: "model_roles",
+        sql: include_str!("../../../migrations/0011_model_roles.sql"),
+    },
 ];
 
 /// Highest catalog schema version this build can read and write.
@@ -236,7 +241,7 @@ mod tests {
                          VALUES ('d', x'01', 'done', 'Kept', 't', 't');",
                 )
                 .unwrap();
-                assert_eq!(migrate(c, "t2").unwrap(), 10);
+                assert_eq!(migrate_to(c, 10, "t2").unwrap(), 10);
                 let (title, content, refresh): (String, Option<String>, i64) = c
                     .query_row(
                         "SELECT title, content_title, refresh FROM documents WHERE id = 'd'",
@@ -253,6 +258,54 @@ mod tests {
                     .collect::<Result<_, _>>()
                     .unwrap();
                 assert_eq!(cols, ["document_id", "availability"]);
+            })
+            .unwrap();
+    }
+
+    #[test]
+    fn version_11_adds_model_roles_that_follow_their_profile() {
+        use crate::services::catalog::writer::CatalogWriter;
+
+        let dir = tempfile::tempdir().unwrap();
+        let writer = CatalogWriter::open(&dir.path().join("catalog.sqlite")).unwrap();
+        writer
+            .call(|c| {
+                assert_eq!(migrate_to(c, 10, "t").unwrap(), 10);
+                c.execute_batch(
+                    "INSERT INTO provider_profiles (id, kind, label, base_url,
+                         insecure_http_acknowledged, created_at, updated_at)
+                         VALUES ('p', 'openai_compatible', 'oMLX', 'http://localhost:8000/v1', 0, 't', 't');",
+                )
+                .unwrap();
+                assert_eq!(migrate(c, "t2").unwrap(), 11);
+                c.execute_batch(
+                    "INSERT INTO model_roles (role, provider_profile_id, model_id, dimensions, tested_at, updated_at)
+                         VALUES ('embedding', 'p', 'qwen3-embedding:0.6b', 1024, 't', 't'),
+                                ('chat', 'p', 'qwen3.5:9b', NULL, 't', 't');",
+                )
+                .unwrap();
+                assert!(
+                    c.execute_batch(
+                        "INSERT INTO model_roles (role, provider_profile_id, model_id, tested_at, updated_at)
+                             VALUES ('reranker', 'p', 'm', 't', 't')"
+                    )
+                    .is_err(),
+                    "only the two roles"
+                );
+                assert!(
+                    c.execute_batch(
+                        "INSERT OR REPLACE INTO model_roles (role, provider_profile_id, model_id, tested_at, updated_at)
+                             VALUES ('chat', 'missing', 'm', 't', 't')"
+                    )
+                    .is_err(),
+                    "a role names a saved service"
+                );
+                c.execute_batch("DELETE FROM provider_profiles WHERE id = 'p'")
+                    .unwrap();
+                let left: i64 = c
+                    .query_row("SELECT COUNT(*) FROM model_roles", [], |r| r.get(0))
+                    .unwrap();
+                assert_eq!(left, 0, "removing the service clears its roles");
             })
             .unwrap();
     }
