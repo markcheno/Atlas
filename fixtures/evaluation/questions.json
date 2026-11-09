@@ -1,0 +1,238 @@
+{
+  "version": 1,
+  "comment": "Retrieval evaluation for Phase 1 search (phase1-spec §10). Written from the corpus truth texts before search was built, and not edited to fit it. Document ids are spikes/extraction-bench/corpus/manifest.json's. A question passes when any relevant document is in the top 5 results. kind: exact (words from the text, typed without quotes), phrase (a quoted phrase), paraphrase (the user's own words).",
+  "questions": [
+    {
+      "id": "q01",
+      "kind": "exact",
+      "question": "Quoth the Raven Nevermore",
+      "relevant": ["epub-pg1065"]
+    },
+    {
+      "id": "q02",
+      "kind": "exact",
+      "question": "it is much safer to be feared than loved",
+      "relevant": ["epub-pg1232"]
+    },
+    {
+      "id": "q03",
+      "kind": "exact",
+      "question": "il faut cultiver notre jardin",
+      "relevant": ["epub-pg4650"]
+    },
+    {
+      "id": "q04",
+      "kind": "exact",
+      "question": "low range radio altimeter",
+      "relevant": ["pdf-fr-2026-22817"]
+    },
+    {
+      "id": "q05",
+      "kind": "exact",
+      "question": "real estate commission fees interested party concessions",
+      "relevant": ["pdf-fr-2026-22772"]
+    },
+    {
+      "id": "q06",
+      "kind": "exact",
+      "question": "Cornell High Energy Synchrotron Source",
+      "relevant": ["pdf-arxiv-2609.03105"]
+    },
+    {
+      "id": "q07",
+      "kind": "exact",
+      "question": "160 inventories compiled in Marseille",
+      "relevant": ["pdf-arxiv-2609.06266"]
+    },
+    {
+      "id": "q08",
+      "kind": "exact",
+      "question": "800 claims derived from authentic peer-review interactions",
+      "relevant": ["pdf-arxiv-2609.25046"]
+    },
+    {
+      "id": "q09",
+      "kind": "exact",
+      "question": "harmonizes 279,485 occurrences",
+      "relevant": ["pdf-arxiv-2610.37671"]
+    },
+    {
+      "id": "q10",
+      "kind": "exact",
+      "question": "2,080 monthly observations for twenty arXiv archives",
+      "relevant": ["pdf-arxiv-2609.04872"]
+    },
+    {
+      "id": "q11",
+      "kind": "exact",
+      "question": "autoresearch systems",
+      "relevant": ["pdf-arxiv-2609.11975"]
+    },
+    {
+      "id": "q12",
+      "kind": "exact",
+      "question": "Curiouser and curiouser",
+      "relevant": ["epub-pg11", "gen-book", "gen-two-column"]
+    },
+    {
+      "id": "q13",
+      "kind": "exact",
+      "question": "shuffled the fluffy waffles",
+      "relevant": ["gen-features"]
+    },
+
+    {
+      "id": "q14",
+      "kind": "phrase",
+      "question": "\"bleak December\"",
+      "relevant": ["epub-pg1065"]
+    },
+    {
+      "id": "q15",
+      "kind": "phrase",
+      "question": "\"meilleur des mondes possibles\"",
+      "relevant": ["epub-pg4650"]
+    },
+    { "id": "q16", "kind": "phrase", "question": "\"Cesare Borgia\"", "relevant": ["epub-pg1232"] },
+    { "id": "q17", "kind": "phrase", "question": "\"café crème\"", "relevant": ["gen-features"] },
+    {
+      "id": "q18",
+      "kind": "phrase",
+      "question": "\"drink me\"",
+      "relevant": ["epub-pg11", "gen-book", "gen-one-column", "gen-owner-password"]
+    },
+    {
+      "id": "q19",
+      "kind": "phrase",
+      "question": "\"FAIR guiding principles\"",
+      "relevant": ["pdf-arxiv-2609.03105"]
+    },
+    {
+      "id": "q20",
+      "kind": "phrase",
+      "question": "\"Latin treebank\"",
+      "relevant": ["pdf-arxiv-2609.06266"]
+    },
+    {
+      "id": "q21",
+      "kind": "phrase",
+      "question": "\"Aviation Safety Network\"",
+      "relevant": ["pdf-arxiv-2610.37671"]
+    },
+    {
+      "id": "q22",
+      "kind": "phrase",
+      "question": "\"synthetic control\"",
+      "relevant": ["pdf-arxiv-2609.04872"]
+    },
+    {
+      "id": "q23",
+      "kind": "phrase",
+      "question": "\"atomic claims\"",
+      "relevant": ["pdf-arxiv-2609.25046"]
+    },
+    {
+      "id": "q24",
+      "kind": "phrase",
+      "question": "\"Single Family Housing Guaranteed Loan Program\"",
+      "relevant": ["pdf-fr-2026-22772"]
+    },
+    {
+      "id": "q25",
+      "kind": "phrase",
+      "question": "\"coaxial cables\"",
+      "relevant": ["pdf-fr-2026-22817"]
+    },
+    {
+      "id": "q26",
+      "kind": "phrase",
+      "question": "\"Down the Rabbit-Hole\"",
+      "relevant": ["epub-pg11", "gen-book", "gen-one-column", "gen-owner-password"]
+    },
+    {
+      "id": "q27",
+      "kind": "phrase",
+      "question": "\"companion artifacts\"",
+      "relevant": ["pdf-arxiv-2609.11975"]
+    },
+
+    {
+      "id": "q28",
+      "kind": "paraphrase",
+      "question": "poem about a bird that visits a grieving man at midnight",
+      "relevant": ["epub-pg1065"]
+    },
+    {
+      "id": "q29",
+      "kind": "paraphrase",
+      "question": "should a ruler prefer to be loved or feared by his subjects",
+      "relevant": ["epub-pg1232"]
+    },
+    {
+      "id": "q30",
+      "kind": "paraphrase",
+      "question": "Candide chassé du château pour avoir embrassé Cunégonde",
+      "relevant": ["epub-pg4650"]
+    },
+    {
+      "id": "q31",
+      "kind": "paraphrase",
+      "question": "airplane altitude sensor unreliable during approach and landing",
+      "relevant": ["pdf-fr-2026-22817"]
+    },
+    {
+      "id": "q32",
+      "kind": "paraphrase",
+      "question": "rural home loan rule about real estate agent fees",
+      "relevant": ["pdf-fr-2026-22772"]
+    },
+    {
+      "id": "q33",
+      "kind": "paraphrase",
+      "question": "tool for recording metadata and provenance of synchrotron datasets",
+      "relevant": ["pdf-arxiv-2609.03105"]
+    },
+    {
+      "id": "q34",
+      "kind": "paraphrase",
+      "question": "parsing medieval Latin documents with little training data",
+      "relevant": ["pdf-arxiv-2609.06266"]
+    },
+    {
+      "id": "q35",
+      "kind": "paraphrase",
+      "question": "checking whether reviewer comments are supported by the paper",
+      "relevant": ["pdf-arxiv-2609.25046"]
+    },
+    {
+      "id": "q36",
+      "kind": "paraphrase",
+      "question": "database of aviation accidents from many national investigation agencies",
+      "relevant": ["pdf-arxiv-2610.37671"]
+    },
+    {
+      "id": "q37",
+      "kind": "paraphrase",
+      "question": "did generative AI increase mathematics submissions on arXiv",
+      "relevant": ["pdf-arxiv-2609.04872"]
+    },
+    {
+      "id": "q38",
+      "kind": "paraphrase",
+      "question": "counting software repositories of AI agents that do research",
+      "relevant": ["pdf-arxiv-2609.11975"]
+    },
+    {
+      "id": "q39",
+      "kind": "paraphrase",
+      "question": "girl follows a white rabbit down a hole",
+      "relevant": ["epub-pg11", "gen-book", "gen-one-column", "gen-owner-password"]
+    },
+    {
+      "id": "q40",
+      "kind": "paraphrase",
+      "question": "office workers sorting files and waffles",
+      "relevant": ["gen-features"]
+    }
+  ]
+}

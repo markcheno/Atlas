@@ -375,6 +375,8 @@ impl ExtractProcessor {
                 _ => return Flow::Continue,
             };
             if files.is_empty() {
+                // Tidy the text index for search before reporting done.
+                let _ = self.catalog.call(|c| db::merge_index(c, 20));
                 self.transition(
                     &job.id,
                     JobState::Completed,

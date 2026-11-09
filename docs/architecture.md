@@ -1,8 +1,8 @@
 # Atlas architecture
 
-Status: Phase 1, Slice 1.3 (extraction: Atlas reads the text of PDFs and
-EPUBs). Phase 0 is complete; the rest of Phase 1 is specified in
-[phase1-spec.md](phase1-spec.md) and not yet built.
+Status: Phase 1, Slice 1.4 (full-text search over the text Atlas reads;
+the search screen is Slice 1.5). Phase 0 is complete; the rest of Phase 1 is
+specified in [phase1-spec.md](phase1-spec.md) and not yet built.
 This document describes what is built, and marks what is only planned. Decisions with lasting
 consequences are recorded as ADRs in [adr/](adr/).
 
@@ -444,6 +444,34 @@ The job side, in the app process (Slice 1.3, ADR 0009).
   filter; the status bar a second line with its own Pause, Resume and
   Cancel.
 
+
+## Search
+
+Implemented in `src-tauri/src/services/search/` (Slice 1.4); rationale in
+[ADR 0010](adr/0010-full-text-search.md).
+
+- **Index** (migration 0009). An external-content FTS5 table over
+  `passages`, `unicode61 remove_diacritics 2`, `detail='full'`, kept in step
+  by triggers; built once from the stored text at upgrade, merged after
+  each reading pass.
+- **Query builder** (`search/query.rs`). Words and quoted phrases, each
+  quoted for FTS5, so nothing typed is an operator; a trailing `*` is a
+  prefix. All words first; when fewer than a page of documents match, an
+  any-words form without common words fills the page (`allWords: false`).
+- **Results** (`search/mod.rs`, `search_documents`). The best 500 passages
+  by bm25, grouped by document; folder, type and missing filters; file-name
+  matches merged (`why: both` ranks a little higher, name-only after);
+  paging over documents; one file per result with its other copies
+  counted. Runs on the read-only pool (4 connections).
+- **Snippets** (`search/snippet.rs`). FTS5 `snippet()` with private-use
+  markers, turned into `SnippetSpan { text, hit }`; stored text never
+  contains the markers.
+- **Evaluation.** `fixtures/evaluation/questions.json` (40 questions,
+  committed before search was built); `tests/search_eval.rs` requires a
+  relevant document in the top 5 for 80% (all 40 pass). `just eval` asks a
+  question set against any library, opening its catalog read-only.
+- **Measured** on 30,000 files with 622 million characters: p95 152 ms
+  while reading ([benchmarks](benchmarks.md#search-slice-14)).
 ## Build, CI and measurement
 
 - **PDFium** (Slice 1.2) is pinned in `tools.lock.json` (bblanchon/pdfium-binaries
@@ -553,6 +581,6 @@ Phase 1 adds a general jobs table, text extraction in a helper process
 full-text search. It is specified in [phase1-spec.md](phase1-spec.md).
 Slice 1.1 built the jobs table and runners ([Jobs](#jobs)); Slice 1.2 the
 text fixtures, PDFium delivery and the [extraction worker](#extraction-worker);
-Slice 1.3 [extraction](#extraction) itself. Full-text search (Slice 1.4) and
-the rest are not in the code yet; this document is updated slice by slice
-as it lands.
+Slice 1.3 [extraction](#extraction) itself; Slice 1.4 [search](#search).
+The search screen, document details and the rest are not in the code yet;
+this document is updated slice by slice as it lands.

@@ -494,6 +494,88 @@ pub struct ExtractionOverview {
     pub scanning: bool,
 }
 
+// ---------------------------------------------------------------- search
+
+/// A full-text search (phase1-spec §7.4).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct SearchQuery {
+    /// What the user typed: words, "quoted phrases", a trailing `*` for a
+    /// prefix. Never FTS syntax.
+    pub text: String,
+    pub source_root_id: Option<RecordId>,
+    pub file_type: Option<FileType>,
+    #[serde(default)]
+    pub include_missing: bool,
+    pub page: u32,
+    pub page_size: u32,
+}
+
+/// Part of a snippet; `hit` marks matched words. Plain text, never markup.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct SnippetSpan {
+    pub text: String,
+    pub hit: bool,
+}
+
+/// Why a result matched.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "snake_case")]
+#[ts(export)]
+pub enum MatchReason {
+    Text,
+    Name,
+    Both,
+}
+
+/// One document (or, for a name match on a file not read yet, one file).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct SearchHit {
+    pub document_id: Option<RecordId>,
+    /// The file to open: an available copy inside the filters when there is
+    /// one.
+    pub file_instance_id: RecordId,
+    pub title: Option<String>,
+    pub display_name: String,
+    pub display_path: String,
+    pub file_type: FileType,
+    pub source_root_id: RecordId,
+    pub availability: Availability,
+    pub storage: FileStorage,
+    /// Where the best passage is: "Page 12", "Chapter 3, part 2".
+    pub location: Option<String>,
+    pub page_no: Option<u32>,
+    pub snippet: Vec<SnippetSpan>,
+    pub why: MatchReason,
+    /// False for results found by the any-words fallback.
+    pub all_words: bool,
+    /// Other cataloged copies of the same content.
+    pub other_locations: u32,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct SearchPage {
+    pub hits: Vec<SearchHit>,
+    pub page: u32,
+    pub page_size: u32,
+    /// Documents found within the search window.
+    pub matched_documents: u32,
+    /// The window of best passages was full: there may be more matches.
+    pub capped: bool,
+    /// Text reading is still running, so more may be found later.
+    pub reading_text: bool,
+    /// Available files with a final text status, and all available files.
+    pub text_read_files: u32,
+    pub total_files: u32,
+}
+
 /// Machine-readable pause reasons; display text is chosen by the UI.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
 #[serde(rename_all = "snake_case")]

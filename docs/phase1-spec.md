@@ -450,6 +450,14 @@ Do **not** start extraction, FTS, or the search UI before Slice 1.1's gate passe
 - One worker per library; `ATLAS_EXTRACT_WORKERS=2` moves to Slice 1.7. The FTS `integrity-check` part of P1-12, the FTS merge, and the reader pool of 4 move to Slice 1.4 with FTS5.
 - Request paths are the catalog's platform-tagged bytes, hex-encoded, so any path survives JSON.
 
+**2026-11-09, amended during Slice 1.4:**
+
+- Search ANDs the words; when fewer documents than one page match, an any-words form (common words dropped) fills the page after them, marked `allWords: false`. Product-owner decision; all 13 paraphrase questions depended on it (27/40 with AND only).
+- `0009_passages_fts.sql` adds only the FTS5 table and triggers over the passages 0008 already stores, and rebuilds the index once.
+- The FTS `integrity-check` part of P1-12 is checked here (`tests/extraction_crash.rs`). The reader pool is 4.
+- The evaluation questions were written and committed before search was built; they all pass at rank 1 on the 17-document corpus, a floor check rather than a quality claim.
+- Catalog growth on the 30k text fixture is 2.3× the text (provisional target 1.5×), recorded in ADR 0010 for Slice 1.7.
+
 ### Primary reference documentation (verify current versions at implementation time)
 
 - SQLite FTS5 (external content tables, triggers, `snippet`, `bm25`, `merge`): <https://www.sqlite.org/fts5.html>

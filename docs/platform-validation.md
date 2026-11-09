@@ -656,6 +656,40 @@ All on scratch data (a copy of the Slice 1.2 scratch library, scratch
 (P1-13 uses the test source's cloud-only flag; the worker's no-recall open
 and dataless check are unit-level); Windows and Linux beyond CI.
 
+## Slice 1.4
+
+Slice 1.4 adds full-text search (`search_documents`); the search screen
+comes in 1.5. Automated evidence: P1-15 and P1-16 (`tests/search.rs`, with
+snippets, filters, paging, copies, name matches and index consistency),
+P1-17 (`tests/search_eval.rs`: 40/40 committed questions in the top 5,
+every one at rank 1), the FTS `integrity-check` after the kill in P1-12,
+and P1-19 (`just bench-search`: p95 152 ms while reading 30,000 files on
+the M5 Pro, under 250 ms). CI on branch `slice-14`: the full tier
+[42550108563](https://github.com/markcheno/Atlas/actions/runs/42550108563),
+10 of 10 jobs green in 8 minutes (2026-11-09), with the search tests on all
+three OSes and the search benchmark on the 1k text fixture. An earlier run
+with the 30k text fixture in CI was cancelled after its Windows benchmark
+passed 40 minutes; the 30k measurement is now local only.
+
+### macOS arm64, Slice 1.4 (2026-11-09)
+
+All on scratch data (a copy of the Slice 1.3 scratch library).
+
+1. Opened the copied schema-8 library (31,012 files, 4,152 passages read)
+   with the Slice 1.4 debug build: the window appeared in 0.9 s, the
+   catalog became schema 9, the index answered `marker` (109 passages),
+   and reading resumed where it had stopped.
+2. `just eval <questions> <data root>` on the closed library printed each
+   question's rank; the catalog was byte-identical afterwards and no WAL or
+   shared-memory file was created (it opens the file as immutable when the
+   app is closed). A question whose file wasn't read yet correctly missed.
+3. The Slice 1.3 build refused the upgraded library ("This library needs a
+   newer version of Atlas"); `catalog.sqlite` and `atlas.json` stayed
+   byte-identical.
+
+**Not verified in Slice 1.4:** search from the UI (Slice 1.5); `just eval`
+on a real library (the user runs it; it is read-only).
+
 ## Manual checklist for Windows and Linux
 
 CI runs an automated smoke test on Windows and Linux (Slice 0.8, below),

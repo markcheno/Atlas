@@ -428,6 +428,13 @@ fn slice_02_libraries_migrate_forward() {
             .collect::<Result<_, _>>()
             .unwrap();
         conn.execute_batch("PRAGMA foreign_keys = OFF").unwrap();
+        // The full-text index first: dropping it drops its shadow tables.
+        conn.execute_batch("DROP TABLE IF EXISTS passages_fts")
+            .unwrap();
+        let tables: Vec<String> = tables
+            .into_iter()
+            .filter(|t| !t.starts_with("passages_fts"))
+            .collect();
         for table in tables {
             conn.execute_batch(&format!("DROP TABLE \"{table}\""))
                 .unwrap();

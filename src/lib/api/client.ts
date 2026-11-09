@@ -27,6 +27,8 @@ import type { ProviderProfile } from './bindings/ProviderProfile';
 import type { ProviderProfileInput } from './bindings/ProviderProfileInput';
 import type { Settings } from './bindings/Settings';
 import type { SourceRoot } from './bindings/SourceRoot';
+import type { SearchPage } from './bindings/SearchPage';
+import type { SearchQuery } from './bindings/SearchQuery';
 
 /** Server codes plus two the client itself can produce. */
 export type ApiErrorCode = ErrorCode | 'ipc_unavailable' | 'unexpected';
@@ -124,6 +126,7 @@ export const atlas = {
   getInventoryStatus: () => call<InventoryOverview>('get_inventory_status'),
   startExtraction: (sourceRootId: string) => call<string>('start_extraction', { sourceRootId }),
   getExtractionStatus: () => call<ExtractionOverview>('get_extraction_status'),
+  searchDocuments: (query: SearchQuery) => call<SearchPage>('search_documents', { query }),
 
   listDocuments: (query: DocumentQuery) => call<DocumentPage>('list_documents', { query }),
   /** `allowDownload` must be true to open a file stored only in the cloud. */

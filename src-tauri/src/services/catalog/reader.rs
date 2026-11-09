@@ -12,7 +12,7 @@ use rusqlite::{Connection, OpenFlags};
 use super::writer::BUSY_TIMEOUT;
 use crate::error::{AtlasError, AtlasResult};
 
-pub const POOL_SIZE: usize = 2;
+pub const POOL_SIZE: usize = 4;
 
 pub struct CatalogReader {
     idle: Mutex<Vec<Connection>>,

@@ -11,6 +11,7 @@ pub mod extraction;
 pub mod inventory;
 pub mod library;
 pub mod providers;
+pub mod search;
 pub mod settings;
 pub mod sources;
 pub mod workspace;
@@ -40,6 +41,7 @@ pub const COMMAND_NAMES: &[&str] = &[
     "get_inventory_status",
     "start_extraction",
     "get_extraction_status",
+    "search_documents",
     "list_documents",
     "open_original",
     "reveal_original",

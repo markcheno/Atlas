@@ -10,6 +10,7 @@ pub mod jobs;
 pub mod library;
 pub mod providers;
 pub mod scheduler;
+pub mod search;
 pub mod source_open;
 pub mod sources;
 pub mod system;

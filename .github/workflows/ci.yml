@@ -246,7 +246,10 @@ jobs:
           cache-key: release
       - name: Run benchmarks
         shell: bash
-        run: node scripts/bench.mjs --out "$RUNNER_TEMP/bench"
+        # Search on the 1k text fixture: the 30k one (P1-19) runs on the
+        # reference machine (`just bench-search`); on Windows runners it took
+        # over 40 minutes.
+        run: node scripts/bench.mjs --out "$RUNNER_TEMP/bench" --search-size 1k
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always()
         with:

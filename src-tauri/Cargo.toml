@@ -68,6 +68,11 @@ zbus-secret-service-keyring-store = { version = "1.0.1", features = ["crypto-rus
 name = "inventory"
 harness = false
 
+[[bench]]
+# Phase 1 search benchmark and evaluation: `just bench-search`, `just eval`.
+name = "search"
+harness = false
+
 [dev-dependencies]
 plist = "1.10.3"
 tempfile = "3.27.0"
