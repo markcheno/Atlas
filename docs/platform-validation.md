@@ -447,7 +447,9 @@ timings are from polling and are good to about ±300 ms.
 - **Windows Credential Manager and Linux Secret Service** storing a real key.
 - **Real removable-drive unplugging and real battery hardware** on Windows
   and Linux (simulated in tests).
-- **Windows long paths** (over 260 characters) and network shares.
+- **Windows long paths** (over 260 characters): cataloging and reading are
+  tested in CI since Slice 1.7; opening one through the Windows shell, and
+  network shares, are not.
 - **Installing** the Windows and Linux bundles on a real desktop, including
   SmartScreen; the Gatekeeper dialog on macOS.
 - **Other Linux distributions**, Wayland, and ARM.
@@ -813,6 +815,74 @@ use, so the check stopped rather than send more keys (Vitest covers every
 state, and the CI smoke runs on Windows and Linux press through both
 screens). Light and dark mode were not compared.
 
+## Slice 1.7
+
+Slice 1.7 closes the Phase 1 carry-overs: cheaper replays when a scan
+resumes inside a large folder, Windows junctions and long paths, no
+extraction worker outliving the app, 16 KiB pages for new catalogs, and
+the extraction benchmark. Automated evidence:
+
+- `tests/inventory.rs` P1-20: resuming inside a 4,000-file folder at a
+  fixed rate reaches the next new file in under half the time a full-cost
+  replay takes (it fails at 4.0 s with the discount turned off). Unit tests
+  in `inventory/db.rs` cover replayed, changed and rescanned rows.
+- `tests/inventory.rs` P1-21 (Windows only): a junction looping to the
+  folder and one leaving it are skipped and counted; nothing behind them
+  is cataloged. `tests/extraction.rs` P1-21 (all OSes): a file at a path
+  of over 300 characters is cataloged, read by the worker, found by a
+  search for a word from its text, and resolved for Open.
+- `tests/extraction_crash.rs` P1-22: a child app is killed while its worker
+  reads (P1-12's test) and while its worker hangs inside a request; the
+  worker is gone within 5 s on every OS (it fails with the watchdog turned
+  off), and relaunching reads the file.
+- `catalog` unit tests: a new catalog has 16 KiB pages; an existing one
+  keeps 4 KiB and upgrades.
+- `extraction::db` checks the query plans of the re-read queries.
+- `benches/extraction.rs` on the 1k text fixture on every OS (CI bench
+  job), including a kill mid-read.
+
+CI on branch `slice-17`, full tier:
+[42634733190](https://github.com/markcheno/Atlas/actions/runs/42634733190)
+(first commit; green after rerunning the Windows smoke test, whose first
+step lost its msedgedriver connection before the window opened, the same
+flake as in Slice 1.5),
+[42645560955](https://github.com/markcheno/Atlas/actions/runs/42645560955)
+(10 of 10 green, 13 minutes) and
+[42648186627](https://github.com/markcheno/Atlas/actions/runs/42648186627).
+The Windows test log shows `p1_21_junctions_are_skipped_and_counted`,
+`p1_21_a_300_character_path_is_cataloged_and_read`,
+`p1_22_a_hung_worker_does_not_outlive_a_killed_app` and
+`p1_20_…` passing. Junctions needed no code change: std reports them as
+symlinks.
+
+### macOS arm64, Slice 1.7 (2026-11-09)
+
+On scratch data: a copy of the Slice 1.6 scratch library (1,007 files),
+with its 334 EPUB documents set back to reader version 1 so opening it
+starts a re-read; the Slice 1.7 debug bundle with a scratch
+`ATLAS_CONFIG_DIR`. No keystrokes were sent; the app was killed by the
+process ID the check started, and quit through its own menu item pressed
+by accessibility.
+
+1. With the worker hung on purpose (`ATLAS_WORKER_TEST_FAULT`, debug
+   builds) on the first EPUB, `kill -9` of the app: the worker was gone
+   0.13 s later.
+2. Without the fault, `kill -9` one second into the re-read (190 documents
+   still marked): the worker was gone 0.02 s later.
+3. Relaunched: the remaining documents were read within about 2.5 s; all
+   are at the current reader version, no passage starts with `#`, the
+   three extract jobs are completed, and the catalog kept its 4 KiB pages.
+   Quitting through the Atlas menu left no `--extract-worker` process.
+4. The benchmarks: P1-20 at 0.95 s, the 30k text extraction and catalog
+   growth in [benchmarks](benchmarks.md#text-extraction-slice-17).
+
+**Not verified in Slice 1.7:** opening or revealing a file at a path over
+260 characters through the Windows shell (CI's smoke build records the
+request instead of launching an app); a new library's 16 KiB pages in the
+app by hand (unit tests and the benchmark check it); pausing and resuming
+inside a large folder in the app by hand (the test and the benchmark on
+three OSes check it).
+
 ## Manual checklist for Windows and Linux
 
 CI runs an automated smoke test on Windows and Linux (Slice 0.8, below),
@@ -1019,6 +1089,21 @@ and read:
 5. Upgrade check: open a library read by Slice 1.5 with this build. EPUB
    snippets lose their `# Chapter 1`, search keeps finding them while the
    status line says "Updating text", and the files stay "Text ready".
+
+### Carry-overs (Slice 1.7)
+
+1. Generate the 30k fixture (`just fixtures <dir> 10000 20000`), add it,
+   and pause while the status shows it in the `flat` folder. Resume: new
+   files appear within about a second, not 15–20 s.
+2. Windows: in a library folder, `mklink /J loop .` and a junction to a
+   folder outside it. Rescan: nothing behind either is listed, and the
+   scan's skipped-links count includes them.
+3. Windows: put a PDF at a path over 260 characters inside a library
+   folder. Rescan: it is listed, its text is read and searchable. Try Open
+   and Show in folder, and note what the shell does (not tested so far).
+4. While text is being read, end Atlas from Task Manager (Windows) or with
+   `kill -9` (Linux): no `atlas --extract-worker` process is left. Relaunch
+   and the reading finishes.
 
 ### AI services (Slice 0.7)
 
