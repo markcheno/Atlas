@@ -96,5 +96,9 @@ status poll.
   per 600 MB of text on the M5 Pro, during the upgrade.
 - The fallback can return looser results for long queries; the Search
   view (Slice 1.5) labels them "Some of your words".
+- Storage accounting (Slice 1.6) measures the text and the index with
+  SQLite's `dbstat` (compiled into the bundled SQLite) on a read-only
+  connection of its own: exact, and about 9 ms on the 1k text fixture. The
+  spec asked for `dbstat`-free queries; `dbstat` was available after all.
 - Semantic search (embeddings, ADR 0008's vector engine) arrives in a later
   phase and will rank alongside, not replace, this index.

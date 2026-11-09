@@ -752,6 +752,28 @@ pass and the Tab trap in WebKit (Vitest covers the trap); filters and paging
 by hand; Open from a result. The run was stopped early because the
 keystrokes it sends go to whichever app is in front.
 
+## Slice 1.6
+
+Slice 1.6 adds titles from a PDF's first page or the file name, EPUB text
+without Markdown marks, re-reading that stays searchable (ADR 0011),
+Library › Duplicates (`list_duplicates`) and Settings › Storage
+(`get_storage_usage`, `clean_caches`). Automated evidence:
+
+- `tests/metadata.rs` (P1-18): metadata, first-page and file-name titles;
+  cleaned junk; the six arXiv papers' titles found on their first pages.
+- `tests/refresh.rs`: an upgraded library stays searchable and "Text
+  ready" while EPUBs and untitled PDFs are read again; titled PDFs are not
+  re-read; a refresh that keeps crashing keeps the old text.
+- `tests/duplicates.rs`: groups, extra space, filters, paging, missing and
+  disconnected copies.
+- `tests/storage.rs`: usage by category, the estimate's three states, and
+  Clean caches emptying only `cache/` and `tmp/` without following links.
+- Vitest for every new screen state, and two new smoke steps on Windows and
+  Linux: "duplicates list the six Introduction copies" and "settings show
+  storage".
+
+<!-- CI and macOS results are added below when they are in. -->
+
 ## Manual checklist for Windows and Linux
 
 CI runs an automated smoke test on Windows and Linux (Slice 0.8, below),
@@ -938,6 +960,26 @@ With the text fixture (`--text-kb 4`) cataloged and read:
 7. Only with the keyboard: Tab to the search box, search, Tab through
    results, open Details with Enter, close it with Escape.
 8. Repeat 1 and 5 in dark mode.
+
+### Titles, duplicates and storage (Slice 1.6)
+
+With a text fixture made by `just fixtures <dir> 100 0 4 4 20` cataloged
+and read:
+
+1. Search `"Engineering marker 3"` and similar markers of files 3, 7, 11, …:
+   the PDFs' results show their title with "Title from the first page" in
+   Details; the EPUBs show a title from the file name.
+2. Library › Duplicates (the switch in the toolbar): the six
+   `Introduction.pdf` copies and the 20 `copies/` files appear as groups,
+   most extra space first. Filter by folder and type; tick Include missing
+   files after deleting a copy and rescanning.
+3. Open and Show in folder from a copy; Details from a copy.
+4. Settings › Storage: the four sizes, the estimate sentence, and Clean
+   caches ("Nothing to clean", or what it freed after putting a file in the
+   library's `cache/` folder).
+5. Upgrade check: open a library read by Slice 1.5 with this build. EPUB
+   snippets lose their `# Chapter 1`, search keeps finding them while the
+   status line says "Updating text", and the files stay "Text ready".
 
 ### AI services (Slice 0.7)
 
