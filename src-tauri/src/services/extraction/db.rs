@@ -230,13 +230,10 @@ pub fn commit_document(
              VALUES (?1, ?2, ?3, ?4, ?5)",
         )?;
         for p in pieces {
-            insert.execute(params![
-                document_id,
-                p.ordinal,
-                p.page_no,
-                p.location,
-                p.text
-            ])?;
+            // Search marks hits with two private-use characters (ADR 0010);
+            // stored text never contains them.
+            let text = crate::services::search::snippet::strip_markers(&p.text);
+            insert.execute(params![document_id, p.ordinal, p.page_no, p.location, text])?;
         }
     }
     tx.execute(

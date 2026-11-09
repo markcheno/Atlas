@@ -156,6 +156,7 @@ pub fn run() {
             commands::inventory::get_inventory_status,
             commands::extraction::start_extraction,
             commands::extraction::get_extraction_status,
+            commands::search::search_documents,
             commands::library::list_documents,
             commands::library::open_original,
             commands::library::reveal_original,

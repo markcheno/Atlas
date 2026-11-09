@@ -265,6 +265,19 @@ fn p1_12_kill_mid_extraction_then_resume() {
         .query_row("PRAGMA integrity_check", [], |r| r.get(0))
         .unwrap();
     assert_eq!(ok, "ok");
+    // The full-text index matches the passages (FTS5's own check; an error
+    // means corruption).
+    // FTS5 runs its check as an INSERT command, so through the writer.
+    ws.require_open()
+        .unwrap()
+        .catalog()
+        .call(|w| {
+            w.execute_batch(
+                "INSERT INTO passages_fts (passages_fts, rank) VALUES ('integrity-check', 1)",
+            )
+        })
+        .unwrap()
+        .expect("the full-text index is consistent after the kill");
     assert!(WorkerStats::get(&h.deps.stats.extracts) > 0);
     drop(ws);
     assert_eq!(originals(&dir.join("Books")), before);
