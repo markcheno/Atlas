@@ -690,6 +690,21 @@ All on scratch data (a copy of the Slice 1.3 scratch library).
 **Not verified in Slice 1.4:** search from the UI (Slice 1.5); `just eval`
 on a real library (the user runs it; it is read-only).
 
+## Slice 1.5
+
+Slice 1.5 adds the Search view (a main tab; Home's box submits to it), the
+document detail panel (from a Library name or a result's Details), and the
+`get_document_detail` command. Automated evidence: `tests/documents.rs`
+(title, authors and pages from a read PDF and EPUB, Also at with a missing
+copy, an unread file, an unknown ID), Vitest for every Search and panel
+state (snippets as text and `<mark>` only, the empty states, the reading
+note and live refresh, paging and capped totals, focus return, the Tab
+trap), and two new smoke steps on Windows and Linux: "quit while reading
+leaves no worker process" and "search finds a passage" on the 1,000-file
+text fixture.
+
+<!-- CI and macOS results are added below when they are in. -->
+
 ## Manual checklist for Windows and Linux
 
 CI runs an automated smoke test on Windows and Linux (Slice 0.8, below),
@@ -724,9 +739,9 @@ of each step.
    Space.
 6. Confirm the status bar shows "Atlas 0.1.0 · Phase 0 slice 0.8", followed
    by "· development build" for debug builds only. This proves IPC works.
-7. Press Ctrl+2 and confirm the Library view opens (empty until a folder is
-   cataloged).
-8. Press Ctrl+3, choose Dark, then Light, then Match system. Confirm the
+7. Press Ctrl+3 and confirm the Library view opens (empty until a folder is
+   cataloged); Ctrl+2 opens Search (Slice 1.5).
+8. Press Ctrl+4, choose Dark, then Light, then Match system. Confirm the
    theme follows, and that Match system tracks the OS setting.
 9. Close the window. Confirm no `atlas` process remains (Task Manager, or
    `pgrep atlas`).
@@ -856,6 +871,26 @@ build:
    downloading, and that the file downloads only after you confirm.
 6. Linux: confirm Show in folder opens the file manager with the file
    selected (FileManager1), or at least opens its folder.
+
+### Search and details (Slice 1.5)
+
+With the text fixture (`--text-kb 4`) cataloged and read:
+
+1. On Home, search `"Astronomy marker 0"` and press Enter. Confirm the
+   Search view shows "Astronomy Café crème book 000000" with the phrase
+   highlighted, and "In the text".
+2. Search `CAFE CREME` (accents and case) and `marker 1*` (prefix); try a
+   query of only punctuation and confirm "Type a word to search for.".
+3. Search for words that are never together in one book and confirm the
+   results say "Some of your words".
+4. Filter by folder and type; page with Next and Previous.
+5. Press Details on a result, and on a Library name: check the title,
+   author, pages, text status and Also at (copy a file first). Press Escape
+   and confirm focus returns to the button you used.
+6. Open and Show in folder from a result and from the panel.
+7. Only with the keyboard: Tab to the search box, search, Tab through
+   results, open Details with Enter, close it with Escape.
+8. Repeat 1 and 5 in dark mode.
 
 ### AI services (Slice 0.7)
 
