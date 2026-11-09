@@ -4,6 +4,7 @@ import type { FileStorage } from "./FileStorage";
 import type { FileType } from "./FileType";
 import type { MatchReason } from "./MatchReason";
 import type { SnippetSpan } from "./SnippetSpan";
+import type { TitleSource } from "./TitleSource";
 
 /**
  * One document (or, for a name match on a file not read yet, one file).
@@ -13,7 +14,11 @@ export type SearchHit = { documentId: string | null,
  * The file to open: an available copy inside the filters when there is
  * one.
  */
-fileInstanceId: string, title: string | null, displayName: string, displayPath: string, fileType: FileType, sourceRootId: string, availability: Availability, storage: FileStorage, 
+fileInstanceId: string, 
+/**
+ * Never empty: metadata, then the first page, then the file name.
+ */
+title: string, titleSource: TitleSource, displayName: string, displayPath: string, fileType: FileType, sourceRootId: string, availability: Availability, storage: FileStorage, 
 /**
  * Where the best passage is: "Page 12", "Chapter 3, part 2".
  */

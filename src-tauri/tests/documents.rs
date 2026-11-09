@@ -7,7 +7,7 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::time::Duration;
 
-use atlas_lib::domain::dto::{Availability, ExtractionState};
+use atlas_lib::domain::dto::{Availability, ExtractionState, TitleSource};
 use atlas_lib::error::ErrorCode;
 use atlas_lib::services::extraction::db;
 use atlas_lib::services::workspace::Workspace;
@@ -89,7 +89,8 @@ fn a_read_pdf_shows_its_metadata_pages_and_other_copies() {
     assert_eq!(d.file.display_name, "book 000001.pdf");
     assert_eq!(d.file.extraction.state, ExtractionState::Done);
     assert!(d.document_id.is_some());
-    assert_eq!(d.title.as_deref(), Some("Engineering book 000001"));
+    assert_eq!(d.title, "Engineering book 000001");
+    assert_eq!(d.title_source, TitleSource::Metadata);
     assert_eq!(d.authors, vec!["Bo Okafor".to_owned()]);
     assert!(d.page_count.unwrap() >= 2);
     assert!(d.char_count.unwrap() > 1000);
@@ -112,10 +113,7 @@ fn a_read_pdf_shows_its_metadata_pages_and_other_copies() {
         &file_id(&ws, &books.join("Astronomy/Café crème book 000000.epub")),
     )
     .unwrap();
-    assert_eq!(
-        epub.title.as_deref(),
-        Some("Astronomy Café crème book 000000")
-    );
+    assert_eq!(epub.title, "Astronomy Café crème book 000000");
     assert_eq!(epub.authors, vec!["Ada Lin".to_owned()]);
     assert_eq!(epub.language.as_deref(), Some("en"));
 
@@ -152,5 +150,8 @@ fn an_unread_file_has_details_but_no_document() {
     )
     .unwrap();
     assert_eq!(d.file.extraction.state, ExtractionState::Pending);
-    assert!(d.document_id.is_none() && d.title.is_none() && d.also_at.is_empty());
+    assert!(d.document_id.is_none() && d.also_at.is_empty());
+    // Not read yet: the tidied file name stands in.
+    assert_eq!(d.title, "book 000001");
+    assert_eq!(d.title_source, TitleSource::FileName);
 }

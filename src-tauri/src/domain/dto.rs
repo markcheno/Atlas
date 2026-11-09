@@ -496,6 +496,19 @@ pub struct ExtractionOverview {
 
 // ------------------------------------------------------------- documents
 
+/// Where a document's displayed title came from (phase1-spec P1-18).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "snake_case")]
+#[ts(export)]
+pub enum TitleSource {
+    /// The file's own metadata (PDF Info, EPUB `dc:title`), cleaned.
+    Metadata,
+    /// The largest line on a PDF's first page.
+    Contents,
+    /// The file name, tidied.
+    FileName,
+}
+
 /// Everything the detail panel shows for one file (phase1-spec §5.3).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]
@@ -505,7 +518,10 @@ pub struct DocumentDetail {
     pub file: FileInstance,
     /// Set once the file's bytes have been hashed.
     pub document_id: Option<RecordId>,
-    pub title: Option<String>,
+    /// Never empty: metadata, then the first page, then the file name.
+    pub title: String,
+    pub title_source: TitleSource,
+    /// Cleaned: placeholders dropped, `;`-separated names split.
     pub authors: Vec<String>,
     pub language: Option<String>,
     /// PDF pages, or EPUB spine documents.
@@ -563,7 +579,9 @@ pub struct SearchHit {
     /// The file to open: an available copy inside the filters when there is
     /// one.
     pub file_instance_id: RecordId,
-    pub title: Option<String>,
+    /// Never empty: metadata, then the first page, then the file name.
+    pub title: String,
+    pub title_source: TitleSource,
     pub display_name: String,
     pub display_path: String,
     pub file_type: FileType,

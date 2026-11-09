@@ -3,6 +3,7 @@
  */
 import type { ExtractionOverview } from './api/bindings/ExtractionOverview';
 import type { MatchReason } from './api/bindings/MatchReason';
+import type { TitleSource } from './api/bindings/TitleSource';
 import { count } from './inventoryCopy';
 
 export const SEARCH_HELP =
@@ -12,6 +13,13 @@ export const WHY_LABEL: Record<MatchReason, string> = {
   text: 'In the text',
   name: 'In the name',
   both: 'In the text and the name',
+};
+
+/** Where a title came from, when it isn't the file's own metadata. */
+export const TITLE_SOURCE_NOTE: Record<TitleSource, string | null> = {
+  metadata: null,
+  contents: 'Title from the first page',
+  file_name: 'Title from the file name',
 };
 
 /** False for input with no letters or digits: nothing to search for. */

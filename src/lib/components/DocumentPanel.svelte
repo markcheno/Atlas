@@ -5,6 +5,7 @@
   // returns focus to whatever opened it.
   import type { FileInstance } from '../api/bindings/FileInstance';
   import { reasonText } from '../extractionCopy';
+  import { TITLE_SOURCE_NOTE } from '../searchCopy';
   import { formatBytes } from '../format';
   import { modifiedText, statusLabel } from '../libraryCopy';
   import { details } from '../stores/details.svelte';
@@ -19,7 +20,7 @@
   let closeButton = $state<HTMLButtonElement>();
 
   const d = $derived(details.detail);
-  const heading = $derived(d ? (d.title ?? d.file.displayName) : 'Details');
+  const heading = $derived(d ? d.title : 'Details');
 
   function rootName(file: FileInstance): string {
     const root = sources.roots.find((r) => r.id === file.sourceRootId);
@@ -100,8 +101,12 @@
     {:else if d}
       {@const file = d.file}
       {@const reason = reasonText(file)}
-      {#if d.title}
-        <p class="file-name">{file.displayName}</p>
+      {@const source = TITLE_SOURCE_NOTE[d.titleSource]}
+      {#if d.titleSource !== 'file_name' || source}
+        <p class="file-name">
+          {#if d.titleSource !== 'file_name'}<span>{file.displayName}</span>{/if}
+          {#if source}<span class="source" data-testid="title-source">{source}</span>{/if}
+        </p>
       {/if}
 
       <div class="actions">
@@ -217,9 +222,17 @@
   }
 
   .file-name {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-1) var(--space-3);
     margin: calc(-1 * var(--space-3)) 0 0;
     color: var(--text-muted);
     overflow-wrap: anywhere;
+  }
+
+  .source {
+    font-size: 12px;
+    font-style: italic;
   }
 
   .actions {

@@ -1125,7 +1125,8 @@ describe('search', () => {
     tauri.searchHit({
       fileInstanceId: 'h2',
       documentId: null,
-      title: null,
+      title: 'drive notes',
+      titleSource: 'file_name',
       displayName: 'drive notes.epub',
       fileType: 'epub',
       location: null,
@@ -1200,8 +1201,10 @@ describe('search', () => {
     expect(first.getByText('Also in 2 other places')).toBeInTheDocument();
     expect(first.queryByText('Some of your words')).not.toBeInTheDocument();
 
-    // No title: the file name is the heading. Found by the any-words fallback.
-    expect(second.getByRole('heading', { name: 'drive notes.epub' })).toBeInTheDocument();
+    // No title: the tidied file name is the heading, and the name isn't
+    // repeated. Found by the any-words fallback.
+    expect(second.getByRole('heading', { name: 'drive notes' })).toBeInTheDocument();
+    expect(second.queryByText('drive notes.epub')).not.toBeInTheDocument();
     expect(second.getByText('In the name')).toBeInTheDocument();
     expect(second.getByText('Some of your words')).toBeInTheDocument();
     expect(second.getByText('Also in 1 other place')).toBeInTheDocument();
@@ -1441,7 +1444,8 @@ describe('document details', () => {
       tauri.documentDetail({
         file: scanned,
         documentId: null,
-        title: null,
+        title: 'harmonic',
+        titleSource: 'file_name',
         authors: [],
         language: null,
         pageCount: null,
@@ -1450,7 +1454,8 @@ describe('document details', () => {
     );
     await user.click(screen.getByRole('button', { name: 'Details for harmonic.pdf' }));
     const d = await dialog();
-    expect(d).toHaveAccessibleName('harmonic.pdf');
+    expect(d).toHaveAccessibleName('harmonic');
+    expect(within(d).getByTestId('title-source')).toHaveTextContent('Title from the file name');
     expect(within(d).queryByText('Authors')).not.toBeInTheDocument();
     expect(within(d).queryByText('Pages')).not.toBeInTheDocument();
     expect(within(d).getByTestId('text-reason')).toHaveTextContent(
@@ -1466,7 +1471,13 @@ describe('document details', () => {
       extraction: { state: 'pending' as const, reason: null },
     };
     const user = await openLibrary(
-      tauri.documentDetail({ file: pending, documentId: null, title: null, pageCount: null }),
+      tauri.documentDetail({
+        file: pending,
+        documentId: null,
+        title: 'harmonic',
+        titleSource: 'file_name',
+        pageCount: null,
+      }),
     );
     await user.click(screen.getByRole('button', { name: 'Details for harmonic.pdf' }));
     expect(within(await dialog()).getByTestId('text-reason')).toHaveTextContent(
