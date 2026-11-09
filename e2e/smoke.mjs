@@ -41,7 +41,8 @@ const scratch = fs.realpathSync.native(fs.mkdtempSync(path.join(os.tmpdir(), 'at
 const out = path.resolve(opt('out', path.join(scratch, 'out')));
 fs.mkdirSync(out, { recursive: true });
 
-// A fresh 1,000-file fixture.
+// A fresh 1,000-file fixture with body text (about 4 KiB a file), so the
+// run can read text and search passages.
 const fixture = path.join(scratch, 'Books');
 const summary = JSON.parse(
   execFileSync(process.execPath, [
@@ -49,6 +50,8 @@ const summary = JSON.parse(
     fixture,
     '--files',
     '1000',
+    '--text-kb',
+    '4',
   ])
     .toString()
     .split('\nTo delete later')[0],
@@ -147,6 +150,34 @@ const heading = (text) => `//h1[normalize-space(.)=${lit(text)}]`;
 const status = () => wd.waitFor("//*[@data-testid='inventory-status']");
 const statusText = async () => wd.text(await status());
 const formatted = expected.toLocaleString('en-US');
+const readingStatus = async () =>
+  wd.text(await wd.waitFor("//*[@data-testid='extraction-status']"));
+// The cataloging line's controls; the reading line's have their own labels.
+const catalogButton = (label) => `//button[normalize-space(.)=${lit(label)} and not(@aria-label)]`;
+
+/** Command lines of this app's text-reading worker processes. */
+function workerProcesses() {
+  try {
+    if (process.platform === 'win32') {
+      const outText = execFileSync(
+        'powershell.exe',
+        [
+          '-NoProfile',
+          '-Command',
+          'Get-CimInstance Win32_Process -Filter "Name = \'atlas.exe\'" | ForEach-Object { $_.CommandLine }',
+        ],
+        { encoding: 'utf8' },
+      );
+      return outText.split(/\r?\n/).filter((l) => l.includes('--extract-worker'));
+    }
+    // Wide output: command lines are never cut short.
+    const outText = execFileSync('ps', ['-eww', '-o', 'args'], { encoding: 'utf8' });
+    const name = path.basename(app);
+    return outText.split('\n').filter((l) => l.includes('--extract-worker') && l.includes(name));
+  } catch {
+    return [];
+  }
+}
 
 async function launch() {
   const started = Date.now();
@@ -190,12 +221,12 @@ async function run() {
   });
 
   await step('pause and resume cataloging', async () => {
-    await wd.click(await wd.waitFor(button('Pause')));
+    await wd.click(await wd.waitFor(catalogButton('Pause')));
     await wd.until('paused status', async () => (await statusText()).includes('Paused by you'));
     const paused = await statusText();
     await sleep(500);
     await capture('paused');
-    await wd.click(await wd.waitFor(button('Resume')));
+    await wd.click(await wd.waitFor(catalogButton('Resume')));
     await wd.until('resumed status', async () => !(await statusText()).includes('Paused'));
     return { paused };
   });
@@ -235,6 +266,50 @@ async function run() {
     const rel = path.relative(fs.realpathSync.native(fixture), fs.realpathSync.native(opened));
     if (rel.startsWith('..') || path.isAbsolute(rel)) throw new Error('opened outside the folder');
     return { opened: rel };
+  });
+
+  await step('quit while reading leaves no worker process', async () => {
+    // Catch the worker at work if reading hasn't finished yet.
+    const seen = await wd
+      .until('a text-reading worker', async () => workerProcesses().length > 0, 20_000)
+      .catch(() => false);
+    const readingBeforeQuit = await readingStatus();
+    await wd.quit();
+    await wd
+      .until('no worker after quit', async () => workerProcesses().length === 0, 15_000)
+      .catch(() => {
+        throw new Error(`worker still running after quit: ${workerProcesses().join(' | ')}`);
+      });
+    await launch();
+    await wd.waitFor(heading('What are you curious about?'), { timeout: 60_000 });
+    return { workerSeenBeforeQuit: seen, readingBeforeQuit };
+  });
+
+  await step('search finds a passage', async () => {
+    const line = await wd.until(
+      'text up to date',
+      async () => {
+        const t = await readingStatus();
+        return t.startsWith('Text up to date') && t;
+      },
+      300_000,
+    );
+    report.timingsMs.textUpToDate = Date.now() - t0;
+    const box = await wd.waitFor("//input[@id='home-search']");
+    // \uE007 is WebDriver's Enter key.
+    await wd.type(box, '"Astronomy marker 0"\uE007');
+    await wd.waitFor(heading('Search'));
+    const hit = await wd.waitFor(
+      `//li[@data-testid='search-hit'][.//*[normalize-space(.)=${lit('Café crème book 000000.epub')}]]`,
+      { timeout: 30_000 },
+    );
+    const marked = await wd.all(
+      `//li[@data-testid='search-hit'][.//*[normalize-space(.)=${lit('Café crème book 000000.epub')}]]//mark`,
+    );
+    if (marked.length === 0) throw new Error('the result has no highlighted words');
+    const text = await wd.text(hit);
+    if (!/Astronomy marker 0/i.test(text)) throw new Error(`snippet lacks the phrase: ${text}`);
+    return { status: line, result: text.split('\n').slice(0, 4).join(' / ') };
   });
 
   await step('settings show AI Models', async () => {

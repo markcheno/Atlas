@@ -157,6 +157,7 @@ pub fn run() {
             commands::extraction::start_extraction,
             commands::extraction::get_extraction_status,
             commands::search::search_documents,
+            commands::documents::get_document_detail,
             commands::library::list_documents,
             commands::library::open_original,
             commands::library::reveal_original,

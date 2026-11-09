@@ -5,16 +5,14 @@
   import ViewHeading from '../lib/components/ViewHeading.svelte';
   import { formatBytes } from '../lib/format';
   import { count } from '../lib/inventoryCopy';
-  import {
-    downloadPrompt,
-    modifiedText,
-    rangeText,
-    revealLabel,
-    statusLabel,
-  } from '../lib/libraryCopy';
+  import { modifiedText, rangeText, statusLabel } from '../lib/libraryCopy';
   import type { ExtractionState } from '../lib/api/bindings/ExtractionState';
-  import { reasonText, rowState, TEXT_FILTERS, TEXT_ICON, TEXT_LABEL } from '../lib/extractionCopy';
-  import { appInfo } from '../lib/stores/app.svelte';
+  import OriginalActions from '../lib/components/OriginalActions.svelte';
+  import OriginalNotice from '../lib/components/OriginalNotice.svelte';
+  import TextBadge from '../lib/components/TextBadge.svelte';
+  import { TEXT_FILTERS } from '../lib/extractionCopy';
+  import { details } from '../lib/stores/details.svelte';
+  import { fromFile, originals } from '../lib/stores/originals.svelte';
   import { extraction } from '../lib/stores/extraction.svelte';
   import { inventory } from '../lib/stores/inventory.svelte';
   import { library, PAGE_SIZE } from '../lib/stores/library.svelte';
@@ -23,7 +21,6 @@
   const scannableRoots = $derived(sources.roots.filter((r) => !r.nestedInRootId));
   const page = $derived(library.result);
   const lastPage = $derived(page ? Math.max(0, Math.ceil(page.matchedSoFar / PAGE_SIZE) - 1) : 0);
-  const reveal = $derived(revealLabel(appInfo.status?.os));
 
   function rootName(item: FileInstance): string {
     const root = sources.roots.find((r) => r.id === item.sourceRootId);
@@ -172,7 +169,14 @@
           {#each page.items as item (item.id)}
             <tr>
               <th scope="row" class="name">
-                <span>{item.displayName}</span>
+                <button
+                  type="button"
+                  class="name-button"
+                  aria-label={`Details for ${item.displayName}`}
+                  onclick={(e) => details.open(item.id, e.currentTarget)}
+                >
+                  {item.displayName}
+                </button>
                 <span class="path">{item.displayPath}</span>
               </th>
               <td>{item.fileType.toUpperCase()}</td>
@@ -182,72 +186,12 @@
               <td>
                 <span class="badge" data-status={item.availability}>{statusLabel(item)}</span>
               </td>
-              <td>
-                {#each [rowState(item, extraction.overview)] as text (text)}
-                  <span
-                    class="badge text"
-                    data-text={text}
-                    data-testid="text-status"
-                    title={reasonText(item) ?? undefined}
-                  >
-                    <span aria-hidden="true">{TEXT_ICON[text]}</span>
-                    {TEXT_LABEL[text]}
-                  </span>
-                {/each}
-              </td>
-              <td class="actions">
-                <button
-                  type="button"
-                  class="row-button"
-                  disabled={item.availability !== 'available'}
-                  aria-label={`Open ${item.displayName}`}
-                  onclick={() => library.open(item)}
-                >
-                  Open
-                </button>
-                <button
-                  type="button"
-                  class="row-button"
-                  disabled={item.availability === 'unreachable'}
-                  aria-label={`${reveal}: ${item.displayName}`}
-                  onclick={() => library.reveal(item)}
-                >
-                  {reveal}
-                </button>
-              </td>
+              <td><TextBadge {item} /></td>
+              <td><OriginalActions item={fromFile(item)} /></td>
             </tr>
-            {#if library.confirmDownloadId === item.id}
+            {#if originals.hasNotice(item.id)}
               <tr class="detail">
-                <td colspan="8">
-                  <div class="confirm" role="group" aria-label="Confirm download">
-                    <span>{downloadPrompt(item)}</span>
-                    <button
-                      type="button"
-                      class="button primary"
-                      onclick={() => library.open(item, true)}
-                    >
-                      Download and open
-                    </button>
-                    <button
-                      type="button"
-                      class="button quiet"
-                      onclick={() => (library.confirmDownloadId = null)}
-                    >
-                      Cancel
-                    </button>
-                  </div>
-                </td>
-              </tr>
-            {/if}
-            {#if library.rowError?.id === item.id}
-              <tr class="detail">
-                <td colspan="8">
-                  <ProblemNotice
-                    title={`Couldn't open ${item.displayName}`}
-                    message={library.rowError.error.message}
-                    recovery={library.rowError.error.recovery}
-                  />
-                </td>
+                <td colspan="8"><OriginalNotice item={fromFile(item)} /></td>
               </tr>
             {/if}
           {/each}
@@ -373,6 +317,21 @@
     min-width: 240px;
   }
 
+  .name-button {
+    justify-self: start;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+  }
+
+  .name-button:hover {
+    text-decoration: underline;
+  }
+
   .path {
     color: var(--text-muted);
     font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
@@ -381,59 +340,8 @@
     overflow-wrap: anywhere;
   }
 
-  .badge {
-    padding: 2px var(--space-2);
-    border-radius: 999px;
-    background: var(--accent-soft);
-    font-size: 12px;
-    white-space: nowrap;
-  }
-
-  .badge[data-status='missing'],
-  .badge[data-status='unreachable'] {
-    background: var(--notice-bg);
-  }
-
-  /* Text badges carry a symbol and a label; colour only reinforces them. */
-  .badge.text[data-text='pending'],
-  .badge.text[data-text='reading'] {
-    background: transparent;
-    border: 1px solid var(--border, currentColor);
-  }
-
-  .badge.text[data-text='needs_ocr'],
-  .badge.text[data-text='encrypted'],
-  .badge.text[data-text='unreadable'] {
-    background: var(--notice-bg);
-  }
-
-  .actions {
-    white-space: nowrap;
-  }
-
-  .row-button {
-    min-height: 30px;
-    padding: 0 var(--space-3);
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    background: var(--surface);
-    cursor: pointer;
-  }
-
-  .row-button:disabled {
-    opacity: 0.45;
-    cursor: not-allowed;
-  }
-
   .detail td {
     background: var(--surface-muted);
-  }
-
-  .confirm {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: var(--space-3);
   }
 
   .pager {

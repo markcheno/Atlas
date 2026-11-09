@@ -3,7 +3,7 @@ import type { FileInstance } from './api/bindings/FileInstance';
 import type { OsKind } from './api/bindings/OsKind';
 import { formatBytes } from './format';
 
-export function statusLabel(item: FileInstance): string {
+export function statusLabel(item: Pick<FileInstance, 'availability' | 'storage'>): string {
   switch (item.availability) {
     case 'missing':
       return 'Missing';
@@ -25,8 +25,8 @@ export function revealLabel(os: OsKind | undefined): string {
   }
 }
 
-export function downloadPrompt(item: FileInstance): string {
-  const size = item.sizeBytes === null ? '' : ` (${formatBytes(item.sizeBytes)})`;
+export function downloadPrompt(item: { sizeBytes?: number | null }): string {
+  const size = item.sizeBytes == null ? '' : ` (${formatBytes(item.sizeBytes)})`;
   return `This file is stored in the cloud. Opening it will download it${size}.`;
 }
 

@@ -63,6 +63,11 @@ two private-use characters, U+E000 and U+E001; Rust turns them into
 `SnippetSpan { text, hit }` lists, and the UI never receives markup.
 Extraction strips those two characters from stored text, so a document
 can't forge a highlight.
+The Search view (Slice 1.5) renders each span as plain text, a hit inside
+`<mark>`, and never uses `{@html}`; a Vitest case checks that HTML inside
+a snippet stays text.
+Typographic double quotes (`“ ” „ « »`) quote phrases like `"`, since
+macOS smart quotes turn a typed `"` into `“` (Slice 1.5).
 
 **Reads never wait for writes.** Search runs on the read-only connection
 pool, raised from 2 to 4 connections so a slow search never starves the
@@ -89,7 +94,7 @@ status poll.
   phrases; compressing passages loses nothing but CPU).
 - Opening a library made by Slice 1.3 rebuilds the index once, about 7.5 s
   per 600 MB of text on the M5 Pro, during the upgrade.
-- The fallback can return looser results for long queries; the UI (Slice
-  1.5) shows which results matched all words.
+- The fallback can return looser results for long queries; the Search
+  view (Slice 1.5) labels them "Some of your words".
 - Semantic search (embeddings, ADR 0008's vector engine) arrives in a later
   phase and will rank alongside, not replace, this index.

@@ -10,6 +10,7 @@ import type { DataRootCandidate } from '../lib/api/bindings/DataRootCandidate';
 import type { DataRootStatus } from '../lib/api/bindings/DataRootStatus';
 import type { DeviceCheck } from '../lib/api/bindings/DeviceCheck';
 import type { DeviceSnapshot } from '../lib/api/bindings/DeviceSnapshot';
+import type { DocumentDetail } from '../lib/api/bindings/DocumentDetail';
 import type { DocumentPage } from '../lib/api/bindings/DocumentPage';
 import type { ExtractionCounts } from '../lib/api/bindings/ExtractionCounts';
 import type { ExtractionOverview } from '../lib/api/bindings/ExtractionOverview';
@@ -22,6 +23,8 @@ import type { ConnectionResult } from '../lib/api/bindings/ConnectionResult';
 import type { ProviderProfile } from '../lib/api/bindings/ProviderProfile';
 import type { ProviderProfileInput } from '../lib/api/bindings/ProviderProfileInput';
 import type { AddSourceRootsResult } from '../lib/api/bindings/AddSourceRootsResult';
+import type { SearchHit } from '../lib/api/bindings/SearchHit';
+import type { SearchPage } from '../lib/api/bindings/SearchPage';
 import type { Settings } from '../lib/api/bindings/Settings';
 import type { SourceRoot } from '../lib/api/bindings/SourceRoot';
 
@@ -32,7 +35,7 @@ export const fakeStatus: AppStatus = {
   os: 'macos',
   arch: 'aarch64',
   buildProfile: 'debug',
-  slice: '1.4',
+  slice: '1.5',
   features: [],
 };
 
@@ -209,6 +212,59 @@ export function documentPage(overrides: Partial<DocumentPage> = {}): DocumentPag
   return { items: [], page: 0, pageSize: 50, matchedSoFar: 0, scanning: false, ...overrides };
 }
 
+export function searchHit(overrides: Partial<SearchHit> = {}): SearchHit {
+  return {
+    documentId: 'doc-1',
+    fileInstanceId: 'file-1',
+    title: 'Harmonic Drives',
+    displayName: 'harmonic.pdf',
+    displayPath: '/Users/test/Books/harmonic.pdf',
+    fileType: 'pdf',
+    sourceRootId: 'root-books',
+    availability: 'available',
+    storage: 'local',
+    location: 'Page 12',
+    pageNo: 12,
+    snippet: [
+      { text: '… a ', hit: false },
+      { text: 'harmonic drive', hit: true },
+      { text: ' has no backlash …', hit: false },
+    ],
+    why: 'text',
+    allWords: true,
+    otherLocations: 0,
+    ...overrides,
+  };
+}
+
+export function searchPage(overrides: Partial<SearchPage> = {}): SearchPage {
+  return {
+    hits: [],
+    page: 0,
+    pageSize: 20,
+    matchedDocuments: 0,
+    capped: false,
+    readingText: false,
+    textReadFiles: 10,
+    totalFiles: 10,
+    ...overrides,
+  };
+}
+
+export function documentDetail(overrides: Partial<DocumentDetail> = {}): DocumentDetail {
+  return {
+    file: fileInstance({ extraction: { state: 'done', reason: null }, documentId: 'doc-1' }),
+    documentId: 'doc-1',
+    title: 'Harmonic Drives',
+    authors: ['Ada Lin'],
+    language: 'en',
+    pageCount: 312,
+    charCount: 640_000,
+    alsoAt: [],
+    ...overrides,
+  };
+}
+
 export function connectionResult(overrides: Partial<ConnectionResult> = {}): ConnectionResult {
   return {
     outcome: 'reachable',
@@ -271,6 +327,9 @@ function defaults(): Record<string, Handler> {
     get_extraction_status: () => extractionOverview(),
     start_extraction: () => 'extract-2',
     list_documents: () => documentPage(),
+    search_documents: () => searchPage(),
+    get_document_detail: (args) =>
+      documentDetail({ file: fileInstance({ id: String(args?.fileId) }) }),
     open_original: () => null,
     reveal_original: () => null,
     start_inventory: () => 'job-2',

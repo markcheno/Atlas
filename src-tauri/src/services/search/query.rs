@@ -64,6 +64,21 @@ fn is_stopword(token: &Token) -> bool {
     }
 }
 
+/// A double quote, straight or typographic: macOS and many keyboards turn
+/// `"` into `“` and `”` as you type, and some languages use `„` or `«»`.
+fn is_quote(c: char) -> bool {
+    matches!(
+        c,
+        '"' | '\u{201C}'
+            | '\u{201D}'
+            | '\u{201E}'
+            | '\u{201F}'
+            | '\u{00AB}'
+            | '\u{00BB}'
+            | '\u{FF02}'
+    )
+}
+
 /// Splits input into words and quoted phrases.
 pub fn tokens(input: &str) -> Vec<Token> {
     let mut out = Vec::new();
@@ -73,11 +88,11 @@ pub fn tokens(input: &str) -> Vec<Token> {
             chars.next();
             continue;
         }
-        if c == '"' {
+        if is_quote(c) {
             chars.next();
             let mut phrase = String::new();
             for c in chars.by_ref() {
-                if c == '"' {
+                if is_quote(c) {
                     break;
                 }
                 phrase.push(c);
@@ -96,7 +111,7 @@ pub fn tokens(input: &str) -> Vec<Token> {
         }
         let mut word = String::new();
         while let Some(&c) = chars.peek() {
-            if c.is_whitespace() || c == '"' {
+            if c.is_whitespace() || is_quote(c) {
                 break;
             }
             word.push(c);
@@ -186,6 +201,21 @@ mod tests {
         );
         assert_eq!(all(r#""" "  ""#), None);
         assert_eq!(all(r#""one""#), Some(r#""one""#.into()));
+    }
+
+    #[test]
+    fn typographic_quotes_make_phrases_too() {
+        let want = Some(r#""harmonic drive" "gear""#.into());
+        assert_eq!(all("\u{201C}harmonic drive\u{201D} gear"), want);
+        // Smart quotes can come out mixed with straight ones.
+        assert_eq!(all("\u{201C}harmonic drive\" gear"), want);
+        assert_eq!(all("\u{201E}harmonic drive\u{201C} gear"), want);
+        assert_eq!(all("\u{00AB}harmonic drive\u{00BB} gear"), want);
+        // Apostrophes are not quotes.
+        assert_eq!(
+            all("Hawking's \u{2019}radiation\u{2019}"),
+            Some("\"Hawking's\" \"\u{2019}radiation\u{2019}\"".into())
+        );
     }
 
     #[test]

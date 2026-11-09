@@ -275,7 +275,7 @@ New typed IPC commands (each registered in the slice that implements it; `tests/
 start_extraction(source_root_id) -> job_id          # idempotent; "Read text now"
 get_extraction_status() -> ExtractionOverview        # also pushed as the extraction-status event
 search_documents(query: SearchQuery) -> SearchPage
-get_document(document_id) -> DocumentDetail          # title, authors, pages, status, instances
+get_document_detail(file_instance_id) -> DocumentDetail  # file, title, authors, language, pages, status, Also at
 get_storage_usage() -> StorageUsage
 clean_caches() -> StorageUsage
 ```
@@ -367,8 +367,8 @@ Implement and verify **one slice at a time**. Build and rerun tests after each s
 | 1.2 | **Foundations.** Fixtures with body text and valid EPUBs; `tools.lock.json` and `fetch-pdfium`; PDFium bundled and signed on three OSes; worker skeleton that loads PDFium and answers `hello` | Bundles build on three OSes; `codesign --verify --deep --strict`; `hello` from the CI-built `.app` on macOS and from `cargo test` everywhere; worker start time recorded (sidecar fallback decided) |
 | 1.3 | **Extraction.** Migration 0008 (documents and the `file_instances` extraction columns); engines (sniff, hash, PDF, EPUB, unreadable-text rule), documents and dedup, per-file status, supervisor, duty-cycle policy, `extraction-status`, Library Text badges and filter, status-bar line, Read text now; ADR 0009 final | P1-03 … P1-14 |
 | 1.4 | **Search.** Migration 0009 (passages and FTS5 with triggers), query builder, `search_documents`, the evaluation questions and `search_eval`, `benches/search.rs`; ADR 0010 | P1-15 … P1-17, P1-19 |
-| 1.5 | **Search UI and document detail.** Home → Search view, results with spans, filters, paging, detail panel, job controls for both kinds | Vitest coverage of every new screen state; smoke "search finds a passage" |
-| 1.6 | **Metadata and duplicates.** Title, authors, language; duplicate groups and "Also at"; storage usage by category, indexing estimate, Clean caches | P1-18; estimate shown as a range only after 50 samples |
+| 1.5 | **Search UI and document detail.** Home → Search view (a main tab), results with spans, filters, paging, the full detail panel (title, authors, language, pages, text status and reason, Also at), job controls for both kinds | Vitest coverage of every new screen state; smoke "search finds a passage" |
+| 1.6 | **Metadata quality and duplicates.** File-name fallbacks for missing titles and authors; duplicates view; storage usage by category, indexing estimate, Clean caches | P1-18; estimate shown as a range only after 50 samples |
 | 1.7 | **Carry-overs.** Replayed entries charged less on resume inside large folders; Windows junctions and long paths; worker lifetime on quit; `benches/extraction.rs` | P1-20 … P1-22 |
 | 1.8 | **Evidence and close-out.** Benchmarks on three OSes in `docs/benchmarks.md`; license report; platform validation including a manual smoke of the release DMG with PDFium on macOS; ADRs final; `docs/phase1-closeout.md`; version 0.2.0 | All CI green on `main`; close-out review against §1, §12, §13, §14 and §16 |
 
@@ -457,6 +457,15 @@ Do **not** start extraction, FTS, or the search UI before Slice 1.1's gate passe
 - The FTS `integrity-check` part of P1-12 is checked here (`tests/extraction_crash.rs`). The reader pool is 4.
 - The evaluation questions were written and committed before search was built; they all pass at rank 1 on the 17-document corpus, a floor check rather than a quality claim.
 - Catalog growth on the 30k text fixture is 2.3× the text (provisional target 1.5×), recorded in ADR 0010 for Slice 1.7.
+
+**2026-11-09, amended during Slice 1.5:**
+
+- The full document detail panel ships in 1.5 (title, authors, language, pages, size, modified, folder and path, text status with its reason, Also at with Open and Reveal per copy), since all of it exists after 1.3. Slice 1.6 narrows to metadata quality (P1-18 fallbacks), a duplicates view and Settings › Storage. Product-owner decision.
+- Search is a main tab (Home, Search, Library, Settings; Cmd/Ctrl+1–4). Home's box submits to it; nothing is searched while typing. Product-owner decision.
+- `get_document_detail(file_instance_id)` replaces `get_document(document_id)`: every Library row and result has a file ID, while a file not read yet has no document.
+- The smoke test generates the 1,000-file fixture with `--text-kb 4` and reads it fully; it also checks that no `--extract-worker` process outlives quitting while text is being read (the observable half of the Slice 1.7 carry-over).
+- Typographic double quotes (`“ ” „ ‟ « »`, full-width `＂`) quote phrases like `"`, because macOS smart quotes type them (found in the manual check).
+- Search results carry no Text badge (`SearchHit` has no text status, and a text match is read by definition); the detail panel shows it.
 
 ### Primary reference documentation (verify current versions at implementation time)
 

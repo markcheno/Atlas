@@ -6,9 +6,11 @@
   import DataLocation from './views/DataLocation.svelte';
   import DeviceCheck from './views/DeviceCheck.svelte';
   import Home from './views/Home.svelte';
+  import DocumentPanel from './lib/components/DocumentPanel.svelte';
   import Library from './views/Library.svelte';
   import LibraryFolders from './views/LibraryFolders.svelte';
   import RootUnavailable from './views/RootUnavailable.svelte';
+  import Search from './views/Search.svelte';
   import Settings from './views/Settings.svelte';
   import Welcome from './views/Welcome.svelte';
 
@@ -33,11 +35,14 @@
   <AppShell>
     {#if view.current === 'home'}
       <Home />
+    {:else if view.current === 'search'}
+      <Search />
     {:else if view.current === 'library'}
       <Library />
     {:else}
       <Settings />
     {/if}
+    <DocumentPanel />
   </AppShell>
 {/if}
 

@@ -1,7 +1,7 @@
 # Atlas architecture
 
-Status: Phase 1, Slice 1.4 (full-text search over the text Atlas reads;
-the search screen is Slice 1.5). Phase 0 is complete; the rest of Phase 1 is
+Status: Phase 1, Slice 1.5 (the Search screen and the document detail
+panel over Slice 1.4's full-text search). Phase 0 is complete; the rest of Phase 1 is
 specified in [phase1-spec.md](phase1-spec.md) and not yet built.
 This document describes what is built, and marks what is only planned. Decisions with lasting
 consequences are recorded as ADRs in [adr/](adr/).
@@ -54,6 +54,9 @@ commands and added the native multi-folder picker.
 | Inventory jobs | `start_inventory`, `pause_job`, `resume_job`, `cancel_job`, `get_inventory_status` | **0.5 (working)** |
 | Library | `list_documents`, `open_original`, `reveal_original` | **0.6 (working)** |
 | Providers | `list_provider_profiles`, `save_provider_profile`, `delete_provider_profile`, `test_provider_connection`, `detect_local_providers` | **0.7 (working)** |
+| Text reading | `get_extraction_status`, `start_extraction` (pause, resume and cancel share the job commands) | **1.3 (working)** |
+| Search | `search_documents` | **1.4 (working)** |
+| Documents | `get_document_detail` (by file ID: a file that hasn't been read has no document yet) | **1.5 (working)** |
 
 `get_app_status` returns only facts about the running process, including a
 feature list that marks exactly which capabilities this build provides.
@@ -137,8 +140,32 @@ to Home, and missing, in use, incompatible or invalid goes to a recovery
 screen. The theme is saved in the data root's `config/settings.json`;
 browser storage is not used for Atlas preferences.
 
+Main views: Home, Search, Library and Settings (`NAV_VIEWS` in
+`src/lib/stores/view.svelte.ts`).
+
+- **Search** (Slice 1.5, `views/Search.svelte`, `stores/search.svelte.ts`).
+  Home's box and the Search view's own box submit to `search_documents`;
+  nothing is searched while typing. Results show the title or file name,
+  type, folder, where (page or chapter), the snippet, why it matched ("In
+  the text", "In the name", both), "Some of your words" for any-words
+  results, and "Also in N other places". Snippets are rendered from
+  `SnippetSpan`s as text and `<mark>`, never as HTML. Empty states cover a
+  punctuation-only query (not sent), nothing read yet, and no matches with
+  how much has been read; while reading continues a note says so and the
+  shown results refresh at most every 2 s.
+- **Document details** (Slice 1.5, `components/DocumentPanel.svelte`,
+  `stores/details.svelte.ts`). A modal side panel opened from a Library
+  name or a result's Details: title, authors, language, pages (chapters for
+  EPUBs), type, size, modified, folder, path, text status with its reason,
+  and Also at with each copy's status and its own Open and Reveal. Escape or
+  Close returns focus to what opened it; Tab stays inside.
+- **Shared pieces.** `stores/originals.svelte.ts` holds Open and Reveal with
+  the cloud-download question and per-file problems, used by the Library,
+  Search and the panel (`OriginalActions`, `OriginalNotice`); `TextBadge`
+  is the Text status badge.
+
 Accessibility baseline: landmarks and a skip link, `aria-current` on
-navigation, focus moved to each view's heading, Cmd/Ctrl+1–3 view shortcuts,
+navigation, focus moved to each view's heading, Cmd/Ctrl+1–4 view shortcuts,
 visible focus rings, 44px major controls, `prefers-reduced-motion`, and
 system light/dark via `prefers-color-scheme` with a `data-theme` override.
 
@@ -514,8 +541,10 @@ Implemented in `src-tauri/src/services/search/` (Slice 1.4); rationale in
   [packaging](packaging.md).
 - **Smoke test** (`e2e/smoke.mjs`). A dependency-free W3C WebDriver client
   drives the debug build through `tauri-driver`. The flow covers
-  onboarding, adding a folder, pause and resume, completion, search, open,
-  settings, and a relaunch. WebDriver can't answer native folder dialogs
+  onboarding, adding a folder, pause and resume, completion, name search,
+  open, quitting while text is being read (no `--extract-worker` process may
+  outlive the app), searching a passage from Home on the 1,000-file text
+  fixture (`--text-kb 4`), settings, and a relaunch. WebDriver can't answer native folder dialogs
   or observe the OS opening a file, so debug builds read
   `ATLAS_E2E_PICK_DATA_ROOT`, `ATLAS_E2E_PICK_SOURCES` and
   `ATLAS_E2E_OPENER_LOG` (`infrastructure/e2e.rs`). Release builds ignore
@@ -581,6 +610,7 @@ Phase 1 adds a general jobs table, text extraction in a helper process
 full-text search. It is specified in [phase1-spec.md](phase1-spec.md).
 Slice 1.1 built the jobs table and runners ([Jobs](#jobs)); Slice 1.2 the
 text fixtures, PDFium delivery and the [extraction worker](#extraction-worker);
-Slice 1.3 [extraction](#extraction) itself; Slice 1.4 [search](#search).
-The search screen, document details and the rest are not in the code yet;
-this document is updated slice by slice as it lands.
+Slice 1.3 [extraction](#extraction) itself; Slice 1.4 [search](#search);
+Slice 1.5 the Search screen and document details ([Frontend](#frontend)).
+Metadata quality, the duplicates view, Settings › Storage and the rest are
+not in the code yet; this document is updated slice by slice as it lands.
