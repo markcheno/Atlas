@@ -616,7 +616,12 @@ Slice 1.3 reads text. Automated evidence: P1-03 … P1-14
 (`tests/supervisor.rs`) and the engines' unit tests, all against the real
 worker; every extraction test checks that the originals are byte-identical
 afterwards. The spike corpus's 33 documents all reach their manifest's
-expected status. CI: see below.
+expected status. CI on branch `slice-13`: the quick tier
+[42541656317](https://github.com/markcheno/Atlas/actions/runs/42541656317)
+and the full tier
+[42542436470](https://github.com/markcheno/Atlas/actions/runs/42542436470),
+10 of 10 jobs green (2026-11-09), so the extraction tests ran on macOS,
+Windows and Linux, with the smoke tests, benchmarks and the worker gate.
 
 ### macOS arm64, Slice 1.3 (2026-11-09)
 
