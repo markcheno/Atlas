@@ -305,6 +305,63 @@ fn p0_07_symlinks_are_skipped_and_counted() {
     assert_eq!(finished.unwrap(), 3);
 }
 
+/// P1-21: Windows junctions (directory reparse points, which any user can
+/// create) are skipped and counted like symlinks: one looping back to the
+/// root, one leaving it. Nothing behind them is cataloged.
+#[cfg(windows)]
+#[test]
+fn p1_21_junctions_are_skipped_and_counted() {
+    let lib = Lib::new();
+    let books = lib.dir("Books");
+    write(&books.join("inside.pdf"), b"%PDF");
+    let outside = lib.dir("Outside");
+    write(&outside.join("secret.pdf"), b"%PDF");
+    for (link, target) in [
+        (books.join("loop"), &books),
+        (books.join("escape"), &outside),
+    ] {
+        let made = std::process::Command::new("cmd")
+            .arg("/C")
+            .arg("mklink")
+            .arg("/J")
+            .arg(&link)
+            .arg(target)
+            .output()
+            .unwrap();
+        assert!(made.status.success(), "mklink /J: {made:?}");
+        assert!(
+            fs::symlink_metadata(&link)
+                .unwrap()
+                .file_type()
+                .is_symlink()
+                || {
+                    use std::os::windows::fs::MetadataExt;
+                    // FILE_ATTRIBUTE_REPARSE_POINT
+                    fs::symlink_metadata(&link).unwrap().file_attributes() & 0x400 != 0
+                }
+        );
+    }
+
+    let (root_id, job) = lib.add(&books);
+    lib.wait_state(&job, JobState::Completed);
+    let files = lib.files(&root_id);
+    assert_eq!(files.keys().collect::<Vec<_>>(), [Path::new("inside.pdf")]);
+    let skipped = lib.ws.require_open().unwrap().catalog().call({
+        let job = job.clone();
+        move |c| {
+            c.query_row(
+                "SELECT skipped_symlinks FROM jobs WHERE id = ?1",
+                [job],
+                |r| r.get::<_, u32>(0),
+            )
+            .unwrap()
+        }
+    });
+    assert_eq!(skipped.unwrap(), 2);
+    // The target outside the folder is untouched and still there.
+    assert!(outside.join("secret.pdf").exists());
+}
+
 /// P0-09: a user pause survives a restart and is never lifted by itself.
 #[test]
 fn p0_09_user_pause_persists_across_restart() {
@@ -743,4 +800,51 @@ fn icloud_placeholders_are_cataloged_without_downloading() {
     assert_eq!(after.0, cosmos.0, "same catalog entry");
     assert_eq!(after.1, "available");
     assert_eq!(after.2, "local");
+}
+
+/// P1-20: resuming a pause inside a large folder lists it again from the
+/// start, but the entries written before the pause cost a twentieth of an
+/// operation, so the next new file arrives in a fraction of the time the
+/// replay used to take at the rate limit (here 1,600 entries ÷ 400/s = 4 s
+/// before Slice 1.7).
+#[test]
+fn p1_20_resuming_inside_a_large_folder_charges_replayed_entries_less() {
+    const FILES: usize = 4_000;
+    const RATE: u32 = 400;
+    let lib = Lib::with_config(InventoryConfig {
+        batch_size: 100,
+        unthrottled: false,
+        rate_override: Some(RATE),
+        ..fast_config()
+    });
+    let flat = lib.dir("Flat");
+    for i in 0..FILES {
+        write(&flat.join(format!("flat-{i:05}.pdf")), b"%PDF");
+    }
+
+    let (root_id, job) = lib.add(&flat);
+    assert!(wait_until(LONG, || lib.file_count() >= 1_600));
+    control::pause(lib.ws.require_open().unwrap(), &job).unwrap();
+    lib.wait_state(&job, JobState::PausedUser);
+    let at_pause = lib.file_count();
+    assert!(at_pause < FILES, "paused inside the folder");
+
+    let resumed = Instant::now();
+    control::resume(lib.ws.require_open().unwrap(), &job).unwrap();
+    assert!(wait_until(LONG, || lib.file_count() > at_pause));
+    let to_next = resumed.elapsed();
+    let replay_at_full_cost = Duration::from_secs_f64(at_pause as f64 / RATE as f64);
+    assert!(
+        to_next < replay_at_full_cost / 2,
+        "next new file {to_next:?} after resuming; replaying {at_pause} entries at full cost takes {replay_at_full_cost:?}"
+    );
+
+    lib.wait_state(&job, JobState::Completed);
+    let files = lib.files(&root_id);
+    assert_eq!(files.len(), FILES);
+    assert!(
+        files
+            .values()
+            .all(|(_, availability, _, _)| availability == "available")
+    );
 }

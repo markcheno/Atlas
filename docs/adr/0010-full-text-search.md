@@ -89,9 +89,21 @@ status poll.
 ## Consequences
 
 - The catalog grows by the text and its index: 1.4 GB for 622 MB of text
-  (2.3×), above the provisional 1.5× (phase1-spec §13). Revisited with the
-  extraction benchmark in Slice 1.7 (options: `detail='column'` loses exact
-  phrases; compressing passages loses nothing but CPU).
+  (2.3×) as built in Slice 1.4, above the provisional 1.5× (phase1-spec
+  §13). **Slice 1.7 gives new catalogs 16 KiB pages** (product-owner
+  decision: new catalogs only). Passages run 2–4 KB, so in 4 KiB pages
+  almost every passage had a page to itself, a third of it empty. On the
+  30k text fixture a new catalog is now 963 MiB for 594 MiB of stored
+  text, **1.62×**: the text's pages are 1.15× the text, the index 0.40×
+  and everything else 0.08× ([benchmarks](../benchmarks.md#text-extraction-slice-17)).
+  Reading is within 2–3% of the old speed (1k fixture, repeated runs). Catalogs created before Slice 1.7
+  keep 4 KiB pages, since the page size can only change by rewriting the
+  whole file; converting them is left to Phase 4's maintenance tools.
+  The rest of the gap to 1.5× is the index, which phrase search needs
+  (`detail='column'` would lose exact phrases). Compressing passages would
+  save more, but this index reads the text from `passages` for snippets,
+  deletes and rebuilds, so it would need a contentless index and snippets
+  built by Atlas; not worth it for 0.12×.
 - Opening a library made by Slice 1.3 rebuilds the index once, about 7.5 s
   per 600 MB of text on the M5 Pro, during the upgrade.
 - The fallback can return looser results for long queries; the Search

@@ -526,3 +526,88 @@ fn p1_14_battery_slows_then_pauses_then_resumes() {
     lib.wait_settled();
     assert_eq!(lib.overview().counts.done, catalogable);
 }
+
+/// P1-21: a path over 300 characters (each folder name well under the
+/// 255-character limit) is cataloged, read by the worker, searchable and
+/// resolvable for Open. On Windows this is past the old 260-character
+/// `MAX_PATH`.
+#[test]
+fn p1_21_a_300_character_path_is_cataloged_and_read() {
+    let lib = Lib::new();
+    let books = lib.books();
+    let mut dir = books.clone();
+    let mut depth = 0;
+    while dir.as_os_str().len() < 300 {
+        depth += 1;
+        dir = dir.join(format!(
+            "{depth:02}-{}",
+            "long folder name ".repeat(3).trim()
+        ));
+    }
+    fs::create_dir_all(&dir).unwrap();
+    let file = dir.join("a book in a very deep folder.pdf");
+    fs::copy(corpus().join("pdf/generated/book.pdf"), &file).unwrap();
+    assert!(file.as_os_str().len() > 300, "{}", file.display());
+    let before = originals(&books);
+
+    let root = lib.add(&books);
+    lib.wait_settled();
+    let found = lib
+        .files()
+        .into_values()
+        .find(|f| f.display_name == "a book in a very deep folder.pdf")
+        .expect("the long path is cataloged");
+    assert!(found.display_path.len() > 300);
+    assert_eq!(found.extraction.state, ExtractionState::Done);
+    let document = found.document_id.clone().unwrap();
+
+    // Searchable by a word from its own text.
+    let word: String = {
+        let document = document.clone();
+        lib.root()
+            .catalog()
+            .call(move |c| {
+                c.query_row(
+                    "SELECT text FROM passages WHERE document_id = ?1 ORDER BY ordinal LIMIT 1",
+                    [document],
+                    |r| r.get::<_, String>(0),
+                )
+            })
+            .unwrap()
+            .unwrap()
+            .split(|c: char| !c.is_alphabetic())
+            .find(|w| w.chars().count() >= 6)
+            .unwrap()
+            .to_owned()
+    };
+    let hits = atlas_lib::services::search::run(
+        lib.root().reader(),
+        lib.root().root_status(),
+        &atlas_lib::domain::dto::SearchQuery {
+            text: word.clone(),
+            source_root_id: Some(root),
+            file_type: None,
+            include_missing: false,
+            page: 0,
+            page_size: 10,
+        },
+    )
+    .unwrap();
+    assert!(
+        hits.hits
+            .iter()
+            .any(|h| h.document_id.as_deref() == Some(document.as_str())),
+        "searching {word:?} finds the deep file"
+    );
+
+    // Open resolves it (the OS call itself is not made in tests).
+    let rel = Path::new(&found.display_path)
+        .strip_prefix(dunce::canonicalize(&books).unwrap())
+        .unwrap()
+        .to_path_buf();
+    assert!(matches!(
+        atlas_lib::services::source_open::resolve(&dunce::canonicalize(&books).unwrap(), &rel),
+        Ok(atlas_lib::services::source_open::Resolved::File { .. })
+    ));
+    assert_eq!(originals(&books), before);
+}

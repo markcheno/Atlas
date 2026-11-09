@@ -15,6 +15,7 @@ use std::time::{Duration, Instant};
 use super::WORKER_ARG;
 use super::engine::hash::{HashError, Hashed};
 use super::engine::{Outcome, Piece, Summary};
+use super::lifetime;
 use super::locate::Unavailable;
 use super::protocol::{Frame, Request, encode_path};
 use crate::domain::dto::FileType;
@@ -193,6 +194,7 @@ impl Supervisor {
         let mut cmd = Command::new(&self.command.program);
         cmd.args(&self.command.args)
             .envs(self.command.env.iter().map(|(k, v)| (k, v)))
+            .env(lifetime::PARENT_ENV, std::process::id().to_string())
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::inherit());
@@ -205,6 +207,7 @@ impl Supervisor {
         let mut child = cmd
             .spawn()
             .map_err(|_| WorkerError::Unavailable(Unavailable::NotFound))?;
+        lifetime::contain(&child);
         self.stats.spawns.fetch_add(1, Ordering::SeqCst);
         let stdin = child.stdin.take().expect("piped stdin");
         let stdout = child.stdout.take().expect("piped stdout");

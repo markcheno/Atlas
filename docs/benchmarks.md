@@ -155,16 +155,33 @@ the amendment.
   still commit after it. Commits now check that the session is still
   running (ADR 0005); every run shows 0 files written after the pause.
 
-## Known limitation: resuming inside a very large folder
+## Resuming inside a very large folder
 
-Resuming a pause that happened inside the 20,000-file folder takes 16.6 to
-18.5 s before the first new file appears, at the policy rate, on every
-machine (0.3–1.4 s unthrottled). A folder is the unit of resumption
-(ADR 0005): it is listed again from the start, and the entries already
-written before the pause are replayed through the same throttle. Paused
-about 9,000 entries in, that is 9,000 ÷ 500 entries/s ≈ 18 s. The status
-shows the files already cataloged meanwhile. Charging less for replayed
-entries, or resuming mid-folder, is left for a later phase.
+Until Slice 1.7, resuming a pause that happened inside the 20,000-file
+folder took 16.6 to 18.5 s before the first new file appeared, at the
+policy rate, on every machine (0.3–1.4 s unthrottled). A folder is the unit
+of resumption (ADR 0005): it is listed again from the start, and the
+entries already written before the pause went through the same throttle
+again. Paused about 9,000 entries in, that is 9,000 ÷ 500 entries/s ≈ 18 s.
+
+Slice 1.7 charges those replayed entries a twentieth of an operation (ADR
+0004, ADR 0005): the scan's upsert leaves a row it already wrote unchanged
+untouched and counts it. Same benchmark (`--pause` on the 30k fixture,
+paused about 30% in), policy rate (P1-20 asks for under 3 s):
+
+| Machine | Before (Slice 0.8) | Slice 1.7 | Files written after pause |
+| --- | ---: | ---: | ---: |
+| M5 Pro (2026-11-09) | 16.6–18.5 s | 0.95 s | 0 |
+| macOS arm64 runner ([42634733190](https://github.com/markcheno/Atlas/actions/runs/42634733190)) | 16.6–18.5 s | 0.99 s | 0 |
+| Windows x64 runner (same run) | 16.6–18.5 s | 0.86 s | 0 |
+| Linux x64 runner (same run) | 16.6–18.5 s | 0.93 s | 0 |
+
+Unthrottled, the same resume takes 87–261 ms on the runners. The
+remaining second is the 450 operations the replayed 9,000 entries still
+cost, plus listing them again. `tests/inventory.rs` (P1-20) checks the
+same effect at a fixed rate of 400 entries/s on 4,000 files: the next new
+file must arrive in under half the 4 s that replaying at full cost takes.
+With the discount turned off, the test fails at 4.0 s.
 
 ## Regression check: Slice 1.1 (general jobs)
 
@@ -223,8 +240,8 @@ worker stays a mode of the app executable (2026-11-08).
 
 ## Text extraction, first measurement (Slice 1.3)
 
-The extraction benchmark proper (`benches/extraction.rs`, three OSes, duty
-cycles, catalog growth) is Slice 1.7. For a first number, the worker alone
+The extraction benchmark proper is in
+[Text extraction (Slice 1.7)](#text-extraction-slice-17). For a first number, the worker alone
 read the 1k text fixture (`just fixtures <dir> 1000 0 20`: 1,006 files,
 6,668 PDF pages plus EPUB chapters) one file at a time, hashing then
 extracting each, with no duty cycle, on the M5 Pro (2026-11-09, debug Rust,
@@ -303,5 +320,103 @@ So the 2.3× growth recorded in Slice 1.4 comes mostly from the
 `passages` table, not from the index: rows of about 3,000 characters
 fill SQLite's 4 KiB pages poorly. That points Slice 1.7's growth work at
 the page size or at compressing passages, not at the index.
+
+## Text extraction (Slice 1.7)
+
+`cargo bench --bench extraction` (`just bench-extraction`) catalogs a text
+fixture unthrottled, then reads it through the real job, supervisor and
+worker: at the Run duty cycle (50% busy, on AC), at the Slow one (20%, a
+simulated battery at 50%) and unthrottled. It samples the app and the
+worker separately, checkpoints the catalog and splits it with `dbstat`,
+and then kills a child app mid-read and finishes the job after reopening.
+Pages are PDF pages; passages add the EPUB pieces. Growth is against the
+text's stored bytes.
+
+**M5 Pro, 30k text fixture** (`30k-text-copies`: 32,006 files, 266,598 PDF
+pages, 293,068 passages, 594 MiB of text), release build, 2026-11-09:
+
+| Duty cycle | Read s | Files/s | Pages/s | First searchable s | App CPU % of a core | Worker CPU % | App / worker peak RSS MiB | Worker starts | Peak WAL MiB |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| Run (50%) | 350.4 | 91.3 | 761 | 0.30 | 28.2 | 26.0 | 45 / 21 | 1 | 26 |
+| Unthrottled | 133.8 | 239.3 | 1,993 | 0.02 | 44.0 | 60.6 | 47 / 20 | 1 | 29 |
+
+The policy said Run for the whole Run pass. The Run duty cycle reads 761
+pages a second, almost four times the provisional 200 pages/s
+(phase1-spec §13), so one worker is enough for Phase 1 (ADR 0009).
+The app's share is the catalog writer storing passages and keeping the
+full-text index in step. The end-of-pass index merge takes under a
+millisecond; the whole job ends as soon as the last file is read.
+
+**Kill mid-read** (30k, 6,408 documents read when the child was killed):
+no partial documents, no worker left running, no duplicate documents,
+nothing left waiting; reading the rest after reopening took 106 s
+unthrottled.
+
+**The duty cycle's effect on wall time.** A 50% duty cycle should take
+twice as long as unthrottled, 20% five times. With a rest after every file
+it took far longer: the files take milliseconds, and each millisecond
+sleep cost more than it rested (Windows rounds timers to about 15.6 ms;
+caches go cold and cores clock down, so on the M5 Pro the worker used 30%
+more CPU time for the same 1k fixture at Run, and 2.2× at Slow). Run took
+2.5× as long as unthrottled on the M5 Pro and 2.0–5.6× on the runners, with
+the policy at Run throughout. Rests now add up and are taken once they
+reach 100 ms (`REST_QUANTUM`), the same busy fraction in bursts of about
+100 ms:
+
+| M5 Pro | Before | Rests of at least 100 ms |
+| --- | ---: | ---: |
+| 1k, Run ÷ unthrottled wall time | 11.3 s ÷ 4.5 s = 2.5× | 7.7 s ÷ 3.9 s = 2.0× |
+| 1k, Slow ÷ unthrottled | 47.5 s ÷ 4.5 s = 10.6× | 34.2 s ÷ 3.9 s = 8.8× |
+| 30k, Run | 518.8 s (514 pages/s) | 350.4 s (761 pages/s) |
+
+Slow stays above 5×: at 20% the bursts are 25 ms, short enough for the
+cores to clock down between them, which on battery is the point.
+
+**Catalog growth** at 30k, new catalog (16 KiB pages):
+
+| Page size | Text stored | Catalog | Text pages | Index | Other | Catalog ÷ text |
+| ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| 4 KiB (Slice 1.6, same fixture) | 594 MiB | 1,409 MiB | 1,057 MiB | 237 MiB | 115 MiB | 2.37 |
+| 16 KiB (Slice 1.7) | 594 MiB | 963 MiB | 680 MiB | 236 MiB | 47 MiB | 1.62 |
+
+On the 1k text fixture, back to back on the M5 Pro: 44.3 MiB (2.24×) with
+4 KiB pages and 33.3 MiB (1.68×) with 16 KiB; reading unthrottled was 2–3%
+slower with 16 KiB pages over repeated runs (2,455–2,687 against
+2,588–2,751 passages/s), within the spread between first and later runs.
+The 1.62× is still above the provisional 1.5×; the difference is the
+full-text index, which exact phrases need ([ADR 0010](adr/0010-full-text-search.md)).
+Catalogs created before Slice 1.7 keep 4 KiB pages.
+
+**Problems this benchmark found.** The end of every pass waited 45–48 s
+at 30k files (0 s at 1k): the Slice 1.6 query for documents due to be read
+again was quadratic in a root's files, holding the catalog writer. It now
+starts from the marked documents ([ADR 0011](adr/0011-re-reading-without-losing-search.md));
+an unthrottled 30k read went from 192 s to 134 s. The first harness also
+read the library's status every 100 ms, which at 30k files cost the app
+about 20% of a core of its own; it now reads it every 500 ms once text is
+searchable.
+
+**CI runners, 1k text fixture** (1,106 files, 6,668 PDF pages, 9,322
+passages, 19.8 MiB of text), release build, [run 42651988551](https://github.com/markcheno/Atlas/actions/runs/42651988551),
+2026-11-09. The policy said Run, or on battery for the Slow pass,
+throughout:
+
+| Runner | Duty cycle | Read s | Pages/s | App / worker CPU % | App / worker peak RSS MiB | Catalog ÷ text |
+| --- | --- | ---: | ---: | ---: | ---: | ---: |
+| macOS arm64 (M1, 3 vCPU) | Run | 30.5 | 219 | 14.2 / 19.9 | 27 / 19 | 1.68 |
+| | Slow | 89.7 | 74 | 6.1 / 6.8 | 31 / 19 | 1.68 |
+| | Unthrottled | 13.3 | 503 | 34.4 / 56.7 | 31 / 19 | 1.68 |
+| Windows x64 (Xeon, 4 vCPU) | Run | 41.3 | 162 | 14.7 / 15.5 | 24 / 16 | 1.68 |
+| | Slow | 158.3 | 42 | 7.7 / 4.3 | 24 / 16 | 1.68 |
+| | Unthrottled | 19.7 | 339 | 22.2 / 31.1 | 20 / 16 | 1.68 |
+| Linux x64 (EPYC, 4 vCPU) | Run | 18.7 | 356 | 13.7 / 28.3 | 17 / 44 | 1.67 |
+| | Slow | 47.8 | 139 | 6.5 / 11.4 | 18 / 44 | 1.68 |
+| | Unthrottled | 9.7 | 691 | 23.4 / 54.8 | 18 / 44 | 1.68 |
+
+One worker start per pass everywhere, the first passage searchable within
+0.5 s, and the WAL peaked at 16–18 MiB. Run takes 1.9–2.3× as long as
+unthrottled on the runners (2.0–5.6× before rests were pooled). Kill
+mid-read on every runner: 222–232 documents read, no partial documents,
+the worker gone within 55 ms, no duplicates, nothing left waiting.
 
 <!-- results:end -->

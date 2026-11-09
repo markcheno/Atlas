@@ -33,6 +33,11 @@ pub const BATTERY_RESUME_AT_PERCENT: f32 = 25.0;
 /// core on an M5 Pro at 30,000 files, leaving headroom for slower machines.
 pub const AC_OPS_PER_SECOND: u32 = 500;
 pub const SLOW_OPS_PER_SECOND: u32 = AC_OPS_PER_SECOND / 5;
+/// An entry a resumed scan lists again, already written and unchanged,
+/// costs this fraction of an operation (1/N): it is stat'ed but writes
+/// nothing. Resuming 9,000 entries into a folder then waits about 0.9 s at
+/// the AC rate instead of 18 s (P1-20, ADR 0004).
+pub const REPLAY_COST_DIVISOR: u32 = 20;
 
 #[derive(Debug, Default)]
 pub struct ResourcePolicy {

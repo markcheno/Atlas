@@ -173,12 +173,18 @@ pub fn run() {
         .build(tauri::generate_context!())
         .expect("error while building Atlas")
         .run(|app, event| {
-            // Stop the inventory worker cleanly; no scanner outlives the app.
+            // Stop the jobs cleanly: no scanner or extraction worker
+            // outlives the app, and the worker is killed before the
+            // catalog closes (P1-22). A lock poisoned by an earlier panic
+            // still guards a usable workspace, so shut it down anyway.
             if let tauri::RunEvent::Exit = event
                 && let Some(state) = app.try_state::<AppState>()
-                && let Ok(mut workspace) = state.workspace.lock()
             {
-                workspace.shutdown();
+                state
+                    .workspace
+                    .lock()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner)
+                    .shutdown();
             }
         });
 }

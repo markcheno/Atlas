@@ -1,18 +1,22 @@
 #!/usr/bin/env node
 // Runs the benchmark suite (phase0-spec §13, phase1-spec §13;
 // docs/benchmarks.md): generates fixtures if needed, runs `cargo bench
-// --bench inventory` for each cataloging scenario and `cargo bench --bench
-// search` on the 30k text fixture, and writes JSON results plus a Markdown
-// summary.
+// --bench inventory` for each cataloging scenario, `cargo bench --bench
+// search` on the 30k text fixture and `cargo bench --bench extraction` on
+// the same fixture, and writes JSON results plus a Markdown summary.
 //
-//   node scripts/bench.mjs [--out <dir>] [--sweep] [--search-only] [--search-size 30k|1k]
+//   node scripts/bench.mjs [--out <dir>] [--sweep] [--search-only] [--extraction-only]
+//                          [--search-size 30k|1k] [--extraction-size 30k|1k]
 //                          [--max-p95-ms 250]
 //
 // --search-size picks the search fixture: 30k (default; the P1-19 reference
 // measurement, run locally) or 1k (CI: the 30k text fixture takes over 40
-// minutes on Windows runners).
+// minutes on Windows runners). --extraction-size does the same for the
+// extraction benchmark (default: the search size); at 1k it also reads at
+// the Slow duty cycle (simulated battery), which takes too long at 30k.
 // --sweep adds the 30k throttle sweep (about 10 minutes) used to choose
-// the cataloging rate. --search-only runs just the search benchmark;
+// the cataloging rate. --search-only runs just the search benchmark,
+// --extraction-only just the extraction benchmark;
 // --max-p95-ms makes it fail above that search p95 while reading (the
 // reference machine's check, P1-19). Fixtures go in <out>/fixtures and are
 // reused.
@@ -32,9 +36,17 @@ const opt = (name, fallback) => {
 const out = path.resolve(opt('out', path.join(os.tmpdir(), 'atlas-bench')));
 const sweep = args.includes('--sweep');
 const searchOnly = args.includes('--search-only');
+const extractionOnly = args.includes('--extraction-only');
+if (searchOnly && extractionOnly)
+  throw new Error('--search-only and --extraction-only exclude each other');
+const runInventory = !searchOnly && !extractionOnly;
+const runSearch = !extractionOnly;
+const runExtraction = !searchOnly;
 const maxP95 = opt('max-p95-ms', null);
 const searchSize = opt('search-size', '30k');
 if (!['30k', '1k'].includes(searchSize)) throw new Error('--search-size is 30k or 1k');
+const extractionSize = opt('extraction-size', searchSize);
+if (!['30k', '1k'].includes(extractionSize)) throw new Error('--extraction-size is 30k or 1k');
 fs.mkdirSync(path.join(out, 'fixtures'), { recursive: true });
 
 function fixture(name, files, flat, textKb = 0, copies = 0) {
@@ -56,18 +68,21 @@ function fixture(name, files, flat, textKb = 0, copies = 0) {
   return { dir, expect: JSON.parse(fs.readFileSync(meta, 'utf8')).catalogableFiles };
 }
 
-const small = searchOnly ? null : fixture('1k', 1000, 0);
+const small = runInventory ? fixture('1k', 1000, 0) : null;
 // §11: 30,000 files including one flat folder of 20,000.
-const large = searchOnly ? null : fixture('30k', 10000, 20000);
+const large = runInventory ? fixture('30k', 10000, 20000) : null;
 // Phase 1 §11: the same layout with about 20 KiB of text per file, plus
 // identical copies (Slice 1.6) so Library › Duplicates has groups to list.
-const searchLabel = `${searchSize}-text`;
-const searchFixture =
-  searchSize === '30k'
+const textFixture = (size) =>
+  size === '30k'
     ? fixture('30k-text-copies', 10000, 20000, 20, 2000)
     : fixture('1k-text-copies', 1000, 0, 20, 100);
+const searchLabel = `${searchSize}-text`;
+const searchFixture = runSearch ? textFixture(searchSize) : null;
+const extractionLabel = `${extractionSize}-text`;
+const extractionFixture = runExtraction ? textFixture(extractionSize) : null;
 
-const scenarios = searchOnly
+const scenarios = !runInventory
   ? []
   : [
       {
@@ -88,7 +103,7 @@ const scenarios = searchOnly
         extra: ['--browse', '5', '--pause', '--recovery'],
       },
     ];
-if (sweep && !searchOnly) {
+if (sweep && runInventory) {
   scenarios.push({
     id: '30k-sweep',
     f: large,
@@ -111,6 +126,8 @@ execFileSync(
     'inventory',
     '--bench',
     'search',
+    '--bench',
+    'extraction',
     '--no-run',
   ],
   { stdio: 'inherit' },
@@ -149,33 +166,70 @@ for (const s of scenarios) {
   results.push({ id: s.id, ...JSON.parse(fs.readFileSync(file, 'utf8')) });
 }
 
-console.error(`bench: ${searchLabel} search`);
-const searchFile = path.join(out, `bench-${searchLabel}-search.json`);
-execFileSync(
-  'cargo',
-  [
-    'bench',
-    '--manifest-path',
-    path.join(repo, 'src-tauri', 'Cargo.toml'),
-    '--locked',
-    '--bench',
-    'search',
-    '--',
-    '--fixture',
-    searchFixture.dir,
-    '--label',
-    searchLabel,
-    '--expect',
-    String(searchFixture.expect),
-    '--out',
-    searchFile,
-    ...(maxP95 ? ['--max-p95-ms', String(maxP95)] : []),
-  ],
-  { stdio: ['ignore', 'ignore', 'inherit'] },
-);
-const searchResult = JSON.parse(fs.readFileSync(searchFile, 'utf8'));
+let searchResult = null;
+if (runSearch) {
+  console.error(`bench: ${searchLabel} search`);
+  const searchFile = path.join(out, `bench-${searchLabel}-search.json`);
+  execFileSync(
+    'cargo',
+    [
+      'bench',
+      '--manifest-path',
+      path.join(repo, 'src-tauri', 'Cargo.toml'),
+      '--locked',
+      '--bench',
+      'search',
+      '--',
+      '--fixture',
+      searchFixture.dir,
+      '--label',
+      searchLabel,
+      '--expect',
+      String(searchFixture.expect),
+      '--out',
+      searchFile,
+      ...(maxP95 ? ['--max-p95-ms', String(maxP95)] : []),
+    ],
+    { stdio: ['ignore', 'ignore', 'inherit'] },
+  );
+  searchResult = JSON.parse(fs.readFileSync(searchFile, 'utf8'));
+}
 
-const md = (results.length ? summarize(results) : '') + summarizeSearch(searchResult);
+let extractionResult = null;
+if (runExtraction) {
+  console.error(`bench: ${extractionLabel} extraction`);
+  const extractionFile = path.join(out, `bench-${extractionLabel}-extraction.json`);
+  execFileSync(
+    'cargo',
+    [
+      'bench',
+      '--manifest-path',
+      path.join(repo, 'src-tauri', 'Cargo.toml'),
+      '--locked',
+      '--bench',
+      'extraction',
+      '--',
+      '--fixture',
+      extractionFixture.dir,
+      '--label',
+      extractionLabel,
+      '--duty',
+      extractionSize === '30k' ? 'run,unthrottled' : 'run,slow,unthrottled',
+      '--recovery',
+      '--expect',
+      String(extractionFixture.expect),
+      '--out',
+      extractionFile,
+    ],
+    { stdio: ['ignore', 'ignore', 'inherit'] },
+  );
+  extractionResult = JSON.parse(fs.readFileSync(extractionFile, 'utf8'));
+}
+
+const md =
+  (results.length ? summarize(results) : '') +
+  (searchResult ? summarizeSearch(searchResult) : '') +
+  (extractionResult ? summarizeExtraction(extractionResult) : '');
 fs.writeFileSync(path.join(out, `bench-${process.platform}.md`), md);
 console.log(md);
 if (process.env.GITHUB_STEP_SUMMARY) fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, md);
@@ -275,6 +329,43 @@ function summarizeSearch(r) {
       '| --- | ---: | --- |',
       `| list_duplicates (first page) | ${cell(r.duplicates.latency)} | ${r.duplicates.groups} groups |`,
       `| get_storage_usage | ${cell(r.storage.latency)} | text ${mib(r.storage.textBytes)} MiB, index ${mib(r.storage.indexBytes)} MiB, catalog ${mib(r.storage.catalogBytes)} MiB |`,
+    );
+  }
+  return `${lines.join('\n')}\n`;
+}
+
+function summarizeExtraction(r) {
+  const mib = (b) => (b == null ? '–' : (b / 1048576).toFixed(1));
+  const lines = [
+    '',
+    `## Text extraction: ${r.label} (${r.machine.os} ${r.machine.arch}${r.machine.ci ? ', CI runner' : ''})`,
+    '',
+    '| Duty cycle | Files | PDF pages | Passages | Read s | Files/s | Pages/s | Passages/s | First searchable s | App CPU % | Worker CPU % | App / worker peak RSS MiB | Worker starts | Peak WAL MiB | Policy seen |',
+    '| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- |',
+  ];
+  for (const x of r.runs) {
+    lines.push(
+      `| ${x.duty} | ${x.files} | ${x.pdfPages} | ${x.passages} | ${x.readSeconds} | ${x.filesPerSecond} | ${x.pagesPerSecond} | ${x.passagesPerSecond} | ${x.firstSearchableSeconds ?? '–'} | ${x.appCpuPercentOfOneCore} | ${x.workerCpuPercentOfOneCore} | ${x.appPeakRssMiB} / ${x.workerPeakRssMiB} | ${x.workerSpawns} | ${x.peakWalMiB} | ${Object.entries(
+        x.policySeen ?? {},
+      )
+        .map(([k, n]) => `${k} ${n}`)
+        .join(', ')} |`,
+    );
+  }
+  const g = r.runs[0].growth;
+  lines.push(
+    '',
+    '| Catalog growth | Page size | Text stored MiB | Catalog MiB | Text pages MiB | Index MiB | Other MiB | Catalog ÷ text |',
+    '| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |',
+    `| ${r.runs[0].duty} | ${g.pageSize} | ${mib(g.textStoredBytes)} | ${mib(g.catalogBytes)} | ${mib(g.textBytes)} | ${mib(g.indexBytes)} | ${mib(g.otherBytes)} | ${g.catalogPerText} |`,
+  );
+  if (r.recovery) {
+    const k = r.recovery;
+    lines.push(
+      '',
+      '| Kill mid-read | Documents at kill | Partial documents | Workers left after kill | Resume to complete s | Duplicate documents | Still waiting |',
+      '| --- | ---: | ---: | ---: | ---: | ---: | ---: |',
+      `| ${r.label} | ${k.documentsAtKill} | ${k.partialDocumentsAtKill} | ${k.workersLeftAfterKill} of ${k.workersAtKill} | ${k.resumeToCompleteSeconds} | ${k.duplicateDocuments} | ${k.pendingAfterResume} |`,
     );
   }
   return `${lines.join('\n')}\n`;

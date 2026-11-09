@@ -119,7 +119,7 @@ worker-hello exe="src-tauri/target/debug/atlas":
     cargo build --manifest-path {{ manifest }} --locked
     node scripts/worker-hello.mjs {{ exe }}
 
-# Benchmark suite (1k and 30k fixtures, release build); results in the temp dir unless `out` is given
+# Benchmark suite (cataloging on the 1k and 30k fixtures, search and extraction on the 30k text fixture; release build); results in the temp dir unless `out` is given
 bench out="":
     pnpm bench {{ if out == "" { "" } else { "--out " + out } }}
 
@@ -130,6 +130,10 @@ bench-full out="":
 # Search benchmark only (30k text fixture, release build); fails above 250 ms p95 while reading (P1-19, reference machine)
 bench-search out="":
     pnpm bench --search-only --max-p95-ms 250 {{ if out == "" { "" } else { "--out " + out } }}
+
+# Extraction benchmark only (release build): `size` 30k (default; Run and unthrottled) or 1k (also the Slow duty cycle), plus a kill mid-read
+bench-extraction size="30k" out="":
+    pnpm bench --extraction-only --extraction-size {{ size }} {{ if out == "" { "" } else { "--out " + out } }}
 
 # Ask a question set (fixtures/README.md) against a library, read-only, e.g. `just eval my-questions.json ~/AtlasData`; `ids` maps corpus ids (spikes/extraction-bench/corpus/manifest.json)
 eval questions data_root ids="":

@@ -110,3 +110,11 @@ On the CI runners (shared 3–4 core VMs on all three OSes), 500 costs
 stays at 2–4 ms on 1k and at most 125 ms on 30k, so it stays within the
 rule on slower machines ([benchmarks](../benchmarks.md)). Revisit when real users' hardware reports arrive, or when
 Phase 1 adds per-file reading, which has a very different cost.
+
+**Amendment (Slice 1.7): replayed entries.** When a resumed scan lists a
+folder again, entries it already wrote unchanged cost a twentieth of an
+operation (`REPLAY_COST_DIVISOR = 20`, next to the rates in
+`scheduler/policy.rs`). They are still listed and stat'ed, so the I/O stays
+under the limit, but they write nothing to the catalog. At 500 entries a
+second, replaying 9,000 entries costs about 0.9 s instead of 18 s (P1-20,
+ADR 0005).

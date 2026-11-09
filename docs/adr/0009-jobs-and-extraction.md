@@ -140,12 +140,30 @@ stored.
 tests can use the Cargo-built binary), reads frames on a thread, kills it
 after 30 s without a frame or above `min(1 GiB, 15% of RAM)` resident, and
 starts a new one for the next request. Dropping the supervisor kills the
-worker, so it never outlives the open library; a killed app's worker exits
-when its stdin closes.
+worker, so it never outlives the open library.
+
+**No worker outlives a killed app** (Slice 1.7, P1-22). A worker notices a
+closed pipe only at its next read or write, so one hashing a large file,
+inside a long PDFium call or hung would outlive an app that was killed,
+crashed or force-quit, with nothing left to enforce the timeout or the
+memory cap. The app passes its process ID in `ATLAS_WORKER_PARENT`, and a
+watchdog thread in the worker ends the process as soon as that parent is
+gone: on Unix when the worker is reparented (checked every 250 ms), on
+Windows when a wait on the parent's process handle returns. It ends the
+process with `_exit` (`TerminateProcess` on Windows), running no exit
+handlers, because PDFium may be in the middle of a call on the main thread.
+On Windows every worker also joins a Job Object with
+`KILL_ON_JOB_CLOSE`, whose handle the app never closes, so the kernel ends
+the worker when the app ends even if the watchdog never runs. On quit the
+app shuts the workspace down even if its lock was poisoned by an earlier
+panic.
 
 **Policy.** Extraction shares the scan's resource governor (the same
 battery hysteresis) and maps its mode to a duty cycle rather than a rate:
-50% busy on Run, 20% on Slow, paused on Paused. `ATLAS_EXTRACT_UNTHROTTLED`
+50% busy on Run, 20% on Slow, paused on Paused. Each file owes a rest of
+its own length × (1/duty − 1); owed rests add up and are taken once they
+reach 100 ms (`REST_QUANTUM`, Slice 1.7), because thousands of millisecond
+sleeps cost more than they rest. `ATLAS_EXTRACT_UNTHROTTLED`
 (debug builds) removes the rest. A finished scan with pending files queues
 an extract job in its own transaction and wakes the extraction runner
 through a waker shared by all runners of the root; opening a library
@@ -170,8 +188,18 @@ queues one for every root with pending files.
   Linux x64.
 - A document is deleted only when its last file is purged; an orphan
   sweep is not built yet (Phase 1 doesn't purge automatically).
-- One worker per open library. Two (`ATLAS_EXTRACT_WORKERS`) are left for
-  Slice 1.7, with the extraction benchmark that would justify them.
+- One worker per open library, for all of Phase 1 (product-owner
+  decision, Slice 1.7). `ATLAS_EXTRACT_WORKERS` is not built: one worker
+  reads 761 pages a second at the Run duty cycle on the 30k text
+  fixture on the reference machine, almost four times the 200 pages/s
+  target
+  ([benchmarks](../benchmarks.md#text-extraction-slice-17)), and a second
+  needs parallel dispatch, a new crash and cursor scheme and care with
+  identical files. Revisit when a later phase (embeddings) needs more.
+- Verified by P1-22 (`tests/extraction_crash.rs`): a child app is killed
+  while its worker is reading, and while its worker hangs inside a
+  request; the worker is gone within seconds on every OS, and relaunching
+  reads the rest.
 - Verified by P1-03 … P1-14 (`tests/extraction.rs`,
   `tests/extraction_crash.rs`) and `tests/supervisor.rs`, against the real
   worker.

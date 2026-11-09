@@ -221,7 +221,11 @@ Implemented in `src-tauri/src/services/workspace/`. Design rationale is in
   a root another process holds.
 - **Catalog:** one writer thread owns the only read-write connection, with
   `journal_mode=WAL`, `synchronous=NORMAL`, `foreign_keys=ON`, and a 5 second
-  busy timeout. Migrations in `src-tauri/migrations/` run in order, each in
+  busy timeout. A new catalog gets 16 KiB pages (`NEW_CATALOG_PAGE_SIZE`,
+  set before the switch to WAL fixes it; Slice 1.7), so the 2–4 KB
+  passages share pages instead of each half-filling a 4 KiB one; a catalog
+  created earlier keeps 4 KiB ([ADR 0010](adr/0010-full-text-search.md)).
+  Migrations in `src-tauri/migrations/` run in order, each in
   its own transaction. The schema version is read before anything is
   written, so a newer catalog is refused untouched.
 - **Data-root paths** must be absolute and valid Unicode. Source paths in
@@ -339,7 +343,11 @@ Implemented in `src-tauri/src/services/inventory/`; rationale in
   session is still running, so a pause or cancel leaves no late writes.
   Every 2 seconds it re-checks the source folder and the resource policy,
   and it paces itself with a token
-  bucket. Classification is by extension only, and file contents are never
+  bucket. A folder interrupted part-way is listed again from its first
+  entry on resume; entries this scan already wrote unchanged are left
+  untouched by the upsert and cost a twentieth of an operation
+  (`REPLAY_COST_DIVISOR`, Slice 1.7), so the next new file arrives in
+  about a second even 9,000 entries into a 20,000-file folder (P1-20). Classification is by extension only, and file contents are never
   opened.
 - **Triggers.** A session starts when a folder is added, on Rescan, or when
   a library opens with interrupted work or a never-scanned folder. User
@@ -347,6 +355,12 @@ Implemented in `src-tauri/src/services/inventory/`; rationale in
 - **Missing files.** A file is marked missing only when its folder was
   listed successfully in a session and the file wasn't found. A folder
   that can't be read protects its whole subtree.
+- **Links and long paths.** Symlinks, and on Windows junctions (which std
+  reports as symlinks), are skipped and counted, never followed. Paths are
+  stored as native bytes with no length limit; on Windows, std adds the
+  `\\?\` prefix to paths past 260 characters, so they are cataloged and
+  read like any other (P1-21, Slice 1.7). Opening one goes through the
+  Windows shell, which isn't tested on paths that long.
 - **Cloud files.** iCloud dataless files, legacy `.icloud` placeholders,
   and Windows cloud placeholders are cataloged as `cloud_only` without
   being downloaded. Listing a dataless folder has a 15 second timeout.
@@ -457,6 +471,16 @@ Implemented in `src-tauri/src/services/extraction/` (the worker in Slice
   back to `src-tauri/vendor/pdfium/<platform>/`.
 - **The main process never loads PDFium.** `pdfium-render` binds it at run
   time (`dlopen`/`LoadLibrary`), and only the worker calls it.
+- **Lifetime** (`extraction/lifetime.rs`, Slice 1.7, P1-22). Quitting stops
+  the job, and the supervisor kills the worker before the catalog closes.
+  If the app is killed or crashes instead, a watchdog thread in the worker
+  ends it as soon as its parent (`ATLAS_WORKER_PARENT`) is gone: on Unix
+  when the worker is reparented, checked every 250 ms; on Windows when a
+  wait on the parent's handle returns. It exits without running exit
+  handlers, since PDFium may be mid-call. On Windows each worker is also
+  in a kill-on-close Job Object the app holds open, so the kernel ends it
+  with the app. One worker per library (`ATLAS_EXTRACT_WORKERS` is not
+  built; [ADR 0009](adr/0009-jobs-and-extraction.md)).
 
 ## Extraction
 
@@ -496,6 +520,9 @@ The job side, in the app process (Slice 1.3, ADR 0009).
   old text. The status line says "Updating text · N files to go".
 - **Policy.** The scan's governor and battery hysteresis, as a duty cycle:
   50% busy on Run, 20% when slowed, paused below 20% battery until 25%.
+  Each file owes a rest in proportion to its time; owed rests are taken
+  once they reach 100 ms (`REST_QUANTUM`), since a sleep after every
+  millisecond-long file costs more than it rests (Slice 1.7).
 - **Status.** `extraction-status` (an `ExtractionOverview`: the active job
   with the file being read, counts by text status, per-folder counts) at
   most four times a second plus every change; `get_extraction_status`
@@ -623,12 +650,16 @@ Implemented in `src-tauri/src/services/search/` (Slice 1.4); rationale in
   `tauri.conf.json`), and debug builds append the driver's arguments to
   wry's defaults. macOS has no WebDriver for WKWebView, so it uses the
   manual checklist.
-- **Benchmarks** (`src-tauri/benches/inventory.rs`, driven by
-  `scripts/bench.mjs`). Release build, real filesystem and SQLite, and
-  simulated power for repeatable AC and battery runs. The harness follows
-  the runner's progress events instead of polling, so it measures
-  cataloging rather than itself. Method and results:
-  [benchmarks](benchmarks.md).
+- **Benchmarks** (`src-tauri/benches/`, driven by `scripts/bench.mjs`).
+  Release build, real filesystem and SQLite, and simulated power for
+  repeatable AC and battery runs. `inventory.rs` catalogs (following the
+  runner's progress events instead of polling, so it measures cataloging
+  rather than itself), `search.rs` searches while text is read, and
+  `extraction.rs` (Slice 1.7) reads a text fixture at the Run and Slow duty
+  cycles and unthrottled, sampling the app and the worker, and kills a
+  child mid-read to check recovery. CI runs all three on the 1k fixtures;
+  the 30k text fixture runs locally (`just bench-search`,
+  `just bench-extraction`). Method and results: [benchmarks](benchmarks.md).
 
 ## Spikes (Slice 0.9)
 
@@ -680,6 +711,9 @@ Slice 1.1 built the jobs table and runners ([Jobs](#jobs)); Slice 1.2 the
 text fixtures, PDFium delivery and the [extraction worker](#extraction-worker);
 Slice 1.3 [extraction](#extraction) itself; Slice 1.4 [search](#search);
 Slice 1.5 the Search screen and document details ([Frontend](#frontend));
-Slice 1.6 [metadata, duplicates and storage](#metadata-duplicates-and-storage).
-The Phase 1 carry-overs and the close-out are not in the code yet; this
+Slice 1.6 [metadata, duplicates and storage](#metadata-duplicates-and-storage);
+Slice 1.7 the carry-overs: cheaper replays when resuming inside a large
+folder ([Inventory](#inventory)), the worker's [lifetime](#extraction-worker),
+16 KiB catalog pages ([Data root](#data-root)), and the extraction
+benchmark. The close-out (Slice 1.8) is evidence and documents; this
 document is updated slice by slice as it lands.

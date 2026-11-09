@@ -52,6 +52,8 @@ windows-sys = { version = "0.61.2", features = [
     "Win32_Foundation",
     "Win32_System_Console",
     "Win32_System_Threading",
+    "Win32_System_JobObjects",
+    "Win32_Security",
 ] }
 
 [target.'cfg(target_os = "macos")'.dependencies]
@@ -71,6 +73,11 @@ harness = false
 [[bench]]
 # Phase 1 search benchmark and evaluation: `just bench-search`, `just eval`.
 name = "search"
+harness = false
+
+[[bench]]
+# Phase 1 extraction benchmark: `just bench-extraction`.
+name = "extraction"
 harness = false
 
 [dev-dependencies]

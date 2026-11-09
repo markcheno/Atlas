@@ -9,6 +9,7 @@
 pub mod db;
 pub mod engine;
 pub mod job;
+pub mod lifetime;
 pub mod locate;
 pub mod protocol;
 pub mod supervisor;

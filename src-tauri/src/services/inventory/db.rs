@@ -145,7 +145,10 @@ impl Batch {
 /// Whether a batch was written.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Committed {
-    Yes,
+    /// Written. `replayed` counts entries this session had already written
+    /// unchanged (a folder listed again after a pause): they changed
+    /// nothing, so the scan charges them less (P1-20, ADR 0005).
+    Yes { replayed: usize },
     /// The session left `running` (paused, cancelled, or removed) while the
     /// batch was being listed. Nothing was written; the directory stays
     /// pending and is listed again on resume.
@@ -167,6 +170,7 @@ pub fn commit_batch(
     now: &str,
 ) -> rusqlite::Result<Committed> {
     let tx = conn.transaction()?;
+    let mut replayed = 0;
     {
         let running = tx.execute(
             "UPDATE jobs SET
@@ -194,7 +198,9 @@ pub fn commit_batch(
              VALUES (?1, ?2, 'pending')",
         )?;
         for rel in &batch.dirs {
-            add_dir.execute(params![session_id, rel])?;
+            if add_dir.execute(params![session_id, rel])? == 0 {
+                replayed += 1;
+            }
         }
 
         let mut upsert = tx.prepare_cached(
@@ -232,10 +238,18 @@ pub fn commit_batch(
                  storage = excluded.storage,
                  last_seen_session_id = excluded.last_seen_session_id,
                  search_key = excluded.search_key,
-                 name_key = excluded.name_key",
+                 name_key = excluded.name_key
+             -- A row this session already wrote, unchanged, is left alone,
+             -- so the statement reports no change and the entry counts as
+             -- replayed.
+             WHERE last_seen_session_id IS NOT excluded.last_seen_session_id
+                OR size_bytes IS NOT excluded.size_bytes
+                OR mtime_secs IS NOT excluded.mtime_secs
+                OR availability <> 'available'
+                OR storage <> excluded.storage",
         )?;
         for f in &batch.files {
-            upsert.execute(params![
+            let changed = upsert.execute(params![
                 uuid::Uuid::new_v4().to_string(),
                 root_id,
                 f.rel_path,
@@ -252,6 +266,9 @@ pub fn commit_batch(
                 f.search_key,
                 f.name_key,
             ])?;
+            if changed == 0 {
+                replayed += 1;
+            }
         }
 
         if let Some(dir_id) = batch.done_dir {
@@ -262,7 +279,7 @@ pub fn commit_batch(
         }
     }
     tx.commit()?;
-    Ok(Committed::Yes)
+    Ok(Committed::Yes { replayed })
 }
 
 /// Completes a session whose frontier is empty.
@@ -486,7 +503,7 @@ mod tests {
 
         assert_eq!(
             commit_batch(&mut conn, "s1", "r1", &batch(b"a"), "t").unwrap(),
-            Committed::Yes
+            Committed::Yes { replayed: 0 }
         );
         assert_eq!(dirs(&conn), 1);
 
@@ -513,5 +530,108 @@ mod tests {
             )
             .unwrap();
         assert_eq!(skipped, 1);
+    }
+
+    fn running_session(conn: &Connection, id: &str) {
+        insert_job(conn, id, "r1", JobKind::Scan, "t").unwrap();
+        assert!(
+            transition(
+                conn,
+                id,
+                JobState::Running,
+                &[JobState::Queued],
+                None,
+                None,
+                "t"
+            )
+            .unwrap()
+        );
+    }
+
+    fn file(name: &str, size: u64) -> FileRecord {
+        FileRecord {
+            rel_path: name.as_bytes().to_vec(),
+            display_path: name.into(),
+            display_name: name.into(),
+            extension: "pdf".into(),
+            file_type: "pdf".into(),
+            size_bytes: Some(size),
+            mtime_secs: Some(1),
+            modified_at: None,
+            cloud_only: false,
+            search_key: name.into(),
+            name_key: name.into(),
+        }
+    }
+
+    #[test]
+    fn entries_a_session_already_wrote_count_as_replayed() {
+        let mut conn = Connection::open_in_memory().unwrap();
+        crate::services::catalog::migrations::migrate(&mut conn, "t").unwrap();
+        conn.execute_batch("PRAGMA foreign_keys = OFF").unwrap();
+        running_session(&conn, "s1");
+        let batch = |files: Vec<FileRecord>| Batch {
+            dirs: vec![b"sub".to_vec()],
+            files,
+            ..Batch::default()
+        };
+        let updated = |c: &Connection| -> String {
+            c.query_row(
+                "SELECT updated_at FROM file_instances WHERE rel_path = CAST('a.pdf' AS BLOB)",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap()
+        };
+
+        let first = commit_batch(
+            &mut conn,
+            "s1",
+            "r1",
+            &batch(vec![file("a.pdf", 1), file("b.pdf", 2)]),
+            "t1",
+        );
+        assert_eq!(first.unwrap(), Committed::Yes { replayed: 0 });
+
+        // The same folder listed again after a pause: nothing changes.
+        let again = commit_batch(
+            &mut conn,
+            "s1",
+            "r1",
+            &batch(vec![file("a.pdf", 1), file("b.pdf", 2)]),
+            "t2",
+        );
+        assert_eq!(again.unwrap(), Committed::Yes { replayed: 3 });
+        assert_eq!(updated(&conn), "t1");
+
+        // A file that changed meanwhile is written, not replayed.
+        let changed = commit_batch(
+            &mut conn,
+            "s1",
+            "r1",
+            &batch(vec![file("a.pdf", 9), file("b.pdf", 2)]),
+            "t3",
+        );
+        assert_eq!(changed.unwrap(), Committed::Yes { replayed: 2 });
+        assert_eq!(updated(&conn), "t3");
+
+        // A rescan is a new session: every entry is written again.
+        running_session(&conn, "s2");
+        let rescan = commit_batch(
+            &mut conn,
+            "s2",
+            "r1",
+            &batch(vec![file("a.pdf", 9), file("b.pdf", 2)]),
+            "t4",
+        );
+        assert_eq!(rescan.unwrap(), Committed::Yes { replayed: 0 });
+        let seen: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM file_instances WHERE last_seen_session_id = 's2'",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(seen, 2);
     }
 }
