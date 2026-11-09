@@ -158,6 +158,7 @@ pub fn run() {
             commands::extraction::get_extraction_status,
             commands::search::search_documents,
             commands::documents::get_document_detail,
+            commands::documents::list_duplicates,
             commands::library::list_documents,
             commands::library::open_original,
             commands::library::reveal_original,

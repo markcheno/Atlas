@@ -2,6 +2,7 @@
 //! (title, authors, language, pages) and the other copies of its content.
 //! Read on the read-only pool.
 
+pub mod duplicates;
 pub mod metadata;
 
 use rusqlite::{Connection, OptionalExtension};

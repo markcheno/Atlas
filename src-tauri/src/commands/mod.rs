@@ -44,6 +44,7 @@ pub const COMMAND_NAMES: &[&str] = &[
     "get_extraction_status",
     "search_documents",
     "get_document_detail",
+    "list_duplicates",
     "list_documents",
     "open_original",
     "reveal_original",

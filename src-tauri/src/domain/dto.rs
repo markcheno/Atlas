@@ -513,6 +513,53 @@ pub enum TitleSource {
     FileName,
 }
 
+/// Groups of files with identical content (Library › Duplicates, Slice
+/// 1.6). A group is a document with at least two available copies inside
+/// the filters.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct DuplicateQuery {
+    pub source_root_id: Option<RecordId>,
+    pub file_type: Option<FileType>,
+    /// Also list missing copies (they never count toward a group).
+    #[serde(default)]
+    pub include_missing: bool,
+    pub page: u32,
+    pub page_size: u32,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct DuplicateGroup {
+    pub document_id: RecordId,
+    pub title: String,
+    pub title_source: TitleSource,
+    /// The size of one copy.
+    #[ts(type = "number | null")]
+    pub size_bytes: Option<u64>,
+    /// Space the extra available copies take: (copies − 1) × size.
+    #[ts(type = "number")]
+    pub extra_bytes: u64,
+    /// Available copies first, then by path.
+    pub copies: Vec<FileInstance>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct DuplicatePage {
+    /// Most extra space first.
+    pub groups: Vec<DuplicateGroup>,
+    pub page: u32,
+    pub page_size: u32,
+    pub total_groups: u32,
+    /// Extra space across every group, not just this page.
+    #[ts(type = "number")]
+    pub extra_bytes: u64,
+}
+
 /// Everything the detail panel shows for one file (phase1-spec §5.3).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]
