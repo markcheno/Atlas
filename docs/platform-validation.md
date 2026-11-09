@@ -664,7 +664,12 @@ snippets, filters, paging, copies, name matches and index consistency),
 P1-17 (`tests/search_eval.rs`: 40/40 committed questions in the top 5,
 every one at rank 1), the FTS `integrity-check` after the kill in P1-12,
 and P1-19 (`just bench-search`: p95 152 ms while reading 30,000 files on
-the M5 Pro, under 250 ms). CI: see below.
+the M5 Pro, under 250 ms). CI on branch `slice-14`: the full tier
+[42550108563](https://github.com/markcheno/Atlas/actions/runs/42550108563),
+10 of 10 jobs green in 8 minutes (2026-11-09), with the search tests on all
+three OSes and the search benchmark on the 1k text fixture. An earlier run
+with the 30k text fixture in CI was cancelled after its Windows benchmark
+passed 40 minutes; the 30k measurement is now local only.
 
 ### macOS arm64, Slice 1.4 (2026-11-09)
 
