@@ -67,6 +67,9 @@ const env = {
   ATLAS_E2E_PICK_DATA_ROOT: dataRoot,
   ATLAS_E2E_PICK_SOURCES: fixture,
   ATLAS_E2E_OPENER_LOG: openerLog,
+  // Catalog slowly enough (debug builds only) that "pause and resume
+  // cataloging" always finds the scan still running, however fast the runner.
+  ATLAS_INVENTORY_RATE: '150',
 };
 
 const report = {

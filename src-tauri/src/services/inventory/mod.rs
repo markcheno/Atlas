@@ -24,6 +24,9 @@ use crate::services::system::ResourceGovernor;
 
 /// Debug builds only: lifts the metadata rate limit for benchmarking.
 pub const UNTHROTTLED_ENV: &str = "ATLAS_INVENTORY_UNTHROTTLED";
+/// Debug builds only: a fixed metadata rate (entries per second), so the
+/// smoke test can pause cataloging before it finishes on a fast runner.
+pub const RATE_ENV: &str = "ATLAS_INVENTORY_RATE";
 
 #[derive(Debug, Clone)]
 pub struct InventoryConfig {
@@ -64,8 +67,13 @@ impl InventoryConfig {
     pub fn from_env() -> Self {
         let unthrottled = cfg!(debug_assertions)
             && std::env::var(UNTHROTTLED_ENV).is_ok_and(|v| v == "1" || v == "true");
+        let rate_override = cfg!(debug_assertions)
+            .then(|| std::env::var(RATE_ENV).ok()?.parse::<u32>().ok())
+            .flatten()
+            .filter(|r| *r > 0);
         Self {
             unthrottled,
+            rate_override,
             ..Self::default()
         }
     }

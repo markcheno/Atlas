@@ -613,8 +613,10 @@ Implemented in `src-tauri/src/services/search/` (Slice 1.4); rationale in
   fixture (`--text-kb 4`), settings, and a relaunch. WebDriver can't answer native folder dialogs
   or observe the OS opening a file, so debug builds read
   `ATLAS_E2E_PICK_DATA_ROOT`, `ATLAS_E2E_PICK_SOURCES` and
-  `ATLAS_E2E_OPENER_LOG` (`infrastructure/e2e.rs`). Release builds ignore
-  them, as they ignore `ATLAS_CONFIG_DIR`. On Windows, wry always sets
+  `ATLAS_E2E_OPENER_LOG` (`infrastructure/e2e.rs`), and catalogs at a fixed
+  150 entries a second (`ATLAS_INVENTORY_RATE`), so the pause step always
+  finds the scan running. Release builds ignore them, as they ignore
+  `ATLAS_CONFIG_DIR`. On Windows, wry always sets
   WebView2's browser arguments, which hides the remote-debugging arguments
   msedgedriver passes through `WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS`. So
   the main window is created in `setup` (`"create": false` in
