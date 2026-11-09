@@ -447,6 +447,10 @@ pub struct ExtractionCounts {
     pub cloud_only: u32,
     pub unreadable: u32,
     pub total: u32,
+    /// Files with text (counted in `done`) being read again by a newer
+    /// reader; their old text stays searchable meanwhile.
+    #[serde(default)]
+    pub updating: u32,
 }
 
 /// The extraction job shown in the status bar.
@@ -496,6 +500,126 @@ pub struct ExtractionOverview {
 
 // ------------------------------------------------------------- documents
 
+/// Where a document's displayed title came from (phase1-spec P1-18).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "snake_case")]
+#[ts(export)]
+pub enum TitleSource {
+    /// The file's own metadata (PDF Info, EPUB `dc:title`), cleaned.
+    Metadata,
+    /// The largest line on a PDF's first page.
+    Contents,
+    /// The file name, tidied.
+    FileName,
+}
+
+/// What the library's data takes on disk (Settings › Storage, phase1-spec
+/// §5.5, §8). Catalog sizes are exact (SQLite's `dbstat`).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct StorageUsage {
+    /// `catalog.sqlite` with its `-wal` and `-shm` files.
+    #[ts(type = "number")]
+    pub catalog_bytes: u64,
+    /// The stored text (`passages`), part of the catalog.
+    #[ts(type = "number")]
+    pub text_bytes: u64,
+    /// The full-text index (`passages_fts`), part of the catalog.
+    #[ts(type = "number")]
+    pub index_bytes: u64,
+    /// The rest of the catalog: files, folders, documents, jobs.
+    #[ts(type = "number")]
+    pub other_catalog_bytes: u64,
+    /// Rebuildable files in `cache/` and `tmp/`.
+    #[ts(type = "number")]
+    pub cache_bytes: u64,
+    /// `None` when the drive can't be asked.
+    #[ts(type = "number | null")]
+    pub data_volume_free_bytes: Option<u64>,
+    pub estimate: IndexingEstimate,
+    pub measured_at: String,
+}
+
+/// How much the text still to be read will need (phase1-spec §8): always a
+/// range, and only after enough documents have been read.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+#[ts(export)]
+pub enum IndexingEstimate {
+    /// Fewer than `needed` documents read so far.
+    NotEnoughRead { done: u32, needed: u32 },
+    /// No file is waiting to be read.
+    AllRead,
+    Range {
+        #[serde(rename = "remainingFiles")]
+        remaining_files: u32,
+        #[serde(rename = "lowBytes")]
+        #[ts(type = "number")]
+        low_bytes: u64,
+        #[serde(rename = "highBytes")]
+        #[ts(type = "number")]
+        high_bytes: u64,
+    },
+}
+
+/// What Clean caches removed, and the usage afterwards.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct CleanCachesResult {
+    #[ts(type = "number")]
+    pub freed_bytes: u64,
+    pub usage: StorageUsage,
+}
+
+/// Groups of files with identical content (Library › Duplicates, Slice
+/// 1.6). A group is a document with at least two available copies inside
+/// the filters.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct DuplicateQuery {
+    pub source_root_id: Option<RecordId>,
+    pub file_type: Option<FileType>,
+    /// Also list missing copies (they never count toward a group).
+    #[serde(default)]
+    pub include_missing: bool,
+    pub page: u32,
+    pub page_size: u32,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct DuplicateGroup {
+    pub document_id: RecordId,
+    pub title: String,
+    pub title_source: TitleSource,
+    /// The size of one copy.
+    #[ts(type = "number | null")]
+    pub size_bytes: Option<u64>,
+    /// Space the extra available copies take: (copies − 1) × size.
+    #[ts(type = "number")]
+    pub extra_bytes: u64,
+    /// Available copies first, then by path.
+    pub copies: Vec<FileInstance>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct DuplicatePage {
+    /// Most extra space first.
+    pub groups: Vec<DuplicateGroup>,
+    pub page: u32,
+    pub page_size: u32,
+    pub total_groups: u32,
+    /// Extra space across every group, not just this page.
+    #[ts(type = "number")]
+    pub extra_bytes: u64,
+}
+
 /// Everything the detail panel shows for one file (phase1-spec §5.3).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]
@@ -505,7 +629,10 @@ pub struct DocumentDetail {
     pub file: FileInstance,
     /// Set once the file's bytes have been hashed.
     pub document_id: Option<RecordId>,
-    pub title: Option<String>,
+    /// Never empty: metadata, then the first page, then the file name.
+    pub title: String,
+    pub title_source: TitleSource,
+    /// Cleaned: placeholders dropped, `;`-separated names split.
     pub authors: Vec<String>,
     pub language: Option<String>,
     /// PDF pages, or EPUB spine documents.
@@ -563,7 +690,9 @@ pub struct SearchHit {
     /// The file to open: an available copy inside the filters when there is
     /// one.
     pub file_instance_id: RecordId,
-    pub title: Option<String>,
+    /// Never empty: metadata, then the first page, then the file name.
+    pub title: String,
+    pub title_source: TitleSource,
     pub display_name: String,
     pub display_path: String,
     pub file_type: FileType,

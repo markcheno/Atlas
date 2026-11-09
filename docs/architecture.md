@@ -1,7 +1,7 @@
 # Atlas architecture
 
-Status: Phase 1, Slice 1.5 (the Search screen and the document detail
-panel over Slice 1.4's full-text search). Phase 0 is complete; the rest of Phase 1 is
+Status: Phase 1, Slice 1.6 (metadata quality, the duplicates view and
+Settings › Storage, over Slice 1.5's Search screen and detail panel). Phase 0 is complete; the rest of Phase 1 is
 specified in [phase1-spec.md](phase1-spec.md) and not yet built.
 This document describes what is built, and marks what is only planned. Decisions with lasting
 consequences are recorded as ADRs in [adr/](adr/).
@@ -57,6 +57,8 @@ commands and added the native multi-folder picker.
 | Text reading | `get_extraction_status`, `start_extraction` (pause, resume and cancel share the job commands) | **1.3 (working)** |
 | Search | `search_documents` | **1.4 (working)** |
 | Documents | `get_document_detail` (by file ID: a file that hasn't been read has no document yet) | **1.5 (working)** |
+| Duplicates | `list_duplicates` | **1.6 (working)** |
+| Storage | `get_storage_usage`, `clean_caches` | **1.6 (working)** |
 
 `get_app_status` returns only facts about the running process, including a
 feature list that marks exactly which capabilities this build provides.
@@ -159,6 +161,23 @@ Main views: Home, Search, Library and Settings (`NAV_VIEWS` in
   EPUBs), type, size, modified, folder, path, text status with its reason,
   and Also at with each copy's status and its own Open and Reveal. Escape or
   Close returns focus to what opened it; Tab stays inside.
+- **Titles** (Slice 1.6). Results, the panel and duplicate groups show the
+  title the core chose ([Metadata, duplicates and storage](#metadata-duplicates-and-storage)),
+  with "Title from the first page" or "Title from the file name" when it
+  isn't the file's own metadata, and the file name as a second line
+  unless the title is the file name.
+- **Library › Duplicates** (Slice 1.6, `components/DuplicatesList.svelte`,
+  `stores/duplicates.svelte.ts`). A Files | Duplicates switch in the Library
+  toolbar (a radio group). Duplicates lists groups of identical copies, most
+  extra space first, with a summary ("2 groups · 9.4 MB in extra
+  copies"), each copy's folder, path and status, and Details, Open and Show
+  in folder per copy. Folder, Type and Include missing filter it; the text
+  search, Text status and sorting are hidden. Atlas never deletes or moves
+  a copy, and says so.
+- **Settings › Storage** (Slice 1.6, `components/StoragePanel.svelte`).
+  Text, Search index, Rest of the catalog and Caches, the indexing
+  estimate as one sentence (always a range), and **Clean caches** with what
+  it freed. "Measuring…" until the numbers arrive.
 - **Shared pieces.** `stores/originals.svelte.ts` holds Open and Reveal with
   the cloud-download question and per-file problems, used by the Library,
   Search and the panel (`OriginalActions`, `OriginalNotice`); `TextBadge`
@@ -179,8 +198,9 @@ Implemented in `src-tauri/src/services/workspace/`. Design rationale is in
 <root>/atlas.lock             exclusive OS lock while a process has the root open
 <root>/config/settings.json   portable preferences (theme)
 <root>/library/catalog.sqlite SQLite catalog, WAL mode (+ -wal, -shm)
-<root>/tmp/                   staging for atomic writes; emptied on open
-<root>/content/ indexes/ assets/ cache/ jobs/ models/ exports/ logs/ backups/   reserved, empty
+<root>/tmp/                   staging for atomic writes; emptied on open and by Clean caches
+<root>/cache/                 rebuildable caches (empty so far); emptied by Clean caches
+<root>/content/ indexes/ assets/ jobs/ models/ exports/ logs/ backups/   reserved, empty
 ```
 
 - **Default location:** the OS per-user app-data folder. On macOS that is
@@ -442,10 +462,11 @@ Implemented in `src-tauri/src/services/extraction/` (the worker in Slice
 
 The job side, in the app process (Slice 1.3, ADR 0009).
 
-- **Schema** (migration 0008). `documents` is content, keyed by BLAKE3:
+- **Schema** (migrations 0008 and 0010). `documents` is content, keyed by BLAKE3:
   state (`done`, `needs_ocr`, `encrypted`, `malformed`, `unsupported`,
   `too_large`, `worker_crashed`, …), reason code, extractor version, page
-  and character counts, title, authors, language. `passages` holds its
+  and character counts, title, authors, language, a first-page title
+  (`content_title`) and a `refresh` flag. `passages` holds its
   text. `file_instances` gains `extract_state` (`pending`, `linked`,
   `skipped_cloud_only`, `unreadable`, `hash_failed`), the hashed size and
   mtime, `document_id` and `extract_attempts`. A rescan that sees a new
@@ -457,11 +478,22 @@ The job side, in the app process (Slice 1.3, ADR 0009).
 - **Job** (`extraction/job.rs`, kind `extract`). One per source root,
   queued when a scan finishes with pending files, when a library opens, or
   by **Read text now** (`start_extraction`). Per file: cloud-only files are
-  skipped unopened; the worker hashes the file; a document already read at
-  this extractor version is linked (copies and moves); anything else is
-  extracted and committed with its passages in one transaction, guarded by
-  the job still running. Two crashes mark a file `worker_crashed`; ten
-  restarts back the job off.
+  skipped unopened; the worker hashes the file; a document already read by
+  the current reader for its type is linked (copies and moves); anything
+  else is extracted and committed with its passages in one transaction,
+  guarded by the job still running. Two crashes mark a file
+  `worker_crashed`; ten restarts back the job off. After the waiting files,
+  the job re-reads documents marked `refresh` (below).
+- **Reader versions and re-reading** (Slice 1.6, [ADR 0011](adr/0011-re-reading-without-losing-search.md)).
+  Each format has its own version (`READER_VERSION_PDF`,
+  `READER_VERSION_EPUB`, both 2: first-page titles; EPUB text without
+  Markdown marks). On open, a document read by an older reader either moves
+  to the current version (no text, or a PDF whose metadata already gives a
+  usable title: its output would not change) or is marked `refresh`. A
+  refreshing document's files stay linked and "Text ready"; one local copy
+  is read again and the new text replaces the old in one transaction, so
+  search never loses it. A refresh the worker crashes on twice keeps the
+  old text. The status line says "Updating text · N files to go".
 - **Policy.** The scan's governor and battery hysteresis, as a duty cycle:
   50% busy on Run, 20% when slowed, paused below 20% battery until 25%.
 - **Status.** `extraction-status` (an `ExtractionOverview`: the active job
@@ -471,6 +503,40 @@ The job side, in the app process (Slice 1.3, ADR 0009).
   filter; the status bar a second line with its own Pause, Resume and
   Cancel.
 
+
+## Metadata, duplicates and storage
+
+Slice 1.6, in `src-tauri/src/services/documents/` and `services/storage/`.
+
+- **Titles** (`documents/metadata.rs`, P1-18). Stored metadata stays as the
+  file had it; cleaning happens when the catalog is read, so new rules
+  never need a re-read. `clean_title` drops placeholders ("Untitled",
+  "Document3", "Slide 1"), file names and paths, and the "Microsoft Word -
+  … .docx" wrapping; `clean_authors` splits on `;` (not commas: "Lin,
+  Ada") and drops account names ("Administrator"). The displayed title is
+  the cleaned metadata title, else a PDF's first-page title, else the
+  tidied file name (`TitleSource`).
+- **First-page titles** (`extraction/engine/title.rs`, in the worker). Page
+  1's characters with their size, position and angle are grouped into
+  runs; rotated runs (arXiv's side stamp) are dropped; the largest text
+  must be at least 1.25× the body size, and up to three consecutive lines
+  of it (at most 25 words) form the title. All six arXiv papers in the
+  spike corpus get their real title this way.
+- **Duplicates** (`documents/duplicates.rs`, `list_duplicates`). A group is
+  a document with at least two available copies inside the folder and type
+  filters; missing copies are listed on request but never counted. Groups
+  are ordered by extra space ((copies − 1) × size), paged by 20, with one
+  query for the groups and totals (index `file_instances (document_id,
+  availability)`, migration 0010) and one per group for its copies.
+- **Storage** (`services/storage/`, `get_storage_usage`, `clean_caches`).
+  The catalog's size is its files (`catalog.sqlite`, `-wal`, `-shm`); the
+  text and index shares come from SQLite's `dbstat` on a read-only
+  connection of their own, outside the workspace lock; caches are `cache/`
+  and `tmp/`, walked without following links. The estimate appears after
+  50 documents are read: the text and index bytes per read document times
+  the files still waiting, ±40%. Clean caches empties `cache/` and `tmp/`
+  (keeping the library's own folders, removing links rather than their
+  targets) while holding the workspace, so nothing is staging in `tmp/`.
 
 ## Search
 
@@ -611,6 +677,7 @@ full-text search. It is specified in [phase1-spec.md](phase1-spec.md).
 Slice 1.1 built the jobs table and runners ([Jobs](#jobs)); Slice 1.2 the
 text fixtures, PDFium delivery and the [extraction worker](#extraction-worker);
 Slice 1.3 [extraction](#extraction) itself; Slice 1.4 [search](#search);
-Slice 1.5 the Search screen and document details ([Frontend](#frontend)).
-Metadata quality, the duplicates view, Settings › Storage and the rest are
-not in the code yet; this document is updated slice by slice as it lands.
+Slice 1.5 the Search screen and document details ([Frontend](#frontend));
+Slice 1.6 [metadata, duplicates and storage](#metadata-duplicates-and-storage).
+The Phase 1 carry-overs and the close-out are not in the code yet; this
+document is updated slice by slice as it lands.

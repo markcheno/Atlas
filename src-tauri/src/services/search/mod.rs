@@ -27,6 +27,7 @@ use crate::domain::dto::{
 use crate::error::{AtlasError, AtlasResult};
 use crate::services::catalog::codec::{from_db, to_db};
 use crate::services::catalog::reader::CatalogReader;
+use crate::services::documents::metadata;
 use crate::services::jobs::db::{ACTIVE_STATES, state_list};
 use crate::services::library::RootStatusCache;
 use crate::services::library::fold::{fold, like_escape};
@@ -194,17 +195,25 @@ fn hit(conn: &Connection, e: &Entry, f: &Filters) -> rusqlite::Result<Option<Sea
     let Some((id, name, path, file_type, root, availability, storage)) = file else {
         return Ok(None);
     };
-    let (title, copies) = match &e.document {
+    let (title, content_title, copies) = match &e.document {
         Some(doc) => conn.query_row(
-            "SELECT d.title,
+            "SELECT d.title, d.content_title,
                     (SELECT COUNT(*) FROM file_instances f
                      WHERE f.document_id = d.id AND f.availability = 'available')
              FROM documents d WHERE d.id = ?1",
             [doc],
-            |r| Ok((r.get::<_, Option<String>>(0)?, r.get::<_, u32>(1)?)),
+            |r| {
+                Ok((
+                    r.get::<_, Option<String>>(0)?,
+                    r.get::<_, Option<String>>(1)?,
+                    r.get::<_, u32>(2)?,
+                ))
+            },
         )?,
-        None => (None, 1),
+        None => (None, None, 1),
     };
+    let (title, title_source) =
+        metadata::display_title(title.as_deref(), content_title.as_deref(), &name);
     let (location, page_no, snippet) = match (e.passage, &e.expr) {
         (Some(passage), Some(expr)) => {
             let (location, page_no): (Option<String>, Option<u32>) = conn.query_row(
@@ -232,6 +241,7 @@ fn hit(conn: &Connection, e: &Entry, f: &Filters) -> rusqlite::Result<Option<Sea
         document_id: e.document.clone(),
         file_instance_id: id,
         title,
+        title_source,
         display_name: name,
         display_path: path,
         file_type: from_db(&file_type).unwrap_or(FileType::Pdf),

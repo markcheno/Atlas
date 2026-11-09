@@ -129,12 +129,12 @@
         {#each page.hits as hit (hit.fileInstanceId)}
           {@const also = alsoIn(hit.otherLocations)}
           <li data-testid="search-hit">
-            <h3>{hit.title ?? hit.displayName}</h3>
+            <h3>{hit.title}</h3>
             <p class="meta muted small">
               <span>{hit.fileType.toUpperCase()}</span>
               <span>{rootName(hit)}</span>
               {#if hit.location}<span>{hit.location}</span>{/if}
-              {#if hit.title}<span>{hit.displayName}</span>{/if}
+              {#if hit.titleSource !== 'file_name'}<span>{hit.displayName}</span>{/if}
             </p>
             {#if hit.snippet.length > 0}
               <p class="snippet" data-testid="snippet">

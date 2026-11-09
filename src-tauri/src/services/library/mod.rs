@@ -3,6 +3,7 @@
 //! they never wait behind inventory batches.
 
 pub mod fold;
+pub mod rows;
 
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -13,15 +14,14 @@ use rusqlite::types::Value;
 use rusqlite::{Connection, params_from_iter};
 
 use crate::domain::dto::{
-    Availability, DocumentPage, DocumentQuery, DocumentSort, ExtractionState, FileExtraction,
-    FileInstance, FileStorage, SourceRootStatus,
+    DocumentPage, DocumentQuery, DocumentSort, ExtractionState, FileInstance, SourceRootStatus,
 };
 use crate::error::{AtlasError, AtlasResult};
 use crate::infrastructure::native_path;
-use crate::services::catalog::codec::{from_db, to_db};
+use crate::services::catalog::codec::to_db;
 use crate::services::catalog::reader::CatalogReader;
 use crate::services::catalog::writer::CatalogHandle;
-use crate::services::extraction::db::{EFFECTIVE_REASON_SQL, EFFECTIVE_STATE_SQL};
+use crate::services::extraction::db::EFFECTIVE_STATE_SQL;
 use crate::services::jobs::db::{ACTIVE_STATES, state_list};
 use crate::services::sources::probe;
 use fold::{fold, like_escape};
@@ -137,48 +137,18 @@ fn query_page(conn: &Connection, q: &DocumentQuery) -> rusqlite::Result<(Vec<Row
     params.push(Value::Integer(i64::from(page_size)));
     params.push(Value::Integer(offset as i64));
     let mut stmt = conn.prepare(&format!(
-        "SELECT f.id, f.source_root_id, r.path_bytes, f.display_name, f.display_path,
-                f.extension, f.file_type, f.size_bytes, f.modified_at, f.availability, f.storage,
-                f.document_id, {EFFECTIVE_STATE_SQL}, {EFFECTIVE_REASON_SQL}
-         FROM file_instances f JOIN source_roots r ON r.id = f.source_root_id
-         LEFT JOIN documents d ON d.id = f.document_id
-         {} ORDER BY {} LIMIT ? OFFSET ?",
+        "SELECT {} {} {} ORDER BY {} LIMIT ? OFFSET ?",
+        rows::file_columns(),
+        rows::FILE_FROM,
         f.clause,
         order_by(q.sort)
     ))?;
     let rows = stmt
         .query_map(params_from_iter(params.iter()), |r| {
-            let file_type: String = r.get(6)?;
-            let availability: String = r.get(9)?;
-            let storage: String = r.get(10)?;
-            let text_state: String = r.get(12)?;
+            let (instance, root_path) = rows::file_from_row(r)?;
             Ok(Row {
-                root_path: r.get(2)?,
-                instance: FileInstance {
-                    id: r.get(0)?,
-                    source_root_id: r.get(1)?,
-                    display_name: r.get(3)?,
-                    display_path: r.get(4)?,
-                    extension: r.get(5)?,
-                    file_type: from_db(&file_type).unwrap_or(crate::domain::dto::FileType::Pdf),
-                    size_bytes: r.get::<_, Option<i64>>(7)?.map(|s| s.max(0) as u64),
-                    modified_at: r.get(8)?,
-                    availability: if availability == "missing" {
-                        Availability::Missing
-                    } else {
-                        Availability::Available
-                    },
-                    storage: if storage == "cloud_only" {
-                        FileStorage::CloudOnly
-                    } else {
-                        FileStorage::Local
-                    },
-                    document_id: r.get(11)?,
-                    extraction: FileExtraction {
-                        state: from_db(&text_state).unwrap_or(ExtractionState::Pending),
-                        reason: r.get(13)?,
-                    },
-                },
+                instance,
+                root_path,
             })
         })?
         .collect::<rusqlite::Result<Vec<_>>>()?;
@@ -203,26 +173,16 @@ pub fn list(
         .read(|c| query_page(c, q))?
         .map_err(AtlasError::db("list files"))?;
 
-    let mut distinct: Vec<(String, Vec<u8>)> = Vec::new();
+    let mut distinct = rows::Roots::default();
     for row in &rows {
-        if !distinct
-            .iter()
-            .any(|(id, _)| id == &row.instance.source_root_id)
-        {
-            distinct.push((row.instance.source_root_id.clone(), row.root_path.clone()));
-        }
+        distinct.add(&row.instance, row.root_path.clone());
     }
-    let statuses = roots.statuses(&distinct);
+    let reach = distinct.probe(roots);
     let items = rows
         .into_iter()
         .map(|row| {
             let mut item = row.instance;
-            let reachable = statuses
-                .get(&item.source_root_id)
-                .is_none_or(|s| *s == SourceRootStatus::Available);
-            if !reachable && item.availability == Availability::Available {
-                item.availability = Availability::Unreachable;
-            }
+            reach.mark(&mut item);
             item
         })
         .collect();

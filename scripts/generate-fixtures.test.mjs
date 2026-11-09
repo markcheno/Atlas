@@ -170,6 +170,59 @@ test('--text-kb writes valid multi-page PDFs and EPUBs with unique markers', () 
   }
 });
 
+test('--untitled-every leaves titles out and --copies adds identical copies', () => {
+  const { base, dir, summary } = generate(
+    '--files',
+    '12',
+    '--text-kb',
+    '4',
+    '--untitled-every',
+    '4',
+    '--copies',
+    '5',
+  );
+  try {
+    assert.equal(summary.untitledEvery, 4);
+    assert.equal(summary.copies, 5);
+    assert.equal(summary.catalogableFiles, 12 + 6 + 5);
+    // Files 3, 7 and 11 (every fourth) have no title in their metadata.
+    const untitled = files(dir, /book 0000(03|07|11)\.(pdf|epub)$/i).filter(
+      (f) => !f.includes(`${path.sep}copies${path.sep}`),
+    );
+    assert.equal(untitled.length, 3);
+    for (const file of untitled) {
+      const bytes = fs.readFileSync(file);
+      if (/\.pdf$/i.test(file)) {
+        const text = bytes.toString('latin1');
+        assert.doesNotMatch(text, /\/Title/);
+        assert.match(text, /BT \/F1 24 Tf 72 760 Td \(\w+ book 0000\d\d\) Tj ET/);
+      } else {
+        const opf = readZip(bytes).find((e) => e.name === 'OEBPS/content.opf');
+        assert.doesNotMatch(opf.data.toString('utf8'), /dc:title/);
+      }
+    }
+    const titled = files(dir, /book 000000\.(pdf|epub)$/i)[0];
+    assert.match(
+      readZip(fs.readFileSync(titled))
+        .find((e) => e.name === 'OEBPS/content.opf')
+        .data.toString('utf8'),
+      /<dc:title>/,
+    );
+    const copies = files(path.join(dir, 'copies'), /./);
+    assert.equal(copies.length, 5);
+    for (const copy of copies) {
+      const original = files(
+        dir,
+        new RegExp(`^${path.basename(copy).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`),
+      ).filter((f) => f !== copy && !f.includes(`${path.sep}copies${path.sep}`));
+      assert.ok(original.length >= 1, `${copy} has an original`);
+      assert.ok(fs.readFileSync(copy).equals(fs.readFileSync(original[0])));
+    }
+  } finally {
+    cleanup(base);
+  }
+});
+
 test('the same arguments give the same bytes', () => {
   const a = generate('--files', '12', '--text-kb', '4');
   const b = generate('--files', '12', '--text-kb', '4');

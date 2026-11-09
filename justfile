@@ -108,9 +108,9 @@ bundle-release bundles=default_bundles:
 open-bundle:
     open src-tauri/target/debug/bundle/macos/Atlas.app
 
-# Generate a synthetic library outside the repo, e.g. `just fixtures ~/fx 2000`, the 30k set `just fixtures ~/fx30k 10000 20000`, or with body text `just fixtures ~/fx 1000 0 20` (see fixtures/README.md)
-fixtures dir files="1000" flat="0" text_kb="0":
-    node scripts/generate-fixtures.mjs {{ dir }} --files {{ files }} --flat {{ flat }} --text-kb {{ text_kb }}
+# Generate a synthetic library outside the repo, e.g. `just fixtures ~/fx 2000`, the 30k set `just fixtures ~/fx30k 10000 20000`, with body text `just fixtures ~/fx 1000 0 20`, or with untitled files and copies `just fixtures ~/fx 100 0 4 4 20` (see fixtures/README.md)
+fixtures dir files="1000" flat="0" text_kb="0" untitled_every="0" copies="0":
+    node scripts/generate-fixtures.mjs {{ dir }} --files {{ files }} --flat {{ flat }} --text-kb {{ text_kb }} --untitled-every {{ untitled_every }} --copies {{ copies }}
 
 # ------------------------------------------------- benchmarks and smoke
 

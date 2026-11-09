@@ -15,6 +15,7 @@ pub mod providers;
 pub mod search;
 pub mod settings;
 pub mod sources;
+pub mod storage;
 pub mod workspace;
 
 /// Names of every registered command, in registration order. Kept in sync
@@ -44,6 +45,9 @@ pub const COMMAND_NAMES: &[&str] = &[
     "get_extraction_status",
     "search_documents",
     "get_document_detail",
+    "list_duplicates",
+    "get_storage_usage",
+    "clean_caches",
     "list_documents",
     "open_original",
     "reveal_original",

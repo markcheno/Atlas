@@ -1,6 +1,6 @@
 use tauri::State;
 
-use crate::domain::dto::DocumentDetail;
+use crate::domain::dto::{DocumentDetail, DuplicatePage, DuplicateQuery};
 use crate::error::AtlasResult;
 use crate::services::documents;
 use crate::state::AppState;
@@ -16,6 +16,20 @@ pub async fn get_document_detail(
         .with_workspace(move |ws| {
             let root = ws.require_open()?;
             documents::detail(root.reader(), root.root_status(), &file_id)
+        })
+        .await
+}
+
+/// Groups of files with identical content, most extra space first.
+#[tauri::command]
+pub async fn list_duplicates(
+    state: State<'_, AppState>,
+    query: DuplicateQuery,
+) -> AtlasResult<DuplicatePage> {
+    state
+        .with_workspace(move |ws| {
+            let root = ws.require_open()?;
+            documents::duplicates::list(root.reader(), root.root_status(), &query)
         })
         .await
 }

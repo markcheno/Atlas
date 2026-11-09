@@ -12,6 +12,8 @@ import type { DeviceCheck } from '../lib/api/bindings/DeviceCheck';
 import type { DeviceSnapshot } from '../lib/api/bindings/DeviceSnapshot';
 import type { DocumentDetail } from '../lib/api/bindings/DocumentDetail';
 import type { DocumentPage } from '../lib/api/bindings/DocumentPage';
+import type { DuplicateGroup } from '../lib/api/bindings/DuplicateGroup';
+import type { DuplicatePage } from '../lib/api/bindings/DuplicatePage';
 import type { ExtractionCounts } from '../lib/api/bindings/ExtractionCounts';
 import type { ExtractionOverview } from '../lib/api/bindings/ExtractionOverview';
 import type { ExtractionStatus } from '../lib/api/bindings/ExtractionStatus';
@@ -27,6 +29,7 @@ import type { SearchHit } from '../lib/api/bindings/SearchHit';
 import type { SearchPage } from '../lib/api/bindings/SearchPage';
 import type { Settings } from '../lib/api/bindings/Settings';
 import type { SourceRoot } from '../lib/api/bindings/SourceRoot';
+import type { StorageUsage } from '../lib/api/bindings/StorageUsage';
 
 export const DEFAULT_ROOT = '/Users/test/Library/Application Support/com.altazlabs.atlas/Library';
 
@@ -35,7 +38,7 @@ export const fakeStatus: AppStatus = {
   os: 'macos',
   arch: 'aarch64',
   buildProfile: 'debug',
-  slice: '1.5',
+  slice: '1.6',
   features: [],
 };
 
@@ -175,6 +178,7 @@ export function extractionCounts(overrides: Partial<ExtractionCounts> = {}): Ext
     cloudOnly: 0,
     unreadable: 0,
     total: 0,
+    updating: 0,
     ...overrides,
   };
 }
@@ -217,6 +221,7 @@ export function searchHit(overrides: Partial<SearchHit> = {}): SearchHit {
     documentId: 'doc-1',
     fileInstanceId: 'file-1',
     title: 'Harmonic Drives',
+    titleSource: 'metadata',
     displayName: 'harmonic.pdf',
     displayPath: '/Users/test/Books/harmonic.pdf',
     fileType: 'pdf',
@@ -256,6 +261,7 @@ export function documentDetail(overrides: Partial<DocumentDetail> = {}): Documen
     file: fileInstance({ extraction: { state: 'done', reason: null }, documentId: 'doc-1' }),
     documentId: 'doc-1',
     title: 'Harmonic Drives',
+    titleSource: 'metadata',
     authors: ['Ada Lin'],
     language: 'en',
     pageCount: 312,
@@ -263,6 +269,57 @@ export function documentDetail(overrides: Partial<DocumentDetail> = {}): Documen
     alsoAt: [],
     ...overrides,
   };
+}
+
+export function storageUsage(overrides: Partial<StorageUsage> = {}): StorageUsage {
+  return {
+    catalogBytes: 1_400_000_000,
+    textBytes: 620_000_000,
+    indexBytes: 250_000_000,
+    otherCatalogBytes: 530_000_000,
+    cacheBytes: 12_000_000,
+    dataVolumeFreeBytes: 245_000_000_000,
+    estimate: {
+      kind: 'range',
+      remainingFiles: 17_600,
+      lowBytes: 1_500_000_000,
+      highBytes: 2_500_000_000,
+    },
+    measuredAt: '2026-11-09T00:00:00Z',
+    ...overrides,
+  };
+}
+
+export function duplicateGroup(overrides: Partial<DuplicateGroup> = {}): DuplicateGroup {
+  return {
+    documentId: 'doc-1',
+    title: 'Harmonic Drives',
+    titleSource: 'metadata',
+    sizeBytes: 4_200_000,
+    extraBytes: 8_400_000,
+    copies: [
+      fileInstance({
+        id: 'c1',
+        displayName: 'harmonic.pdf',
+        displayPath: '/Users/test/Books/harmonic.pdf',
+      }),
+      fileInstance({
+        id: 'c2',
+        displayName: 'harmonic copy.pdf',
+        displayPath: '/Users/test/Books/old/harmonic copy.pdf',
+      }),
+      fileInstance({
+        id: 'c3',
+        displayName: 'harmonic.pdf',
+        displayPath: '/Users/test/Books/backup/harmonic.pdf',
+      }),
+    ],
+    ...overrides,
+  };
+}
+
+export function duplicatePage(overrides: Partial<DuplicatePage> = {}): DuplicatePage {
+  return { groups: [], page: 0, pageSize: 20, totalGroups: 0, extraBytes: 0, ...overrides };
 }
 
 export function connectionResult(overrides: Partial<ConnectionResult> = {}): ConnectionResult {
@@ -328,6 +385,9 @@ function defaults(): Record<string, Handler> {
     start_extraction: () => 'extract-2',
     list_documents: () => documentPage(),
     search_documents: () => searchPage(),
+    list_duplicates: () => duplicatePage(),
+    get_storage_usage: () => storageUsage(),
+    clean_caches: () => ({ freedBytes: 0, usage: storageUsage() }),
     get_document_detail: (args) =>
       documentDetail({ file: fileInstance({ id: String(args?.fileId) }) }),
     open_original: () => null,

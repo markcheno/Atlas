@@ -752,6 +752,67 @@ pass and the Tab trap in WebKit (Vitest covers the trap); filters and paging
 by hand; Open from a result. The run was stopped early because the
 keystrokes it sends go to whichever app is in front.
 
+## Slice 1.6
+
+Slice 1.6 adds titles from a PDF's first page or the file name, EPUB text
+without Markdown marks, re-reading that stays searchable (ADR 0011),
+Library › Duplicates (`list_duplicates`) and Settings › Storage
+(`get_storage_usage`, `clean_caches`). Automated evidence:
+
+- `tests/metadata.rs` (P1-18): metadata, first-page and file-name titles;
+  cleaned junk; the six arXiv papers' titles found on their first pages.
+- `tests/refresh.rs`: an upgraded library stays searchable and "Text
+  ready" while EPUBs and untitled PDFs are read again; titled PDFs are not
+  re-read; a refresh that keeps crashing keeps the old text.
+- `tests/duplicates.rs`: groups, extra space, filters, paging, missing and
+  disconnected copies.
+- `tests/storage.rs`: usage by category, the estimate's three states, and
+  Clean caches emptying only `cache/` and `tmp/` without following links.
+- Vitest for every new screen state, and two new smoke steps on Windows and
+  Linux: "duplicates list the six Introduction copies" and "settings show
+  storage".
+
+CI on branch `slice-16`: the full tier
+[42562391167](https://github.com/markcheno/Atlas/actions/runs/42562391167),
+10 of 10 jobs green in 10 minutes (2026-11-09). Smoke on Linux (39 s) and
+Windows (107 s): "duplicates list the six Introduction copies" (one group,
+6 copies, "1 group · 28.5 KB in extra copies") and "settings show storage"
+(the estimate and "Nothing to clean"), alongside Slice 1.5's steps (the
+worker was again caught mid-reading on both OSes and gone after quit). An
+earlier run failed on Windows only because `tests/metadata.rs` imported a
+Node module by a bare `D:\…` path; it now uses a `file://` URL.
+
+### macOS arm64, Slice 1.6 (2026-11-09)
+
+On scratch data: a copy of the Slice 1.5 scratch library (1,007 files,
+1,001 documents read by the version-1 readers, 1,336 EPUB passages starting
+with `# `), opened by the Slice 1.6 debug build with a scratch
+`ATLAS_CONFIG_DIR`. Atlas was driven only through accessibility actions on
+its own process.
+
+1. The build offered "Open this library"; the catalog moved to schema 10
+   and the re-read started at once. A second after opening, 142 documents
+   were still marked and 859 were already at version 2. No available file
+   was unlinked at any point; both checks of the catalog during the
+   upgrade found none.
+2. Afterwards: no passage starts with `#` (Café crème book 000000's first
+   passage now begins "Chapter 1"), all 1,001 documents are at version 2,
+   none is marked. Every PDF in that fixture has a metadata title, so no
+   PDF was read again, as designed. The status bar read "Text up to date ·
+   1,007 of 1,007 files readable".
+3. Quitting through the Atlas menu with a worker running left no Atlas
+   process.
+4. The 30k search benchmark, with duplicates and storage timings, is in
+   [benchmarks](benchmarks.md#duplicates-and-storage-slice-16).
+
+**Not verified on macOS in Slice 1.6:** the re-read was too fast to see
+the "Updating text" line live (Rust and Vitest cover it). Library ›
+Duplicates, Settings › Storage, Clean caches and the title labels were not
+checked by hand: the Atlas window moved out of reach while the Mac was in
+use, so the check stopped rather than send more keys (Vitest covers every
+state, and the CI smoke runs on Windows and Linux press through both
+screens). Light and dark mode were not compared.
+
 ## Manual checklist for Windows and Linux
 
 CI runs an automated smoke test on Windows and Linux (Slice 0.8, below),
@@ -938,6 +999,26 @@ With the text fixture (`--text-kb 4`) cataloged and read:
 7. Only with the keyboard: Tab to the search box, search, Tab through
    results, open Details with Enter, close it with Escape.
 8. Repeat 1 and 5 in dark mode.
+
+### Titles, duplicates and storage (Slice 1.6)
+
+With a text fixture made by `just fixtures <dir> 100 0 4 4 20` cataloged
+and read:
+
+1. Search `"Engineering marker 3"` and similar markers of files 3, 7, 11, …:
+   the PDFs' results show their title with "Title from the first page" in
+   Details; the EPUBs show a title from the file name.
+2. Library › Duplicates (the switch in the toolbar): the six
+   `Introduction.pdf` copies and the 20 `copies/` files appear as groups,
+   most extra space first. Filter by folder and type; tick Include missing
+   files after deleting a copy and rescanning.
+3. Open and Show in folder from a copy; Details from a copy.
+4. Settings › Storage: the four sizes, the estimate sentence, and Clean
+   caches ("Nothing to clean", or what it freed after putting a file in the
+   library's `cache/` folder).
+5. Upgrade check: open a library read by Slice 1.5 with this build. EPUB
+   snippets lose their `# Chapter 1`, search keeps finding them while the
+   status line says "Updating text", and the files stay "Text ready".
 
 ### AI services (Slice 0.7)
 

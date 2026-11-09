@@ -33,3 +33,4 @@ Rules:
 | 7 | `0007_jobs.sql` | `scan_sessions` becomes `jobs` with a `kind` (Phase 1) |
 | 8 | `0008_documents.sql` | `documents`, `passages`, and the `file_instances` extraction columns (Phase 1) |
 | 9 | `0009_passages_fts.sql` | the FTS5 index over `passages`, its triggers, and a one-time rebuild (Phase 1) |
+| 10 | `0010_documents_quality.sql` | `documents.content_title` and `refresh` (stay-searchable re-reading), and the `(document_id, availability)` index for duplicates (Phase 1) |

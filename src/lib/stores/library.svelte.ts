@@ -26,6 +26,8 @@ class LibraryState {
   includeMissing = $state(false);
   textStatus = $state<ExtractionState | null>(null);
   sort = $state<DocumentSort>('name_asc');
+  /** Files, or groups of identical copies (Library › Duplicates). */
+  mode = $state<'files' | 'duplicates'>('files');
   page = $state(0);
 
   result = $state<DocumentPage | null>(null);
@@ -124,6 +126,7 @@ class LibraryState {
     this.includeMissing = false;
     this.textStatus = null;
     this.sort = 'name_asc';
+    this.mode = 'files';
     this.page = 0;
     this.result = null;
     this.error = null;

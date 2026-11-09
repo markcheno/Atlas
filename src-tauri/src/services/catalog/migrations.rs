@@ -56,6 +56,11 @@ pub const MIGRATIONS: &[Migration] = &[
         name: "passages_fts",
         sql: include_str!("../../../migrations/0009_passages_fts.sql"),
     },
+    Migration {
+        version: 10,
+        name: "documents_quality",
+        sql: include_str!("../../../migrations/0010_documents_quality.sql"),
+    },
 ];
 
 /// Highest catalog schema version this build can read and write.
@@ -179,7 +184,7 @@ mod tests {
                 )
                 .unwrap();
 
-                assert_eq!(migrate(c, "t2").unwrap(), 9);
+                assert_eq!(migrate_to(c, 9, "t2").unwrap(), 9);
                 let hits = |c: &Connection, q: &str| -> i64 {
                     c.query_row(
                         "SELECT COUNT(*) FROM passages_fts WHERE passages_fts MATCH ?1",
@@ -213,6 +218,41 @@ mod tests {
                     "INSERT INTO passages_fts (passages_fts, rank) VALUES ('integrity-check', 1)",
                 )
                 .unwrap();
+            })
+            .unwrap();
+    }
+
+    #[test]
+    fn version_10_adds_content_titles_refresh_and_the_duplicates_index() {
+        use crate::services::catalog::writer::CatalogWriter;
+
+        let dir = tempfile::tempdir().unwrap();
+        let writer = CatalogWriter::open(&dir.path().join("catalog.sqlite")).unwrap();
+        writer
+            .call(|c| {
+                assert_eq!(migrate_to(c, 9, "t").unwrap(), 9);
+                c.execute_batch(
+                    "INSERT INTO documents (id, content_hash, state, title, created_at, updated_at)
+                         VALUES ('d', x'01', 'done', 'Kept', 't', 't');",
+                )
+                .unwrap();
+                assert_eq!(migrate(c, "t2").unwrap(), 10);
+                let (title, content, refresh): (String, Option<String>, i64) = c
+                    .query_row(
+                        "SELECT title, content_title, refresh FROM documents WHERE id = 'd'",
+                        [],
+                        |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
+                    )
+                    .unwrap();
+                assert_eq!((title.as_str(), content, refresh), ("Kept", None, 0));
+                let cols: Vec<String> = c
+                    .prepare("SELECT name FROM pragma_index_info('file_instances_by_document')")
+                    .unwrap()
+                    .query_map([], |r| r.get(0))
+                    .unwrap()
+                    .collect::<Result<_, _>>()
+                    .unwrap();
+                assert_eq!(cols, ["document_id", "availability"]);
             })
             .unwrap();
     }

@@ -14,5 +14,6 @@ pub mod scheduler;
 pub mod search;
 pub mod source_open;
 pub mod sources;
+pub mod storage;
 pub mod system;
 pub mod workspace;

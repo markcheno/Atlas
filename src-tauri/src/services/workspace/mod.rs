@@ -121,6 +121,12 @@ impl Workspace {
         }
     }
 
+    /// The volume inspector, for free-space readings outside the workspace
+    /// lock.
+    pub fn volumes(&self) -> Arc<dyn VolumeInspector> {
+        Arc::clone(&self.volumes)
+    }
+
     /// Runs scans (cataloging) for every root this workspace opens.
     pub fn with_inventory(self, deps: InventoryDeps) -> Self {
         self.with_job_processor(JobKind::Scan, inventory::scan::factory(deps))

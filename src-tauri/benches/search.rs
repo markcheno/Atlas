@@ -27,10 +27,11 @@ use std::time::{Duration, Instant};
 
 use serde_json::{Value, json};
 
-use atlas_lib::domain::dto::{JobKind, SearchQuery};
+use atlas_lib::domain::dto::{DuplicateQuery, JobKind, SearchQuery};
 use atlas_lib::infrastructure::local_source::LocalFsSource;
 use atlas_lib::infrastructure::system_probe::{OsResourceMonitor, SimulatedMonitor, Simulation};
 use atlas_lib::infrastructure::volume::OsVolumeInspector;
+use atlas_lib::services::documents::duplicates;
 use atlas_lib::services::extraction::db as extraction_db;
 use atlas_lib::services::extraction::job::{
     self as extraction_job, ExtractionConfig, ExtractionDeps,
@@ -39,7 +40,7 @@ use atlas_lib::services::extraction::supervisor::WorkerCommand;
 use atlas_lib::services::inventory::{InventoryConfig, InventoryDeps};
 use atlas_lib::services::system::ResourceGovernor;
 use atlas_lib::services::workspace::{Workspace, WorkspaceConfig};
-use atlas_lib::services::{inventory, search, sources};
+use atlas_lib::services::{inventory, search, sources, storage};
 
 const DEADLINE: Duration = Duration::from_secs(60 * 60);
 
@@ -274,6 +275,32 @@ fn run(args: &Args, fixture: &Path) -> Value {
     }
     let idle = summarize(&warm);
 
+    // Library › Duplicates and Settings › Storage, idle (Slice 1.6).
+    let root = ws.require_open().unwrap();
+    let dup_query = DuplicateQuery {
+        source_root_id: None,
+        file_type: None,
+        include_missing: false,
+        page: 0,
+        page_size: 20,
+    };
+    let mut dup_times = Vec::new();
+    let mut groups = 0;
+    for _ in 0..20 {
+        let t = Instant::now();
+        let page = duplicates::list(root.reader(), root.root_status(), &dup_query).unwrap();
+        dup_times.push(t.elapsed());
+        groups = page.total_groups;
+    }
+    let mut storage_times = Vec::new();
+    let mut usage = None;
+    for _ in 0..5 {
+        let t = Instant::now();
+        usage = Some(storage::usage(&data, &OsVolumeInspector).unwrap());
+        storage_times.push(t.elapsed());
+    }
+    let usage = usage.unwrap();
+
     // A full rebuild of the index (what migration 0009 does once).
     let rebuild = {
         let t = Instant::now();
@@ -316,6 +343,13 @@ fn run(args: &Args, fixture: &Path) -> Value {
         "rebuildSeconds": (rebuild * 100.0).round() / 100.0,
         "whileReading": while_reading,
         "idle": idle,
+        "duplicates": { "groups": groups, "latency": percentiles(dup_times) },
+        "storage": {
+            "latency": percentiles(storage_times),
+            "textBytes": usage.text_bytes,
+            "indexBytes": usage.index_bytes,
+            "catalogBytes": usage.catalog_bytes,
+        },
         "cold": cold,
     })
 }

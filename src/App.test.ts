@@ -772,6 +772,18 @@ describe('reading text', () => {
     if (scanning) expect(line().textContent).not.toMatch(/of \d/);
   });
 
+  it('says when text is being read again by a newer reader', async () => {
+    const updating = tauri.extractionCounts({ done: 10, total: 10, updating: 4 });
+    await launchWith(
+      tauri.extractionOverview({ active: tauri.extractionStatus(), counts: updating }),
+    );
+    expect(line()).toHaveTextContent('Updating text · 4 files to go');
+    events.emit('extraction-status', tauri.extractionOverview({ counts: updating }));
+    await waitFor(() =>
+      expect(line()).toHaveTextContent('Text waiting to be updated · 4 files to go'),
+    );
+  });
+
   it('is up to date when every file has a status', async () => {
     await launchWith(
       tauri.extractionOverview({
@@ -1125,7 +1137,8 @@ describe('search', () => {
     tauri.searchHit({
       fileInstanceId: 'h2',
       documentId: null,
-      title: null,
+      title: 'drive notes',
+      titleSource: 'file_name',
       displayName: 'drive notes.epub',
       fileType: 'epub',
       location: null,
@@ -1200,8 +1213,10 @@ describe('search', () => {
     expect(first.getByText('Also in 2 other places')).toBeInTheDocument();
     expect(first.queryByText('Some of your words')).not.toBeInTheDocument();
 
-    // No title: the file name is the heading. Found by the any-words fallback.
-    expect(second.getByRole('heading', { name: 'drive notes.epub' })).toBeInTheDocument();
+    // No title: the tidied file name is the heading, and the name isn't
+    // repeated. Found by the any-words fallback.
+    expect(second.getByRole('heading', { name: 'drive notes' })).toBeInTheDocument();
+    expect(second.queryByText('drive notes.epub')).not.toBeInTheDocument();
     expect(second.getByText('In the name')).toBeInTheDocument();
     expect(second.getByText('Some of your words')).toBeInTheDocument();
     expect(second.getByText('Also in 1 other place')).toBeInTheDocument();
@@ -1441,7 +1456,8 @@ describe('document details', () => {
       tauri.documentDetail({
         file: scanned,
         documentId: null,
-        title: null,
+        title: 'harmonic',
+        titleSource: 'file_name',
         authors: [],
         language: null,
         pageCount: null,
@@ -1450,7 +1466,8 @@ describe('document details', () => {
     );
     await user.click(screen.getByRole('button', { name: 'Details for harmonic.pdf' }));
     const d = await dialog();
-    expect(d).toHaveAccessibleName('harmonic.pdf');
+    expect(d).toHaveAccessibleName('harmonic');
+    expect(within(d).getByTestId('title-source')).toHaveTextContent('Title from the file name');
     expect(within(d).queryByText('Authors')).not.toBeInTheDocument();
     expect(within(d).queryByText('Pages')).not.toBeInTheDocument();
     expect(within(d).getByTestId('text-reason')).toHaveTextContent(
@@ -1466,7 +1483,13 @@ describe('document details', () => {
       extraction: { state: 'pending' as const, reason: null },
     };
     const user = await openLibrary(
-      tauri.documentDetail({ file: pending, documentId: null, title: null, pageCount: null }),
+      tauri.documentDetail({
+        file: pending,
+        documentId: null,
+        title: 'harmonic',
+        titleSource: 'file_name',
+        pageCount: null,
+      }),
     );
     await user.click(screen.getByRole('button', { name: 'Details for harmonic.pdf' }));
     expect(within(await dialog()).getByTestId('text-reason')).toHaveTextContent(
@@ -1545,5 +1568,216 @@ describe('status bar with both jobs', () => {
     expect(bar.getByRole('button', { name: 'Pause' })).toBeInTheDocument();
     await user.click(bar.getByRole('button', { name: 'Pause reading text' }));
     expect(tauri.invoke).toHaveBeenCalledWith('pause_job', { jobId: 'extract-1' });
+  });
+});
+
+describe('duplicates', () => {
+  beforeEach(() => {
+    resetAll();
+    libraryStore.reset();
+  });
+
+  const dupCalls = () => tauri.invoke.mock.calls.filter(([c]) => c === 'list_duplicates');
+  const lastDupQuery = () => (dupCalls().at(-1)![1] as { query: Record<string, unknown> }).query;
+
+  async function openDuplicates(page = tauri.duplicatePage()) {
+    tauri.setHandler('list_source_roots', () => [tauri.sourceRoot()]);
+    tauri.setHandler('get_inventory_status', () => tauri.overview({ catalogedFiles: 4 }));
+    tauri.setHandler('list_documents', () =>
+      tauri.documentPage({ items: [tauri.fileInstance()], matchedSoFar: 1 }),
+    );
+    tauri.setHandler('list_duplicates', () => page);
+    const user = await launchOpen();
+    await user.click(screen.getByRole('button', { name: 'Library' }));
+    await screen.findByRole('table');
+    await user.click(screen.getByRole('radio', { name: 'Duplicates' }));
+    return user;
+  }
+
+  const groups = [
+    tauri.duplicateGroup(),
+    tauri.duplicateGroup({
+      documentId: 'doc-2',
+      title: 'gear notes',
+      titleSource: 'file_name',
+      sizeBytes: 1_000_000,
+      extraBytes: 1_000_000,
+      copies: [
+        tauri.fileInstance({ id: 'g1', displayName: 'gear_notes.pdf' }),
+        tauri.fileInstance({ id: 'g2', displayName: 'gear_notes.pdf', storage: 'cloud_only' }),
+        tauri.fileInstance({ id: 'g3', displayName: 'gear_notes.pdf', availability: 'missing' }),
+      ],
+    }),
+  ];
+
+  it('switches the Library to groups of identical copies, most extra space first', async () => {
+    await openDuplicates(tauri.duplicatePage({ groups, totalGroups: 2, extraBytes: 9_400_000 }));
+    expect(lastDupQuery()).toEqual({
+      sourceRootId: null,
+      fileType: null,
+      includeMissing: false,
+      page: 0,
+      pageSize: 20,
+    });
+    expect(screen.queryByRole('table')).not.toBeInTheDocument();
+    expect(screen.queryByPlaceholderText('Search file names and folders')).toBeNull();
+    expect(screen.queryByRole('combobox', { name: 'Text status' })).toBeNull();
+    expect(screen.getByTestId('duplicates-summary')).toHaveTextContent(
+      '2 groups · 9.4 MB in extra copies',
+    );
+    expect(screen.getByText(/never deletes or moves your files/)).toBeInTheDocument();
+    const [first, second] = screen.getAllByTestId('duplicate-group').map((g) => within(g));
+    expect(first.getByRole('heading', { name: 'Harmonic Drives' })).toBeInTheDocument();
+    expect(first.getByText('3 copies')).toBeInTheDocument();
+    expect(first.getByText('4.2 MB each')).toBeInTheDocument();
+    expect(first.getByText('8.4 MB in extra copies')).toBeInTheDocument();
+    expect(first.getAllByRole('listitem')).toHaveLength(3);
+    // The missing copy is listed but not counted; the source of the title
+    // is said.
+    expect(second.getByText('2 copies')).toBeInTheDocument();
+    expect(second.getByText('Title from the file name')).toBeInTheDocument();
+    expect(second.getByText('Missing')).toBeInTheDocument();
+    expect(second.getByText('Only in the cloud')).toBeInTheDocument();
+    expect(screen.getByTestId('duplicates-range')).toHaveTextContent('Showing 1–2 of 2 groups');
+  });
+
+  it('filters, pages and opens copies', async () => {
+    const user = await openDuplicates(
+      tauri.duplicatePage({ groups, totalGroups: 45, extraBytes: 9_400_000 }),
+    );
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Type' }), 'pdf');
+    expect(lastDupQuery()).toMatchObject({ fileType: 'pdf', page: 0 });
+    await user.click(screen.getByRole('checkbox', { name: 'Include missing files' }));
+    expect(lastDupQuery()).toMatchObject({ includeMissing: true });
+    await user.click(screen.getByRole('button', { name: 'Next' }));
+    expect(lastDupQuery()).toMatchObject({ page: 1 });
+    const group = within(screen.getAllByTestId('duplicate-group')[0]);
+    await user.click(group.getAllByRole('button', { name: 'Open harmonic.pdf' })[1]);
+    expect(tauri.invoke).toHaveBeenCalledWith('open_original', {
+      fileId: 'c3',
+      allowDownload: false,
+    });
+    await user.click(group.getByRole('button', { name: 'Details for harmonic copy.pdf' }));
+    expect(tauri.invoke).toHaveBeenCalledWith('get_document_detail', { fileId: 'c2' });
+  });
+
+  it('explains when there are no duplicates, and goes back to files', async () => {
+    const user = await openDuplicates();
+    expect(await screen.findByText('No duplicates found.')).toBeInTheDocument();
+    expect(screen.getByText(/finds copies by their contents/)).toBeInTheDocument();
+    await user.click(screen.getByRole('radio', { name: 'Files' }));
+    expect(await screen.findByRole('table')).toBeInTheDocument();
+  });
+
+  it('explains a failure', async () => {
+    tauri.setHandler('list_duplicates', () => {
+      throw tauri.apiError('database_error', 'The library could not be read.', 'Restart Atlas.');
+    });
+    tauri.setHandler('list_source_roots', () => [tauri.sourceRoot()]);
+    const user = await launchOpen();
+    await user.click(screen.getByRole('button', { name: 'Library' }));
+    await user.click(await screen.findByRole('radio', { name: 'Duplicates' }));
+    expect(await screen.findByText("Atlas couldn't list duplicates")).toBeInTheDocument();
+  });
+});
+
+describe('storage', () => {
+  beforeEach(resetAll);
+
+  async function openStorage() {
+    const user = await launchOpen();
+    await user.click(screen.getByRole('button', { name: 'Settings' }));
+    const heading = await screen.findByRole('heading', { level: 2, name: 'Storage' });
+    return { user, section: within(heading.closest('section')!) };
+  }
+
+  it('shows usage by category and the estimate as a range', async () => {
+    const { section } = await openStorage();
+    const panel = within(await section.findByTestId('storage-usage'));
+    expect(await panel.findByText('620 MB')).toBeInTheDocument();
+    expect(panel.getByText('Text Atlas has read')).toBeInTheDocument();
+    expect(panel.getByText('250 MB')).toBeInTheDocument();
+    expect(panel.getByText('530 MB')).toBeInTheDocument();
+    expect(panel.getByText('12.0 MB')).toBeInTheDocument();
+    expect(panel.getByTestId('indexing-estimate')).toHaveTextContent(
+      'Text for the remaining 17,600 files will need about 1.5–2.5 GB.',
+    );
+  });
+
+  it.each([
+    [{ kind: 'not_enough_read', done: 12, needed: 50 } as const, /Not enough read yet/],
+    [{ kind: 'all_read' } as const, 'Atlas has read the text of every file it can.'],
+    [
+      {
+        kind: 'range',
+        remainingFiles: 30_000,
+        lowBytes: 800_000_000,
+        highBytes: 1_200_000_000,
+      } as const,
+      'Text for the remaining 30,000 files will need about 800 MB–1.2 GB. That may be more than the free space on this drive.',
+    ],
+  ])('estimate %#', async (estimate, text) => {
+    tauri.setHandler('get_storage_usage', () =>
+      tauri.storageUsage({ estimate, dataVolumeFreeBytes: 1_000_000_000 }),
+    );
+    const { section } = await openStorage();
+    expect(await section.findByTestId('indexing-estimate')).toHaveTextContent(text);
+  });
+
+  it('says it is measuring until the numbers arrive', async () => {
+    tauri.setHandler('get_storage_usage', () => new Promise(() => {}));
+    const { section } = await openStorage();
+    expect(await section.findByText('Measuring…')).toBeInTheDocument();
+    expect(section.getByRole('button', { name: 'Clean caches' })).toBeDisabled();
+  });
+
+  it('cleans caches and says what that freed', async () => {
+    tauri.setHandler('clean_caches', () => ({
+      freedBytes: 12_000_000,
+      usage: tauri.storageUsage({ cacheBytes: 0 }),
+    }));
+    const { user, section } = await openStorage();
+    await user.click(await section.findByRole('button', { name: 'Clean caches' }));
+    expect(tauri.invoke).toHaveBeenCalledWith('clean_caches', undefined);
+    expect(await section.findByTestId('clean-result')).toHaveTextContent('Freed 12.0 MB.');
+    expect(section.getByText('0 bytes')).toBeInTheDocument();
+    tauri.setHandler('clean_caches', () => ({ freedBytes: 0, usage: tauri.storageUsage() }));
+    await user.click(section.getByRole('button', { name: 'Clean caches' }));
+    await waitFor(() =>
+      expect(section.getByTestId('clean-result')).toHaveTextContent('Nothing to clean.'),
+    );
+  });
+
+  it('explains a measuring failure', async () => {
+    tauri.setHandler('get_storage_usage', () => {
+      throw tauri.apiError('database_error', 'The library could not be read.');
+    });
+    const { section } = await openStorage();
+    expect(await section.findByText("Atlas couldn't measure its storage")).toBeInTheDocument();
+  });
+});
+
+describe('title sources', () => {
+  beforeEach(resetAll);
+
+  it('says when a title comes from the first page', async () => {
+    tauri.setHandler('list_source_roots', () => [tauri.sourceRoot()]);
+    tauri.setHandler('search_documents', () =>
+      tauri.searchPage({
+        hits: [tauri.searchHit({ title: 'Strain Wave Gearing', titleSource: 'contents' })],
+        matchedDocuments: 1,
+      }),
+    );
+    tauri.setHandler('get_document_detail', () =>
+      tauri.documentDetail({ title: 'Strain Wave Gearing', titleSource: 'contents' }),
+    );
+    const user = await launchOpen();
+    await user.type(screen.getByLabelText('Search your library'), 'gear{Enter}');
+    const hit = within(await screen.findByTestId('search-hit'));
+    expect(hit.getByRole('heading', { name: 'Strain Wave Gearing' })).toBeInTheDocument();
+    expect(hit.getByText('harmonic.pdf')).toBeInTheDocument();
+    await user.click(hit.getByRole('button', { name: 'Details for harmonic.pdf' }));
+    const d = await screen.findByRole('dialog');
+    expect(within(d).getByTestId('title-source')).toHaveTextContent('Title from the first page');
   });
 });

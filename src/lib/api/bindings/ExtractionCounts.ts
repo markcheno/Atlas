@@ -3,4 +3,9 @@
 /**
  * Files by text status, over available files.
  */
-export type ExtractionCounts = { done: number, pending: number, needsOcr: number, encrypted: number, cloudOnly: number, unreadable: number, total: number, };
+export type ExtractionCounts = { done: number, pending: number, needsOcr: number, encrypted: number, cloudOnly: number, unreadable: number, total: number, 
+/**
+ * Files with text (counted in `done`) being read again by a newer
+ * reader; their old text stays searchable meanwhile.
+ */
+updating: number, };

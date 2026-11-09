@@ -102,6 +102,7 @@ docs/
   phase1-spec.md                             # this document
   adr/0009-jobs-and-extraction.md            # new (Slice 1.1, final in 1.3)
   adr/0010-full-text-search.md               # new (Slice 1.4)
+  adr/0011-re-reading-without-losing-search.md   # new (Slice 1.6)
   phase1-closeout.md                         # new (Slice 1.8)
 ```
 
@@ -200,7 +201,7 @@ The Phase 0 data-root layout and lifecycle rules stand. Phase 1 keeps extracted 
 Semantics:
 
 - **Identity.** A *file instance* is `(source_root_id, rel_path)` with its Phase 0 UUID. A *document* is the BLAKE3-256 of a file's bytes. The document carries the extracted text, its state and the metadata; the instance carries what blocks it before hashing (`skipped_cloud_only`, `unreadable`, `hash_failed`). The **effective status** of a file is its instance state if that blocks, else its document's state.
-- **Invalidation.** The scan upsert sets `extract_state = 'pending'` when a file is new or its size or whole-second mtime changed (the same comparison `updated_at` already uses). A document whose `extractor_version` is older than the current one is re-extracted on the next pass. Nothing else triggers re-extraction.
+- **Invalidation.** The scan upsert sets `extract_state = 'pending'` when a file is new or its size or whole-second mtime changed (the same comparison `updated_at` already uses). A document whose `extractor_version` is older than its format's current reader version is re-extracted on the next pass, staying linked and searchable until the new text replaces it (as built in Slice 1.6, ADR 0011). Nothing else triggers re-extraction.
 - **Transactions.** Each document commits in **one** transaction: `documents` row, all `passages`, the FTS trigger inserts, and the instance link. A kill at any point leaves either the whole document or nothing (P1-12). The cap of 20 million characters per document bounds the transaction.
 - **FTS maintenance.** `INSERT INTO passages_fts(passages_fts) VALUES ('merge', N)` in bounded batches at the end of each extraction job; `'integrity-check'` in tests; `'rebuild'` as the recovery action if a check fails.
 - **Orphans.** A document is deleted only when its last instance is purged (an instance is purged when its source root is removed or when the user deletes a missing file from the catalog; Phase 1 does not auto-purge).
@@ -251,7 +252,7 @@ Semantics:
 
 Unchanged from Phase 0. Phase 1 adds:
 
-- `StorageUsage { catalogBytes, textIndexBytes, cacheBytes, dataVolumeFreeBytes, sampledAt }`, computed from file sizes and `dbstat`-free queries (the FTS and passage sizes come from `PRAGMA page_count` on the shadow tables where available, else from the table row sizes; a measured approximation, labelled as such).
+- `StorageUsage { catalogBytes, textBytes, indexBytes, otherCatalogBytes, cacheBytes, dataVolumeFreeBytes, estimate, measuredAt }`, computed from file sizes and, as built in Slice 1.6, SQLite's `dbstat` (exact; it is compiled into the bundled SQLite). The original plan was `dbstat`-free queries approximating the FTS and passage sizes.
 - The **indexing estimate**: once at least 50 documents are done, extrapolate from the mean characters per done file to the pending files, with a range of ±40% and a DB growth factor measured by the benchmarks (§13). Never a point value; never shown before 50 samples.
 - Memory and thermal pressure now also pause extraction (they already pause scans).
 
@@ -276,8 +277,9 @@ start_extraction(source_root_id) -> job_id          # idempotent; "Read text now
 get_extraction_status() -> ExtractionOverview        # also pushed as the extraction-status event
 search_documents(query: SearchQuery) -> SearchPage
 get_document_detail(file_instance_id) -> DocumentDetail  # file, title, authors, language, pages, status, Also at
+list_duplicates(query: DuplicateQuery) -> DuplicatePage   # Slice 1.6
 get_storage_usage() -> StorageUsage
-clean_caches() -> StorageUsage
+clean_caches() -> CleanCachesResult                      # { freedBytes, usage }
 ```
 
 DTOs: `JobKind`, `ExtractionState` (the effective per-file status), `ExtractionOverview`, `SearchQuery { text, sourceRootId?, fileType?, includeMissing, page, pageSize }`, `SearchHit`, `SnippetSpan`, `SearchPage`, `DocumentDetail`, `StorageUsage`. `FileInstance` gains `documentId` and `extraction { state, reason? }`. All are ts-rs exported; `check-bindings` covers them.
@@ -368,7 +370,7 @@ Implement and verify **one slice at a time**. Build and rerun tests after each s
 | 1.3 | **Extraction.** Migration 0008 (documents and the `file_instances` extraction columns); engines (sniff, hash, PDF, EPUB, unreadable-text rule), documents and dedup, per-file status, supervisor, duty-cycle policy, `extraction-status`, Library Text badges and filter, status-bar line, Read text now; ADR 0009 final | P1-03 … P1-14 |
 | 1.4 | **Search.** Migration 0009 (passages and FTS5 with triggers), query builder, `search_documents`, the evaluation questions and `search_eval`, `benches/search.rs`; ADR 0010 | P1-15 … P1-17, P1-19 |
 | 1.5 | **Search UI and document detail.** Home → Search view (a main tab), results with spans, filters, paging, the full detail panel (title, authors, language, pages, text status and reason, Also at), job controls for both kinds | Vitest coverage of every new screen state; smoke "search finds a passage" |
-| 1.6 | **Metadata quality and duplicates.** File-name fallbacks for missing titles and authors; duplicates view; storage usage by category, indexing estimate, Clean caches | P1-18; estimate shown as a range only after 50 samples |
+| 1.6 | **Metadata quality and duplicates.** Titles from metadata, then a PDF's first page, then the file name; junk metadata cleaned; EPUB text without Markdown; per-format reader versions with a stay-searchable re-read; Library › Duplicates; storage usage by category, indexing estimate, Clean caches | P1-18; estimate shown as a range only after 50 samples |
 | 1.7 | **Carry-overs.** Replayed entries charged less on resume inside large folders; Windows junctions and long paths; worker lifetime on quit; `benches/extraction.rs` | P1-20 … P1-22 |
 | 1.8 | **Evidence and close-out.** Benchmarks on three OSes in `docs/benchmarks.md`; license report; platform validation including a manual smoke of the release DMG with PDFium on macOS; ADRs final; `docs/phase1-closeout.md`; version 0.2.0 | All CI green on `main`; close-out review against §1, §12, §13, §14 and §16 |
 
@@ -466,6 +468,15 @@ Do **not** start extraction, FTS, or the search UI before Slice 1.1's gate passe
 - The smoke test generates the 1,000-file fixture with `--text-kb 4` and reads it fully; it also checks that no `--extract-worker` process outlives quitting while text is being read (the observable half of the Slice 1.7 carry-over).
 - Typographic double quotes (`“ ” „ ‟ « »`, full-width `＂`) quote phrases like `"`, because macOS smart quotes type them (found in the manual check).
 - Search results carry no Text badge (`SearchHit` has no text status, and a text match is read by definition); the detail panel shows it.
+
+**2026-11-09, amended during Slice 1.6:**
+
+- Titles come from the file's metadata when usable, then (PDFs) the largest text on the first page, then the tidied file name; the source is shown ("Title from the first page", "Title from the file name"). Product-owner decision: the product owner asked whether a title could come from the contents; generated titles need a model and wait for the AI phases. Cleaning (placeholders, "Microsoft Word - …", file-name titles; authors split on `;`, account names dropped) happens when the catalog is read, so new rules never need a re-read. EPUBs use `dc:title` or the file name.
+- EPUB text is written without Markdown marks (`TrivialDecorator`), fixing `# Chapter 1` in snippets.
+- Reader versions are per format (`READER_VERSION_PDF`, `READER_VERSION_EPUB`, both 2). A document read by an older reader stays linked, searchable and "Text ready" while one copy is read again; documents whose output would not change move to the new version unread (ADR 0011). Product-owner decision: re-read EPUBs and untitled PDFs, staying searchable.
+- Duplicates live in the Library behind a Files | Duplicates switch, not in a new tab (product-owner decision). `list_duplicates` is a new command; a group needs two available copies; missing copies never count.
+- Storage accounting uses SQLite's `dbstat` (compiled into the bundled SQLite), not the `dbstat`-free approximation §8 asked for: it is exact and fast (9 ms on the 1k text fixture, 0.3 s at 30k). `clean_caches` returns `CleanCachesResult { freedBytes, usage }`. The estimate uses the measured text and index bytes per read document, so no separate growth factor is needed.
+- The fixture generator gains `--untitled-every N` (no metadata title; PDFs set it in 24 pt on page 1) and `--copies N` (identical copies for duplicate groups); default output is unchanged byte for byte.
 
 ### Primary reference documentation (verify current versions at implementation time)
 

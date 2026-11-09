@@ -51,6 +51,23 @@ Measured on an M5 Pro (2026-11-08):
 | 30k, 20 KiB (CI) | `10000 20000 20` | 12 s | 808 MiB | 266,598 |
 | 30k, 100 KiB | `10000 20000 100` | 49 s | 3.6 GiB | 1,253,610 |
 
+### Titles and copies (Slice 1.6)
+
+Two more options, off by default (the output above is unchanged byte for
+byte without them):
+
+- `--untitled-every N`: every Nth text document (files N−1, 2N−1, …) has no
+  title in its metadata. PDFs drop Title and Author from the Info dictionary
+  and print the title in 24 pt at the top of page 1 instead, as papers do;
+  EPUBs leave out `dc:title`. Used by P1-18 (`tests/metadata.rs`).
+- `--copies N`: N byte-identical copies of spread-out files, each in
+  `copies/copy-NNNNN/`, so Library › Duplicates has many groups. The search
+  benchmark uses `--copies 2000` at 30k and `--copies 100` at 1k.
+
+```sh
+node scripts/generate-fixtures.mjs ~/atlas-fixtures/titles --files 100 --text-kb 4 --untitled-every 4 --copies 20
+```
+
 `src-tauri/tests/pdfium.rs` checks that the bundled PDFium reads every page
 and marker of a generated text fixture. The extraction worker's built-in
 self-test PDF is written by the same code (`selfTestPdf` in

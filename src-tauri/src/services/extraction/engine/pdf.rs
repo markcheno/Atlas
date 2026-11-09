@@ -4,10 +4,11 @@
 use std::fs::File;
 
 use pdfium_render::prelude::{
-    PdfDocumentMetadataTagType, Pdfium, PdfiumError, PdfiumInternalError,
+    PdfDocumentMetadataTagType, PdfPageText, Pdfium, PdfiumError, PdfiumInternalError,
 };
 
 use super::garble::Readability;
+use super::title::{PageChar, first_page_title};
 use super::{Budget, Failure, MAX_PASSAGE_CHARS, Outcome, Piece, Sink, Summary, truncate_chars};
 
 fn classify(err: PdfiumError) -> Failure {
@@ -35,6 +36,25 @@ fn tag(
         .filter(|v| !v.is_empty())
 }
 
+/// The first page's characters, for [`first_page_title`]. Characters PDFium
+/// can't place are skipped.
+fn page_chars(text: &PdfPageText<'_>) -> Vec<PageChar> {
+    text.chars()
+        .iter()
+        .filter_map(|c| {
+            let ch = c.unicode_char()?;
+            let (x, y) = c.origin().ok()?;
+            Some(PageChar {
+                ch,
+                size: c.scaled_font_size().value,
+                x: x.value,
+                y: y.value,
+                angle: c.angle_degrees().unwrap_or(0.0),
+            })
+        })
+        .collect()
+}
+
 /// Sends each page to `sink`, then reports the summary, or why the PDF has
 /// no usable text.
 pub fn extract(pdfium: &Pdfium, file: File, sink: &mut Sink<'_>) -> Result<Summary, Failure> {
@@ -47,8 +67,13 @@ pub fn extract(pdfium: &Pdfium, file: File, sink: &mut Sink<'_>) -> Result<Summa
     let mut readability = Readability::default();
     let mut truncated = 0u32;
     let mut pages = 0u32;
+    let mut content_title = None;
     for (n, page) in doc.pages().iter().enumerate() {
-        let mut text = page.text().map_err(classify)?.all();
+        let page_text = page.text().map_err(classify)?;
+        if n == 0 {
+            content_title = first_page_title(&page_chars(&page_text));
+        }
+        let mut text = page_text.all();
         if truncate_chars(&mut text, MAX_PASSAGE_CHARS) {
             truncated += 1;
         }
@@ -78,6 +103,7 @@ pub fn extract(pdfium: &Pdfium, file: File, sink: &mut Sink<'_>) -> Result<Summa
         page_count: pages,
         char_count: budget.chars,
         title,
+        content_title,
         authors,
         language: None,
         truncated,

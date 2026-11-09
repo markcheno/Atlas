@@ -4,7 +4,7 @@ Atlas is a local-first personal AI librarian for large private collections of
 PDFs, EPUBs, books and papers. *Collect freely. Organize minimally. Retrieve
 intelligently.*
 
-**Status: Phase 1, Slice 1.5 (the Search screen and document details); Phase 0 complete.** Atlas asks where to keep its library and
+**Status: Phase 1, Slice 1.6 (titles, duplicates and storage); Phase 0 complete.** Atlas asks where to keep its library and
 which folders hold your books and papers, then catalogs every PDF and EPUB
 in them in the background, read-only. Cataloging slows on battery, pauses
 when the battery is low or the drive is nearly full, survives quitting and
@@ -22,7 +22,13 @@ case and accents. Results are grouped by book or paper, with the page or
 chapter and a snippet that highlights your words; when no result has all of
 them, Atlas shows the ones with some, and says so. Selecting a file opens
 its details: title, authors, language, pages, text status and the other
-places the same content is stored.
+places the same content is stored. When a file's own title is missing or
+junk ("Untitled", "Microsoft Word - draft3.docx"), Atlas takes the
+largest text on a PDF's first page, or tidies the file name, and says
+which. Library › Duplicates lists identical copies, most wasted space
+first (Atlas never deletes or moves them), and Settings › Storage shows
+what the catalog, the text and the search index take, estimates what the
+rest of the text will need, and cleans caches.
 In Settings › AI Models you can connect Ollama, oMLX, LM Studio, or another
 OpenAI-compatible service and test it; keys are stored in your system
 keychain. Atlas contacts a service only when you test it, and sends nothing
@@ -70,7 +76,10 @@ None of this is in the app yet.
 | Reading text from PDFs and EPUBs, in a separate worker process; per-file Text status in the Library | Working (Slice 1.3): slows on battery, pauses at 20%; copies and moved files are read once; scans, DRM and damaged files get a status and a reason |
 | Search the text of your books and papers: Search tab and Home, phrases, prefixes, accent-insensitive, highlighted snippets | Working (Slices 1.4–1.5) |
 | Document details: title, authors, language, pages, text status, other copies (Also at) | Working (Slice 1.5) |
-| Metadata quality, duplicates view, Settings › Storage | Phase 1, in progress ([spec](docs/phase1-spec.md)): Slices 1.1–1.5 of 1.8 built |
+| Titles from metadata, a PDF's first page or the file name; junk metadata cleaned | Working (Slice 1.6) |
+| Duplicates view: identical copies grouped, most extra space first | Working (Slice 1.6) |
+| Settings › Storage: usage by category, indexing estimate, Clean caches | Working (Slice 1.6) |
+| Phase 1 carry-overs (large-folder resume, Windows junctions and long paths), close-out | Phase 1, in progress ([spec](docs/phase1-spec.md)): Slices 1.1–1.6 of 1.8 built |
 
 Specifications: [product](docs/product-spec.md), [Phase 0](docs/phase0-spec.md),
 [Phase 1](docs/phase1-spec.md), [architecture](docs/architecture.md),
@@ -182,13 +191,13 @@ not been tested on each OS.
 ```text
 src/                  Svelte 5 + TypeScript UI
   lib/api/            typed IPC facade; bindings/ is generated from Rust (do not edit)
-  lib/stores/         app, workspace, sources, inventory, extraction, library, search, details, originals, provider, theme and view state
+  lib/stores/         app, workspace, sources, inventory, extraction, library, duplicates, search, details, originals, provider, theme and view state
   lib/components/     shell, navigation, status bar, panels, notices, document details, Open/Reveal actions
   views/              onboarding, Home, Search, Library, Settings
 src-tauri/            Rust core and Tauri configuration
   src/commands/       thin IPC adapters
   src/domain/         DTOs and service traits
-  src/services/       catalog, inventory, extraction, search, documents, library, sources, providers, workspace, …
+  src/services/       catalog, inventory, extraction, search, documents, storage, library, sources, providers, workspace, …
   src/infrastructure/ OS, filesystem, HTTP and keychain adapters
   migrations/         catalog schema (SQLite), applied in order
   tests/              Rust integration tests
