@@ -327,6 +327,11 @@ pub struct FileInstance {
     pub modified_at: Option<String>,
     pub availability: Availability,
     pub storage: FileStorage,
+    /// The content's document, once its bytes have been hashed (several
+    /// files with the same bytes share one).
+    pub document_id: Option<RecordId>,
+    /// Whether Atlas has read the file's text (phase1-spec §5.3).
+    pub extraction: FileExtraction,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
@@ -353,6 +358,9 @@ pub struct DocumentQuery {
     /// Also list files a completed scan no longer found.
     #[serde(default)]
     pub include_missing: bool,
+    /// Only files with this text status (`reading` counts as `pending`).
+    #[serde(default)]
+    pub text_status: Option<ExtractionState>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
@@ -395,6 +403,95 @@ pub enum JobKind {
     Scan,
     /// Text extraction from cataloged files (Phase 1, Slice 1.3).
     Extract,
+}
+
+// ------------------------------------------------------------ extraction
+
+/// A file's text status as the Library shows it (phase1-spec §5.3).
+/// `Reading` is the file the active extraction job is on; the catalog
+/// stores it as `pending`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "snake_case")]
+#[ts(export)]
+pub enum ExtractionState {
+    Pending,
+    Reading,
+    Done,
+    NeedsOcr,
+    Encrypted,
+    CloudOnly,
+    /// Malformed, unsupported, too large, crashed the reader, or not readable
+    /// from disk; `reason` says which.
+    Unreadable,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct FileExtraction {
+    pub state: ExtractionState,
+    /// Fixed reason code when there is no text, e.g. `no_text_layer`,
+    /// `not_a_pdf`, `drm`, `zip_slip`, `entry_too_large`, `worker_crashed`.
+    pub reason: Option<String>,
+}
+
+/// Files by text status, over available files.
+#[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct ExtractionCounts {
+    pub done: u32,
+    pub pending: u32,
+    pub needs_ocr: u32,
+    pub encrypted: u32,
+    pub cloud_only: u32,
+    pub unreadable: u32,
+    pub total: u32,
+}
+
+/// The extraction job shown in the status bar.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct ExtractionStatus {
+    pub job_id: RecordId,
+    pub source_root_id: RecordId,
+    pub source_root_display_path: String,
+    pub state: JobState,
+    pub pause_reason: Option<PauseReason>,
+    pub throttle_reason: Option<ThrottleReason>,
+    /// Files of this folder with a final text status.
+    pub processed_files: u32,
+    pub pending_files: u32,
+    /// The file being read now, while running.
+    pub current_file_id: Option<RecordId>,
+    /// Stable code of the most recent problem, e.g. `extractor_unavailable`.
+    pub last_error: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct RootExtractionSummary {
+    pub source_root_id: RecordId,
+    pub counts: ExtractionCounts,
+    pub last_state: Option<JobState>,
+    pub active_job_id: Option<RecordId>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct ExtractionOverview {
+    /// The job to show: running, then policy-paused, then paused by the
+    /// user, then retrying, then queued.
+    pub active: Option<ExtractionStatus>,
+    pub queued_jobs: u32,
+    pub counts: ExtractionCounts,
+    pub roots: Vec<RootExtractionSummary>,
+    /// Cataloging is still finding files, so totals may still grow; the UI
+    /// then shows counts only, never "of N" (phase0-spec §5.6).
+    pub scanning: bool,
 }
 
 /// Machine-readable pause reasons; display text is chosen by the UI.

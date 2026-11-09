@@ -330,6 +330,8 @@ pub fn finish(
         "DELETE FROM scan_directories WHERE session_id = ?1",
         [session_id],
     )?;
+    // New or changed files are read next (phase1-spec §7.1).
+    crate::services::extraction::db::enqueue_if_pending(&tx, root_id, now)?;
     tx.commit()
 }
 

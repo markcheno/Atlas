@@ -17,6 +17,7 @@ import type { DeviceCheck } from './bindings/DeviceCheck';
 import type { DataRootStatus } from './bindings/DataRootStatus';
 import type { DeviceSnapshot } from './bindings/DeviceSnapshot';
 import type { DocumentPage } from './bindings/DocumentPage';
+import type { ExtractionOverview } from './bindings/ExtractionOverview';
 import type { DocumentQuery } from './bindings/DocumentQuery';
 import type { ErrorCode } from './bindings/ErrorCode';
 import type { ErrorPayload } from './bindings/ErrorPayload';
@@ -121,6 +122,9 @@ export const atlas = {
   resumeJob: (jobId: string) => call<void>('resume_job', { jobId }),
   cancelJob: (jobId: string) => call<void>('cancel_job', { jobId }),
   getInventoryStatus: () => call<InventoryOverview>('get_inventory_status'),
+  startExtraction: (sourceRootId: string) =>
+    call<string>('start_extraction', { sourceRootId }),
+  getExtractionStatus: () => call<ExtractionOverview>('get_extraction_status'),
 
   listDocuments: (query: DocumentQuery) => call<DocumentPage>('list_documents', { query }),
   /** `allowDownload` must be true to open a file stored only in the cloud. */

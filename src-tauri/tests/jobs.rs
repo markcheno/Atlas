@@ -246,7 +246,10 @@ fn p1_01_upgrade_keeps_a_paused_scan_and_its_frontier() {
     );
     // The same row, every column, now with a kind.
     assert_eq!(
-        query(root, format!("SELECT {job_columns} FROM jobs")),
+        query(
+            root,
+            format!("SELECT {job_columns} FROM jobs WHERE kind = 'scan'")
+        ),
         job_before
     );
     assert_eq!(
@@ -263,6 +266,11 @@ fn p1_01_upgrade_keeps_a_paused_scan_and_its_frontier() {
             format!("SELECT {file_columns} FROM file_instances ORDER BY id")
         ),
         files_before
+    );
+    // Its cataloged file waits for its text (phase1-spec §7.1).
+    assert_eq!(
+        one_u32(root, "SELECT COUNT(*) FROM jobs WHERE kind = 'extract'"),
+        1
     );
     // The paused scan counts as this folder's scan: none was added.
     assert_eq!(
@@ -511,6 +519,7 @@ impl Lib {
             page: 0,
             page_size: 10,
             include_missing: false,
+            text_status: None,
         };
         library::list(self.root().reader(), self.root().root_status(), &q)
             .unwrap()

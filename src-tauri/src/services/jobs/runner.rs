@@ -66,20 +66,36 @@ pub struct JobRunner {
     thread: Option<JoinHandle<()>>,
 }
 
+/// Wakes every runner of one open data root, for example the extraction
+/// runner when a scan finishes with files to read.
+#[derive(Clone, Default)]
+pub struct JobWaker(Arc<Vec<Arc<Signal>>>);
+
+impl JobWaker {
+    pub fn wake(&self) {
+        for signal in self.0.iter() {
+            signal.notify();
+        }
+    }
+}
+
 impl JobRunner {
-    /// Starts the runner for `kind`. The processor is built on the runner's
-    /// own thread, so it is also dropped there before the thread ends.
-    pub fn start(
+    /// Starts the runner for `kind` with its own `signal`. The processor is
+    /// built on the runner's own thread, so it is also dropped there before
+    /// the thread ends.
+    fn start(
         kind: JobKind,
         catalog: CatalogHandle,
         data_root: &Path,
         factory: ProcessorFactory,
+        signal: Arc<Signal>,
+        waker: JobWaker,
     ) -> AtlasResult<Self> {
-        let signal = Arc::new(Signal::new());
         let ctx = ProcessorContext {
             catalog: catalog.clone(),
             data_root: data_root.to_path_buf(),
             signal: Arc::clone(&signal),
+            waker,
         };
         let loop_signal = Arc::clone(&signal);
         let thread = thread::Builder::new()
@@ -158,11 +174,28 @@ impl JobRunners {
         data_root: &Path,
         factories: &BTreeMap<JobKind, ProcessorFactory>,
     ) -> AtlasResult<Self> {
+        // Every signal exists before any runner starts, so each processor's
+        // waker reaches all of them.
+        let signals: Vec<(JobKind, Arc<Signal>)> = factories
+            .keys()
+            .map(|kind| (*kind, Arc::new(Signal::new())))
+            .collect();
+        let waker = JobWaker(Arc::new(
+            signals.iter().map(|(_, s)| Arc::clone(s)).collect(),
+        ));
         let mut runners = BTreeMap::new();
-        for (kind, factory) in factories {
+        for (kind, signal) in signals {
+            let factory = Arc::clone(&factories[&kind]);
             runners.insert(
-                *kind,
-                JobRunner::start(*kind, catalog.clone(), data_root, Arc::clone(factory))?,
+                kind,
+                JobRunner::start(
+                    kind,
+                    catalog.clone(),
+                    data_root,
+                    factory,
+                    signal,
+                    waker.clone(),
+                )?,
             );
         }
         Ok(Self { runners })

@@ -17,11 +17,13 @@ use std::sync::{Arc, Mutex};
 
 use tauri::{Emitter, Manager};
 
-use domain::dto::InventoryOverview;
+use domain::dto::{ExtractionOverview, InventoryOverview, JobKind};
 use infrastructure::keychain::LazyKeychain;
 use infrastructure::local_source::LocalFsSource;
 use infrastructure::system_probe::{OsResourceMonitor, SimulatedMonitor, Simulation};
 use infrastructure::volume::OsVolumeInspector;
+use services::extraction::job::{self as extraction_job, ExtractionConfig, ExtractionDeps};
+use services::extraction::supervisor::WorkerCommand;
 use services::inventory::{InventoryConfig, InventoryDeps};
 use services::providers::secrets::{SecretStore, SecretVault};
 use services::system::ResourceGovernor;
@@ -31,6 +33,10 @@ use state::AppState;
 /// Tauri event carrying an `InventoryOverview` whenever cataloging
 /// progresses or changes state.
 pub const INVENTORY_EVENT: &str = "inventory-status";
+
+/// Tauri event carrying an `ExtractionOverview` whenever reading text makes
+/// progress or changes state (at most four per second, plus every change).
+pub const EXTRACTION_EVENT: &str = "extraction-status";
 
 /// Debug builds only: redirects the locator (and the suggested data root)
 /// so tests and smoke runs never touch the real per-user configuration.
@@ -95,7 +101,20 @@ pub fn run() {
                 }),
                 config: InventoryConfig::from_env(),
             };
-            let mut workspace = Workspace::new(config, volumes).with_inventory(deps);
+            let extraction_emitter = app.handle().clone();
+            // The worker is this executable started with `--extract-worker`.
+            let worker = WorkerCommand::current_exe()?;
+            let extraction = ExtractionDeps::new(
+                governor.clone(),
+                Arc::new(move |overview: &ExtractionOverview| {
+                    let _ = extraction_emitter.emit(EXTRACTION_EVENT, overview);
+                }),
+                ExtractionConfig::from_env(),
+                worker,
+            );
+            let mut workspace = Workspace::new(config, volumes)
+                .with_inventory(deps)
+                .with_job_processor(JobKind::Extract, extraction_job::factory(extraction));
             // Reopens the remembered root and resumes interrupted cataloging;
             // problems become status, never a crash.
             workspace.startup();
@@ -135,6 +154,8 @@ pub fn run() {
             commands::inventory::resume_job,
             commands::inventory::cancel_job,
             commands::inventory::get_inventory_status,
+            commands::extraction::start_extraction,
+            commands::extraction::get_extraction_status,
             commands::library::list_documents,
             commands::library::open_original,
             commands::library::reveal_original,

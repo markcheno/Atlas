@@ -242,6 +242,7 @@ fn query() -> DocumentQuery {
         page: 0,
         page_size: 200,
         include_missing: false,
+        text_status: None,
     }
 }
 

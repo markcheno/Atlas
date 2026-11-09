@@ -35,6 +35,7 @@ use crate::infrastructure::fsutil::{clear_dir, sync_dir};
 use crate::infrastructure::native_path;
 use crate::services::catalog::reader::CatalogReader;
 use crate::services::catalog::{self, CatalogWriter};
+use crate::services::extraction;
 use crate::services::inventory::{self, InventoryDeps};
 use crate::services::jobs::{self, JobRunners, ProcessorFactory};
 use crate::services::library::{self, RootStatusCache};
@@ -337,7 +338,10 @@ impl Workspace {
         catalog
             .call(move |c| {
                 jobs::db::requeue_interrupted(c, &now)?;
-                inventory::db::queue_never_scanned(c, &now)
+                inventory::db::queue_never_scanned(c, &now)?;
+                // Files still waiting for their text, including ones read
+                // by an older extractor (phase1-spec §7.1).
+                extraction::db::queue_pending(c, &now)
             })?
             .map_err(AtlasError::db("recover interrupted cataloging"))?;
         // Rows cataloged before search keys existed (Slice 0.5).

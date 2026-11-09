@@ -6,7 +6,9 @@
 //! the worker skeleton: it finds and loads the bundled PDFium, proves it
 //! works on a built-in PDF, and says `hello`. Requests arrive in Slice 1.3.
 
+pub mod db;
 pub mod engine;
+pub mod job;
 pub mod locate;
 pub mod protocol;
 pub mod supervisor;

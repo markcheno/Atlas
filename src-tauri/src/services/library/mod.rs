@@ -13,14 +13,15 @@ use rusqlite::types::Value;
 use rusqlite::{Connection, params_from_iter};
 
 use crate::domain::dto::{
-    Availability, DocumentPage, DocumentQuery, DocumentSort, FileInstance, FileStorage,
-    SourceRootStatus,
+    Availability, DocumentPage, DocumentQuery, DocumentSort, ExtractionState, FileExtraction,
+    FileInstance, FileStorage, SourceRootStatus,
 };
 use crate::error::{AtlasError, AtlasResult};
 use crate::infrastructure::native_path;
 use crate::services::catalog::codec::{from_db, to_db};
 use crate::services::catalog::reader::CatalogReader;
 use crate::services::catalog::writer::CatalogHandle;
+use crate::services::extraction::db::{EFFECTIVE_REASON_SQL, EFFECTIVE_STATE_SQL};
 use crate::services::jobs::db::{ACTIVE_STATES, state_list};
 use crate::services::sources::probe;
 use fold::{fold, like_escape};
@@ -82,6 +83,14 @@ fn filter(q: &DocumentQuery) -> Filter {
         conditions.push("f.file_type = ?".to_owned());
         params.push(Value::Text(to_db(&kind)));
     }
+    if let Some(status) = q.text_status {
+        let status = match status {
+            ExtractionState::Reading => ExtractionState::Pending,
+            other => other,
+        };
+        conditions.push(format!("({EFFECTIVE_STATE_SQL}) = ?"));
+        params.push(Value::Text(to_db(&status)));
+    }
     if let Some(text) = &q.text {
         for term in fold(text).split_whitespace() {
             conditions.push("f.search_key LIKE ? ESCAPE '\\'".to_owned());
@@ -113,7 +122,11 @@ struct Row {
 fn query_page(conn: &Connection, q: &DocumentQuery) -> rusqlite::Result<(Vec<Row>, u32, bool)> {
     let f = filter(q);
     let matched: u32 = conn.query_row(
-        &format!("SELECT COUNT(*) FROM file_instances f {}", f.clause),
+        &format!(
+            "SELECT COUNT(*) FROM file_instances f
+             LEFT JOIN documents d ON d.id = f.document_id {}",
+            f.clause
+        ),
         params_from_iter(f.params.iter()),
         |r| r.get(0),
     )?;
@@ -125,8 +138,10 @@ fn query_page(conn: &Connection, q: &DocumentQuery) -> rusqlite::Result<(Vec<Row
     params.push(Value::Integer(offset as i64));
     let mut stmt = conn.prepare(&format!(
         "SELECT f.id, f.source_root_id, r.path_bytes, f.display_name, f.display_path,
-                f.extension, f.file_type, f.size_bytes, f.modified_at, f.availability, f.storage
+                f.extension, f.file_type, f.size_bytes, f.modified_at, f.availability, f.storage,
+                f.document_id, {EFFECTIVE_STATE_SQL}, {EFFECTIVE_REASON_SQL}
          FROM file_instances f JOIN source_roots r ON r.id = f.source_root_id
+         LEFT JOIN documents d ON d.id = f.document_id
          {} ORDER BY {} LIMIT ? OFFSET ?",
         f.clause,
         order_by(q.sort)
@@ -136,6 +151,7 @@ fn query_page(conn: &Connection, q: &DocumentQuery) -> rusqlite::Result<(Vec<Row
             let file_type: String = r.get(6)?;
             let availability: String = r.get(9)?;
             let storage: String = r.get(10)?;
+            let text_state: String = r.get(12)?;
             Ok(Row {
                 root_path: r.get(2)?,
                 instance: FileInstance {
@@ -156,6 +172,11 @@ fn query_page(conn: &Connection, q: &DocumentQuery) -> rusqlite::Result<(Vec<Row
                         FileStorage::CloudOnly
                     } else {
                         FileStorage::Local
+                    },
+                    document_id: r.get(11)?,
+                    extraction: FileExtraction {
+                        state: from_db(&text_state).unwrap_or(ExtractionState::Pending),
+                        reason: r.get(13)?,
                     },
                 },
             })

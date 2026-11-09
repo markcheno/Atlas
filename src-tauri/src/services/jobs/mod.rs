@@ -16,7 +16,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 pub use db::JobRow;
-pub use runner::{JobRunner, JobRunners, Signal};
+pub use runner::{JobRunner, JobRunners, JobWaker, Signal};
 
 use crate::services::catalog::writer::CatalogHandle;
 
@@ -47,6 +47,8 @@ pub struct ProcessorContext {
     pub data_root: PathBuf,
     /// Shared with the runner: stop requests and early wake-ups.
     pub signal: Arc<Signal>,
+    /// Wakes every runner of this data root (other kinds included).
+    pub waker: JobWaker,
 }
 
 /// Builds a kind's processor for each data root the workspace opens.
