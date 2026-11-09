@@ -92,3 +92,29 @@ Each fixture includes:
 
 The locked folder must be made readable before deleting the fixture; the
 generator prints the exact command.
+
+## Search evaluation questions
+
+[`evaluation/questions.json`](evaluation/questions.json) is the committed
+retrieval evaluation for Phase 1 search (phase1-spec §10): 40 questions
+over the spike corpus's text documents, a third each of exact wording
+(typed without quotes), quoted phrases, and paraphrases in the user's own
+words. They were written from the corpus truth texts before search was
+built and are not edited to fit it; `src-tauri/tests/search_eval.rs` asks
+each one and requires a relevant document in the top 5 for at least 80% of
+them.
+
+The format, also used for personal question sets with `just eval`:
+
+```json
+{
+  "version": 1,
+  "questions": [
+    { "id": "q01", "kind": "exact", "question": "Quoth the Raven Nevermore", "relevant": ["epub-pg1065"] }
+  ]
+}
+```
+
+`relevant` lists document ids from `spikes/extraction-bench/corpus/manifest.json`
+(for personal sets, file paths relative to a library folder). `kind` is
+`exact`, `phrase` or `paraphrase`.
