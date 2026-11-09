@@ -146,7 +146,7 @@ fn copies_are_grouped_with_their_extra_space_most_first() {
         (2 * x_size, "Engineering book 000001"),
         (y_size, "Astronomy book 000006"),
     ];
-    expected.sort_by(|p, q| q.0.cmp(&p.0));
+    expected.sort_by_key(|p| std::cmp::Reverse(p.0));
     let got: Vec<(u64, &str)> = page
         .groups
         .iter()
