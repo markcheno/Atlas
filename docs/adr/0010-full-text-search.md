@@ -98,7 +98,10 @@ status poll.
   view (Slice 1.5) labels them "Some of your words".
 - Storage accounting (Slice 1.6) measures the text and the index with
   SQLite's `dbstat` (compiled into the bundled SQLite) on a read-only
-  connection of its own: exact, and about 9 ms on the 1k text fixture. The
-  spec asked for `dbstat`-free queries; `dbstat` was available after all.
+  connection of its own: exact, 9 ms on the 1k text fixture and 0.3 s at
+  30k. The spec asked for `dbstat`-free queries; `dbstat` was available
+  after all. It shows where the 2.3× growth comes from: at 30k the
+  `passages` table takes 1,057 MiB for 594 MiB of text, the index 237 MiB
+  ([benchmarks](../benchmarks.md#duplicates-and-storage-slice-16)).
 - Semantic search (embeddings, ADR 0008's vector engine) arrives in a later
   phase and will rank alongside, not replace, this index.

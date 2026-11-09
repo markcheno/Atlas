@@ -277,4 +277,31 @@ The catalog holds the text and its index: 1.4 GB for 622 MB of text,
 2.3×, above the provisional 1.5× (phase1-spec §13); see ADR 0010. Reading
 in the release build ran at 204 files/s and 1,990 passages/s, unthrottled.
 
+
+## Duplicates and storage (Slice 1.6)
+
+The search benchmark's fixtures now include identical copies (`--copies
+2000` at 30k, `--copies 100` at 1k), and after the idle search rounds it
+times the first page of `list_duplicates` (20 rounds) and
+`get_storage_usage` (5 rounds). M5 Pro, release build, 2026-11-09:
+
+| Fixture | Groups | `list_duplicates` p50 / p95 / max ms | `get_storage_usage` p50 / p95 / max ms |
+| --- | ---: | ---: | ---: |
+| 1k text + 100 copies | 101 | 0.6 / 0.7 / 0.7 | 8.5 / 8.6 / 8.6 |
+| 30k text + 2,000 copies | 2,001 | 44 / 53 / 53 | 281 / 294 / 294 |
+
+Both are well inside the 250 ms browsing target for a list, and the
+storage measurement runs on its own connection outside the workspace
+lock, so 0.3 s at 30k needs no caching (the panel shows "Measuring…").
+The same run's search (32,006 files with the copies) had p95 196 ms while
+reading and 179 ms idle, still under P1-19's 250 ms.
+
+**Where the catalog's size goes.** `dbstat` splits the 30k catalog
+(1,409 MiB) into the stored text, 1,057 MiB of pages for 594 MiB of
+characters; the full-text index, 237 MiB; and everything else, 115 MiB.
+So the 2.3× growth recorded in Slice 1.4 comes mostly from the
+`passages` table, not from the index: rows of about 3,000 characters
+fill SQLite's 4 KiB pages poorly. That points Slice 1.7's growth work at
+the page size or at compressing passages, not at the index.
+
 <!-- results:end -->

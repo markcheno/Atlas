@@ -772,7 +772,38 @@ Library › Duplicates (`list_duplicates`) and Settings › Storage
   Linux: "duplicates list the six Introduction copies" and "settings show
   storage".
 
-<!-- CI and macOS results are added below when they are in. -->
+<!-- CI results are added below when they are in. -->
+
+### macOS arm64, Slice 1.6 (2026-11-09)
+
+On scratch data: a copy of the Slice 1.5 scratch library (1,007 files,
+1,001 documents read by the version-1 readers, 1,336 EPUB passages starting
+with `# `), opened by the Slice 1.6 debug build with a scratch
+`ATLAS_CONFIG_DIR`. Atlas was driven only through accessibility actions on
+its own process.
+
+1. The build offered "Open this library"; the catalog moved to schema 10
+   and the re-read started at once. A second after opening, 142 documents
+   were still marked and 859 were already at version 2. No available file
+   was unlinked at any point; both checks of the catalog during the
+   upgrade found none.
+2. Afterwards: no passage starts with `#` (Café crème book 000000's first
+   passage now begins "Chapter 1"), all 1,001 documents are at version 2,
+   none is marked. Every PDF in that fixture has a metadata title, so no
+   PDF was read again, as designed. The status bar read "Text up to date ·
+   1,007 of 1,007 files readable".
+3. Quitting through the Atlas menu with a worker running left no Atlas
+   process.
+4. The 30k search benchmark, with duplicates and storage timings, is in
+   [benchmarks](benchmarks.md#duplicates-and-storage-slice-16).
+
+**Not verified on macOS in Slice 1.6:** the re-read was too fast to see
+the "Updating text" line live (Rust and Vitest cover it). Library ›
+Duplicates, Settings › Storage, Clean caches and the title labels were not
+checked by hand: the Atlas window moved out of reach while the Mac was in
+use, so the check stopped rather than send more keys (Vitest covers every
+state, and the CI smoke runs on Windows and Linux press through both
+screens). Light and dark mode were not compared.
 
 ## Manual checklist for Windows and Linux
 
