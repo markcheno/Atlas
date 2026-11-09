@@ -772,6 +772,18 @@ describe('reading text', () => {
     if (scanning) expect(line().textContent).not.toMatch(/of \d/);
   });
 
+  it('says when text is being read again by a newer reader', async () => {
+    const updating = tauri.extractionCounts({ done: 10, total: 10, updating: 4 });
+    await launchWith(
+      tauri.extractionOverview({ active: tauri.extractionStatus(), counts: updating }),
+    );
+    expect(line()).toHaveTextContent('Updating text · 4 files to go');
+    events.emit('extraction-status', tauri.extractionOverview({ counts: updating }));
+    await waitFor(() =>
+      expect(line()).toHaveTextContent('Text waiting to be updated · 4 files to go'),
+    );
+  });
+
   it('is up to date when every file has a status', async () => {
     await launchWith(
       tauri.extractionOverview({

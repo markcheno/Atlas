@@ -172,6 +172,15 @@ pub fn split_pieces(text: &str, max: usize) -> Vec<String> {
     pieces
 }
 
+/// A chapter's text with no Markdown marks: headings, links, list bullets
+/// and quotes come out as plain text (`TrivialDecorator`), so snippets
+/// never start with `# ` (reader version 2).
+pub fn chapter_text(html: &[u8]) -> Result<String, Failure> {
+    html2text::config::with_decorator(html2text::render::TrivialDecorator::new())
+        .string_from_read(html, 100_000)
+        .map_err(|_| malformed("chapter_html"))
+}
+
 /// Sends each chapter piece to `sink`, then reports the summary, or why the
 /// EPUB has no usable text.
 pub fn extract(mut file: File, sink: &mut Sink<'_>) -> Result<Summary, Failure> {
@@ -192,9 +201,7 @@ pub fn extract(mut file: File, sink: &mut Sink<'_>) -> Result<Summary, Failure> 
     for (n, item) in epub.reader().enumerate() {
         let item = item.map_err(|_| malformed("chapter_unreadable"))?;
         chapters += 1;
-        let text = html2text::config::plain_no_decorate()
-            .string_from_read(item.content().as_bytes(), 100_000)
-            .map_err(|_| malformed("chapter_html"))?;
+        let text = chapter_text(item.content().as_bytes())?;
         readability.add_page(&text);
         budget.add(&text)?;
         for (m, text) in split_pieces(&text, EPUB_PIECE_CHARS)
@@ -220,6 +227,7 @@ pub fn extract(mut file: File, sink: &mut Sink<'_>) -> Result<Summary, Failure> 
         page_count: chapters,
         char_count: budget.chars,
         title,
+        content_title: None,
         authors,
         language,
         truncated: 0,
@@ -230,6 +238,22 @@ pub fn extract(mut file: File, sink: &mut Sink<'_>) -> Result<Summary, Failure> 
 mod tests {
     use super::*;
     use std::io::{Cursor, Write};
+
+    #[test]
+    fn chapter_text_carries_no_markdown_marks() {
+        let html = br#"<html><body><h1>Chapter 1</h1>
+            <p>Read <a href="n.xhtml">the note</a> and <em>this</em>.</p>
+            <ul><li>first</li><li>second</li></ul>
+            <blockquote>Quoted</blockquote><h2>Part two</h2></body></html>"#;
+        let text = chapter_text(html).unwrap();
+        assert!(text.starts_with("Chapter 1"), "{text:?}");
+        for mark in ["# ", "[", "]", "* ", "> ", "*this*"] {
+            assert!(!text.contains(mark), "{mark:?} in {text:?}");
+        }
+        for words in ["the note", "this", "first", "second", "Quoted", "Part two"] {
+            assert!(text.contains(words), "{words:?} missing from {text:?}");
+        }
+    }
     use zip::write::SimpleFileOptions;
 
     fn epub(entries: &[(&str, &[u8])]) -> Cursor<Vec<u8>> {

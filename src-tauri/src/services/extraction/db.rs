@@ -9,7 +9,7 @@
 
 use rusqlite::{Connection, OptionalExtension, params};
 
-use super::engine::{EXTRACTOR_VERSION, Outcome, Piece, Summary};
+use super::engine::{Outcome, Piece, Summary, reader_version};
 use crate::domain::dto::{
     ExtractionCounts, ExtractionOverview, ExtractionState, ExtractionStatus, FileType, JobKind,
     JobState, RootExtractionSummary,
@@ -47,6 +47,24 @@ pub struct QueuedFile {
     pub cloud_only: bool,
     pub size_bytes: Option<u64>,
     pub mtime_secs: Option<i64>,
+    /// Set when the file is read again for a newer reader: its document's
+    /// text stays searchable until the new text replaces it.
+    pub refresh_document: Option<String>,
+}
+
+fn queued_from_row(r: &rusqlite::Row, refresh: bool) -> rusqlite::Result<QueuedFile> {
+    let file_type: String = r.get(3)?;
+    let storage: String = r.get(4)?;
+    Ok(QueuedFile {
+        rowid: r.get(0)?,
+        id: r.get(1)?,
+        rel_path: r.get(2)?,
+        file_type: from_db(&file_type).unwrap_or(FileType::Pdf),
+        cloud_only: storage == "cloud_only",
+        size_bytes: r.get::<_, Option<i64>>(5)?.map(|s| s.max(0) as u64),
+        mtime_secs: r.get(6)?,
+        refresh_document: if refresh { r.get(7)? } else { None },
+    })
 }
 
 /// Pending files of a root after `after_rowid`, in catalog order. The job
@@ -66,19 +84,50 @@ pub fn next_files(
          ORDER BY rowid LIMIT ?3",
     )?;
     stmt.query_map(params![root_id, after_rowid, limit as i64], |r| {
-        let file_type: String = r.get(3)?;
-        let storage: String = r.get(4)?;
-        Ok(QueuedFile {
-            rowid: r.get(0)?,
-            id: r.get(1)?,
-            rel_path: r.get(2)?,
-            file_type: from_db(&file_type).unwrap_or(FileType::Pdf),
-            cloud_only: storage == "cloud_only",
-            size_bytes: r.get::<_, Option<i64>>(5)?.map(|s| s.max(0) as u64),
-            mtime_secs: r.get(6)?,
-        })
+        queued_from_row(r, false)
     })?
     .collect()
+}
+
+/// Files of a root whose document is due to be read again
+/// (`documents.refresh`), one local, available file per document, after
+/// `after_rowid`. They stay linked, so their text stays searchable.
+pub fn next_refresh(
+    conn: &Connection,
+    root_id: &str,
+    after_rowid: i64,
+    limit: usize,
+) -> rusqlite::Result<Vec<QueuedFile>> {
+    let mut stmt = conn.prepare_cached(
+        "SELECT f.rowid, f.id, f.rel_path, f.file_type, f.storage, f.size_bytes, f.mtime_secs,
+                f.document_id
+         FROM file_instances f JOIN documents d ON d.id = f.document_id
+         WHERE f.source_root_id = ?1 AND f.availability = 'available'
+           AND f.storage = 'local' AND f.extract_state = 'linked' AND d.refresh = 1
+           AND f.rowid > ?2
+           AND f.rowid = (SELECT MIN(g.rowid) FROM file_instances g
+                          WHERE g.document_id = f.document_id AND g.source_root_id = ?1
+                            AND g.availability = 'available' AND g.storage = 'local'
+                            AND g.extract_state = 'linked')
+         ORDER BY f.rowid LIMIT ?3",
+    )?;
+    stmt.query_map(params![root_id, after_rowid, limit as i64], |r| {
+        queued_from_row(r, true)
+    })?
+    .collect()
+}
+
+/// A refresh that could not be done (the worker crashed on the file twice):
+/// keep the old text and stop trying.
+pub fn clear_refresh(conn: &Connection, job_id: &str, document_id: &str) -> rusqlite::Result<bool> {
+    if !job_running(conn, job_id)? {
+        return Ok(false);
+    }
+    conn.execute(
+        "UPDATE documents SET refresh = 0 WHERE id = ?1",
+        [document_id],
+    )?;
+    Ok(true)
 }
 
 fn job_running(conn: &Connection, job_id: &str) -> rusqlite::Result<bool> {
@@ -109,13 +158,18 @@ pub fn set_blocked(
     Ok(true)
 }
 
-/// A document already read at the current extractor version, if any.
-pub fn reusable_document(conn: &Connection, hash: &[u8]) -> rusqlite::Result<Option<String>> {
+/// A document already read by the current reader for its type (and not
+/// due to be read again), if any.
+pub fn reusable_document(
+    conn: &Connection,
+    hash: &[u8],
+    file_type: FileType,
+) -> rusqlite::Result<Option<String>> {
     conn.query_row(
         "SELECT id FROM documents
-         WHERE content_hash = ?1 AND extractor_version = ?2
+         WHERE content_hash = ?1 AND extractor_version >= ?2 AND refresh = 0
            AND state NOT IN ('pending', 'running')",
-        params![hash, EXTRACTOR_VERSION],
+        params![hash, reader_version(file_type)],
         |r| r.get(0),
     )
     .optional()
@@ -175,6 +229,7 @@ pub fn commit_document(
     hash: &[u8],
     hashed_size: u64,
     hashed_mtime: Option<i64>,
+    file_type: FileType,
     result: DocumentResult<'_>,
     now: &str,
 ) -> rusqlite::Result<bool> {
@@ -196,13 +251,15 @@ pub fn commit_document(
     let new_id = uuid::Uuid::new_v4().to_string();
     let document_id: String = tx.query_row(
         "INSERT INTO documents (id, content_hash, state, reason, extractor_version, page_count,
-             char_count, title, authors, language, created_at, updated_at)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?11)
+             char_count, title, authors, language, content_title, refresh, created_at,
+             updated_at)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, 0, ?12, ?12)
          ON CONFLICT (content_hash) DO UPDATE SET
              state = excluded.state, reason = excluded.reason,
              extractor_version = excluded.extractor_version, page_count = excluded.page_count,
              char_count = excluded.char_count, title = excluded.title,
              authors = excluded.authors, language = excluded.language,
+             content_title = excluded.content_title, refresh = 0,
              updated_at = excluded.updated_at
          RETURNING id",
         params![
@@ -210,12 +267,13 @@ pub fn commit_document(
             hash,
             state,
             reason,
-            EXTRACTOR_VERSION,
+            reader_version(file_type),
             summary.map(|s| s.page_count),
             summary.map(|s| s.char_count as i64),
             summary.and_then(|s| s.title.as_deref()),
             authors,
             summary.and_then(|s| s.language.as_deref()),
+            summary.and_then(|s| s.content_title.as_deref()),
             now
         ],
         |r| r.get(0),
@@ -280,15 +338,73 @@ pub fn record_crash(conn: &Connection, file_id: &str) -> rusqlite::Result<u32> {
     )
 }
 
-/// Whether a root has files waiting to be read.
+/// Whether a root has files waiting to be read, or read again.
 pub fn has_pending(conn: &Connection, root_id: &str) -> rusqlite::Result<bool> {
     conn.query_row(
         "SELECT EXISTS (SELECT 1 FROM file_instances
              WHERE source_root_id = ?1 AND availability = 'available'
-               AND extract_state = 'pending')",
+               AND extract_state = 'pending')
+         OR EXISTS (SELECT 1 FROM file_instances f JOIN documents d ON d.id = f.document_id
+             WHERE f.source_root_id = ?1 AND f.availability = 'available'
+               AND f.storage = 'local' AND f.extract_state = 'linked' AND d.refresh = 1)",
         [root_id],
         |r| r.get(0),
     )
+}
+
+/// A document read by an older reader: id, state, metadata title, file
+/// type of one of its files, reader version.
+type Stale = (String, String, Option<String>, Option<String>, Option<u32>);
+
+/// Marks documents read by an older reader to be read again, keeping them
+/// linked and searchable (phase1-spec §6.1, Slice 1.6). A document whose
+/// output would not change is moved to the current version instead:
+/// documents without text (the reason stays the same) and PDFs whose own
+/// metadata already gives a usable title. Returns (refreshing, bumped).
+pub fn mark_refresh(conn: &Connection) -> rusqlite::Result<(usize, usize)> {
+    let stale: Vec<Stale> = conn
+        .prepare(
+            "SELECT d.id, d.state, d.title,
+                    (SELECT f.file_type FROM file_instances f
+                     WHERE f.document_id = d.id LIMIT 1),
+                    d.extractor_version
+             FROM documents d
+             WHERE d.refresh = 0 AND d.state NOT IN ('pending', 'running')
+               AND COALESCE(d.extractor_version, 0) < MAX(?1, ?2)",
+        )?
+        .query_map(
+            params![
+                reader_version(FileType::Pdf),
+                reader_version(FileType::Epub)
+            ],
+            |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?, r.get(4)?)),
+        )?
+        .collect::<rusqlite::Result<_>>()?;
+    let (mut refreshing, mut bumped) = (0, 0);
+    for (id, state, title, file_type, version) in stale {
+        // An orphan (no files left) is never read again.
+        let Some(file_type) = file_type.and_then(|t| from_db::<FileType>(&t)) else {
+            continue;
+        };
+        let current = reader_version(file_type);
+        if version.unwrap_or(0) >= current {
+            continue;
+        }
+        let unchanged = state != "done"
+            || (file_type == FileType::Pdf
+                && crate::services::documents::has_usable_title(title.as_deref()));
+        if unchanged {
+            conn.execute(
+                "UPDATE documents SET extractor_version = ?2 WHERE id = ?1",
+                params![id, current],
+            )?;
+            bumped += 1;
+        } else {
+            conn.execute("UPDATE documents SET refresh = 1 WHERE id = ?1", [&id])?;
+            refreshing += 1;
+        }
+    }
+    Ok((refreshing, bumped))
 }
 
 /// Schedules an extract job for a root with pending files, unless one is
@@ -307,14 +423,10 @@ pub fn enqueue_if_pending(conn: &Connection, root_id: &str, now: &str) -> rusqli
     Ok(true)
 }
 
-/// On open: documents read by an older extractor are read again, and every
-/// root with pending files gets an extract job.
+/// On open: documents read by an older reader are marked to be read again
+/// (staying searchable), and every root with work gets an extract job.
 pub fn queue_pending(conn: &Connection, now: &str) -> rusqlite::Result<usize> {
-    conn.execute(
-        "UPDATE file_instances SET extract_state = 'pending', document_id = NULL
-         WHERE document_id IN (SELECT id FROM documents WHERE extractor_version IS NOT ?1)",
-        [EXTRACTOR_VERSION],
-    )?;
+    mark_refresh(conn)?;
     let roots: Vec<String> = conn
         .prepare("SELECT id FROM source_roots")?
         .query_map([], |r| r.get(0))?
@@ -391,6 +503,21 @@ fn root_counts(
         let state = from_db(&state).unwrap_or(ExtractionState::Pending);
         add(&mut out.last_mut().expect("pushed").1, state, n);
     }
+    let mut updating = conn.prepare_cached(
+        "SELECT f.source_root_id, COUNT(*)
+         FROM file_instances f JOIN documents d ON d.id = f.document_id
+         WHERE f.availability = 'available' AND d.refresh = 1
+           AND (?1 IS NULL OR f.source_root_id = ?1)
+         GROUP BY f.source_root_id",
+    )?;
+    for row in updating.query_map([root], |r| {
+        Ok((r.get::<_, String>(0)?, r.get::<_, u32>(1)?))
+    })? {
+        let (root, n) = row?;
+        if let Some((_, counts)) = out.iter_mut().find(|(r, _)| *r == root) {
+            counts.updating = n;
+        }
+    }
     Ok(out)
 }
 
@@ -445,6 +572,7 @@ pub fn overview(conn: &Connection, current: Option<&str>) -> rusqlite::Result<Ex
         counts.cloud_only += c.cloud_only;
         counts.unreadable += c.unreadable;
         counts.total += c.total;
+        counts.updating += c.updating;
     }
     let mut roots_stmt = conn.prepare_cached(&format!(
         "SELECT r.id,

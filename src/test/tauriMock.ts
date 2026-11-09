@@ -175,6 +175,7 @@ export function extractionCounts(overrides: Partial<ExtractionCounts> = {}): Ext
     cloudOnly: 0,
     unreadable: 0,
     total: 0,
+    updating: 0,
     ...overrides,
   };
 }

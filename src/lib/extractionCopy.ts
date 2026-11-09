@@ -117,13 +117,18 @@ export function extractionLine(ov: ExtractionOverview | null): string | null {
   const progress = ov.scanning
     ? `${count(processed, 'file')} so far`
     : `${processed.toLocaleString('en-US')} of ${count(ov.counts.total, 'file')}`;
+  // Re-reading with a newer reader: the old text stays searchable.
+  const updating = ov.counts.pending === 0 && ov.counts.updating > 0;
+  const toUpdate = `${count(ov.counts.updating, 'file')} to go`;
   if (!a) {
     if (ov.counts.pending > 0) return `Text waiting · ${progress} read`;
+    if (updating) return `Text waiting to be updated · ${toUpdate}`;
     if (ov.scanning) return `Text read so far · ${count(processed, 'file')}`;
     return `Text up to date · ${readable(ov.counts).toLocaleString('en-US')} of ${count(ov.counts.total, 'file')} readable`;
   }
   switch (a.state) {
     case 'running':
+      if (updating) return `Updating text · ${toUpdate}`;
       if (a.throttleReason === 'on_battery')
         return `Reading text · ${progress} · Slowed on battery`;
       if (a.throttleReason) return `Reading text · ${progress} · Going slowly`;

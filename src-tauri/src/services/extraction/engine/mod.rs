@@ -9,12 +9,26 @@ pub mod garble;
 pub mod hash;
 pub mod pdf;
 pub mod sniff;
+pub mod title;
 
 use serde::{Deserialize, Serialize};
 
-/// Bump when extraction output changes: documents read by an older version
-/// are read again on the next pass.
-pub const EXTRACTOR_VERSION: u32 = 1;
+use crate::domain::dto::FileType;
+
+/// Bump when a reader's output changes: documents read by an older version
+/// are read again (phase1-spec §6.1), staying searchable meanwhile.
+/// 2: a title from the first page (Slice 1.6).
+pub const READER_VERSION_PDF: u32 = 2;
+/// 2: plain text without Markdown marks such as `# ` (Slice 1.6).
+pub const READER_VERSION_EPUB: u32 = 2;
+
+/// The current reader version for a file type.
+pub const fn reader_version(file_type: FileType) -> u32 {
+    match file_type {
+        FileType::Pdf => READER_VERSION_PDF,
+        FileType::Epub => READER_VERSION_EPUB,
+    }
+}
 
 /// Characters per document; past it the document is `too_large`.
 pub const MAX_CHARS: u64 = 20_000_000;
@@ -68,6 +82,9 @@ pub struct Summary {
     pub page_count: u32,
     pub char_count: u64,
     pub title: Option<String>,
+    /// The largest text on a PDF's first page, when it stands out.
+    #[serde(default)]
+    pub content_title: Option<String>,
     pub authors: Vec<String>,
     pub language: Option<String>,
     /// Passages cut at [`MAX_PASSAGE_CHARS`].

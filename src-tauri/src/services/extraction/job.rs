@@ -340,6 +340,9 @@ impl ExtractProcessor {
         self.emit(true);
 
         let mut cursor = 0i64;
+        // Files waiting to be read first, then documents due to be read
+        // again by a newer reader (which stay searchable meanwhile).
+        let mut refreshing = false;
         let mut restarts = 0u32;
         let mut throttle = job.throttle_reason;
         let mut duty = self.deps.config.run_duty;
@@ -367,13 +370,21 @@ impl ExtractProcessor {
             }
 
             let (root_id, limit) = (job.source_root_id.clone(), self.deps.config.batch_size);
-            let files = match self
-                .catalog
-                .call(move |c| db::next_files(c, &root_id, cursor, limit))
-            {
+            let files = match self.catalog.call(move |c| {
+                if refreshing {
+                    db::next_refresh(c, &root_id, cursor, limit)
+                } else {
+                    db::next_files(c, &root_id, cursor, limit)
+                }
+            }) {
                 Ok(Ok(files)) => files,
                 _ => return Flow::Continue,
             };
+            if files.is_empty() && !refreshing {
+                refreshing = true;
+                cursor = 0;
+                continue;
+            }
             if files.is_empty() {
                 // Tidy the text index for search before reporting done.
                 let _ = self.catalog.call(|c| db::merge_index(c, 20));
@@ -517,7 +528,10 @@ impl ExtractProcessor {
             Err(WorkerError::Unavailable(_)) => return self.unavailable(job),
             Err(WorkerError::Crashed(_)) => {
                 if self.crash_attempts(&file.id) >= self.deps.config.max_attempts {
-                    let step = self.blocked(job, &file.id, "hash_failed", Some("worker_crashed"));
+                    let step = match &file.refresh_document {
+                        Some(doc) => self.keep_old_text(job, doc),
+                        None => self.blocked(job, &file.id, "hash_failed", Some("worker_crashed")),
+                    };
                     if !matches!(step, Step::Next) {
                         return step;
                     }
@@ -534,9 +548,10 @@ impl ExtractProcessor {
         };
 
         let lookup = hash.clone();
+        let file_type = file.file_type;
         if let Ok(Ok(Some(document))) = self
             .catalog
-            .call(move |c| db::reusable_document(c, &lookup))
+            .call(move |c| db::reusable_document(c, &lookup, file_type))
         {
             let (job, id) = (job.to_owned(), file.id.clone());
             let (size, mtime) = (hashed.size, hashed.mtime_secs);
@@ -555,6 +570,14 @@ impl ExtractProcessor {
             Err(WorkerError::Unavailable(_)) => return self.unavailable(job),
             Err(WorkerError::Crashed(_)) => {
                 if self.crash_attempts(&file.id) >= self.deps.config.max_attempts {
+                    // A refresh that keeps crashing keeps the old text.
+                    if let Some(doc) = &file.refresh_document {
+                        let step = self.keep_old_text(job, doc);
+                        if !matches!(step, Step::Next) {
+                            return step;
+                        }
+                        return Step::Crashed;
+                    }
                     let step = self.commit(
                         job,
                         file,
@@ -597,6 +620,7 @@ impl ExtractProcessor {
         crashed: Option<&'static str>,
     ) -> Step {
         let (job, id, now) = (job.to_owned(), file.id.clone(), now_rfc3339());
+        let file_type = file.file_type;
         let committed = self.catalog.call(move |c| {
             let result = match (&extraction, crashed) {
                 (_, Some(reason)) => DocumentResult::NoText {
@@ -611,9 +635,21 @@ impl ExtractProcessor {
                     reason,
                 },
             };
-            db::commit_document(c, &job, &id, &hash, size, mtime, result, &now)
+            db::commit_document(c, &job, &id, &hash, size, mtime, file_type, result, &now)
         });
         match committed {
+            Ok(Ok(true)) => Step::Next,
+            _ => Step::Interrupted,
+        }
+    }
+
+    /// Gives up re-reading a document, keeping its old text.
+    fn keep_old_text(&self, job: &str, document: &str) -> Step {
+        let (job, document) = (job.to_owned(), document.to_owned());
+        match self
+            .catalog
+            .call(move |c| db::clear_refresh(c, &job, &document))
+        {
             Ok(Ok(true)) => Step::Next,
             _ => Step::Interrupted,
         }

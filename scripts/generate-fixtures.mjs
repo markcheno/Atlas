@@ -22,7 +22,9 @@ const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
 function usage(message) {
   if (message) console.error(`error: ${message}`);
-  console.error('usage: generate-fixtures.mjs <output-dir> [--files N] [--flat N] [--text-kb N]');
+  console.error(
+    'usage: generate-fixtures.mjs <output-dir> [--files N] [--flat N] [--text-kb N] [--untitled-every N] [--copies N]',
+  );
   process.exit(2);
 }
 
@@ -39,6 +41,11 @@ const opt = (name, fallback) => {
 const fileCount = opt('files', 1000);
 const flatCount = opt('flat', 0);
 const textKb = opt('text-kb', 0);
+// Every Nth text document has no title in its metadata (PDFs show it in
+// large type on page 1 instead); 0 keeps every title.
+const untitledEvery = opt('untitled-every', 0);
+// Extra copies of existing files under copies/, for duplicate groups.
+const copyCount = opt('copies', 0);
 
 const target = path.resolve(out);
 const inside = (child, parent) => {
@@ -99,13 +106,14 @@ let pdfPages = 0;
 let epubChapters = 0;
 
 /** The Phase 0 stub, or (with --text-kb) a document with its own text. */
-function document(kind, subject, i, title) {
+function document(kind, subject, i, title, untitled = false) {
   if (textKb === 0) return kind === 'epub' ? EPUB : PDF;
   const doc = {
     id: `${subject}-${i}`,
     title,
     author: authorFor(i),
     paragraphs: bodyText(subject, i, textKb),
+    untitled,
   };
   if (kind === 'epub') {
     const { bytes, chapters } = textEpub(doc);
@@ -116,6 +124,7 @@ function document(kind, subject, i, title) {
   pdfPages += pages;
   return bytes;
 }
+const written = [];
 const write = (rel, data) => {
   const file = path.join(target, rel);
   fs.mkdirSync(path.dirname(file), { recursive: true });
@@ -131,9 +140,19 @@ for (let i = 0; i < fileCount; i++) {
   const isEpub = i % 3 === 0;
   const ext = isEpub ? (i % 2 ? 'EPUB' : 'epub') : i % 11 === 0 ? 'PDF' : 'pdf';
   const stem = `${quirk}book ${String(i).padStart(6, '0')}`;
+  const untitled = untitledEvery > 0 && (i + 1) % untitledEvery === 0;
+  const rel = path.join(...dirs, `${stem}.${ext}`);
+  write(rel, document(isEpub ? 'epub' : 'pdf', subject, i, `${subject} ${stem.trim()}`, untitled));
+  written.push(rel);
+  pdfOrEpub++;
+}
+
+// Byte-identical copies of spread-out files, each in its own folder.
+for (let c = 0; c < copyCount && written.length > 0; c++) {
+  const rel = written[(c * 7919) % written.length];
   write(
-    path.join(...dirs, `${stem}.${ext}`),
-    document(isEpub ? 'epub' : 'pdf', subject, i, `${subject} ${stem.trim()}`),
+    path.join('copies', `copy-${String(c).padStart(5, '0')}`, path.basename(rel)),
+    fs.readFileSync(path.join(target, rel)),
   );
   pdfOrEpub++;
 }
@@ -197,6 +216,8 @@ if (textKb > 0) {
   // Pages and chapters of distinct documents (the six duplicates count once).
   Object.assign(summary, { textKb, pdfPages, epubChapters, marker: '<subject> marker <i>' });
 }
+if (untitledEvery > 0) summary.untitledEvery = untitledEvery;
+if (copyCount > 0) summary.copies = copyCount;
 console.log(JSON.stringify(summary, null, 2));
 if (unreadable) {
   console.log(

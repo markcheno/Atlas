@@ -130,8 +130,11 @@ function pdfTextString(s) {
 /**
  * A multi-page PDF (Helvetica, WinAnsiEncoding) with an Info dictionary and
  * a correct cross-reference table. Returns the bytes and the page count.
+ * `untitled` leaves the title and author out of the Info dictionary and
+ * sets the title in 24 pt at the top of the first page instead (when it is
+ * Latin-1), as many papers do.
  */
-export function textPdf({ title, author, paragraphs }) {
+export function textPdf({ title, author, paragraphs, untitled = false }) {
   const lines = wrap(paragraphs);
   const pages = [];
   for (let p = 0; p < lines.length; p += LINES_PER_PAGE) {
@@ -145,11 +148,15 @@ export function textPdf({ title, author, paragraphs }) {
     '<< /Type /Catalog /Pages 2 0 R >>',
     `<< /Type /Pages /Kids [${pages.map((_, n) => `${pageObj(n)} 0 R`).join(' ')}] /Count ${pages.length} >>`,
     '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>',
-    `<< /Title ${pdfTextString(title)} /Author ${pdfTextString(author)} /Producer (Atlas fixture generator) >>`,
+    untitled
+      ? '<< /Producer (Atlas fixture generator) >>'
+      : `<< /Title ${pdfTextString(title)} /Author ${pdfTextString(author)} /Producer (Atlas fixture generator) >>`,
   ];
+  const heading =
+    untitled && isLatin1(title) ? `BT /F1 24 Tf 72 760 Td ${pdfString(title)} Tj ET\n` : '';
   pages.forEach((pageLines, n) => {
     const body = pageLines.map((l) => `${pdfString(l)} Tj T*`).join('\n');
-    const stream = `BT /F1 10 Tf 14 TL 72 740 Td\n${body}\nET`;
+    const stream = `${n === 0 ? heading : ''}BT /F1 10 Tf 14 TL 72 740 Td\n${body}\nET`;
     objects.push(
       `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents ${pageObj(n) + 1} 0 R /Resources << /Font << /F1 3 0 R >> >> >>`,
       `<< /Length ${stream.length} >>\nstream\n${stream}\nendstream`,
@@ -260,7 +267,7 @@ ${body}
  * dc:identifier, dc:title, dc:creator and dc:language, a navigation
  * document, and the paragraphs split into `chapters` XHTML files.
  */
-export function textEpub({ id, title, author, paragraphs, chapters = 4 }) {
+export function textEpub({ id, title, author, paragraphs, chapters = 4, untitled = false }) {
   const per = Math.ceil(paragraphs.length / chapters);
   const parts = [];
   for (let c = 0; c < chapters && c * per < paragraphs.length; c++) {
@@ -281,8 +288,7 @@ export function textEpub({ id, title, author, paragraphs, chapters = 4 }) {
 <package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="id" xml:lang="en">
   <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
     <dc:identifier id="id">urn:atlas:fixture:${xml(id)}</dc:identifier>
-    <dc:title>${xml(title)}</dc:title>
-    <dc:creator>${xml(author)}</dc:creator>
+${untitled ? '' : `    <dc:title>${xml(title)}</dc:title>\n`}    <dc:creator>${xml(author)}</dc:creator>
     <dc:language>en</dc:language>
     <meta property="dcterms:modified">2026-01-01T00:00:00Z</meta>
   </metadata>

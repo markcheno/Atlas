@@ -447,6 +447,10 @@ pub struct ExtractionCounts {
     pub cloud_only: u32,
     pub unreadable: u32,
     pub total: u32,
+    /// Files with text (counted in `done`) being read again by a newer
+    /// reader; their old text stays searchable meanwhile.
+    #[serde(default)]
+    pub updating: u32,
 }
 
 /// The extraction job shown in the status bar.
