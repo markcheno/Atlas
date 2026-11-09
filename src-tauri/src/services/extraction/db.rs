@@ -283,8 +283,16 @@ pub fn commit_document(
         ],
         |r| r.get(0),
     )?;
+    // The old passages take their chunks with them (leaving tombstones for
+    // the vector index), and the document waits to be embedded again; an
+    // unchanged text re-chunks to the same hashes, so nothing is re-sent
+    // (ADR 0013).
     tx.execute(
         "DELETE FROM passages WHERE document_id = ?1",
+        [&document_id],
+    )?;
+    tx.execute(
+        "DELETE FROM document_embeddings WHERE document_id = ?1",
         [&document_id],
     )?;
     if let DocumentResult::Text { pieces, .. } = result {

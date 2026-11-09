@@ -3,6 +3,7 @@
 #![allow(dead_code)] // Each test crate uses a different subset.
 
 pub mod http;
+pub mod vectors;
 
 use std::fs;
 use std::path::{Path, PathBuf};

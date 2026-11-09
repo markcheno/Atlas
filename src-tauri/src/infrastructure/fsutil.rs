@@ -13,6 +13,21 @@ use std::path::{Path, PathBuf};
 /// itself is durable. `std::fs::rename` replaces an existing file on every
 /// supported platform.
 pub fn atomic_write(target: &Path, staging_dir: &Path, bytes: &[u8]) -> io::Result<()> {
+    atomic_replace_with(target, staging_dir, |tmp| {
+        let mut file = File::create_new(tmp)?;
+        file.write_all(bytes)
+    })
+}
+
+/// As [`atomic_write`], for content another library writes to a path:
+/// `write` creates the staged file at the path it is given (the usearch
+/// index saves itself). The staged file is then flushed and renamed over
+/// `target`, or removed if anything fails.
+pub fn atomic_replace_with(
+    target: &Path,
+    staging_dir: &Path,
+    write: impl FnOnce(&Path) -> io::Result<()>,
+) -> io::Result<()> {
     fs::create_dir_all(staging_dir)?;
     let name = target
         .file_name()
@@ -24,10 +39,8 @@ pub fn atomic_write(target: &Path, staging_dir: &Path, bytes: &[u8]) -> io::Resu
     ));
 
     let result = (|| {
-        let mut file = File::create_new(&tmp)?;
-        file.write_all(bytes)?;
-        file.sync_all()?;
-        drop(file);
+        write(&tmp)?;
+        File::options().write(true).open(&tmp)?.sync_all()?;
         fs::rename(&tmp, target)?;
         if let Some(parent) = target.parent() {
             sync_dir(parent)?;

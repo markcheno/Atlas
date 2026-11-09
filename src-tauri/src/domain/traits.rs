@@ -127,6 +127,33 @@ pub trait ModelProvider {
     ) -> impl Future<Output = CapabilityResult> + Send;
 }
 
+/// What an embedding backend is: the model name and the length of the
+/// vectors it returns.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BackendInfo {
+    pub model: String,
+    pub dims: usize,
+}
+
+/// Why an embedding request produced no vectors. Slice 2.3 adds the
+/// provider's HTTP outcomes with the provider-backed backend.
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
+pub enum EmbedError {
+    #[error("the backend returned {got} vectors for {sent} inputs")]
+    WrongCount { sent: usize, got: usize },
+    #[error("the embedding backend is unavailable")]
+    Unavailable,
+}
+
+/// Turns text into vectors (Slice 2.2, ADR 0013). Exists because tests and
+/// the benchmarks inject `HashedBagOfWordsBackend`; the provider-backed
+/// implementation arrives with the embedding job (Slice 2.3). Returns one
+/// vector of `describe().dims` numbers per input, in order.
+pub trait EmbeddingBackend: Send + Sync {
+    fn embed(&self, inputs: &[&str]) -> Result<Vec<Vec<f32>>, EmbedError>;
+    fn describe(&self) -> BackendInfo;
+}
+
 /// Opens or reveals an original document with OS-native facilities
 /// (Slice 0.6). Callers must pass only paths of cataloged files inside an
 /// authorized root; implementations never build shell command strings.
