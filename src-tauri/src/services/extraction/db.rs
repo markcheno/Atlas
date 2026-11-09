@@ -249,6 +249,27 @@ pub fn commit_document(
     Ok(true)
 }
 
+/// Tidies the full-text index after a pass (phase1-spec §6.1): FTS5
+/// `merge` in bounded steps, so the writer is never held for long. Stops
+/// when a step changes nothing or after `max_steps`.
+pub fn merge_index(conn: &Connection, max_steps: u32) -> rusqlite::Result<u32> {
+    let mut steps = 0;
+    while steps < max_steps {
+        let before = conn.total_changes();
+        conn.execute(
+            "INSERT INTO passages_fts (passages_fts, rank) VALUES ('merge', 500)",
+            [],
+        )?;
+        steps += 1;
+        // The FTS5 documentation: a step that does no work changes at most
+        // one row.
+        if conn.total_changes() - before < 2 {
+            break;
+        }
+    }
+    Ok(steps)
+}
+
 /// Counts a worker crash on this file; returns the attempts so far.
 pub fn record_crash(conn: &Connection, file_id: &str) -> rusqlite::Result<u32> {
     conn.execute(

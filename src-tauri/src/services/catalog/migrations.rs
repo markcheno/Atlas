@@ -51,6 +51,11 @@ pub const MIGRATIONS: &[Migration] = &[
         name: "documents",
         sql: include_str!("../../../migrations/0008_documents.sql"),
     },
+    Migration {
+        version: 9,
+        name: "passages_fts",
+        sql: include_str!("../../../migrations/0009_passages_fts.sql"),
+    },
 ];
 
 /// Highest catalog schema version this build can read and write.
@@ -157,6 +162,62 @@ mod tests {
     /// on the real writer connection, which has foreign keys on, as in the
     /// app: the frontier's foreign key must follow the rename.
     #[test]
+    fn version_9_indexes_existing_passages_and_keeps_the_index_in_step() {
+        use crate::services::catalog::writer::CatalogWriter;
+
+        let dir = tempfile::tempdir().unwrap();
+        let writer = CatalogWriter::open(&dir.path().join("catalog.sqlite")).unwrap();
+        writer
+            .call(|c| {
+                assert_eq!(migrate_to(c, 8, "t").unwrap(), 8);
+                c.execute_batch(
+                    "INSERT INTO documents (id, content_hash, state, created_at, updated_at)
+                         VALUES ('d', x'01', 'done', 't', 't');
+                     INSERT INTO passages (document_id, ordinal, text)
+                         VALUES ('d', 0, 'Quoth the Raven, Nevermore'),
+                                ('d', 1, 'Un café crème, s''il vous plaît');",
+                )
+                .unwrap();
+
+                assert_eq!(migrate(c, "t2").unwrap(), 9);
+                let hits = |c: &Connection, q: &str| -> i64 {
+                    c.query_row(
+                        "SELECT COUNT(*) FROM passages_fts WHERE passages_fts MATCH ?1",
+                        [q],
+                        |r| r.get(0),
+                    )
+                    .unwrap()
+                };
+                // Passages stored before the index existed are found, with
+                // case and accents folded.
+                assert_eq!(hits(c, "nevermore"), 1);
+                assert_eq!(hits(c, "\"CAFE CREME\""), 1);
+
+                // Inserts, updates and deletes keep the index in step.
+                c.execute(
+                    "INSERT INTO passages (document_id, ordinal, text) VALUES ('d', 2, 'harmonic drive')",
+                    [],
+                )
+                .unwrap();
+                assert_eq!(hits(c, "harmonic"), 1);
+                c.execute(
+                    "UPDATE passages SET text = 'gear train' WHERE ordinal = 2",
+                    [],
+                )
+                .unwrap();
+                assert_eq!(hits(c, "harmonic"), 0);
+                assert_eq!(hits(c, "gear"), 1);
+                c.execute("DELETE FROM passages WHERE ordinal = 0", []).unwrap();
+                assert_eq!(hits(c, "nevermore"), 0);
+                c.execute_batch(
+                    "INSERT INTO passages_fts (passages_fts, rank) VALUES ('integrity-check', 1)",
+                )
+                .unwrap();
+            })
+            .unwrap();
+    }
+
+    #[test]
     fn version_8_adds_documents_passages_and_extraction_state() {
         use crate::services::catalog::writer::CatalogWriter;
 
@@ -176,7 +237,7 @@ mod tests {
                 )
                 .unwrap();
 
-                assert_eq!(migrate(c, "t2").unwrap(), 8);
+                assert_eq!(migrate_to(c, 8, "t2").unwrap(), 8);
 
                 // Existing files wait for extraction; nothing links them yet.
                 let (state, doc, attempts): (String, Option<String>, i64) = c
