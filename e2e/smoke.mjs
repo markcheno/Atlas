@@ -312,6 +312,38 @@ async function run() {
     return { status: line, result: text.split('\n').slice(0, 4).join(' / ') };
   });
 
+  await step('duplicates list the six Introduction copies', async () => {
+    await wd.click(await wd.waitFor(button('Library')));
+    await wd.waitFor(heading('Library'));
+    // The switch's radio inputs are visually hidden; their labels are clicked.
+    await wd.click(await wd.waitFor("//label[normalize-space(.)='Duplicates']"));
+    const group = `//li[@data-testid='duplicate-group'][.//h3[normalize-space(.)='Introduction']]`;
+    await wd.waitFor(group, { timeout: 30_000 });
+    const copies = await wd.all(`${group}//ul/li`);
+    if (copies.length !== 6) throw new Error(`${copies.length} copies listed, expected 6`);
+    const summary = await wd.text(await wd.waitFor("//*[@data-testid='duplicates-summary']"));
+    return { summary, copies: copies.length };
+  });
+
+  await step('settings show storage', async () => {
+    await wd.click(await wd.waitFor(button('Settings')));
+    const estimate = await wd.until('storage measured', async () => {
+      const els = await wd.all("//*[@data-testid='indexing-estimate']");
+      return els.length > 0 && (await wd.text(els[0]));
+    });
+    if (!estimate.includes('every file')) throw new Error(`estimate says "${estimate}"`);
+    const usage = await wd.text(await wd.waitFor("//*[@data-testid='storage-usage']"));
+    if (!/Text Atlas has read\s+[\d.]+ (KB|MB|GB)/.test(usage)) {
+      throw new Error(`no text size in "${usage}"`);
+    }
+    await wd.click(await wd.waitFor(button('Clean caches'), { enabled: true }));
+    const cleaned = await wd.until('clean result', async () => {
+      const t = await wd.text(await wd.waitFor("//*[@data-testid='clean-result']"));
+      return t.trim() && t;
+    });
+    return { estimate, cleaned };
+  });
+
   await step('settings show AI Models', async () => {
     await wd.click(await wd.waitFor(button('Settings')));
     await wd.waitFor("//h2[normalize-space(.)='AI Models']");

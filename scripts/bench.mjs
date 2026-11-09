@@ -37,7 +37,7 @@ const searchSize = opt('search-size', '30k');
 if (!['30k', '1k'].includes(searchSize)) throw new Error('--search-size is 30k or 1k');
 fs.mkdirSync(path.join(out, 'fixtures'), { recursive: true });
 
-function fixture(name, files, flat, textKb = 0) {
+function fixture(name, files, flat, textKb = 0, copies = 0) {
   const dir = path.join(out, 'fixtures', name);
   const meta = `${dir}.json`;
   if (!fs.existsSync(meta)) {
@@ -49,6 +49,7 @@ function fixture(name, files, flat, textKb = 0) {
       '--flat',
       String(flat),
       ...(textKb ? ['--text-kb', String(textKb)] : []),
+      ...(copies ? ['--copies', String(copies)] : []),
     ]).toString();
     fs.writeFileSync(meta, text.split('\nTo delete later')[0]);
   }
@@ -58,10 +59,13 @@ function fixture(name, files, flat, textKb = 0) {
 const small = searchOnly ? null : fixture('1k', 1000, 0);
 // §11: 30,000 files including one flat folder of 20,000.
 const large = searchOnly ? null : fixture('30k', 10000, 20000);
-// Phase 1 §11: the same layout with about 20 KiB of text per file.
+// Phase 1 §11: the same layout with about 20 KiB of text per file, plus
+// identical copies (Slice 1.6) so Library › Duplicates has groups to list.
 const searchLabel = `${searchSize}-text`;
 const searchFixture =
-  searchSize === '30k' ? fixture('30k-text', 10000, 20000, 20) : fixture('1k-text', 1000, 0, 20);
+  searchSize === '30k'
+    ? fixture('30k-text-copies', 10000, 20000, 20, 2000)
+    : fixture('1k-text-copies', 1000, 0, 20, 100);
 
 const scenarios = searchOnly
   ? []
@@ -264,5 +268,14 @@ function summarizeSearch(r) {
     '',
     `Cold (first query after reopening): ${r.cold.map((c) => `${c.query} ${c.ms} ms`).join(', ')}.`,
   );
+  if (r.duplicates) {
+    lines.push(
+      '',
+      '| Idle, p50 / p95 / max ms | Latency | |',
+      '| --- | ---: | --- |',
+      `| list_duplicates (first page) | ${cell(r.duplicates.latency)} | ${r.duplicates.groups} groups |`,
+      `| get_storage_usage | ${cell(r.storage.latency)} | text ${mib(r.storage.textBytes)} MiB, index ${mib(r.storage.indexBytes)} MiB, catalog ${mib(r.storage.catalogBytes)} MiB |`,
+    );
+  }
   return `${lines.join('\n')}\n`;
 }
