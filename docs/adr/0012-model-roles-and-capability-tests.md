@@ -70,8 +70,11 @@ fetch remains a later, explicit action (product spec §4). Atlas never
 downloads a model. Initial entries: Qwen3-Embedding 0.6B (recommended) and
 4B for embeddings; Qwen3.5 9B (recommended) and 27B for chat. oMLX's
 README lists BERT, BGE-M3, ModernBERT and EmbeddingGemma as embedding
-models, not Qwen3, so the oMLX entry for Qwen3-Embedding is marked
-unverified until a capability test on the reference machine confirms it.
+models, not Qwen3. A capability test on the reference machine confirmed
+that oMLX serves `mlx-community/Qwen3-Embedding-0.6B-8bit` (listed as
+`Qwen3-Embedding-0.6B-8bit`) with 1,024 dimensions, so that entry is
+verified. The 4B entry and oMLX's chat entries stay unverified until
+someone tests them.
 
 **The privacy label has three values**, from the address alone and never
 DNS: This computer (loopback), Another computer (private, link-local and
@@ -88,6 +91,8 @@ with Ask Atlas (Slice 2.6).
   sends one fixed body, and only when the user presses Test.
 - Every later Phase 2 slice reads the roles: the embedding job and the
   index use the embedding role and its dimensions, Ask Atlas the chat role.
+- A role is removed only after the user confirms Clear: one press of
+  Clear sat too close to Chat's Change during the manual check.
 - A model that passes today can be unloaded or removed tomorrow; the jobs
   that use a role report the provider's outcome when that happens rather
   than trusting the stored test.

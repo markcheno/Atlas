@@ -7,13 +7,25 @@
   import type { AiRole } from '../api/bindings/AiRole';
   import type { AiRuntime } from '../api/bindings/AiRuntime';
   import { locationLabel } from '../providerCopy';
-  import { capabilityText, ROLES, roleTitle, roleWhat, TESTING_NOTE, testedOn } from '../roleCopy';
+  import {
+    capabilityText,
+    clearedText,
+    clearQuestion,
+    ROLES,
+    roleTitle,
+    roleWhat,
+    TESTING_NOTE,
+    testedOn,
+  } from '../roleCopy';
   import { appInfo } from '../stores/app.svelte';
   import { providers } from '../stores/providers.svelte';
   import { roles } from '../stores/roles.svelte';
   import Recommendation from './Recommendation.svelte';
 
   let editing = $state<AiRole | null>(null);
+  let confirmingClear = $state<AiRole | null>(null);
+  /** The role cleared last, for one line of confirmation. */
+  let cleared = $state<AiRole | null>(null);
   let profileId = $state('');
   let modelId = $state('');
 
@@ -36,6 +48,8 @@
 
   function start(role: AiRole, model = '', profile = '') {
     const current = roles.roles[role];
+    confirmingClear = null;
+    cleared = null;
     editing = role;
     profileId = profile || current?.profileId || providers.profiles[0]?.id || '';
     modelId = model || current?.modelId || '';
@@ -45,6 +59,12 @@
   function passing(role: AiRole) {
     const r = roles.results[role];
     return r && r.outcome === 'works' && r.modelId === modelId.trim() ? r : null;
+  }
+
+  async function clearRole(role: AiRole) {
+    confirmingClear = null;
+    await roles.clearRole(role);
+    if (!roles.error) cleared = role;
   }
 
   async function use(role: AiRole) {
@@ -164,14 +184,28 @@
             disabled={providers.profiles.length === 0}
             onclick={() => start(role)}>Change</button
           >
-          <button
-            type="button"
-            class="button quiet"
-            aria-label={`Clear the ${title.toLowerCase()} model`}
-            onclick={() => roles.clearRole(role)}>Clear</button
-          >
+          {#if confirmingClear === role}
+            <span class="small">{clearQuestion(role)}</span>
+            <button type="button" class="button" onclick={() => clearRole(role)}>Clear</button>
+            <button type="button" class="button quiet" onclick={() => (confirmingClear = null)}
+              >Keep</button
+            >
+          {:else}
+            <button
+              type="button"
+              class="button quiet"
+              aria-label={`Clear the ${title.toLowerCase()} model`}
+              onclick={() => {
+                confirmingClear = role;
+                cleared = null;
+              }}>Clear</button
+            >
+          {/if}
         </div>
       {:else}
+        {#if cleared === role}
+          <p role="status" class="small">{clearedText(role)}</p>
+        {/if}
         <p class="muted">Not set.</p>
         {#if providers.profiles.length > 0}
           <div class="actions">

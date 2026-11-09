@@ -19,13 +19,19 @@ export function roleWhat(role: AiRole): string {
 
 export const TESTING_NOTE = 'Checking the model. Loading it can take a minute the first time…';
 
+function answeredIn(ms: number): string {
+  return ms < 100
+    ? 'under 0.1 s'
+    : `${(ms / 1000).toLocaleString('en-US', { maximumFractionDigits: 1 })} s`;
+}
+
 export function capabilityText(r: CapabilityResult): string {
-  const seconds = (r.elapsedMs / 1000).toLocaleString('en-US', { maximumFractionDigits: 1 });
+  const seconds = answeredIn(r.elapsedMs);
   switch (r.outcome) {
     case 'works':
       return r.role === 'embedding'
-        ? `Works for embeddings · ${(r.dimensions ?? 0).toLocaleString('en-US')} dimensions · answered in ${seconds} s`
-        : `Works for chat · answered in ${seconds} s`;
+        ? `Works for embeddings · ${(r.dimensions ?? 0).toLocaleString('en-US')} dimensions · answered in ${seconds}`
+        : `Works for chat · answered in ${seconds}`;
     case 'needs_model_id':
       return 'Choose or type a model first.';
     case 'model_not_found':
@@ -74,6 +80,16 @@ export function sizeText(bytes: number): string {
 }
 
 export const NEVER_DOWNLOADS = 'Atlas never downloads models itself.';
+
+export function clearQuestion(role: AiRole): string {
+  return `Stop using this model for ${role === 'embedding' ? 'embeddings' : 'chat'}?`;
+}
+
+export function clearedText(role: AiRole): string {
+  return role === 'embedding'
+    ? 'Atlas no longer uses a model for embeddings.'
+    : 'Atlas no longer uses a model for chat.';
+}
 
 /** "9 Nov" from an RFC 3339 time. */
 export function testedOn(iso: string): string {

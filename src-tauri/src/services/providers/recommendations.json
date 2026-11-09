@@ -15,14 +15,14 @@
       "runtimes": [
         {
           "runtime": "omlx",
-          "modelId": "mlx-community/Qwen3-Embedding-0.6B-8bit",
+          "modelId": "Qwen3-Embedding-0.6B-8bit",
           "command": null,
           "steps": [
             "Open oMLX's admin page (http://localhost:8000/admin).",
             "In Model Downloader, search for Qwen3-Embedding-0.6B and download the MLX build mlx-community/Qwen3-Embedding-0.6B-8bit.",
-            "Back in Atlas, choose it for Embeddings and press Test."
+            "Back in Atlas, choose Qwen3-Embedding-0.6B-8bit for Embeddings and press Test."
           ],
-          "verified": false
+          "verified": true
         },
         {
           "runtime": "ollama",

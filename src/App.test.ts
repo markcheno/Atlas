@@ -1233,8 +1233,12 @@ describe('Model roles', () => {
     await user.click(within(form).getByRole('button', { name: 'Test' }));
     expect(await within(form).findByText(/Loading it can take a minute/)).toBeInTheDocument();
     expect(within(form).getByRole('button', { name: 'Test' })).toBeDisabled();
-    finish(tauri.capabilityResult({ role: 'chat', modelId: 'Qwen3.8-27B-MLX-4bit' }));
-    expect(await within(form).findByText(/Works for chat/)).toBeInTheDocument();
+    finish(
+      tauri.capabilityResult({ role: 'chat', modelId: 'Qwen3.8-27B-MLX-4bit', elapsedMs: 30 }),
+    );
+    expect(
+      await within(form).findByText('Works for chat · answered in under 0.1 s'),
+    ).toBeInTheDocument();
   });
 
   it('clears a role, and removing its service clears it too', async () => {
@@ -1255,8 +1259,21 @@ describe('Model roles', () => {
       await user.click(await within(form).findByRole('button', { name: 'Use' }));
     }
     expect(await screen.findByTestId('role-chat')).toHaveTextContent('qwen3.5:9b');
+    // Clear asks first; Keep leaves the role alone.
+    await user.click(screen.getByRole('button', { name: 'Clear the embeddings model' }));
+    expect(
+      within(role('Embeddings')).getByText('Stop using this model for embeddings?'),
+    ).toBeInTheDocument();
+    await user.click(within(role('Embeddings')).getByRole('button', { name: 'Keep' }));
+    expect(screen.getByTestId('role-embedding')).toBeInTheDocument();
+    expect(tauri.invoke).not.toHaveBeenCalledWith('clear_model_role', expect.anything());
+
     await user.click(screen.getByRole('button', { name: 'Clear the chat model' }));
-    expect(await within(role('Chat')).findByText('Not set.')).toBeInTheDocument();
+    await user.click(within(role('Chat')).getByRole('button', { name: 'Clear' }));
+    expect(
+      await within(role('Chat')).findByText('Atlas no longer uses a model for chat.'),
+    ).toBeInTheDocument();
+    expect(within(role('Chat')).getByText('Not set.')).toBeInTheDocument();
     expect(screen.getByTestId('role-embedding')).toBeInTheDocument();
 
     tauri.setHandler('list_provider_profiles', () => []);

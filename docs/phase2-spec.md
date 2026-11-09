@@ -448,7 +448,7 @@ Do **not** add usearch, chunking or any embedding table before Slice 2.1's gate 
 - The privacy settings (external-AI disclosure, remote embedding, "Disable all external AI") move to the slice that uses them, 2.6; migration 0011 is `model_roles` only.
 - The recommendation catalog is `src-tauri/src/services/providers/recommendations.json` (compiled in), not under `fixtures/`, which holds test data.
 - A role is assigned only with a passing capability test of that model at most 24 hours old (ADR 0012). The capability test's budget is two minutes, since local runtimes load a model on first use.
-- oMLX's README doesn't list Qwen3-Embedding among its embedding models; its recommendation entry is marked unverified until the reference machine's capability test confirms it.
+- oMLX's README doesn't list Qwen3-Embedding among its embedding models. On the reference machine, Atlas's capability test confirmed that oMLX serves `Qwen3-Embedding-0.6B-8bit` with 1,024 dimensions, so that recommendation entry is verified.
 
 ### Primary reference documentation (verify current versions at implementation time)
 

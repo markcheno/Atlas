@@ -940,6 +940,40 @@ One expectation in the checklist was wrong, not the app: unquoted,
 words" results, as decided in Slice 1.4. The product owner kept that
 behaviour, and the checklist now says so.
 
+## Slice 2.1
+
+Model roles, capability tests, recommendations and the three-way privacy
+label ([ADR 0012](adr/0012-model-roles-and-capability-tests.md)). On
+every OS, the capability tests run against the scripted local service in
+`src-tauri/tests/roles.rs` (P2-01, P2-02, P2-20), and the recommendations
+are unit-tested (P2-03).
+
+### macOS arm64, Slice 2.1 (2026-11-09)
+
+Run by the product owner against the real oMLX on the reference machine
+(`http://localhost:8000/v1`, with its key typed into a scratch debug Atlas
+and stored only under the debug keychain service), with a scratch
+`ATLAS_CONFIG_DIR` and a scratch library.
+
+- **Embeddings.** The owner downloaded
+  `mlx-community/Qwen3-Embedding-0.6B-8bit` in oMLX's Model Downloader.
+  oMLX lists it as `Qwen3-Embedding-0.6B-8bit`. Test embeddings passed
+  with **1,024 dimensions**, and Use saved the role. The oMLX entry in
+  `recommendations.json` is now verified and uses the id oMLX lists.
+- **Chat.** Test chat passed on the owner's default model,
+  `Qwen3.8-27B-MLX-4bit`, and Use saved the role.
+- **Wrong role, removing the service.** These passed in the first run.
+- **Quit and relaunch.** In the first run, only the chat role survived.
+  The embedding row had shown the model, so it had been saved and then
+  removed. The likely cause was a slip on Clear, which removed a role at
+  once and sits just above Chat's Change. A scripted service kept both
+  roles across quit and relaunch. Clear now asks first ("Stop using this
+  model for embeddings?", with Clear and Keep). In the second run, both
+  roles survived, and the scratch catalog held both rows afterwards
+  (embedding with 1,024 dimensions).
+- **Wording.** A test that answered in under 100 ms read "answered in
+  0 s"; it now reads "answered in under 0.1 s".
+
 ## Manual checklist for Windows and Linux
 
 CI runs an automated smoke test on Windows and Linux (Slice 0.8, below),
@@ -1226,10 +1260,12 @@ and read:
 2. Under Chat, choose a chat model and press Test (the first test may wait
    while the model loads): "Works for chat". Pick an embedding model for
    Chat instead and confirm Atlas says it can't chat.
-3. Remove the service: both roles return to "Not set".
-4. With no embedding model installed, the recommendation card shows the
+3. Press Clear on a role: Atlas asks first; Keep leaves it. Quit and
+   relaunch: both roles are kept.
+4. Remove the service: both roles return to "Not set".
+5. With no embedding model installed, the recommendation card shows the
    steps for your AI app and Atlas downloads nothing.
-5. Add a service at a LAN address and one at an internet address: the
+6. Add a service at a LAN address and one at an internet address: the
    cards say "Another computer" and "Internet service".
 
 ## Known platform notes
