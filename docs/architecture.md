@@ -54,6 +54,7 @@ commands and added the native multi-folder picker.
 | Inventory jobs | `start_inventory`, `pause_job`, `resume_job`, `cancel_job`, `get_inventory_status` | **0.5 (working)** |
 | Library | `list_documents`, `open_original`, `reveal_original` | **0.6 (working)** |
 | Providers | `list_provider_profiles`, `save_provider_profile`, `delete_provider_profile`, `test_provider_connection`, `detect_local_providers` | **0.7 (working)** |
+| Model roles | `test_model_capability`, `get_model_roles`, `set_model_role`, `clear_model_role`, `get_model_recommendations` | **2.1 (working)** |
 | Text reading | `get_extraction_status`, `start_extraction` (pause, resume and cancel share the job commands) | **1.3 (working)** |
 | Search | `search_documents` | **1.4 (working)** |
 | Documents | `get_document_detail` (by file ID: a file that hasn't been read has no document yet) | **1.5 (working)** |
@@ -402,7 +403,8 @@ in [ADR 0006](adr/0006-search-keys-and-safe-opening.md).
 
 Implemented in `services/providers/`, `infrastructure/http_probe.rs`, and
 `infrastructure/keychain.rs`; rationale in
-[ADR 0007](adr/0007-provider-connections-and-secrets.md).
+[ADR 0007](adr/0007-provider-connections-and-secrets.md) and
+[ADR 0012](adr/0012-model-roles-and-capability-tests.md).
 
 - **Profiles** (migration 0005) store kind, label, base URL, an insecure-HTTP
   acknowledgement, and *where* the key is kept. The key itself is never in
@@ -414,9 +416,33 @@ Implemented in `services/providers/`, `infrastructure/http_probe.rs`, and
   startup. A redacting `Secret` type keeps keys out of `Debug` output.
 - **Address rules:** http(s) only, no credentials, query, or fragment; plain
   HTTP silently to loopback only, otherwise per-profile acknowledgement.
-- **Tests** are bodiless GETs of the model list, with no redirects, no
-  proxies, bounded time and size, and honest outcomes. They never claim
-  chat or embedding support.
+- **Connection tests** are bodiless GETs of the model list, with no
+  redirects, no proxies, bounded time and size, and honest outcomes. A
+  listing is never reported as chat or embedding support.
+- **Capability tests** (Slice 2.1) send one fixed POST to one model:
+  `{"input": ["Atlas capability test"]}` to `{base}/embeddings` or Ollama's
+  `/api/embed` (the answer's vector length is the model's dimensions), or
+  "Reply with the word OK." to `{base}/chat/completions` or `/api/chat`,
+  streamed (SSE or NDJSON) and passing on the first token, a reasoning
+  model's thought included. Two minutes at most, since a local runtime may
+  load the model first; the reply itself is never kept. Failures are
+  classified from the status and the service's error message: model not
+  found, wrong role, authentication, protocol mismatch, network, timeout.
+- **Roles** (migration 0011, `model_roles`): a profile and model for
+  `chat` and for `embedding`, set only with a passing capability test of
+  that model from the last 24 hours (`ModelNotTested` otherwise), with the
+  embedding model's dimensions; deleting the profile clears its roles.
+- **Recommendations** come from `services/providers/recommendations.json`,
+  compiled in: per role, a recommended model plus faster or
+  higher-quality alternatives, filtered by the computer's memory, with
+  steps for oMLX, Ollama and LM Studio and whether each runtime is known to
+  serve it. Model ids the user's services already listed are matched (case
+  and separators ignored) so an installed copy is offered directly. No
+  network, and Atlas never downloads a model.
+- **Privacy label** (`url_policy::location`): This computer (loopback),
+  Another computer (private, link-local and CGNAT addresses, `.local`,
+  `.lan`, `.home.arpa`, `.internal` and single-label names), or Internet
+  service, from the address alone without DNS.
 - **Detection** probes loopback well-known ports only, and only when the
   user asks.
 

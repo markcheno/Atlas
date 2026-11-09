@@ -5,7 +5,12 @@
  * not_implemented ErrorPayload, like the real stubs.
  */
 import { vi } from 'vitest';
+import type { AiRole } from '../lib/api/bindings/AiRole';
 import type { AppStatus } from '../lib/api/bindings/AppStatus';
+import type { CapabilityResult } from '../lib/api/bindings/CapabilityResult';
+import type { ModelRole } from '../lib/api/bindings/ModelRole';
+import type { ModelRoles } from '../lib/api/bindings/ModelRoles';
+import type { Recommendations } from '../lib/api/bindings/Recommendations';
 import type { DataRootCandidate } from '../lib/api/bindings/DataRootCandidate';
 import type { DataRootStatus } from '../lib/api/bindings/DataRootStatus';
 import type { DeviceCheck } from '../lib/api/bindings/DeviceCheck';
@@ -38,7 +43,7 @@ export const fakeStatus: AppStatus = {
   os: 'macos',
   arch: 'aarch64',
   buildProfile: 'debug',
-  slice: '1.8',
+  slice: '2.1',
   features: [],
 };
 
@@ -333,6 +338,75 @@ export function connectionResult(overrides: Partial<ConnectionResult> = {}): Con
   };
 }
 
+export function capabilityResult(overrides: Partial<CapabilityResult> = {}): CapabilityResult {
+  const role = overrides.role ?? 'embedding';
+  return {
+    role,
+    modelId: role === 'embedding' ? 'qwen3-embedding:0.6b' : 'qwen3.5:9b',
+    outcome: 'works',
+    dimensions: role === 'embedding' ? 1024 : null,
+    message: 'The model answered.',
+    elapsedMs: 420,
+    testedAt: '2026-11-09T12:00:00Z',
+    ...overrides,
+  };
+}
+
+export function recommendations(overrides: Partial<Recommendations> = {}): Recommendations {
+  const steps = (runtime: 'omlx' | 'ollama' | 'lmstudio', modelId: string, verified: boolean) => ({
+    runtime,
+    modelId,
+    command: runtime === 'ollama' ? `ollama pull ${modelId}` : null,
+    steps: [`Install ${modelId}.`, 'Back in Atlas, choose it and press Test.'],
+    verified,
+  });
+  return {
+    catalogVersion: 1,
+    totalMemoryGb: 16,
+    embedding: {
+      role: 'embedding',
+      models: [
+        {
+          id: 'qwen3-embedding-0.6b',
+          label: 'Qwen3-Embedding 0.6B',
+          kind: 'recommended',
+          sizeBytes: 639_000_000,
+          minMemoryGb: 8,
+          dimensions: 1024,
+          why: 'Small and fast.',
+          runtimes: [
+            steps('omlx', 'mlx-community/Qwen3-Embedding-0.6B-8bit', false),
+            steps('ollama', 'qwen3-embedding:0.6b', true),
+            steps('lmstudio', 'text-embedding-qwen3-embedding-0.6b', false),
+          ],
+          installedAs: null,
+        },
+      ],
+    },
+    chat: {
+      role: 'chat',
+      models: [
+        {
+          id: 'qwen3.5-9b',
+          label: 'Qwen3.5 9B',
+          kind: 'recommended',
+          sizeBytes: 6_600_000_000,
+          minMemoryGb: 16,
+          dimensions: null,
+          why: 'Good answers on 16 GB.',
+          runtimes: [
+            steps('omlx', 'Qwen3.5-9B', false),
+            steps('ollama', 'qwen3.5:9b', true),
+            steps('lmstudio', 'qwen3.5-9b', false),
+          ],
+          installedAs: null,
+        },
+      ],
+    },
+    ...overrides,
+  };
+}
+
 /** Folders the fake picker returns, in order, on each call. */
 export const pickerQueue: AddSourceRootsResult[] = [];
 
@@ -349,6 +423,11 @@ function defaults(): Record<string, Handler> {
   let settings: Settings = { appearance: { theme: 'system' } };
   let roots: SourceRoot[] = [];
   let profiles: ProviderProfile[] = [];
+  let modelRoles: ModelRoles = { chat: null, embedding: null };
+  const withoutProfile = (id: unknown): ModelRoles => ({
+    chat: modelRoles.chat?.profileId === id ? null : modelRoles.chat,
+    embedding: modelRoles.embedding?.profileId === id ? null : modelRoles.embedding,
+  });
   return {
     list_provider_profiles: () => profiles,
     save_provider_profile: (args) => {
@@ -366,7 +445,11 @@ function defaults(): Record<string, Handler> {
         hasCredential: hasKey,
         credentialStorage: hasKey ? 'keychain' : 'none',
         insecureHttpAcknowledged: input.insecureHttpAcknowledged,
-        onThisComputer: /\/\/(localhost|127\.)/.test(input.baseUrl),
+        location: /\/\/(localhost|127\.)/.test(input.baseUrl)
+          ? 'this_computer'
+          : /\/\/(192\.168\.|10\.)/.test(input.baseUrl)
+            ? 'another_computer'
+            : 'internet',
         createdAt: 't',
         updatedAt: 't',
       };
@@ -375,8 +458,35 @@ function defaults(): Record<string, Handler> {
     },
     delete_provider_profile: (args) => {
       profiles = profiles.filter((p) => p.id !== args?.id);
+      modelRoles = withoutProfile(args?.id);
       return null;
     },
+    test_model_capability: (args) =>
+      capabilityResult({ role: args?.role as AiRole, modelId: String(args?.modelId ?? '') }),
+    get_model_roles: () => modelRoles,
+    set_model_role: (args) => {
+      const role = args?.role as AiRole;
+      const result = args?.result as CapabilityResult;
+      const listed = (handlers.list_provider_profiles?.(undefined) ??
+        profiles) as ProviderProfile[];
+      const profile = listed.find((p) => p.id === args?.profileId);
+      const assigned: ModelRole = {
+        role,
+        profileId: String(args?.profileId),
+        profileLabel: profile?.label ?? 'Service',
+        location: profile?.location ?? 'this_computer',
+        modelId: String(args?.modelId),
+        dimensions: result.dimensions,
+        testedAt: result.testedAt,
+      };
+      modelRoles = { ...modelRoles, [role]: assigned };
+      return modelRoles;
+    },
+    clear_model_role: (args) => {
+      modelRoles = { ...modelRoles, [args?.role as AiRole]: null };
+      return modelRoles;
+    },
+    get_model_recommendations: () => recommendations(),
     test_provider_connection: () => connectionResult(),
     detect_local_providers: () => [],
     get_device_check: () => deviceCheck(),

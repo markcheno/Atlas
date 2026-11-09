@@ -73,6 +73,8 @@ pub enum ErrorCode {
     OpenFailed,
     /// No AI service connection has that ID.
     ProfileNotFound,
+    /// A role needs a recent passing capability test of that model.
+    ModelNotTested,
     /// The address is not a usable http(s) URL.
     InvalidUrl,
     /// The address contains a user name or password.
@@ -181,6 +183,8 @@ pub enum AtlasError {
     OpenFailed,
     #[error("That AI service connection no longer exists.")]
     ProfileNotFound,
+    #[error("Atlas hasn't checked that this model can do that job.")]
+    ModelNotTested,
     #[error("That address isn't a web address Atlas can use.")]
     InvalidUrl,
     #[error("That address contains a user name or password.")]
@@ -267,6 +271,7 @@ impl AtlasError {
             Self::SourceUnavailable => ErrorCode::SourceUnavailable,
             Self::OpenFailed => ErrorCode::OpenFailed,
             Self::ProfileNotFound => ErrorCode::ProfileNotFound,
+            Self::ModelNotTested => ErrorCode::ModelNotTested,
             Self::InvalidUrl => ErrorCode::InvalidUrl,
             Self::UrlHasCredentials => ErrorCode::UrlHasCredentials,
             Self::InsecureHttpNotAcknowledged => ErrorCode::InsecureHttpNotAcknowledged,
@@ -333,6 +338,7 @@ impl AtlasError {
             Self::SourceUnavailable => "Reconnect the drive or folder, then try again.",
             Self::OpenFailed => "Check that an app that opens this kind of file is installed.",
             Self::ProfileNotFound => "Refresh the list of AI services.",
+            Self::ModelNotTested => "Test the model, then choose Use.",
             Self::InvalidUrl => {
                 "Enter an address that starts with http:// or https://, like http://localhost:11434."
             }

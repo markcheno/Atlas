@@ -66,7 +66,7 @@ pub async fn detect(
                 .await
                 {
                     Fetched::Ok(v) => (false, count_models(kind, &v)),
-                    Fetched::Status(s)
+                    Fetched::Status(s, _)
                         if s == StatusCode::UNAUTHORIZED || s == StatusCode::FORBIDDEN =>
                     {
                         (true, None)

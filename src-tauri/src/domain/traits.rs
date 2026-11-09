@@ -14,7 +14,9 @@ use std::future::Future;
 use std::path::Path;
 use std::time::SystemTime;
 
-use super::dto::{ConnectionResult, DeviceSnapshot, FileType, ProviderKind, VolumeKind};
+use super::dto::{
+    AiRole, CapabilityResult, ConnectionResult, DeviceSnapshot, FileType, ProviderKind, VolumeKind,
+};
 use crate::error::AtlasResult;
 
 /// A stored source root. `path_bytes` is the platform-tagged native path
@@ -105,9 +107,10 @@ pub trait ResourceMonitor: Send + Sync {
     fn snapshot(&self, data_root: Option<&Path>) -> DeviceSnapshot;
 }
 
-/// Connection probe for an AI endpoint (Ollama and OpenAI-compatible,
-/// Slice 0.7). Lists models only; never sends library content. Dropping the
-/// returned future cancels the request.
+/// An AI endpoint (Ollama and OpenAI-compatible). A connection test lists
+/// models (Slice 0.7); a capability test sends one fixed request to one
+/// model for one role (Slice 2.1, ADR 0012). Neither sends library content.
+/// Dropping a returned future cancels the request.
 pub trait ModelProvider {
     fn kind(&self) -> ProviderKind;
     fn test_connection(
@@ -115,6 +118,13 @@ pub trait ModelProvider {
         base_url: &str,
         credential: Option<&str>,
     ) -> impl Future<Output = ConnectionResult> + Send;
+    fn test_capability(
+        &self,
+        base_url: &str,
+        credential: Option<&str>,
+        role: AiRole,
+        model: &str,
+    ) -> impl Future<Output = CapabilityResult> + Send;
 }
 
 /// Opens or reveals an original document with OS-native facilities

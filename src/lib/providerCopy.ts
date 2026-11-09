@@ -3,12 +3,28 @@ import type { ConnectionResult } from './api/bindings/ConnectionResult';
 import type { CredentialStorage } from './api/bindings/CredentialStorage';
 import type { OsKind } from './api/bindings/OsKind';
 import type { ProviderKind } from './api/bindings/ProviderKind';
+import type { ProviderLocation } from './api/bindings/ProviderLocation';
 
 export const PRIVACY_NOTE =
-  'Optional. Atlas works without AI. Testing a connection only asks the service for its list of models; nothing from your library is sent.';
+  'Optional. Atlas works without AI. Testing asks a service for its models, or sends one short fixed request to check a model; nothing from your library is sent.';
 
+/** Under a model list: listing isn't a capability claim. */
 export const CAPABILITY_NOTE =
-  'Model listing works. Atlas will check what each model can do when AI features arrive.';
+  "Listing a model doesn't show what it can do. Choose it under Models for Atlas to check it.";
+
+export function locationLabel(location: ProviderLocation): string {
+  switch (location) {
+    case 'this_computer':
+      return 'This computer';
+    case 'another_computer':
+      return 'Another computer';
+    case 'internet':
+      return 'Internet service';
+  }
+}
+
+export const INTERNET_NOTE =
+  'An internet service: Atlas will ask before sending anything from your library to it.';
 
 export interface Preset {
   id: string;

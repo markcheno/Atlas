@@ -8,7 +8,7 @@ use crate::state::AppState;
 
 /// The slice this build implements, "<phase>.<slice>" (Phase 1, Slice 1 is
 /// "1.1"). The UI derives the phase from it.
-pub const CURRENT_SLICE: &str = "1.8";
+pub const CURRENT_SLICE: &str = "2.1";
 
 /// (id, label, delivering slice, implemented in this build)
 const FEATURES: &[(&str, &str, &str, bool)] = &[
@@ -39,6 +39,7 @@ const FEATURES: &[(&str, &str, &str, bool)] = &[
     ),
     ("duplicates", "Duplicate files by content", "1.6", true),
     ("storage_usage", "Storage use and Clean caches", "1.6", true),
+    ("model_roles", "Chat and embedding models", "2.1", true),
 ];
 
 /// Builds the status from facts about this process only.
