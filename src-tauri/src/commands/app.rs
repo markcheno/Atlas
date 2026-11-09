@@ -8,7 +8,7 @@ use crate::state::AppState;
 
 /// The slice this build implements, "<phase>.<slice>" (Phase 1, Slice 1 is
 /// "1.1"). The UI derives the phase from it.
-pub const CURRENT_SLICE: &str = "1.4";
+pub const CURRENT_SLICE: &str = "1.5";
 
 /// (id, label, delivering slice, implemented in this build)
 const FEATURES: &[(&str, &str, &str, bool)] = &[
@@ -23,6 +23,12 @@ const FEATURES: &[(&str, &str, &str, bool)] = &[
         "full_text_search",
         "Search the text of your books and papers",
         "1.4",
+        true,
+    ),
+    (
+        "search_screen",
+        "Search screen and document details",
+        "1.5",
         true,
     ),
 ];

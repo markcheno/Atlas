@@ -494,6 +494,29 @@ pub struct ExtractionOverview {
     pub scanning: bool,
 }
 
+// ------------------------------------------------------------- documents
+
+/// Everything the detail panel shows for one file (phase1-spec §5.3).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct DocumentDetail {
+    /// The file the panel was opened for, with its text status.
+    pub file: FileInstance,
+    /// Set once the file's bytes have been hashed.
+    pub document_id: Option<RecordId>,
+    pub title: Option<String>,
+    pub authors: Vec<String>,
+    pub language: Option<String>,
+    /// PDF pages, or EPUB spine documents.
+    pub page_count: Option<u32>,
+    #[ts(type = "number | null")]
+    pub char_count: Option<u64>,
+    /// The other cataloged copies of the same content, missing ones
+    /// included (and marked).
+    pub also_at: Vec<FileInstance>,
+}
+
 // ---------------------------------------------------------------- search
 
 /// A full-text search (phase1-spec §7.4).
