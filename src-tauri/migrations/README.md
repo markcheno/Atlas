@@ -32,3 +32,4 @@ Rules:
 | 6 | `0006_status_counts_index.sql` | covering index for the status counts |
 | 7 | `0007_jobs.sql` | `scan_sessions` becomes `jobs` with a `kind` (Phase 1) |
 | 8 | `0008_documents.sql` | `documents`, `passages`, and the `file_instances` extraction columns (Phase 1) |
+| 9 | `0009_passages_fts.sql` | the FTS5 index over `passages`, its triggers, and a one-time rebuild (Phase 1) |

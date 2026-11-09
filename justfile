@@ -127,6 +127,14 @@ bench out="":
 bench-full out="":
     pnpm bench --sweep {{ if out == "" { "" } else { "--out " + out } }}
 
+# Search benchmark only (30k text fixture, release build); fails above 250 ms p95 while reading (P1-19, reference machine)
+bench-search out="":
+    pnpm bench --search-only --max-p95-ms 250 {{ if out == "" { "" } else { "--out " + out } }}
+
+# Ask a question set (fixtures/README.md) against a library, read-only, e.g. `just eval my-questions.json ~/AtlasData`; `ids` maps corpus ids (spikes/extraction-bench/corpus/manifest.json)
+eval questions data_root ids="":
+    cargo bench --manifest-path {{ manifest }} --locked --bench search -- --eval {{ questions }} --data-root {{ data_root }} {{ if ids == "" { "" } else { "--manifest " + ids } }}
+
 # WebDriver smoke test of the debug build (Windows and Linux; needs tauri-driver)
 e2e *args:
     pnpm e2e {{ args }}

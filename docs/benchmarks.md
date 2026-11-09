@@ -243,4 +243,36 @@ Reading a Phase 0 library on upgrade: the copied 30,006-file stub library
 minute in a debug build at the default duty cycle; the 3,334 stub "EPUBs"
 are correctly `malformed` (not real zips).
 
+## Search (Slice 1.4)
+
+`cargo bench --bench search` (`just bench-search`) catalogs and reads the
+30k text fixture (`--text-kb 20`) unthrottled through the real services
+and worker, querying a mix of searches every 200 ms while text is being
+read, then 20 rounds idle, then the first query of each kind after
+reopening. M5 Pro, release build, 2026-11-09:
+
+| Files | Passages | Text | Read | First searchable | Index | Catalog | Index rebuild |
+| ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| 30,006 | 293,070 | 622 M chars | 147 s | 3.3 s | 248 MB | 1.4 GB | 7.5 s |
+
+| `search_documents` p50 / p95 / max ms | While reading | Idle |
+| --- | ---: | ---: |
+| All queries | 59 / 152 / 211 | 105 / 175 / 178 |
+| Single term (`orbital`) | 77 / 124 / 136 | – |
+| Phrase (`"quiet harbour lights"`) | 69 / 121 / 133 | – |
+| Prefix (`resonan*`) | 117 / 195 / 211 | – |
+| Rare term (a marker phrase) | 33 / 41 / 46 | – |
+| Common term (`river`) | 72 / 130 / 143 | – |
+| Any words (`orbital banana`) | 79 / 126 / 144 | – |
+| File name (`book 000042`) | 33 / 42 / 48 | – |
+
+Cold, the first query of each kind after reopening took 31–177 ms. P1-19
+(p95 under 250 ms while reading, on the reference machine) passes; CI
+reports the same table per OS without asserting it. On the 1k text fixture
+every query kind stays under 7 ms.
+
+The catalog holds the text and its index: 1.4 GB for 622 MB of text,
+2.3×, above the provisional 1.5× (phase1-spec §13); see ADR 0010. Reading
+in the release build ran at 204 files/s and 1,990 passages/s, unthrottled.
+
 <!-- results:end -->

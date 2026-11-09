@@ -1,12 +1,17 @@
 #!/usr/bin/env node
-// Runs the Phase 0 benchmark suite (phase0-spec §13; docs/benchmarks.md):
-// generates fixtures if needed, runs `cargo bench --bench inventory` for
-// each scenario, and writes JSON results plus a Markdown summary.
+// Runs the benchmark suite (phase0-spec §13, phase1-spec §13;
+// docs/benchmarks.md): generates fixtures if needed, runs `cargo bench
+// --bench inventory` for each cataloging scenario and `cargo bench --bench
+// search` on the 30k text fixture, and writes JSON results plus a Markdown
+// summary.
 //
-//   node scripts/bench.mjs [--out <dir>] [--sweep]
+//   node scripts/bench.mjs [--out <dir>] [--sweep] [--search-only] [--max-p95-ms 250]
 //
 // --sweep adds the 30k throttle sweep (about 10 minutes) used to choose
-// the cataloging rate. Fixtures go in <out>/fixtures and are reused.
+// the cataloging rate. --search-only runs just the search benchmark;
+// --max-p95-ms makes it fail above that search p95 while reading (the
+// reference machine's check, P1-19). Fixtures go in <out>/fixtures and are
+// reused.
 
 import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
@@ -22,9 +27,11 @@ const opt = (name, fallback) => {
 };
 const out = path.resolve(opt('out', path.join(os.tmpdir(), 'atlas-bench')));
 const sweep = args.includes('--sweep');
+const searchOnly = args.includes('--search-only');
+const maxP95 = opt('max-p95-ms', null);
 fs.mkdirSync(path.join(out, 'fixtures'), { recursive: true });
 
-function fixture(name, files, flat) {
+function fixture(name, files, flat, textKb = 0) {
   const dir = path.join(out, 'fixtures', name);
   const meta = `${dir}.json`;
   if (!fs.existsSync(meta)) {
@@ -35,36 +42,41 @@ function fixture(name, files, flat) {
       String(files),
       '--flat',
       String(flat),
+      ...(textKb ? ['--text-kb', String(textKb)] : []),
     ]).toString();
     fs.writeFileSync(meta, text.split('\nTo delete later')[0]);
   }
   return { dir, expect: JSON.parse(fs.readFileSync(meta, 'utf8')).catalogableFiles };
 }
 
-const small = fixture('1k', 1000, 0);
+const small = searchOnly ? null : fixture('1k', 1000, 0);
 // §11: 30,000 files including one flat folder of 20,000.
-const large = fixture('30k', 10000, 20000);
+const large = searchOnly ? null : fixture('30k', 10000, 20000);
+// Phase 1 §11: the same layout with about 20 KiB of text per file.
+const largeText = fixture('30k-text', 10000, 20000, 20);
 
-const scenarios = [
-  {
-    id: '1k-ac',
-    f: small,
-    label: '1k',
-    rates: 'policy,unthrottled',
-    power: 'ac',
-    extra: ['--browse', '5', '--pause', '--recovery'],
-  },
-  { id: '1k-battery', f: small, label: '1k', rates: 'policy', power: 'battery:50', extra: [] },
-  {
-    id: '30k-ac',
-    f: large,
-    label: '30k',
-    rates: 'policy,unthrottled',
-    power: 'ac',
-    extra: ['--browse', '5', '--pause', '--recovery'],
-  },
-];
-if (sweep) {
+const scenarios = searchOnly
+  ? []
+  : [
+      {
+        id: '1k-ac',
+        f: small,
+        label: '1k',
+        rates: 'policy,unthrottled',
+        power: 'ac',
+        extra: ['--browse', '5', '--pause', '--recovery'],
+      },
+      { id: '1k-battery', f: small, label: '1k', rates: 'policy', power: 'battery:50', extra: [] },
+      {
+        id: '30k-ac',
+        f: large,
+        label: '30k',
+        rates: 'policy,unthrottled',
+        power: 'ac',
+        extra: ['--browse', '5', '--pause', '--recovery'],
+      },
+    ];
+if (sweep && !searchOnly) {
   scenarios.push({
     id: '30k-sweep',
     f: large,
@@ -85,6 +97,8 @@ execFileSync(
     '--locked',
     '--bench',
     'inventory',
+    '--bench',
+    'search',
     '--no-run',
   ],
   { stdio: 'inherit' },
@@ -123,7 +137,33 @@ for (const s of scenarios) {
   results.push({ id: s.id, ...JSON.parse(fs.readFileSync(file, 'utf8')) });
 }
 
-const md = summarize(results);
+console.error('bench: 30k-text search');
+const searchFile = path.join(out, 'bench-30k-text-search.json');
+execFileSync(
+  'cargo',
+  [
+    'bench',
+    '--manifest-path',
+    path.join(repo, 'src-tauri', 'Cargo.toml'),
+    '--locked',
+    '--bench',
+    'search',
+    '--',
+    '--fixture',
+    largeText.dir,
+    '--label',
+    '30k-text',
+    '--expect',
+    String(largeText.expect),
+    '--out',
+    searchFile,
+    ...(maxP95 ? ['--max-p95-ms', String(maxP95)] : []),
+  ],
+  { stdio: ['ignore', 'ignore', 'inherit'] },
+);
+const searchResult = JSON.parse(fs.readFileSync(searchFile, 'utf8'));
+
+const md = (results.length ? summarize(results) : '') + summarizeSearch(searchResult);
 fs.writeFileSync(path.join(out, `bench-${process.platform}.md`), md);
 console.log(md);
 if (process.env.GITHUB_STEP_SUMMARY) fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, md);
@@ -191,5 +231,30 @@ function summarize(all) {
         `| ${b.id} | ${b.rate} | ${kinds.map((k) => cell(b.browseByQuery[k])).join(' | ')} | ${cell(b.rootProbeWhileScanning)} |`,
       );
   }
+  return `${lines.join('\n')}\n`;
+}
+
+function summarizeSearch(r) {
+  const mib = (b) => (b == null ? '–' : (b / 1048576).toFixed(1));
+  const cell = (p) => (p ? `${p.p50Ms} / ${p.p95Ms} / ${p.maxMs}` : '–');
+  const lines = [
+    '',
+    `## Search: ${r.label} (${r.machine.os} ${r.machine.arch}${r.machine.ci ? ', CI runner' : ''})`,
+    '',
+    '| Files | Passages | Text MiB | Read s | First searchable s | Index MiB | Catalog MiB | Rebuild s |',
+    '| ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |',
+    `| ${r.files} | ${r.passages} | ${mib(r.textChars)} | ${r.readSeconds} | ${r.firstSearchableSeconds ?? '–'} | ${mib(r.indexBytes)} | ${mib(r.catalogBytes)} | ${r.rebuildSeconds} |`,
+    '',
+    '| search_documents p50 / p95 / max ms | While reading | Idle (warm) |',
+    '| --- | ---: | ---: |',
+    `| All queries | ${cell(r.whileReading.all)} | ${cell(r.idle.all)} |`,
+  ];
+  for (const k of Object.keys(r.whileReading.byQuery)) {
+    lines.push(`| ${k} | ${cell(r.whileReading.byQuery[k])} | ${cell(r.idle.byQuery[k])} |`);
+  }
+  lines.push(
+    '',
+    `Cold (first query after reopening): ${r.cold.map((c) => `${c.query} ${c.ms} ms`).join(', ')}.`,
+  );
   return `${lines.join('\n')}\n`;
 }

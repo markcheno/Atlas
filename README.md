@@ -4,7 +4,7 @@ Atlas is a local-first personal AI librarian for large private collections of
 PDFs, EPUBs, books and papers. *Collect freely. Organize minimally. Retrieve
 intelligently.*
 
-**Status: Phase 1, Slice 1.3 (Atlas reads the text of your PDFs and EPUBs); Phase 0 complete.** Atlas asks where to keep its library and
+**Status: Phase 1, Slice 1.4 (full-text search over the text Atlas reads; the search screen comes next); Phase 0 complete.** Atlas asks where to keep its library and
 which folders hold your books and papers, then catalogs every PDF and EPUB
 in them in the background, read-only. Cataloging slows on battery, pauses
 when the battery is low or the drive is nearly full, survives quitting and
@@ -62,7 +62,8 @@ None of this is in the app yet.
 | Extraction and vector-engine decision | Decided ([ADR 0008](docs/adr/0008-extraction-and-vector-engines.md)); built in Phase 1 and 2 |
 | Background jobs of several kinds (scans now, text extraction next) | Working (Phase 1, Slice 1.1) |
 | Reading text from PDFs and EPUBs, in a separate worker process; per-file Text status in the Library | Working (Slice 1.3): slows on battery, pauses at 20%; copies and moved files are read once; scans, DRM and damaged files get a status and a reason |
-| Full-text search, duplicates view, metadata | Phase 1, in progress ([spec](docs/phase1-spec.md)): Slices 1.1–1.3 of 1.8 built |
+| Full-text search engine (`search_documents`): phrases, prefixes, accent-insensitive, snippets | Working (Slice 1.4); no search screen yet (Slice 1.5) |
+| Search screen, document details, duplicates view, metadata | Phase 1, in progress ([spec](docs/phase1-spec.md)): Slices 1.1–1.4 of 1.8 built |
 
 Specifications: [product](docs/product-spec.md), [Phase 0](docs/phase0-spec.md),
 [Phase 1](docs/phase1-spec.md), [architecture](docs/architecture.md),
@@ -134,6 +135,8 @@ just fmt              # apply prettier and rustfmt
 just licenses         # regenerate docs/dependency-licenses.md
 just bench            # benchmark suite on 1k and 30k fixtures (release build; a few minutes)
 just bench-full       # plus the 30k throttle sweep
+just bench-search     # search benchmark on the 30k text fixture (fails above 250 ms p95)
+just eval questions.json ~/AtlasData   # ask a question set against a library, read-only
 just e2e              # WebDriver smoke test of the debug build (Windows/Linux; needs tauri-driver)
 just worker-hello     # start the extraction worker and check it loads PDFium (time to hello)
 just ci-remote        # run CI on GitHub for this pushed branch: full (default) or `just ci-remote quick`
