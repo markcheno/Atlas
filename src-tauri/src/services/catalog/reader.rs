@@ -71,6 +71,12 @@ impl CatalogReader {
     }
 }
 
+/// One read-only, query-only connection outside the pool, for slow reads
+/// that must not hold a pooled connection (storage accounting).
+pub fn open_single(path: &Path) -> AtlasResult<Connection> {
+    open_reader(path)
+}
+
 fn open_reader(path: &Path) -> AtlasResult<Connection> {
     let conn = Connection::open_with_flags(
         path,

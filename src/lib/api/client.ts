@@ -17,8 +17,10 @@ import type { DeviceCheck } from './bindings/DeviceCheck';
 import type { DataRootStatus } from './bindings/DataRootStatus';
 import type { DeviceSnapshot } from './bindings/DeviceSnapshot';
 import type { DocumentDetail } from './bindings/DocumentDetail';
+import type { CleanCachesResult } from './bindings/CleanCachesResult';
 import type { DuplicatePage } from './bindings/DuplicatePage';
 import type { DuplicateQuery } from './bindings/DuplicateQuery';
+import type { StorageUsage } from './bindings/StorageUsage';
 import type { DocumentPage } from './bindings/DocumentPage';
 import type { ExtractionOverview } from './bindings/ExtractionOverview';
 import type { DocumentQuery } from './bindings/DocumentQuery';
@@ -132,6 +134,8 @@ export const atlas = {
   searchDocuments: (query: SearchQuery) => call<SearchPage>('search_documents', { query }),
   getDocumentDetail: (fileId: string) => call<DocumentDetail>('get_document_detail', { fileId }),
   listDuplicates: (query: DuplicateQuery) => call<DuplicatePage>('list_duplicates', { query }),
+  getStorageUsage: () => call<StorageUsage>('get_storage_usage'),
+  cleanCaches: () => call<CleanCachesResult>('clean_caches'),
 
   listDocuments: (query: DocumentQuery) => call<DocumentPage>('list_documents', { query }),
   /** `allowDownload` must be true to open a file stored only in the cloud. */

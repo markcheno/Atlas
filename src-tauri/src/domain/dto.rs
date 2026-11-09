@@ -513,6 +513,66 @@ pub enum TitleSource {
     FileName,
 }
 
+/// What the library's data takes on disk (Settings › Storage, phase1-spec
+/// §5.5, §8). Catalog sizes are exact (SQLite's `dbstat`).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct StorageUsage {
+    /// `catalog.sqlite` with its `-wal` and `-shm` files.
+    #[ts(type = "number")]
+    pub catalog_bytes: u64,
+    /// The stored text (`passages`), part of the catalog.
+    #[ts(type = "number")]
+    pub text_bytes: u64,
+    /// The full-text index (`passages_fts`), part of the catalog.
+    #[ts(type = "number")]
+    pub index_bytes: u64,
+    /// The rest of the catalog: files, folders, documents, jobs.
+    #[ts(type = "number")]
+    pub other_catalog_bytes: u64,
+    /// Rebuildable files in `cache/` and `tmp/`.
+    #[ts(type = "number")]
+    pub cache_bytes: u64,
+    /// `None` when the drive can't be asked.
+    #[ts(type = "number | null")]
+    pub data_volume_free_bytes: Option<u64>,
+    pub estimate: IndexingEstimate,
+    pub measured_at: String,
+}
+
+/// How much the text still to be read will need (phase1-spec §8): always a
+/// range, and only after enough documents have been read.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+#[ts(export)]
+pub enum IndexingEstimate {
+    /// Fewer than `needed` documents read so far.
+    NotEnoughRead { done: u32, needed: u32 },
+    /// No file is waiting to be read.
+    AllRead,
+    Range {
+        #[serde(rename = "remainingFiles")]
+        remaining_files: u32,
+        #[serde(rename = "lowBytes")]
+        #[ts(type = "number")]
+        low_bytes: u64,
+        #[serde(rename = "highBytes")]
+        #[ts(type = "number")]
+        high_bytes: u64,
+    },
+}
+
+/// What Clean caches removed, and the usage afterwards.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct CleanCachesResult {
+    #[ts(type = "number")]
+    pub freed_bytes: u64,
+    pub usage: StorageUsage,
+}
+
 /// Groups of files with identical content (Library › Duplicates, Slice
 /// 1.6). A group is a document with at least two available copies inside
 /// the filters.

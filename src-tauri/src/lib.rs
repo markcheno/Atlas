@@ -159,6 +159,8 @@ pub fn run() {
             commands::search::search_documents,
             commands::documents::get_document_detail,
             commands::documents::list_duplicates,
+            commands::storage::get_storage_usage,
+            commands::storage::clean_caches,
             commands::library::list_documents,
             commands::library::open_original,
             commands::library::reveal_original,
