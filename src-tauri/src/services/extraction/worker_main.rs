@@ -47,6 +47,8 @@ fn send(frame: &Frame) -> bool {
 }
 
 pub fn run() -> i32 {
+    // Before anything slow: a worker whose app has died ends (P1-22).
+    super::lifetime::watch_parent();
     let Ok(protocol) = take_stdout() else {
         return EXIT_NO_PROTOCOL;
     };

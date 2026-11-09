@@ -21,6 +21,7 @@ use crate::services::jobs::{
     self, Flow, JobProcessor, JobRow, JobWaker, ProcessorContext, ProcessorFactory, Signal,
 };
 use crate::services::library::fold::fold;
+use crate::services::scheduler::policy::REPLAY_COST_DIVISOR;
 use crate::services::sources::{self, Relation};
 
 /// Builds a [`ScanProcessor`] for each data root the workspace opens.
@@ -455,11 +456,11 @@ impl ScanProcessor {
 
         let committed = std::mem::take(batch);
         let (id, root_id, ts) = (s.id.clone(), s.root_id.clone(), self.now());
-        match self
+        let replayed = match self
             .catalog
             .call(move |c| db::commit_batch(c, &id, &root_id, &committed, &ts))
         {
-            Ok(Ok(db::Committed::Yes)) => {}
+            Ok(Ok(db::Committed::Yes { replayed })) => replayed as u32,
             // Paused or cancelled while this batch was listed: drop it. The
             // directory stays pending and is listed again on resume.
             Ok(Ok(db::Committed::NotRunning)) => return Some(DirOutcome::Interrupted),
@@ -472,10 +473,10 @@ impl ScanProcessor {
                 }
                 return Some(DirOutcome::Interrupted);
             }
-        }
+        };
         self.emit(false);
 
-        let wait = s.bucket.reserve(ops);
+        let wait = s.bucket.reserve(charged_ops(ops, replayed));
         if self.signal.wait(wait) {
             return Some(DirOutcome::Stop);
         }
@@ -598,4 +599,28 @@ fn rfc3339_from_secs(secs: i64) -> Option<String> {
         .ok()?
         .format(&time::format_description::well_known::Rfc3339)
         .ok()
+}
+
+/// What a batch costs against the scan's rate: replayed entries (already
+/// written by this session, unchanged) cost a fraction of an operation,
+/// since they write nothing. Each one is still listed and stat'ed, so it is
+/// not free (P1-20, ADR 0004).
+fn charged_ops(ops: u32, replayed: u32) -> u32 {
+    let replayed = replayed.min(ops);
+    ops - replayed + replayed.div_ceil(REPLAY_COST_DIVISOR)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::charged_ops;
+
+    #[test]
+    fn replayed_entries_cost_a_twentieth() {
+        assert_eq!(charged_ops(100, 0), 100);
+        assert_eq!(charged_ops(100, 100), 5);
+        assert_eq!(charged_ops(100, 1), 100);
+        assert_eq!(charged_ops(100, 40), 62);
+        assert_eq!(charged_ops(0, 0), 0);
+        assert_eq!(charged_ops(10, 50), 1, "never more replayed than listed");
+    }
 }

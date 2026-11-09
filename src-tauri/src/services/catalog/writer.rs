@@ -136,6 +136,19 @@ fn open_connection(path: &Path) -> AtlasResult<Connection> {
     Ok(conn)
 }
 
+/// The page size of a new catalog. Passages run 2–4 KB, so with SQLite's
+/// default 4 KiB pages almost every passage filled a page of its own, about
+/// a third of it unused (ADR 0010). Set before the switch to WAL, which
+/// fixes the size; an existing catalog keeps the size it was created with.
+pub const NEW_CATALOG_PAGE_SIZE: u32 = 16_384;
+
+/// Chooses the page size for a catalog with nothing in it yet. On a
+/// database that already has pages, SQLite ignores it.
+pub fn set_new_page_size(conn: &mut Connection) -> AtlasResult<()> {
+    conn.pragma_update(None, "page_size", NEW_CATALOG_PAGE_SIZE)
+        .map_err(AtlasError::db("be configured"))
+}
+
 /// Switches the database to WAL with `synchronous=NORMAL` (corruption-safe
 /// in WAL mode; at worst the last transaction is lost on power failure).
 /// Called only after the schema version has been accepted.
