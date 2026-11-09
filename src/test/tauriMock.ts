@@ -11,6 +11,9 @@ import type { DataRootStatus } from '../lib/api/bindings/DataRootStatus';
 import type { DeviceCheck } from '../lib/api/bindings/DeviceCheck';
 import type { DeviceSnapshot } from '../lib/api/bindings/DeviceSnapshot';
 import type { DocumentPage } from '../lib/api/bindings/DocumentPage';
+import type { ExtractionCounts } from '../lib/api/bindings/ExtractionCounts';
+import type { ExtractionOverview } from '../lib/api/bindings/ExtractionOverview';
+import type { ExtractionStatus } from '../lib/api/bindings/ExtractionStatus';
 import type { FileInstance } from '../lib/api/bindings/FileInstance';
 import type { ErrorPayload } from '../lib/api/bindings/ErrorPayload';
 import type { InventoryOverview } from '../lib/api/bindings/InventoryOverview';
@@ -154,6 +157,50 @@ export function fileInstance(overrides: Partial<FileInstance> = {}): FileInstanc
     modifiedAt: '2026-10-01T00:00:00Z',
     availability: 'available',
     storage: 'local',
+    documentId: null,
+    extraction: { state: 'pending', reason: null },
+    ...overrides,
+  };
+}
+
+export function extractionCounts(overrides: Partial<ExtractionCounts> = {}): ExtractionCounts {
+  return {
+    done: 0,
+    pending: 0,
+    needsOcr: 0,
+    encrypted: 0,
+    cloudOnly: 0,
+    unreadable: 0,
+    total: 0,
+    ...overrides,
+  };
+}
+
+export function extractionStatus(overrides: Partial<ExtractionStatus> = {}): ExtractionStatus {
+  return {
+    jobId: 'extract-1',
+    sourceRootId: 'root-books',
+    sourceRootDisplayPath: '/Users/test/Books',
+    state: 'running',
+    pauseReason: null,
+    throttleReason: null,
+    processedFiles: 0,
+    pendingFiles: 0,
+    currentFileId: null,
+    lastError: null,
+    ...overrides,
+  };
+}
+
+export function extractionOverview(
+  overrides: Partial<ExtractionOverview> = {},
+): ExtractionOverview {
+  return {
+    active: null,
+    queuedJobs: 0,
+    counts: extractionCounts(),
+    roots: [],
+    scanning: false,
     ...overrides,
   };
 }
@@ -221,6 +268,8 @@ function defaults(): Record<string, Handler> {
     detect_local_providers: () => [],
     get_device_check: () => deviceCheck(),
     get_inventory_status: () => overview(),
+    get_extraction_status: () => extractionOverview(),
+    start_extraction: () => 'extract-2',
     list_documents: () => documentPage(),
     open_original: () => null,
     reveal_original: () => null,

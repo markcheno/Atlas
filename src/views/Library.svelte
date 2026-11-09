@@ -12,7 +12,10 @@
     revealLabel,
     statusLabel,
   } from '../lib/libraryCopy';
+  import type { ExtractionState } from '../lib/api/bindings/ExtractionState';
+  import { reasonText, rowState, TEXT_FILTERS, TEXT_ICON, TEXT_LABEL } from '../lib/extractionCopy';
   import { appInfo } from '../lib/stores/app.svelte';
+  import { extraction } from '../lib/stores/extraction.svelte';
   import { inventory } from '../lib/stores/inventory.svelte';
   import { library, PAGE_SIZE } from '../lib/stores/library.svelte';
   import { folderName, sources } from '../lib/stores/sources.svelte';
@@ -39,9 +42,10 @@
     void library.load();
   });
 
-  // Refresh the visible page as cataloging makes progress (throttled).
+  // Refresh the visible page as cataloging or reading makes progress
+  // (throttled).
   $effect(() => {
-    if (inventory.overview) untrack(() => library.refreshLive());
+    if (inventory.overview || extraction.overview) untrack(() => library.refreshLive());
   });
 </script>
 
@@ -90,6 +94,21 @@
           <option value="">All types</option>
           <option value="pdf">PDF</option>
           <option value="epub">EPUB</option>
+        </select>
+      </label>
+      <label>
+        <span class="muted small">Text status</span>
+        <select
+          value={library.textStatus ?? ''}
+          onchange={(e) =>
+            library.setFilters({
+              textStatus: (e.currentTarget.value || null) as ExtractionState | null,
+            })}
+        >
+          <option value="">Any text status</option>
+          {#each TEXT_FILTERS as f (f.value)}
+            <option value={f.value}>{f.label}</option>
+          {/each}
         </select>
       </label>
       <label class="check">
@@ -143,6 +162,7 @@
               </button>
             </th>
             <th scope="col">Status</th>
+            <th scope="col">Text</th>
             <th scope="col"><span class="visually-hidden">Actions</span></th>
           </tr>
         </thead>
@@ -159,6 +179,19 @@
               <td>{modifiedText(item.modifiedAt)}</td>
               <td>
                 <span class="badge" data-status={item.availability}>{statusLabel(item)}</span>
+              </td>
+              <td>
+                {#each [rowState(item, extraction.overview)] as text (text)}
+                  <span
+                    class="badge text"
+                    data-text={text}
+                    data-testid="text-status"
+                    title={reasonText(item) ?? undefined}
+                  >
+                    <span aria-hidden="true">{TEXT_ICON[text]}</span>
+                    {TEXT_LABEL[text]}
+                  </span>
+                {/each}
               </td>
               <td class="actions">
                 <button
@@ -183,7 +216,7 @@
             </tr>
             {#if library.confirmDownloadId === item.id}
               <tr class="detail">
-                <td colspan="7">
+                <td colspan="8">
                   <div class="confirm" role="group" aria-label="Confirm download">
                     <span>{downloadPrompt(item)}</span>
                     <button
@@ -206,7 +239,7 @@
             {/if}
             {#if library.rowError?.id === item.id}
               <tr class="detail">
-                <td colspan="7">
+                <td colspan="8">
                   <ProblemNotice
                     title={`Couldn't open ${item.displayName}`}
                     message={library.rowError.error.message}
@@ -356,6 +389,19 @@
 
   .badge[data-status='missing'],
   .badge[data-status='unreachable'] {
+    background: var(--notice-bg);
+  }
+
+  /* Text badges carry a symbol and a label; colour only reinforces them. */
+  .badge.text[data-text='pending'],
+  .badge.text[data-text='reading'] {
+    background: transparent;
+    border: 1px solid var(--border, currentColor);
+  }
+
+  .badge.text[data-text='needs_ocr'],
+  .badge.text[data-text='encrypted'],
+  .badge.text[data-text='unreadable'] {
     background: var(--notice-bg);
   }
 

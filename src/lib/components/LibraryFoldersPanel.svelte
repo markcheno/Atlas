@@ -1,7 +1,9 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import type { SourceRoot } from '../api/bindings/SourceRoot';
+  import { rootTextLine } from '../extractionCopy';
   import { rootLine } from '../inventoryCopy';
+  import { extraction } from '../stores/extraction.svelte';
   import { inventory } from '../stores/inventory.svelte';
   import { folderName, sources } from '../stores/sources.svelte';
   import ProblemNotice from './ProblemNotice.svelte';
@@ -57,6 +59,11 @@
                   inventory.overview,
                 )}
               </span>
+              {#if rootTextLine(extraction.overview, root.id)}
+                <span class="muted small" data-testid="root-text-line">
+                  {rootTextLine(extraction.overview, root.id)}
+                </span>
+              {/if}
             {/if}
           </div>
           <span class="badge" data-status={root.nestedInRootId ? 'nested' : root.status}>
@@ -70,6 +77,14 @@
               onclick={() => inventory.rescan(root.id)}
             >
               Rescan
+            </button>
+            <button
+              type="button"
+              class="button quiet"
+              aria-label={`Read text now in ${folderName(root.displayPath)}`}
+              onclick={() => extraction.readNow(root.id)}
+            >
+              Read text now
             </button>
           {/if}
           {#if removable}

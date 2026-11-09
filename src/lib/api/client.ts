@@ -122,8 +122,7 @@ export const atlas = {
   resumeJob: (jobId: string) => call<void>('resume_job', { jobId }),
   cancelJob: (jobId: string) => call<void>('cancel_job', { jobId }),
   getInventoryStatus: () => call<InventoryOverview>('get_inventory_status'),
-  startExtraction: (sourceRootId: string) =>
-    call<string>('start_extraction', { sourceRootId }),
+  startExtraction: (sourceRootId: string) => call<string>('start_extraction', { sourceRootId }),
   getExtractionStatus: () => call<ExtractionOverview>('get_extraction_status'),
 
   listDocuments: (query: DocumentQuery) => call<DocumentPage>('list_documents', { query }),
