@@ -163,14 +163,12 @@ fn clean_caches_empties_only_the_caches() {
     fs::write(root.join("tmp/stale.part"), vec![3u8; 500]).unwrap();
     let outside = env.base.join("precious.txt");
     fs::write(&outside, b"never removed").unwrap();
-    let mut link_bytes = 0;
     #[cfg(unix)]
-    {
-        std::os::unix::fs::symlink(&outside, root.join("cache/link.txt")).unwrap();
-        link_bytes = fs::symlink_metadata(root.join("cache/link.txt"))
-            .unwrap()
-            .len();
-    }
+    std::os::unix::fs::symlink(&outside, root.join("cache/link.txt")).unwrap();
+    // A link counts as its own few bytes, never as what it points to.
+    let link_bytes = fs::symlink_metadata(root.join("cache/link.txt"))
+        .map(|m| m.len())
+        .unwrap_or(0);
     let keep = |p: &str| fs::read(root.join(p)).unwrap();
     let (manifest, settings) = (keep("atlas.json"), keep("config/settings.json"));
     let before = storage::usage(&root, local().as_ref()).unwrap();
