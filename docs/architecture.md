@@ -711,7 +711,7 @@ the measurements are in [the spike results](spike-0.9.md).
 
 ## Next phase
 
-Phase 1 adds a general jobs table, text extraction in a helper process
+Phase 1 (complete) added a general jobs table, text extraction in a helper process
 (PDFium and rbook), content hashing with logical documents, and FTS5
 full-text search. It is specified in [phase1-spec.md](phase1-spec.md).
 Slice 1.1 built the jobs table and runners ([Jobs](#jobs)); Slice 1.2 the
@@ -722,5 +722,8 @@ Slice 1.6 [metadata, duplicates and storage](#metadata-duplicates-and-storage);
 Slice 1.7 the carry-overs: cheaper replays when resuming inside a large
 folder ([Inventory](#inventory)), the worker's [lifetime](#extraction-worker),
 16 KiB catalog pages ([Data root](#data-root)), and the extraction
-benchmark. The close-out (Slice 1.8) is evidence and documents; this
-document is updated slice by slice as it lands.
+benchmark; Slice 1.8 the evidence and the
+[close-out review](phase1-closeout.md) (version 0.2.0).
+
+Phase 2 (semantic search over the stored passages, product spec) is not
+specified yet; the close-out lists what it starts from.

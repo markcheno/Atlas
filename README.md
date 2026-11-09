@@ -4,7 +4,7 @@ Atlas is a local-first personal AI librarian for large private collections of
 PDFs, EPUBs, books and papers. *Collect freely. Organize minimally. Retrieve
 intelligently.*
 
-**Status: Phase 1, Slice 1.7 (carry-overs: large folders, Windows paths, worker lifetime, extraction benchmark); Phase 0 complete.** Atlas asks where to keep its library and
+**Status: Phase 1 complete (version 0.2.0, [close-out review](docs/phase1-closeout.md)); Phase 0 complete.** Atlas asks where to keep its library and
 which folders hold your books and papers, then catalogs every PDF and EPUB
 in them in the background, read-only. Cataloging slows on battery, pauses
 when the battery is low or the drive is nearly full, survives quitting and
@@ -61,7 +61,8 @@ chose the libraries for that and for semantic search later:
 
 Docling was measured as a bundled alternative, and wasn't bundled: about 1 GB
 compressed, 3.8 GB of memory, and no better reading order than PDFium.
-None of this is in the app yet.
+PDFium and rbook have read text in the app since Phase 1; usearch arrives
+with semantic search.
 
 | Capability | Status |
 | --- | --- |
@@ -82,12 +83,14 @@ None of this is in the app yet.
 | Duplicates view: identical copies grouped, most extra space first | Working (Slice 1.6) |
 | Settings › Storage: usage by category, indexing estimate, Clean caches | Working (Slice 1.6) |
 | Phase 1 carry-overs: fast resume inside large folders, Windows junctions and paths over 260 characters, no text reader outliving the app, extraction benchmark, a smaller catalog | Working (Slice 1.7) |
-| Phase 1 close-out: evidence on three OSes, version 0.2.0 | Phase 1, in progress ([spec](docs/phase1-spec.md)): Slices 1.1–1.7 of 1.8 built |
+| Phase 1 close-out: evidence on three OSes, version 0.2.0 | Done ([review](docs/phase1-closeout.md)); Windows and Linux verified in CI, with documented gaps |
+| Semantic search, related documents, chat with citations | Phase 2 and later (not started) |
 
 Specifications: [product](docs/product-spec.md), [Phase 0](docs/phase0-spec.md),
 [Phase 1](docs/phase1-spec.md), [architecture](docs/architecture.md),
 [ADRs](docs/adr/). Evidence:
 [Phase 0 close-out review](docs/phase0-closeout.md),
+[Phase 1 close-out review](docs/phase1-closeout.md),
 [platform validation](docs/platform-validation.md),
 [benchmarks](docs/benchmarks.md), [packaging](docs/packaging.md),
 [extraction and vector spike](docs/spike-0.9.md),

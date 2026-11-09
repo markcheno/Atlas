@@ -99,7 +99,8 @@ status poll.
   Reading is within 2–3% of the old speed (1k fixture, repeated runs). Catalogs created before Slice 1.7
   keep 4 KiB pages, since the page size can only change by rewriting the
   whole file; converting them is left to Phase 4's maintenance tools.
-  The rest of the gap to 1.5× is the index, which phrase search needs
+  The product owner accepted 1.62× as Phase 1's result at the close-out
+  (Slice 1.8). The rest of the gap to 1.5× is the index, which phrase search needs
   (`detail='column'` would lose exact phrases). Compressing passages would
   save more, but this index reads the text from `passages` for snippets,
   deletes and rebuilds, so it would need a contentless index and snippets
