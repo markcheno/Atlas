@@ -173,6 +173,48 @@ select {
   cursor: not-allowed;
 }
 
+/* Small buttons inside rows and result lists (Open, Reveal, Details). */
+.row-button {
+  min-height: 30px;
+  padding: 0 var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  cursor: pointer;
+}
+
+.row-button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* Status pills. Text badges carry a symbol and a label; colour only
+   reinforces them. */
+.badge {
+  padding: 2px var(--space-2);
+  border-radius: 999px;
+  background: var(--accent-soft);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.badge[data-status='missing'],
+.badge[data-status='unreachable'] {
+  background: var(--notice-bg);
+}
+
+.badge.text[data-text='pending'],
+.badge.text[data-text='reading'] {
+  background: transparent;
+  border: 1px solid var(--border, currentColor);
+}
+
+.badge.text[data-text='needs_ocr'],
+.badge.text[data-text='encrypted'],
+.badge.text[data-text='unreadable'] {
+  background: var(--notice-bg);
+}
+
 .muted {
   color: var(--text-muted);
 }

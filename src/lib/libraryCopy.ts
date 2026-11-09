@@ -25,8 +25,8 @@ export function revealLabel(os: OsKind | undefined): string {
   }
 }
 
-export function downloadPrompt(item: FileInstance): string {
-  const size = item.sizeBytes === null ? '' : ` (${formatBytes(item.sizeBytes)})`;
+export function downloadPrompt(item: { sizeBytes?: number | null }): string {
+  const size = item.sizeBytes == null ? '' : ` (${formatBytes(item.sizeBytes)})`;
   return `This file is stored in the cloud. Opening it will download it${size}.`;
 }
 
