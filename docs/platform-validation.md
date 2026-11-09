@@ -712,6 +712,9 @@ After the relaunch, reading finished ("Text up to date · 1,006 of 1,006
 files readable", 30 s into the run on Linux and 79 s on Windows), and
 `"Astronomy marker 0"` found Café crème book 000000.epub with the phrase
 highlighted. The whole smoke run took 32 s on Linux and 83 s on Windows.
+After the smart-quote fix, the final branch ran the full tier again:
+[42554815801](https://github.com/markcheno/Atlas/actions/runs/42554815801),
+10 of 10 jobs green in 8.7 minutes.
 
 ### macOS arm64, Slice 1.5 (2026-11-09)
 
