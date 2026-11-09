@@ -59,6 +59,16 @@ const REASONS: Record<string, string> = {
   permission_denied: "Atlas isn't allowed to read this file.",
   read_failed: "Atlas couldn't read this file from the disk.",
   passage_truncated: 'Some very long pages were shortened.',
+  not_a_zip: 'This EPUB is damaged: it isn’t a readable archive.',
+  epub_structure: 'This EPUB is damaged: its table of contents can’t be read.',
+  chapter_unreadable: 'This EPUB is damaged: a chapter can’t be read.',
+  chapter_html: 'This EPUB is damaged: a chapter can’t be read.',
+  zip_entry: 'This EPUB is damaged.',
+  pdf_format: 'This PDF is damaged or incomplete.',
+  pdf_error: 'This PDF is damaged or incomplete.',
+  open_failed: "Atlas couldn't open this file.",
+  unreadable: "Atlas isn't allowed to read this file.",
+  cloud_only: 'Its contents are only in the cloud.',
 };
 
 /** The effective state for a row: `reading` for the file being read now. */
@@ -135,7 +145,10 @@ export function extractionLine(ov: ExtractionOverview | null): string | null {
 export function rootTextLine(ov: ExtractionOverview | null, sourceRootId: string): string | null {
   const root = ov?.roots.find((r) => r.sourceRootId === sourceRootId);
   if (!root || root.counts.total === 0) return null;
-  if (root.activeJobId) return 'Reading text…';
+  if (root.activeJobId) {
+    const job = ov?.active?.jobId === root.activeJobId ? ov.active : null;
+    return job?.state.startsWith('paused') ? 'Reading text paused' : 'Reading text…';
+  }
   const c = root.counts;
   const parts = [`Text: ${c.done.toLocaleString('en-US')} ready`];
   if (c.pending) parts.push(`${c.pending.toLocaleString('en-US')} waiting`);

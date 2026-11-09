@@ -441,6 +441,15 @@ Do **not** start extraction, FTS, or the search UI before Slice 1.1's gate passe
 - Because tauri-build checks the bundled library on every compile, every Rust build needs the fetched PDFium (`just setup`); development is supported on the three pinned platforms only.
 - Fixture EPUB entries are stored, not deflated, so fixtures are byte-identical on every machine (Node's zlib output differs between CPUs). The flat folder also gets body text, so the 30k text fixture doesn't collapse to one document.
 
+**2026-11-09, amended during Slice 1.3:**
+
+- `passages` is created by `0008_documents.sql` (Slice 1.3), so the text read in 1.3 is kept; `0009` (Slice 1.4) adds only the FTS5 table and its triggers, built from the stored passages with `'rebuild'`. Product-owner decision.
+- `file_instances` also gains `extract_attempts` (two crashes make a file `worker_crashed`). `extract_state` has no `hashing` value: "Reading…" is the file the active job reports.
+- The EPUB pre-scan (DRM, zip-slip, size caps) runs before rbook reads anything; `encryption.xml` that only obfuscates fonts is not DRM. Size caps use the declared sizes, so nothing is inflated to check.
+- The extraction status line shows "N of M files" only when no scan is finding files; otherwise "N files so far".
+- One worker per library; `ATLAS_EXTRACT_WORKERS=2` moves to Slice 1.7. The FTS `integrity-check` part of P1-12, the FTS merge, and the reader pool of 4 move to Slice 1.4 with FTS5.
+- Request paths are the catalog's platform-tagged bytes, hex-encoded, so any path survives JSON.
+
 ### Primary reference documentation (verify current versions at implementation time)
 
 - SQLite FTS5 (external content tables, triggers, `snippet`, `bm25`, `merge`): <https://www.sqlite.org/fts5.html>

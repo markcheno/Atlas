@@ -1,8 +1,8 @@
 # Atlas architecture
 
-Status: Phase 1, Slice 1.2 (foundations: text fixtures, bundled PDFium, the
-extraction worker skeleton). Phase 0 is complete; the rest of Phase 1 is
-specified in [phase1-spec.md](phase1-spec.md) and not yet built.
+Status: Phase 1, Slice 1.3 (extraction: Atlas reads the text of PDFs and
+EPUBs). Phase 0 is complete; the rest of Phase 1 is specified in
+[phase1-spec.md](phase1-spec.md) and not yet built.
 This document describes what is built, and marks what is only planned. Decisions with lasting
 consequences are recorded as ADRs in [adr/](adr/).
 
@@ -11,9 +11,9 @@ consequences are recorded as ADRs in [adr/](adr/).
 Atlas is one desktop process. The Tauri 2 runtime hosts the native window, an
 OS webview that renders the Svelte UI, and the Rust core. There is no HTTP
 server, background daemon, database server, or Python runtime. Text
-extraction will run in a child process, the same executable started as the
-[extraction worker](#extraction-worker) (built in Slice 1.2; used from
-Slice 1.3), so PDFium never runs in the app process.
+extraction runs in a child process, the same executable started as the
+[extraction worker](#extraction-worker), so PDFium never runs in the app
+process.
 
 ```text
 ┌──────────────────────── Atlas process ────────────────────────┐
@@ -365,8 +365,8 @@ platform-required and contain no Atlas data.
 
 ## Extraction worker
 
-Implemented in `src-tauri/src/services/extraction/` (Slice 1.2, the
-skeleton); rationale in [ADR 0009](adr/0009-jobs-and-extraction.md) and
+Implemented in `src-tauri/src/services/extraction/` (the worker in Slice
+1.2, extraction in 1.3); rationale in [ADR 0009](adr/0009-jobs-and-extraction.md) and
 [ADR 0008](adr/0008-extraction-and-vector-engines.md).
 
 - **Process.** `atlas --extract-worker` is checked first in `main.rs`, so
@@ -378,9 +378,20 @@ skeleton); rationale in [ADR 0009](adr/0009-jobs-and-extraction.md) and
   (`extraction/protocol.rs`). The first line is
   `{"type":"hello","protocol":1,"extractorVersion":…,"pdfiumVersion":"chromium/8125","selfTest":{"pages":2,"chars":…}}`,
   or `{"type":"unavailable","reason":"not_found|load_failed|self_test_failed"}`
-  followed by exit code 3. Until Slice 1.3 every request is answered with
-  `{"type":"error","reason":"unknown_request"}`. Reasons are fixed codes,
-  never paths; the loader's own message goes to stderr.
+  followed by exit code 3. Then one request at a time: `hash {path}` →
+  `hashed {hash, size, mtimeSecs}` or `hashFailed {reason}`; `extract
+  {path, kind}` → `page` frames, then `done {summary}` or `failed {outcome,
+  reason}`. Paths are the catalog's platform-tagged bytes, hex-encoded.
+  Reasons are fixed codes, never paths; library messages go to stderr.
+- **Engines** (`extraction/engine/`, worker only). A signature sniff (`%PDF-`,
+  or a zip for EPUB); streaming BLAKE3; PDFium with one passage per page;
+  for EPUBs a zip pre-scan before rbook reads anything (DRM, zip-slip,
+  32 MiB per entry, 256 MiB per archive), then rbook and html2text in spine
+  order, split into pieces of at most 4,000 characters; and the
+  unreadable-text rule (half the pages under 20 visible characters, or 10%
+  control, private-use or replacement characters → `needs_ocr`, no text
+  stored). Files are opened read-only, never recalling cloud content
+  (`FILE_FLAG_OPEN_NO_RECALL` on Windows; dataless files refused).
 - **Output hygiene.** Before PDFium loads, the worker keeps a duplicate of
   stdout for the protocol and points descriptor 1 (and on Windows the
   standard output handle and the C runtime's descriptor 1) at stderr, so
@@ -399,6 +410,39 @@ skeleton); rationale in [ADR 0009](adr/0009-jobs-and-extraction.md) and
   back to `src-tauri/vendor/pdfium/<platform>/`.
 - **The main process never loads PDFium.** `pdfium-render` binds it at run
   time (`dlopen`/`LoadLibrary`), and only the worker calls it.
+
+## Extraction
+
+The job side, in the app process (Slice 1.3, ADR 0009).
+
+- **Schema** (migration 0008). `documents` is content, keyed by BLAKE3:
+  state (`done`, `needs_ocr`, `encrypted`, `malformed`, `unsupported`,
+  `too_large`, `worker_crashed`, …), reason code, extractor version, page
+  and character counts, title, authors, language. `passages` holds its
+  text. `file_instances` gains `extract_state` (`pending`, `linked`,
+  `skipped_cloud_only`, `unreadable`, `hash_failed`), the hashed size and
+  mtime, `document_id` and `extract_attempts`. A rescan that sees a new
+  size or mtime sets the file back to `pending`.
+- **Supervisor** (`extraction/supervisor.rs`) implements `DocumentProcessor`
+  over the worker: a 30 s inactivity timeout per request, a memory cap of
+  `min(1 GiB, 15% of RAM)` polled every 250 ms, kill and restart, and a kill
+  on drop.
+- **Job** (`extraction/job.rs`, kind `extract`). One per source root,
+  queued when a scan finishes with pending files, when a library opens, or
+  by **Read text now** (`start_extraction`). Per file: cloud-only files are
+  skipped unopened; the worker hashes the file; a document already read at
+  this extractor version is linked (copies and moves); anything else is
+  extracted and committed with its passages in one transaction, guarded by
+  the job still running. Two crashes mark a file `worker_crashed`; ten
+  restarts back the job off.
+- **Policy.** The scan's governor and battery hysteresis, as a duty cycle:
+  50% busy on Run, 20% when slowed, paused below 20% battery until 25%.
+- **Status.** `extraction-status` (an `ExtractionOverview`: the active job
+  with the file being read, counts by text status, per-folder counts) at
+  most four times a second plus every change; `get_extraction_status`
+  reads it on the read-only pool. The Library shows a Text column and
+  filter; the status bar a second line with its own Pause, Resume and
+  Cancel.
 
 ## Build, CI and measurement
 
@@ -508,6 +552,7 @@ Phase 1 adds a general jobs table, text extraction in a helper process
 (PDFium and rbook), content hashing with logical documents, and FTS5
 full-text search. It is specified in [phase1-spec.md](phase1-spec.md).
 Slice 1.1 built the jobs table and runners ([Jobs](#jobs)); Slice 1.2 the
-text fixtures, PDFium delivery and the [extraction worker](#extraction-worker)
-skeleton. The rest is not in the code yet; this document is updated slice
-by slice as it lands.
+text fixtures, PDFium delivery and the [extraction worker](#extraction-worker);
+Slice 1.3 [extraction](#extraction) itself. Full-text search (Slice 1.4) and
+the rest are not in the code yet; this document is updated slice by slice
+as it lands.

@@ -44,8 +44,10 @@
 
   // Refresh the visible page as cataloging or reading makes progress
   // (throttled).
+  // Both are read (no short-circuit), so either one changing refreshes.
   $effect(() => {
-    if (inventory.overview || extraction.overview) untrack(() => library.refreshLive());
+    const progress = [inventory.overview, extraction.overview];
+    if (progress.some(Boolean)) untrack(() => library.refreshLive());
   });
 </script>
 

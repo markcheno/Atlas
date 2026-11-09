@@ -1,9 +1,7 @@
 # ADR 0009: General jobs, and the extraction job
 
-- **Status:** Proposed. The jobs part is accepted and built (Phase 1,
-  Slice 1.1). The worker process is accepted and built as a skeleton
-  (Slice 1.2). The rest of extraction is recorded here when Slice 1.3
-  builds it.
+- **Status:** Accepted. Jobs built in Phase 1 Slice 1.1, the worker
+  process in Slice 1.2, extraction in Slice 1.3.
 - **Date:** 2026-11-08
 - **Context documents:** [Phase 1 spec](../phase1-spec.md) §6.1, §7.1, §9;
   [Phase 0 spec](../phase0-spec.md) §6 ("migrate `scan_sessions` into the
@@ -104,6 +102,55 @@ the spec's planned fallback. Signed with a Developer ID, the app and the
 library would share a Team ID and the entitlement could be dropped; it is
 reviewed with notarization.
 
+**Documents are content; files point at them** (Slice 1.3). A document is
+the BLAKE3-256 of a file's bytes. It holds the extraction outcome, the
+metadata and the text (`passages`: one per PDF page, or per EPUB chapter
+piece of at most 4,000 characters). A file instance links to it once
+hashed, so copies and moved files are read once. Migration 0008 creates
+`documents`, `passages` and the `file_instances` columns; the spec put
+`passages` in 0009 with full-text search, which would have discarded 1.3's
+text, so only the FTS5 index waits for Slice 1.4. The per-file state keeps
+only what blocks a file before hashing (`skipped_cloud_only`, `unreadable`,
+`hash_failed`) or `linked`; the document carries the rest. "Reading…" is
+the file the active job reports, not a stored state.
+
+**Each document commits in one transaction**, guarded by the job still
+running: the document row (an upsert by hash), all its passages, and the
+link. A kill leaves the whole document or nothing (P1-12), and a pause
+lands no late writes.
+
+**The extract job walks its root's pending files with a rowid cursor.** A
+file whose size or mtime differs from the catalog stays pending for the
+next scan instead of being retried in a loop. A file that crashes the
+worker is retried once with a fresh worker; the second crash marks it
+`worker_crashed`, and the job goes on. Ten restarts in one job back off
+like a scan's database failures.
+
+**Safety rules run before parsers.** The worker sniffs signatures (a text
+file named `.pdf` never reaches PDFium) and pre-scans EPUB zips before
+rbook reads anything: DRM in `META-INF/encryption.xml` (font obfuscation
+alone is not DRM), entries that escape the archive, and entries over
+32 MiB or archives over 256 MiB (declared sizes; nothing is inflated). The
+Slice 0.9 spike checked for DRM only after reading every chapter, and let a
+zip bomb reach 352 MB; both are fixed. The unreadable-text rule from the
+spike's scorer marks scans and garbled fonts `needs_ocr` with no passages
+stored.
+
+**Supervision.** The app spawns the worker (`WorkerCommand`, injected so
+tests can use the Cargo-built binary), reads frames on a thread, kills it
+after 30 s without a frame or above `min(1 GiB, 15% of RAM)` resident, and
+starts a new one for the next request. Dropping the supervisor kills the
+worker, so it never outlives the open library; a killed app's worker exits
+when its stdin closes.
+
+**Policy.** Extraction shares the scan's resource governor (the same
+battery hysteresis) and maps its mode to a duty cycle rather than a rate:
+50% busy on Run, 20% on Slow, paused on Paused. `ATLAS_EXTRACT_UNTHROTTLED`
+(debug builds) removes the rest. A finished scan with pending files queues
+an extract job in its own transaction and wakes the extraction runner
+through a waker shared by all runners of the root; opening a library
+queues one for every root with pending files.
+
 ## Consequences
 
 - One state machine, one recovery path (`requeue_interrupted` on open), and
@@ -121,5 +168,10 @@ reviewed with notarization.
 - Every Rust build needs the pinned PDFium (`just setup`), so Atlas builds
   only on the platforms it is pinned for: macOS arm64, Windows x64 and
   Linux x64.
-- Extraction-specific decisions (supervision, documents by hash, per-file
-  status, the duty-cycle policy) are added to this ADR in Slice 1.3.
+- A document is deleted only when its last file is purged; an orphan
+  sweep is not built yet (Phase 1 doesn't purge automatically).
+- One worker per open library. Two (`ATLAS_EXTRACT_WORKERS`) are left for
+  Slice 1.7, with the extraction benchmark that would justify them.
+- Verified by P1-03 … P1-14 (`tests/extraction.rs`,
+  `tests/extraction_crash.rs`) and `tests/supervisor.rs`, against the real
+  worker.

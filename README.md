@@ -4,7 +4,7 @@ Atlas is a local-first personal AI librarian for large private collections of
 PDFs, EPUBs, books and papers. *Collect freely. Organize minimally. Retrieve
 intelligently.*
 
-**Status: Phase 1, Slice 1.2 (foundations for text extraction); Phase 0 complete.** Atlas asks where to keep its library and
+**Status: Phase 1, Slice 1.3 (Atlas reads the text of your PDFs and EPUBs); Phase 0 complete.** Atlas asks where to keep its library and
 which folders hold your books and papers, then catalogs every PDF and EPUB
 in them in the background, read-only. Cataloging slows on battery, pauses
 when the battery is low or the drive is nearly full, survives quitting and
@@ -12,6 +12,11 @@ crashes, and resumes where it left off. Files offloaded to iCloud or
 OneDrive are listed without being downloaded. The Library lets you search
 file and folder names (ignoring case and accents), filter, sort, and open
 files or show them in Finder or Explorer, even while cataloging continues.
+Atlas then reads the text of each file in a separate
+worker process (search over that text comes next): the Library shows each
+file's Text status (ready, needs OCR, encrypted, only in the cloud,
+couldn't read, with the reason), identical copies are read once, and
+reading slows on battery and pauses at 20%, like cataloging.
 In Settings › AI Models you can connect Ollama, oMLX, LM Studio, or another
 OpenAI-compatible service and test it; keys are stored in your system
 keychain. Atlas contacts a service only when you test it, and sends nothing
@@ -56,8 +61,8 @@ None of this is in the app yet.
 | CI, installers, cross-platform smoke test, benchmarks | Working (development builds, unsigned) |
 | Extraction and vector-engine decision | Decided ([ADR 0008](docs/adr/0008-extraction-and-vector-engines.md)); built in Phase 1 and 2 |
 | Background jobs of several kinds (scans now, text extraction next) | Working (Phase 1, Slice 1.1) |
-| PDFium bundled on all three OSes; extraction worker process | Foundations only (Slice 1.2): the worker loads PDFium and passes a self-test; it reads no library files yet |
-| Text extraction, duplicates, full-text search | Phase 1, in progress ([spec](docs/phase1-spec.md)): Slices 1.1–1.2 of 1.8 built |
+| Reading text from PDFs and EPUBs, in a separate worker process; per-file Text status in the Library | Working (Slice 1.3): slows on battery, pauses at 20%; copies and moved files are read once; scans, DRM and damaged files get a status and a reason |
+| Full-text search, duplicates view, metadata | Phase 1, in progress ([spec](docs/phase1-spec.md)): Slices 1.1–1.3 of 1.8 built |
 
 Specifications: [product](docs/product-spec.md), [Phase 0](docs/phase0-spec.md),
 [Phase 1](docs/phase1-spec.md), [architecture](docs/architecture.md),
@@ -110,7 +115,7 @@ pnpm script, so pnpm alone also works.
 just setup    # or: rustup toolchain install && pnpm install --frozen-lockfile && node scripts/fetch-pdfium.mjs
 just dev      # or: pnpm tauri dev
 just dev-simulate battery:18   # debug build with simulated power (ac, battery:<pct>, unknown, desktop)
-just dev-unthrottled           # debug build without the cataloging rate limit
+just dev-unthrottled           # debug build without the cataloging rate limit or the reading duty cycle
 just fixtures ~/atlas-fx 2000  # synthetic test library (see fixtures/README.md)
 just fixtures ~/atlas-fx30k 10000 20000   # the 30k benchmark set (with a 20k-file folder)
 just fixtures ~/atlas-fxtext 1000 0 20    # with about 20 KiB of body text per file

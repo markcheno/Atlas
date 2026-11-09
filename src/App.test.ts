@@ -808,6 +808,24 @@ describe('reading text', () => {
     expect(tauri.invoke).toHaveBeenCalledWith('cancel_job', { jobId: 'extract-1' });
   });
 
+  it("says when a folder's reading is paused", async () => {
+    await launchWith(
+      tauri.extractionOverview({
+        active: tauri.extractionStatus({ state: 'paused_user' }),
+        counts,
+        roots: [
+          {
+            sourceRootId: 'root-books',
+            counts,
+            lastState: 'paused_user',
+            activeJobId: 'extract-1',
+          },
+        ],
+      }),
+    );
+    expect(await screen.findByTestId('root-text-line')).toHaveTextContent('Reading text paused');
+  });
+
   it('reads a folder now from its line', async () => {
     const user = await launchWith(tauri.extractionOverview());
     await user.click(await screen.findByRole('button', { name: 'Read text now in Books' }));
@@ -878,6 +896,19 @@ describe('reading text', () => {
     const scan = screen.getAllByTestId('text-status')[2];
     expect(scan).toHaveAttribute('title', expect.stringMatching(/looks scanned/));
     expect(screen.getAllByTestId('text-status')[0]).not.toHaveAttribute('title');
+  });
+
+  it('refreshes the page as text is read, while cataloging status is also present', async () => {
+    await openLibrary();
+    tauri.invoke.mockClear();
+    events.emit(
+      'extraction-status',
+      tauri.extractionOverview({ counts: tauri.extractionCounts({ done: 7, total: 7 }) }),
+    );
+    await waitFor(
+      () => expect(tauri.invoke.mock.calls.filter(([c]) => c === 'list_documents').length).toBe(1),
+      { timeout: 2000 },
+    );
   });
 
   it('filters by text status', async () => {
