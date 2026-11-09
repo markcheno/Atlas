@@ -4,7 +4,7 @@ Atlas is a local-first personal AI librarian for large private collections of
 PDFs, EPUBs, books and papers. *Collect freely. Organize minimally. Retrieve
 intelligently.*
 
-**Status: Phase 1, Slice 1.4 (full-text search over the text Atlas reads; the search screen comes next); Phase 0 complete.** Atlas asks where to keep its library and
+**Status: Phase 1, Slice 1.5 (the Search screen and document details); Phase 0 complete.** Atlas asks where to keep its library and
 which folders hold your books and papers, then catalogs every PDF and EPUB
 in them in the background, read-only. Cataloging slows on battery, pauses
 when the battery is low or the drive is nearly full, survives quitting and
@@ -13,10 +13,16 @@ OneDrive are listed without being downloaded. The Library lets you search
 file and folder names (ignoring case and accents), filter, sort, and open
 files or show them in Finder or Explorer, even while cataloging continues.
 Atlas then reads the text of each file in a separate
-worker process (search over that text comes next): the Library shows each
-file's Text status (ready, needs OCR, encrypted, only in the cloud,
-couldn't read, with the reason), identical copies are read once, and
-reading slows on battery and pauses at 20%, like cataloging.
+worker process: the Library shows each file's Text status (ready, needs
+OCR, encrypted, only in the cloud, couldn't read, with the reason),
+identical copies are read once, and reading slows on battery and pauses at
+20%, like cataloging. You can search that text from Home or the Search
+tab: words, "exact phrases" in quotes, and prefixes ending in `*`, ignoring
+case and accents. Results are grouped by book or paper, with the page or
+chapter and a snippet that highlights your words; when no result has all of
+them, Atlas shows the ones with some, and says so. Selecting a file opens
+its details: title, authors, language, pages, text status and the other
+places the same content is stored.
 In Settings › AI Models you can connect Ollama, oMLX, LM Studio, or another
 OpenAI-compatible service and test it; keys are stored in your system
 keychain. Atlas contacts a service only when you test it, and sends nothing
@@ -34,7 +40,7 @@ using about 7% of one core on an M5 Pro and around 20 MiB of memory. Browsing
 stays responsive meanwhile: under 4 ms at the 95th percentile with 1,000
 files and under 130 ms with 30,000.
 
-Phase 1 will read the documents' text in the background and make every
+Phase 1 reads the documents' text in the background and makes every
 book and paper searchable by what it says, without AI. Its scope, slices,
 required tests and acceptance checklist are in the
 [Phase 1 specification](docs/phase1-spec.md). A measured spike
@@ -62,8 +68,9 @@ None of this is in the app yet.
 | Extraction and vector-engine decision | Decided ([ADR 0008](docs/adr/0008-extraction-and-vector-engines.md)); built in Phase 1 and 2 |
 | Background jobs of several kinds (scans now, text extraction next) | Working (Phase 1, Slice 1.1) |
 | Reading text from PDFs and EPUBs, in a separate worker process; per-file Text status in the Library | Working (Slice 1.3): slows on battery, pauses at 20%; copies and moved files are read once; scans, DRM and damaged files get a status and a reason |
-| Full-text search engine (`search_documents`): phrases, prefixes, accent-insensitive, snippets | Working (Slice 1.4); no search screen yet (Slice 1.5) |
-| Search screen, document details, duplicates view, metadata | Phase 1, in progress ([spec](docs/phase1-spec.md)): Slices 1.1–1.4 of 1.8 built |
+| Search the text of your books and papers: Search tab and Home, phrases, prefixes, accent-insensitive, highlighted snippets | Working (Slices 1.4–1.5) |
+| Document details: title, authors, language, pages, text status, other copies (Also at) | Working (Slice 1.5) |
+| Metadata quality, duplicates view, Settings › Storage | Phase 1, in progress ([spec](docs/phase1-spec.md)): Slices 1.1–1.5 of 1.8 built |
 
 Specifications: [product](docs/product-spec.md), [Phase 0](docs/phase0-spec.md),
 [Phase 1](docs/phase1-spec.md), [architecture](docs/architecture.md),
@@ -175,13 +182,13 @@ not been tested on each OS.
 ```text
 src/                  Svelte 5 + TypeScript UI
   lib/api/            typed IPC facade; bindings/ is generated from Rust (do not edit)
-  lib/stores/         app, workspace, sources, inventory, library, provider, theme and view state
-  lib/components/     shell, navigation, status bar, panels, notices
-  views/              onboarding, Home, Library, Settings
+  lib/stores/         app, workspace, sources, inventory, extraction, library, search, details, originals, provider, theme and view state
+  lib/components/     shell, navigation, status bar, panels, notices, document details, Open/Reveal actions
+  views/              onboarding, Home, Search, Library, Settings
 src-tauri/            Rust core and Tauri configuration
   src/commands/       thin IPC adapters
   src/domain/         DTOs and service traits
-  src/services/       catalog, inventory, library, sources, providers, workspace, …
+  src/services/       catalog, inventory, extraction, search, documents, library, sources, providers, workspace, …
   src/infrastructure/ OS, filesystem, HTTP and keychain adapters
   migrations/         catalog schema (SQLite), applied in order
   tests/              Rust integration tests
