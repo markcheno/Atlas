@@ -89,6 +89,23 @@ pub fn next_files(
     .collect()
 }
 
+/// Driven by the few marked documents (`documents_refresh`), each
+/// file found through `file_instances_by_document`. `CROSS JOIN`
+/// fixes that order, and `+` keeps the planner off the extract-queue
+/// index, which made this quadratic in the root's files (45 s at
+/// 30,000 on the M5 Pro, Slice 1.7).
+const NEXT_REFRESH_SQL: &str =
+    "SELECT f.rowid, f.id, f.rel_path, f.file_type, f.storage, f.size_bytes, f.mtime_secs,
+                f.document_id
+         FROM documents d CROSS JOIN file_instances f
+         WHERE d.refresh = 1
+           AND f.rowid = (SELECT MIN(g.rowid) FROM file_instances g
+                          WHERE g.document_id = d.id AND g.availability = 'available'
+                            AND +g.source_root_id = ?1 AND +g.storage = 'local'
+                            AND +g.extract_state = 'linked')
+           AND f.rowid > ?2
+         ORDER BY f.rowid LIMIT ?3";
+
 /// Files of a root whose document is due to be read again
 /// (`documents.refresh`), one local, available file per document, after
 /// `after_rowid`. They stay linked, so their text stays searchable.
@@ -98,19 +115,7 @@ pub fn next_refresh(
     after_rowid: i64,
     limit: usize,
 ) -> rusqlite::Result<Vec<QueuedFile>> {
-    let mut stmt = conn.prepare_cached(
-        "SELECT f.rowid, f.id, f.rel_path, f.file_type, f.storage, f.size_bytes, f.mtime_secs,
-                f.document_id
-         FROM file_instances f JOIN documents d ON d.id = f.document_id
-         WHERE f.source_root_id = ?1 AND f.availability = 'available'
-           AND f.storage = 'local' AND f.extract_state = 'linked' AND d.refresh = 1
-           AND f.rowid > ?2
-           AND f.rowid = (SELECT MIN(g.rowid) FROM file_instances g
-                          WHERE g.document_id = f.document_id AND g.source_root_id = ?1
-                            AND g.availability = 'available' AND g.storage = 'local'
-                            AND g.extract_state = 'linked')
-         ORDER BY f.rowid LIMIT ?3",
-    )?;
+    let mut stmt = conn.prepare_cached(NEXT_REFRESH_SQL)?;
     stmt.query_map(params![root_id, after_rowid, limit as i64], |r| {
         queued_from_row(r, true)
     })?
@@ -338,18 +343,19 @@ pub fn record_crash(conn: &Connection, file_id: &str) -> rusqlite::Result<u32> {
     )
 }
 
-/// Whether a root has files waiting to be read, or read again.
-pub fn has_pending(conn: &Connection, root_id: &str) -> rusqlite::Result<bool> {
-    conn.query_row(
-        "SELECT EXISTS (SELECT 1 FROM file_instances
+/// Whether a root has files waiting, or a marked document with a local
+/// copy in it (driven by `documents_refresh`, as in [`NEXT_REFRESH_SQL`]).
+const HAS_PENDING_SQL: &str = "SELECT EXISTS (SELECT 1 FROM file_instances
              WHERE source_root_id = ?1 AND availability = 'available'
                AND extract_state = 'pending')
-         OR EXISTS (SELECT 1 FROM file_instances f JOIN documents d ON d.id = f.document_id
-             WHERE f.source_root_id = ?1 AND f.availability = 'available'
-               AND f.storage = 'local' AND f.extract_state = 'linked' AND d.refresh = 1)",
-        [root_id],
-        |r| r.get(0),
-    )
+         OR EXISTS (SELECT 1 FROM documents d CROSS JOIN file_instances f
+             WHERE d.refresh = 1 AND f.document_id = d.id AND f.availability = 'available'
+               AND +f.source_root_id = ?1 AND +f.storage = 'local'
+               AND +f.extract_state = 'linked')";
+
+/// Whether a root has files waiting to be read, or read again.
+pub fn has_pending(conn: &Connection, root_id: &str) -> rusqlite::Result<bool> {
+    conn.query_row(HAS_PENDING_SQL, [root_id], |r| r.get(0))
 }
 
 /// A document read by an older reader: id, state, metadata title, file
@@ -476,6 +482,14 @@ fn status(
     })
 }
 
+/// Files of each root whose document is being read again, counted from
+/// the marked documents (this runs on every status read).
+const UPDATING_SQL: &str = "SELECT f.source_root_id, COUNT(*)
+         FROM documents d CROSS JOIN file_instances f
+         WHERE d.refresh = 1 AND f.document_id = d.id AND f.availability = 'available'
+           AND (?1 IS NULL OR +f.source_root_id = ?1)
+         GROUP BY f.source_root_id";
+
 /// Counts by effective status, per root (all roots when `root` is `None`).
 fn root_counts(
     conn: &Connection,
@@ -503,13 +517,7 @@ fn root_counts(
         let state = from_db(&state).unwrap_or(ExtractionState::Pending);
         add(&mut out.last_mut().expect("pushed").1, state, n);
     }
-    let mut updating = conn.prepare_cached(
-        "SELECT f.source_root_id, COUNT(*)
-         FROM file_instances f JOIN documents d ON d.id = f.document_id
-         WHERE f.availability = 'available' AND d.refresh = 1
-           AND (?1 IS NULL OR f.source_root_id = ?1)
-         GROUP BY f.source_root_id",
-    )?;
+    let mut updating = conn.prepare_cached(UPDATING_SQL)?;
     for row in updating.query_map([root], |r| {
         Ok((r.get::<_, String>(0)?, r.get::<_, u32>(1)?))
     })? {
@@ -609,4 +617,36 @@ pub fn overview(conn: &Connection, current: Option<&str>) -> rusqlite::Result<Ex
         roots,
         scanning,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// The refresh queries start from the marked documents and find their
+    /// files by document; the extract-queue index made `next_refresh`
+    /// quadratic in a root's files.
+    #[test]
+    fn refresh_queries_are_driven_by_the_marked_documents() {
+        let mut conn = Connection::open_in_memory().unwrap();
+        crate::services::catalog::migrations::migrate(&mut conn, "t").unwrap();
+        let plan = |sql: &str| -> String {
+            let mut stmt = conn.prepare(&format!("EXPLAIN QUERY PLAN {sql}")).unwrap();
+            let unbound = std::iter::repeat_n(rusqlite::types::Null, stmt.parameter_count());
+            stmt.query_map(rusqlite::params_from_iter(unbound), |r| {
+                r.get::<_, String>(3)
+            })
+            .unwrap()
+            .collect::<rusqlite::Result<Vec<_>>>()
+            .unwrap()
+            .join("\n")
+        };
+        for sql in [NEXT_REFRESH_SQL, HAS_PENDING_SQL, UPDATING_SQL] {
+            let plan = plan(sql);
+            assert!(plan.contains("documents_refresh"), "{sql}\n{plan}");
+            assert!(plan.contains("file_instances_by_document"), "{sql}\n{plan}");
+        }
+        let plan = plan(NEXT_REFRESH_SQL);
+        assert!(!plan.contains("extract_queue"), "{plan}");
+    }
 }

@@ -54,3 +54,10 @@ change.
 - Orphaned documents (no files left) are not re-read.
 - The old unlink-and-re-read path no longer runs for version changes; a
   file whose bytes changed is still read as new content, as before.
+- **Amended in Slice 1.7.** As first built, the query for the next files
+  to read again was quadratic in a root's files: at the end of every pass
+  it took 45 s on the 30k text fixture, holding the catalog writer, even
+  with nothing marked. It, the pending check and the "Updating text" count
+  now start from the marked documents (the partial index
+  `documents_refresh`) and find each one's files by document;
+  `extraction::db` tests their query plans.

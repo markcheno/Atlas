@@ -75,6 +75,11 @@ harness = false
 name = "search"
 harness = false
 
+[[bench]]
+# Phase 1 extraction benchmark: `just bench-extraction`.
+name = "extraction"
+harness = false
+
 [dev-dependencies]
 plist = "1.10.3"
 tempfile = "3.27.0"

@@ -107,6 +107,16 @@ for cloud-offloaded files it would trigger a download.
 
 - A forced kill loses at most the batch in flight, which is replayed.
   Rows that existed before the kill keep their IDs.
+- **Replayed entries cost less** (Slice 1.7, P1-20). A folder interrupted
+  part-way is listed again from its first entry, because listing order is
+  not stable enough to skip ahead. A batch's upsert leaves untouched a row
+  that this same scan already wrote with the same size, modification
+  time, availability and storage, and counts it as replayed; the rate
+  limit charges a replayed entry a twentieth of an operation
+  (`REPLAY_COST_DIVISOR`, ADR 0004). Resuming a pause 9,000 entries into
+  the 20,000-file folder went from about 18 s to under 1 s before the
+  next new file ([benchmarks](../benchmarks.md#resuming-inside-a-very-large-folder)).
+  A rescan is a new session, so every row is written as before.
 - Status counts come from live queries during a scan and from stored
   counters afterwards. Skip counters can over-count slightly when a folder
   is replayed.

@@ -4,7 +4,7 @@ Atlas is a local-first personal AI librarian for large private collections of
 PDFs, EPUBs, books and papers. *Collect freely. Organize minimally. Retrieve
 intelligently.*
 
-**Status: Phase 1, Slice 1.6 (titles, duplicates and storage); Phase 0 complete.** Atlas asks where to keep its library and
+**Status: Phase 1, Slice 1.7 (carry-overs: large folders, Windows paths, worker lifetime, extraction benchmark); Phase 0 complete.** Atlas asks where to keep its library and
 which folders hold your books and papers, then catalogs every PDF and EPUB
 in them in the background, read-only. Cataloging slows on battery, pauses
 when the battery is low or the drive is nearly full, survives quitting and
@@ -28,7 +28,9 @@ largest text on a PDF's first page, or tidies the file name, and says
 which. Library › Duplicates lists identical copies, most wasted space
 first (Atlas never deletes or moves them), and Settings › Storage shows
 what the catalog, the text and the search index take, estimates what the
-rest of the text will need, and cleans caches.
+rest of the text will need, and cleans caches. Resuming a pause inside a
+folder of 20,000 files picks up again in about a second, and if Atlas is
+force-quit or crashes, its text reader stops with it.
 In Settings › AI Models you can connect Ollama, oMLX, LM Studio, or another
 OpenAI-compatible service and test it; keys are stored in your system
 keychain. Atlas contacts a service only when you test it, and sends nothing
@@ -79,7 +81,8 @@ None of this is in the app yet.
 | Titles from metadata, a PDF's first page or the file name; junk metadata cleaned | Working (Slice 1.6) |
 | Duplicates view: identical copies grouped, most extra space first | Working (Slice 1.6) |
 | Settings › Storage: usage by category, indexing estimate, Clean caches | Working (Slice 1.6) |
-| Phase 1 carry-overs (large-folder resume, Windows junctions and long paths), close-out | Phase 1, in progress ([spec](docs/phase1-spec.md)): Slices 1.1–1.6 of 1.8 built |
+| Phase 1 carry-overs: fast resume inside large folders, Windows junctions and paths over 260 characters, no text reader outliving the app, extraction benchmark, a smaller catalog | Working (Slice 1.7) |
+| Phase 1 close-out: evidence on three OSes, version 0.2.0 | Phase 1, in progress ([spec](docs/phase1-spec.md)): Slices 1.1–1.7 of 1.8 built |
 
 Specifications: [product](docs/product-spec.md), [Phase 0](docs/phase0-spec.md),
 [Phase 1](docs/phase1-spec.md), [architecture](docs/architecture.md),
@@ -149,9 +152,10 @@ just ci               # check plus the bindings drift check, as CI runs it
 just bindings         # regenerate TypeScript bindings from Rust DTOs
 just fmt              # apply prettier and rustfmt
 just licenses         # regenerate docs/dependency-licenses.md
-just bench            # benchmark suite on 1k and 30k fixtures (release build; a few minutes)
+just bench            # benchmark suite on 1k and 30k fixtures (release build; about 25 minutes)
 just bench-full       # plus the 30k throttle sweep
 just bench-search     # search benchmark on the 30k text fixture (fails above 250 ms p95)
+just bench-extraction # extraction benchmark on the 30k text fixture (`just bench-extraction 1k` adds battery)
 just eval questions.json ~/AtlasData   # ask a question set against a library, read-only
 just e2e              # WebDriver smoke test of the debug build (Windows/Linux; needs tauri-driver)
 just worker-hello     # start the extraction worker and check it loads PDFium (time to hello)
