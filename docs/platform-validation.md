@@ -847,8 +847,13 @@ CI on branch `slice-17`, full tier:
 step lost its msedgedriver connection before the window opened, the same
 flake as in Slice 1.5),
 [42645560955](https://github.com/markcheno/Atlas/actions/runs/42645560955)
-(10 of 10 green, 13 minutes) and
-[42648186627](https://github.com/markcheno/Atlas/actions/runs/42648186627).
+(10 of 10 green, 13 minutes),
+[42648186627](https://github.com/markcheno/Atlas/actions/runs/42648186627)
+and, for the final code,
+[42651988551](https://github.com/markcheno/Atlas/actions/runs/42651988551)
+(the Windows smoke test hit the same msedgedriver flake at its first step
+and passed on rerun). P1-20 at the policy rate in that run: 0.85 s on
+Windows, 0.94 s on Linux, 0.97 s on macOS.
 The Windows test log shows `p1_21_junctions_are_skipped_and_counted`,
 `p1_21_a_300_character_path_is_cataloged_and_read`,
 `p1_22_a_hung_worker_does_not_outlive_a_killed_app` and
@@ -1128,6 +1133,10 @@ and read:
   claimed as supported.
 - **Windows:** The NSIS installer depends on the system WebView2 runtime,
   which ships with current Windows 10 and 11.
+- **Windows CI smoke:** one run in Slice 1.5 and two of four full runs in
+  Slice 1.7 failed at the first step, before the app's window opened: msedgedriver refused
+  tauri-driver's connection. A rerun of the job has passed every time. If it
+  keeps recurring, Slice 1.8 should retry the session start once.
 - **All platforms:** Bundles are unsigned and not notarized in Phase 0, so OS
   security prompts are expected.
 - **Icons:** The bundles still use Tauri's default placeholder icons.

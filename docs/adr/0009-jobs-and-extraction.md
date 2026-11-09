@@ -160,7 +160,10 @@ panic.
 
 **Policy.** Extraction shares the scan's resource governor (the same
 battery hysteresis) and maps its mode to a duty cycle rather than a rate:
-50% busy on Run, 20% on Slow, paused on Paused. `ATLAS_EXTRACT_UNTHROTTLED`
+50% busy on Run, 20% on Slow, paused on Paused. Each file owes a rest of
+its own length × (1/duty − 1); owed rests add up and are taken once they
+reach 100 ms (`REST_QUANTUM`, Slice 1.7), because thousands of millisecond
+sleeps cost more than they rest. `ATLAS_EXTRACT_UNTHROTTLED`
 (debug builds) removes the rest. A finished scan with pending files queues
 an extract job in its own transaction and wakes the extraction runner
 through a waker shared by all runners of the root; opening a library
@@ -187,9 +190,9 @@ queues one for every root with pending files.
   sweep is not built yet (Phase 1 doesn't purge automatically).
 - One worker per open library, for all of Phase 1 (product-owner
   decision, Slice 1.7). `ATLAS_EXTRACT_WORKERS` is not built: one worker
-  reads 514 pages a second at the Run duty cycle on the 30k text
-  fixture on the reference machine (646 on the 1k one), more than twice
-  the 200 pages/s target
+  reads 761 pages a second at the Run duty cycle on the 30k text
+  fixture on the reference machine, almost four times the 200 pages/s
+  target
   ([benchmarks](../benchmarks.md#text-extraction-slice-17)), and a second
   needs parallel dispatch, a new crash and cursor scheme and care with
   identical files. Revisit when a later phase (embeddings) needs more.

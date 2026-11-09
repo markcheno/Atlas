@@ -520,6 +520,9 @@ The job side, in the app process (Slice 1.3, ADR 0009).
   old text. The status line says "Updating text · N files to go".
 - **Policy.** The scan's governor and battery hysteresis, as a duty cycle:
   50% busy on Run, 20% when slowed, paused below 20% battery until 25%.
+  Each file owes a rest in proportion to its time; owed rests are taken
+  once they reach 100 ms (`REST_QUANTUM`), since a sleep after every
+  millisecond-long file costs more than it rests (Slice 1.7).
 - **Status.** `extraction-status` (an `ExtractionOverview`: the active job
   with the file being read, counts by text status, per-folder counts) at
   most four times a second plus every change; `get_extraction_status`

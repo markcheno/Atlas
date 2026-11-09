@@ -337,19 +337,40 @@ pages, 293,068 passages, 594 MiB of text), release build, 2026-11-09:
 
 | Duty cycle | Read s | Files/s | Pages/s | First searchable s | App CPU % of a core | Worker CPU % | App / worker peak RSS MiB | Worker starts | Peak WAL MiB |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| Run (50%) | 518.8 | 61.7 | 514 | 0.29 | 27.3 | 20.5 | 47 / 20 | 1 | 29 |
-| Unthrottled | 134.2 | 238.6 | 1,987 | 0.02 | 44.4 | 60.2 | 50 / 20 | 1 | 29 |
+| Run (50%) | 350.4 | 91.3 | 761 | 0.30 | 28.2 | 26.0 | 45 / 21 | 1 | 26 |
+| Unthrottled | 133.8 | 239.3 | 1,993 | 0.02 | 44.0 | 60.6 | 47 / 20 | 1 | 29 |
 
-The Run duty cycle reads 514 pages a second, above the provisional 200
-pages/s (phase1-spec §13), so one worker is enough for Phase 1 (ADR 0009).
+The policy said Run for the whole Run pass. The Run duty cycle reads 761
+pages a second, almost four times the provisional 200 pages/s
+(phase1-spec §13), so one worker is enough for Phase 1 (ADR 0009).
 The app's share is the catalog writer storing passages and keeping the
 full-text index in step. The end-of-pass index merge takes under a
 millisecond; the whole job ends as soon as the last file is read.
 
-**Kill mid-read** (30k, 6,404 documents read when the child was killed):
+**Kill mid-read** (30k, 6,408 documents read when the child was killed):
 no partial documents, no worker left running, no duplicate documents,
 nothing left waiting; reading the rest after reopening took 106 s
 unthrottled.
+
+**The duty cycle's effect on wall time.** A 50% duty cycle should take
+twice as long as unthrottled, 20% five times. With a rest after every file
+it took far longer: the files take milliseconds, and each millisecond
+sleep cost more than it rested (Windows rounds timers to about 15.6 ms;
+caches go cold and cores clock down, so on the M5 Pro the worker used 30%
+more CPU time for the same 1k fixture at Run, and 2.2× at Slow). Run took
+2.5× as long as unthrottled on the M5 Pro and 2.0–5.6× on the runners, with
+the policy at Run throughout. Rests now add up and are taken once they
+reach 100 ms (`REST_QUANTUM`), the same busy fraction in bursts of about
+100 ms:
+
+| M5 Pro | Before | Rests of at least 100 ms |
+| --- | ---: | ---: |
+| 1k, Run ÷ unthrottled wall time | 11.3 s ÷ 4.5 s = 2.5× | 7.7 s ÷ 3.9 s = 2.0× |
+| 1k, Slow ÷ unthrottled | 47.5 s ÷ 4.5 s = 10.6× | 34.2 s ÷ 3.9 s = 8.8× |
+| 30k, Run | 518.8 s (514 pages/s) | 350.4 s (761 pages/s) |
+
+Slow stays above 5×: at 20% the bursts are 25 ms, short enough for the
+cores to clock down between them, which on battery is the point.
 
 **Catalog growth** at 30k, new catalog (16 KiB pages):
 
@@ -375,6 +396,27 @@ read the library's status every 100 ms, which at 30k files cost the app
 about 20% of a core of its own; it now reads it every 500 ms once text is
 searchable.
 
-<!-- extraction-ci -->
+**CI runners, 1k text fixture** (1,106 files, 6,668 PDF pages, 9,322
+passages, 19.8 MiB of text), release build, [run 42651988551](https://github.com/markcheno/Atlas/actions/runs/42651988551),
+2026-11-09. The policy said Run, or on battery for the Slow pass,
+throughout:
+
+| Runner | Duty cycle | Read s | Pages/s | App / worker CPU % | App / worker peak RSS MiB | Catalog ÷ text |
+| --- | --- | ---: | ---: | ---: | ---: | ---: |
+| macOS arm64 (M1, 3 vCPU) | Run | 30.5 | 219 | 14.2 / 19.9 | 27 / 19 | 1.68 |
+| | Slow | 89.7 | 74 | 6.1 / 6.8 | 31 / 19 | 1.68 |
+| | Unthrottled | 13.3 | 503 | 34.4 / 56.7 | 31 / 19 | 1.68 |
+| Windows x64 (Xeon, 4 vCPU) | Run | 41.3 | 162 | 14.7 / 15.5 | 24 / 16 | 1.68 |
+| | Slow | 158.3 | 42 | 7.7 / 4.3 | 24 / 16 | 1.68 |
+| | Unthrottled | 19.7 | 339 | 22.2 / 31.1 | 20 / 16 | 1.68 |
+| Linux x64 (EPYC, 4 vCPU) | Run | 18.7 | 356 | 13.7 / 28.3 | 17 / 44 | 1.67 |
+| | Slow | 47.8 | 139 | 6.5 / 11.4 | 18 / 44 | 1.68 |
+| | Unthrottled | 9.7 | 691 | 23.4 / 54.8 | 18 / 44 | 1.68 |
+
+One worker start per pass everywhere, the first passage searchable within
+0.5 s, and the WAL peaked at 16–18 MiB. Run takes 1.9–2.3× as long as
+unthrottled on the runners (2.0–5.6× before rests were pooled). Kill
+mid-read on every runner: 222–232 documents read, no partial documents,
+the worker gone within 55 ms, no duplicates, nothing left waiting.
 
 <!-- results:end -->
