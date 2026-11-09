@@ -7,6 +7,7 @@
 //! never placeholder data.
 
 pub mod app;
+pub mod extraction;
 pub mod inventory;
 pub mod library;
 pub mod providers;
@@ -37,6 +38,8 @@ pub const COMMAND_NAMES: &[&str] = &[
     "resume_job",
     "cancel_job",
     "get_inventory_status",
+    "start_extraction",
+    "get_extraction_status",
     "list_documents",
     "open_original",
     "reveal_original",

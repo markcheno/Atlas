@@ -200,20 +200,25 @@ fn p1_01_upgrade_keeps_a_paused_scan_and_its_frontier() {
     m.catalog_schema_version = 6;
     manifest::write(&data_root, &m).unwrap();
 
-    let (job_before, job_columns, frontier_before, files_before) = {
+    let (job_before, job_columns, frontier_before, files_before, file_columns) = {
         let conn = Connection::open(&catalog).unwrap();
-        let columns: Vec<String> = conn
-            .prepare("SELECT name FROM pragma_table_info('scan_sessions') ORDER BY cid")
+        let columns = |table: &str| -> String {
+            conn.prepare(&format!(
+                "SELECT name FROM pragma_table_info('{table}') ORDER BY cid"
+            ))
             .unwrap()
-            .query_map([], |r| r.get(0))
+            .query_map([], |r| r.get::<_, String>(0))
             .unwrap()
-            .collect::<Result<_, _>>()
-            .unwrap();
+            .collect::<Result<Vec<_>, _>>()
+            .unwrap()
+            .join(", ")
+        };
         (
             rows(&conn, "SELECT * FROM scan_sessions").unwrap(),
-            columns.join(", "),
+            columns("scan_sessions"),
             rows(&conn, "SELECT * FROM scan_directories ORDER BY id").unwrap(),
             rows(&conn, "SELECT * FROM file_instances ORDER BY id").unwrap(),
+            columns("file_instances"),
         )
     };
 
@@ -222,10 +227,12 @@ fn p1_01_upgrade_keeps_a_paused_scan_and_its_frontier() {
     ws.startup();
     let root = ws.require_open().unwrap();
 
-    assert_eq!(SUPPORTED_SCHEMA_VERSION, 7);
+    // Schema 6 opens as the current schema (7 added jobs; later versions
+    // add columns and tables beside them).
+    const { assert!(SUPPORTED_SCHEMA_VERSION >= 7) };
     assert_eq!(
         manifest::read(&data_root).unwrap().catalog_schema_version,
-        7
+        SUPPORTED_SCHEMA_VERSION
     );
     let versions: Vec<Vec<Value>> = query(
         root,
@@ -233,15 +240,20 @@ fn p1_01_upgrade_keeps_a_paused_scan_and_its_frontier() {
     );
     assert_eq!(
         versions,
-        (1..=7).map(|v| vec![Value::Integer(v)]).collect::<Vec<_>>()
+        (1..=i64::from(SUPPORTED_SCHEMA_VERSION))
+            .map(|v| vec![Value::Integer(v)])
+            .collect::<Vec<_>>()
     );
     // The same row, every column, now with a kind.
     assert_eq!(
-        query(root, format!("SELECT {job_columns} FROM jobs")),
+        query(
+            root,
+            format!("SELECT {job_columns} FROM jobs WHERE kind = 'scan'")
+        ),
         job_before
     );
     assert_eq!(
-        query(root, "SELECT kind FROM jobs"),
+        query(root, "SELECT kind FROM jobs WHERE id = 'job-6'"),
         vec![vec![Value::Text("scan".into())]]
     );
     assert_eq!(
@@ -249,11 +261,22 @@ fn p1_01_upgrade_keeps_a_paused_scan_and_its_frontier() {
         frontier_before
     );
     assert_eq!(
-        query(root, "SELECT * FROM file_instances ORDER BY id"),
+        query(
+            root,
+            format!("SELECT {file_columns} FROM file_instances ORDER BY id")
+        ),
         files_before
     );
+    // Its cataloged file waits for its text (phase1-spec §7.1).
+    assert_eq!(
+        one_u32(root, "SELECT COUNT(*) FROM jobs WHERE kind = 'extract'"),
+        1
+    );
     // The paused scan counts as this folder's scan: none was added.
-    assert_eq!(one_u32(root, "SELECT COUNT(*) FROM jobs"), 1);
+    assert_eq!(
+        one_u32(root, "SELECT COUNT(*) FROM jobs WHERE kind = 'scan'"),
+        1
+    );
     let active = inventory::control::overview(root).unwrap().active.unwrap();
     assert_eq!(active.job_id, "job-6");
     assert_eq!(active.state, JobState::PausedUser);
@@ -496,6 +519,7 @@ impl Lib {
             page: 0,
             page_size: 10,
             include_missing: false,
+            text_status: None,
         };
         library::list(self.root().reader(), self.root().root_status(), &q)
             .unwrap()

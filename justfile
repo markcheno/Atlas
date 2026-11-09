@@ -37,8 +37,8 @@ dev:
 ui:
     pnpm dev
 
-# Launch with no cataloging rate limit, for benchmarks (debug builds only)
-dev-unthrottled $ATLAS_INVENTORY_UNTHROTTLED="1":
+# Launch with no cataloging rate limit and no reading duty cycle, for benchmarks (debug builds only)
+dev-unthrottled $ATLAS_INVENTORY_UNTHROTTLED="1" $ATLAS_EXTRACT_UNTHROTTLED="1":
     pnpm tauri dev
 
 # Launch with simulated power (ac, battery:<pct>, unknown, desktop) and optional free bytes, e.g. `just dev-simulate battery:18`

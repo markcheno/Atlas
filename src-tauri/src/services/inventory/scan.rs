@@ -18,7 +18,7 @@ use crate::services::catalog::codec::to_db;
 use crate::services::catalog::repository::SqliteCatalog;
 use crate::services::catalog::writer::CatalogHandle;
 use crate::services::jobs::{
-    self, Flow, JobProcessor, JobRow, ProcessorContext, ProcessorFactory, Signal,
+    self, Flow, JobProcessor, JobRow, JobWaker, ProcessorContext, ProcessorFactory, Signal,
 };
 use crate::services::library::fold::fold;
 use crate::services::sources::{self, Relation};
@@ -67,6 +67,8 @@ pub struct ScanProcessor {
     data_root_handle: Option<Handle>,
     deps: InventoryDeps,
     signal: Arc<Signal>,
+    /// Wakes the extraction runner when a finished scan queues reading.
+    waker: JobWaker,
     last_emit: Option<Instant>,
 }
 
@@ -94,6 +96,7 @@ impl ScanProcessor {
             data_root,
             deps,
             signal: ctx.signal,
+            waker: ctx.waker,
             last_emit: None,
         }
     }
@@ -540,6 +543,8 @@ impl ScanProcessor {
         {
             Ok(Ok(())) => {
                 self.emit(true);
+                // The finish may have queued text reading for this folder.
+                self.waker.wake();
                 Flow::Continue
             }
             _ => self.database_failure(&s.id),

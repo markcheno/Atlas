@@ -46,6 +46,11 @@ pub const MIGRATIONS: &[Migration] = &[
         name: "jobs",
         sql: include_str!("../../../migrations/0007_jobs.sql"),
     },
+    Migration {
+        version: 8,
+        name: "documents",
+        sql: include_str!("../../../migrations/0008_documents.sql"),
+    },
 ];
 
 /// Highest catalog schema version this build can read and write.
@@ -152,6 +157,90 @@ mod tests {
     /// on the real writer connection, which has foreign keys on, as in the
     /// app: the frontier's foreign key must follow the rename.
     #[test]
+    fn version_8_adds_documents_passages_and_extraction_state() {
+        use crate::services::catalog::writer::CatalogWriter;
+
+        let dir = tempfile::tempdir().unwrap();
+        let writer = CatalogWriter::open(&dir.path().join("catalog.sqlite")).unwrap();
+        writer
+            .call(|c| {
+                assert_eq!(migrate_to(c, 7, "t").unwrap(), 7);
+                c.execute_batch(
+                    "INSERT INTO workspace (id, name, created_at) VALUES ('w', 'W', 't');
+                     INSERT INTO source_roots (id, workspace_id, path_bytes, display_path, created_at)
+                         VALUES ('r', 'w', x'01', '/books', 't');
+                     INSERT INTO file_instances (id, source_root_id, rel_path, display_path,
+                         display_name, extension, file_type, availability, created_at, updated_at)
+                         VALUES ('f1', 'r', x'61', '/books/a.pdf', 'a.pdf', 'pdf', 'pdf',
+                                 'available', 't', 't');",
+                )
+                .unwrap();
+
+                assert_eq!(migrate(c, "t2").unwrap(), 8);
+
+                // Existing files wait for extraction; nothing links them yet.
+                let (state, doc, attempts): (String, Option<String>, i64) = c
+                    .query_row(
+                        "SELECT extract_state, document_id, extract_attempts FROM file_instances",
+                        [],
+                        |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
+                    )
+                    .unwrap();
+                assert_eq!((state.as_str(), doc, attempts), ("pending", None, 0));
+
+                // New files can still be cataloged (a REFERENCES to a table
+                // created later would make every insert fail).
+                c.execute_batch(
+                    "INSERT INTO file_instances (id, source_root_id, rel_path, display_path,
+                         display_name, extension, file_type, availability, created_at, updated_at)
+                         VALUES ('f2', 'r', x'62', '/books/b.pdf', 'b.pdf', 'pdf', 'pdf',
+                                 'available', 't', 't');
+                     INSERT INTO documents (id, content_hash, state, created_at, updated_at)
+                         VALUES ('d', x'00ff', 'done', 't', 't');
+                     INSERT INTO passages (document_id, ordinal, page_no, location, text)
+                         VALUES ('d', 0, 1, 'Page 1', 'hello'), ('d', 1, 2, 'Page 2', 'world');
+                     UPDATE file_instances SET document_id = 'd', extract_state = 'linked';",
+                )
+                .unwrap();
+                assert!(
+                    c.execute(
+                        "UPDATE file_instances SET extract_state = 'nonsense' WHERE id = 'f1'",
+                        []
+                    )
+                    .is_err(),
+                    "extract_state is checked"
+                );
+                assert!(
+                    c.execute(
+                        "INSERT INTO documents (id, content_hash, state, created_at, updated_at)
+                         VALUES ('d2', x'00ff', 'done', 't', 't')",
+                        []
+                    )
+                    .is_err(),
+                    "one document per content hash"
+                );
+                let violations = c
+                    .prepare("PRAGMA foreign_key_check")
+                    .unwrap()
+                    .query_map([], |_| Ok(()))
+                    .unwrap()
+                    .count();
+                assert_eq!(violations, 0);
+
+                // A document that files still point at can't be deleted; once
+                // they're gone, its passages go with it.
+                assert!(c.execute("DELETE FROM documents WHERE id = 'd'", []).is_err());
+                c.execute("DELETE FROM source_roots WHERE id = 'r'", []).unwrap();
+                c.execute("DELETE FROM documents WHERE id = 'd'", []).unwrap();
+                let left: i64 = c
+                    .query_row("SELECT COUNT(*) FROM passages", [], |r| r.get(0))
+                    .unwrap();
+                assert_eq!(left, 0);
+            })
+            .unwrap();
+    }
+
+    #[test]
     fn version_7_turns_scan_sessions_into_jobs() {
         use crate::services::catalog::writer::CatalogWriter;
 
@@ -172,7 +261,7 @@ mod tests {
                 )
                 .unwrap();
 
-                assert_eq!(migrate(c, "t2").unwrap(), 7);
+                assert_eq!(migrate_to(c, 7, "t2").unwrap(), 7);
 
                 let (kind, state, found): (String, String, i64) = c
                     .query_row(

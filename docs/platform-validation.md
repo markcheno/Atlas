@@ -609,6 +609,53 @@ entitlement; Gatekeeper's prompt is expected to be unchanged. Windows and
 Linux installers were checked by CI only. Extraction of library files
 arrives in Slice 1.3.
 
+## Slice 1.3
+
+Slice 1.3 reads text. Automated evidence: P1-03 … P1-14
+(`tests/extraction.rs`, `tests/extraction_crash.rs`), the supervisor tests
+(`tests/supervisor.rs`) and the engines' unit tests, all against the real
+worker; every extraction test checks that the originals are byte-identical
+afterwards. The spike corpus's 33 documents all reach their manifest's
+expected status. CI on branch `slice-13`: the quick tier
+[42541656317](https://github.com/markcheno/Atlas/actions/runs/42541656317)
+and the full tier
+[42542436470](https://github.com/markcheno/Atlas/actions/runs/42542436470),
+10 of 10 jobs green (2026-11-09), so the extraction tests ran on macOS,
+Windows and Linux, with the smoke tests, benchmarks and the worker gate.
+
+### macOS arm64, Slice 1.3 (2026-11-09)
+
+All on scratch data (a copy of the Slice 1.2 scratch library, scratch
+`ATLAS_CONFIG_DIR` and `HOME`).
+
+1. Opened the copied schema-7 library (30,006 cataloged stub files) with
+   the Slice 1.3 debug build. The catalog became schema 8, an extract job
+   started by itself, and a worker process appeared. The status bar read
+   "Reading text · 10,620 of 30,006 files", then "Text up to date · 26,672
+   of 30,006 files readable" about a minute later (the 3,334 stub "EPUBs"
+   aren't zips, so they are "Couldn't read").
+2. The Library showed the Text column and filter. The first build left the
+   visible page at "Waiting" after reading finished: the page refreshed on
+   cataloging progress only. Fixed (the refresh now watches both), with a
+   test; the rebuilt app showed "✓ Text ready" and "! Couldn't read".
+3. Relaunched on simulated battery (`ATLAS_SIMULATE_POWER=battery:50`) and
+   added the 1k fixture with 100 KiB of text per file: "Reading text ·
+   30,020 of 31,012 files · Slowed on battery". Settings read "When Atlas
+   catalogs your folders or reads their text, it will run slowly because
+   this computer is on battery."
+4. **Pause reading text** gave "Paused reading text by you" and no file was
+   read for 4 s; **Resume reading text** continued. The folder line said
+   "Reading text…" while paused; it now says "Reading text paused" (fixed,
+   with a test).
+5. Quitting mid-reading left no `atlas --extract-worker` process.
+6. The Slice 1.2 release build refused the upgraded library ("format 8;
+   this version supports up to 7"); `catalog.sqlite` and `atlas.json`
+   stayed byte-identical.
+
+**Not verified in Slice 1.3:** a real iCloud or OneDrive placeholder
+(P1-13 uses the test source's cloud-only flag; the worker's no-recall open
+and dataless check are unit-level); Windows and Linux beyond CI.
+
 ## Manual checklist for Windows and Linux
 
 CI runs an automated smoke test on Windows and Linux (Slice 0.8, below),
@@ -748,6 +795,18 @@ build:
    `{"type":"error","reason":"unknown_request"}`. Close the input (Ctrl+D on
    Linux, Ctrl+Z then Enter on Windows) and the process must exit.
 3. Start Atlas normally and confirm it opens as before.
+
+### Reading text (Slice 1.3)
+
+1. Add a folder made with `just fixtures <dir> 1000 0 20`. After cataloging,
+   the status bar shows "Reading text · N of 1,006 files", then "Text up to
+   date". Every row's Text badge is "Text ready".
+2. Pause and resume reading from the status bar; confirm cataloging
+   controls are unaffected.
+3. Add a few scanned PDFs and a password-protected PDF; confirm "Needs OCR"
+   and "Encrypted" with a reason on hover.
+4. Quit while reading; confirm no `atlas` worker process remains (Task
+   Manager, or `ps`).
 
 ### Library, search, open (Slice 0.6)
 

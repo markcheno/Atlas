@@ -221,4 +221,26 @@ worker stays a mode of the app executable (2026-11-08).
 - The spike's "3 ms" for pdfium never loaded the library (ADR 0008,
   amended).
 
+## Text extraction, first measurement (Slice 1.3)
+
+The extraction benchmark proper (`benches/extraction.rs`, three OSes, duty
+cycles, catalog growth) is Slice 1.7. For a first number, the worker alone
+read the 1k text fixture (`just fixtures <dir> 1000 0 20`: 1,006 files,
+6,668 PDF pages plus EPUB chapters) one file at a time, hashing then
+extracting each, with no duty cycle, on the M5 Pro (2026-11-09, debug Rust,
+release PDFium):
+
+| Files | Passages (PDF pages and EPUB pieces) | Characters | Time | Files/s | Passages/s |
+| ---: | ---: | ---: | ---: | ---: | ---: |
+| 1,006 | 9,372 | 20.8 million | 7.2 s | 141 | 1,310 |
+
+At the Run duty cycle (50% busy) that is about 650 pages a second, above
+the provisional 200 pages/s target (phase1-spec §13). The spike measured
+pdfium alone at 1,294 pages/s on its corpus.
+
+Reading a Phase 0 library on upgrade: the copied 30,006-file stub library
+(identical PDF stubs, so one document) was hashed and linked in about a
+minute in a debug build at the default duty cycle; the 3,334 stub "EPUBs"
+are correctly `malformed` (not real zips).
+
 <!-- results:end -->

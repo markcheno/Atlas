@@ -165,6 +165,9 @@ pub struct FaultySource {
     hold: Mutex<bool>,
     held: Mutex<u32>,
     released: std::sync::Condvar,
+    /// Files reported as cloud-only (contents offloaded), as iCloud or
+    /// OneDrive placeholders are.
+    cloud: Mutex<std::collections::HashSet<PathBuf>>,
 }
 
 impl FaultySource {
@@ -185,6 +188,10 @@ impl FaultySource {
     pub fn release(&self) {
         *self.hold.lock().unwrap() = false;
         self.released.notify_all();
+    }
+    /// Reports `path` as cloud-only from the next listing on.
+    pub fn mark_cloud_only(&self, path: &Path) {
+        self.cloud.lock().unwrap().insert(path.to_path_buf());
     }
 }
 
@@ -210,11 +217,19 @@ impl InventorySource for FaultySource {
             return Err(io::Error::new(*kind, "injected"));
         }
         let delay = *self.delay_per_entry.lock().unwrap();
-        let inner = LocalFsSource.read_dir(dir)?;
-        Ok(Box::new(inner.inspect(move |_| {
+        let cloud = self.cloud.lock().unwrap().clone();
+        let dir = dir.to_path_buf();
+        let inner = LocalFsSource.read_dir(&dir)?;
+        Ok(Box::new(inner.map(move |entry| {
             if let Some(d) = delay {
                 std::thread::sleep(d);
             }
+            entry.map(|mut info| {
+                if cloud.contains(&dir.join(&info.name)) {
+                    info.cloud_only = true;
+                }
+                info
+            })
         })))
     }
 }
@@ -276,4 +291,95 @@ pub fn wait_until(timeout: Duration, mut f: impl FnMut() -> bool) -> bool {
         std::thread::sleep(Duration::from_millis(10));
     }
     f()
+}
+
+// ------------------------------------------------------------ extraction
+
+use atlas_lib::domain::dto::{ExtractionOverview, JobKind};
+use atlas_lib::services::extraction::job::{
+    self as extraction_job, ExtractionConfig, ExtractionDeps,
+};
+use atlas_lib::services::extraction::supervisor::WorkerCommand;
+
+/// The real extraction worker: the `atlas` binary Cargo built.
+pub fn worker() -> WorkerCommand {
+    WorkerCommand::new(env!("CARGO_BIN_EXE_atlas"))
+}
+
+pub fn fast_extraction() -> ExtractionConfig {
+    ExtractionConfig {
+        batch_size: 8,
+        unthrottled: true,
+        recheck_interval: Duration::from_millis(5),
+        policy_wait: Duration::from_millis(20),
+        idle_wait: Duration::from_millis(50),
+        event_interval: Duration::ZERO,
+        ..ExtractionConfig::default()
+    }
+}
+
+/// Cataloging and extraction sharing one governor and fake device, as in
+/// the app.
+pub struct ExtractionHarness {
+    pub inv: InventoryHarness,
+    pub deps: ExtractionDeps,
+    pub events: Arc<Mutex<Vec<ExtractionOverview>>>,
+}
+
+impl ExtractionHarness {
+    pub fn new(config: ExtractionConfig, worker: WorkerCommand) -> Self {
+        let inv = InventoryHarness::new(fast_config());
+        let events = Arc::new(Mutex::new(Vec::new()));
+        let sink = events.clone();
+        let deps = ExtractionDeps::new(
+            inv.deps.governor.clone(),
+            Arc::new(move |o: &ExtractionOverview| sink.lock().unwrap().push(o.clone())),
+            config,
+            worker,
+        );
+        Self { inv, deps, events }
+    }
+}
+
+impl Env {
+    pub fn workspace_with_extraction(&self, h: &ExtractionHarness) -> Workspace {
+        self.workspace_with_inventory(h.inv.deps.clone())
+            .with_job_processor(JobKind::Extract, extraction_job::factory(h.deps.clone()))
+    }
+}
+
+/// Every file under `dir`: (BLAKE3, mtime, length). Extraction must leave
+/// all of it unchanged (phase1-spec §12).
+pub fn originals(
+    dir: &Path,
+) -> std::collections::BTreeMap<PathBuf, (String, std::time::SystemTime, u64)> {
+    let mut out = std::collections::BTreeMap::new();
+    let mut stack = vec![dir.to_path_buf()];
+    while let Some(d) = stack.pop() {
+        let Ok(entries) = fs::read_dir(&d) else {
+            continue;
+        };
+        for e in entries.flatten() {
+            let path = e.path();
+            let Ok(meta) = fs::symlink_metadata(&path) else {
+                continue;
+            };
+            if meta.is_dir() {
+                stack.push(path);
+            } else if meta.is_file() {
+                let Ok(bytes) = fs::read(&path) else {
+                    continue;
+                };
+                out.insert(
+                    path,
+                    (
+                        blake3::hash(&bytes).to_hex().to_string(),
+                        meta.modified().unwrap(),
+                        meta.len(),
+                    ),
+                );
+            }
+        }
+    }
+    out
 }

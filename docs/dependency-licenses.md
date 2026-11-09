@@ -42,13 +42,13 @@ this report only when the app adopts it (ADR 0008).
 
 ## Summary
 
-### Rust crates (554, all platforms)
+### Rust crates (573, all platforms)
 
 | License expression | Count |
 | --- | --- |
-| MIT OR Apache-2.0 | 258 |
-| MIT | 125 |
-| Apache-2.0 OR MIT | 55 |
+| MIT OR Apache-2.0 | 266 |
+| MIT | 131 |
+| Apache-2.0 OR MIT | 56 |
 | Zlib OR Apache-2.0 OR MIT | 18 |
 | Unicode-3.0 | 18 |
 | MIT/Apache-2.0 | 17 |
@@ -58,22 +58,23 @@ this report only when the app adopts it (ADR 0008).
 | Apache-2.0/MIT | 4 |
 | ISC | 4 |
 | BSD-3-Clause | 3 |
+| CC0-1.0 OR MIT-0 OR Apache-2.0 | 3 |
 | Apache-2.0 OR ISC OR MIT | 3 |
 | MIT OR Apache-2.0 OR Zlib | 3 |
+| Apache-2.0 | 3 |
 | Zlib | 2 |
 | MIT OR Zlib OR Apache-2.0 | 2 |
 | BSD-3-Clause OR MIT OR Apache-2.0 | 2 |
 | MIT OR Apache-2.0 OR LGPL-2.1-or-later | 2 |
 | Unlicense/MIT | 2 |
-| Apache-2.0 | 2 |
 | (MIT OR Apache-2.0) AND Unicode-3.0 | 2 |
 | 0BSD OR MIT OR Apache-2.0 | 1 |
 | ISC AND (Apache-2.0 OR ISC) | 1 |
 | ISC AND (Apache-2.0 OR ISC) AND Apache-2.0 AND MIT AND BSD-3-Clause AND (Apache-2.0 OR ISC OR MIT) AND (Apache-2.0 OR ISC OR MIT-0) | 1 |
+| CC0-1.0 OR Apache-2.0 OR Apache-2.0 WITH LLVM-exception | 1 |
 | BSD-3-Clause AND MIT | 1 |
 | BSD-3-Clause/MIT | 1 |
 | Apache-2.0 AND MIT | 1 |
-| CC0-1.0 OR MIT-0 OR Apache-2.0 | 1 |
 | Apache-2.0 / MIT | 1 |
 | BSD-2-Clause OR MIT OR Apache-2.0 | 1 |
 | Apache-2.0 AND ISC | 1 |
@@ -113,6 +114,7 @@ this report only when the app adopts it (ADR 0008).
 | android_system_properties | 0.1.6 | MIT OR Apache-2.0 |
 | anyhow | 1.0.104 | MIT OR Apache-2.0 |
 | apple-native-keyring-store | 1.0.2 | MIT OR Apache-2.0 |
+| arrayvec | 0.7.8 | MIT OR Apache-2.0 |
 | async-broadcast | 0.7.2 | MIT OR Apache-2.0 |
 | async-channel | 2.5.0 | Apache-2.0 OR MIT |
 | async-executor | 1.14.1 | Apache-2.0 OR MIT |
@@ -135,6 +137,7 @@ this report only when the app adopts it (ADR 0008).
 | bit-vec | 0.8.0 | Apache-2.0 OR MIT |
 | bitflags | 1.3.2 | MIT/Apache-2.0 |
 | bitflags | 2.13.2 | MIT OR Apache-2.0 |
+| blake3 | 1.8.7 | CC0-1.0 OR Apache-2.0 OR Apache-2.0 WITH LLVM-exception |
 | block-buffer | 0.10.4 | MIT OR Apache-2.0 |
 | block-buffer | 0.12.1 | MIT OR Apache-2.0 |
 | block-padding | 0.4.2 | MIT OR Apache-2.0 |
@@ -170,6 +173,8 @@ this report only when the app adopts it (ADR 0008).
 | console_error_panic_hook | 0.1.7 | Apache-2.0/MIT |
 | console_log | 1.1.0 | MIT/Apache-2.0 |
 | const-oid | 0.10.2 | Apache-2.0 OR MIT |
+| constant_time_eq | 0.4.2 | CC0-1.0 OR MIT-0 OR Apache-2.0 |
+| constant_time_eq | 0.6.1 | CC0-1.0 OR MIT-0 OR Apache-2.0 |
 | cookie | 0.18.2 | MIT OR Apache-2.0 |
 | core-foundation | 0.10.1 | MIT OR Apache-2.0 |
 | core-foundation-sys | 0.8.7 | MIT OR Apache-2.0 |
@@ -275,7 +280,9 @@ this report only when the app adopts it (ADR 0008).
 | hex | 0.4.3 | MIT OR Apache-2.0 |
 | hkdf | 0.13.0 | MIT OR Apache-2.0 |
 | hmac | 0.13.0 | MIT OR Apache-2.0 |
+| html2text | 0.17.4 | MIT |
 | html5ever | 0.39.0 | MIT OR Apache-2.0 |
+| html5ever | 0.40.1 | MIT OR Apache-2.0 |
 | http | 1.5.0 | MIT OR Apache-2.0 |
 | http-body | 1.1.0 | MIT |
 | http-body-util | 0.1.5 | MIT |
@@ -340,6 +347,7 @@ this report only when the app adopts it (ADR 0008).
 | lru-slab | 0.1.3 | MIT OR Apache-2.0 OR Zlib |
 | mach2 | 0.7.0 | BSD-2-Clause OR MIT OR Apache-2.0 |
 | markup5ever | 0.39.0 | MIT OR Apache-2.0 |
+| markup5ever | 0.40.0 | MIT OR Apache-2.0 |
 | maybe-owned | 0.3.4 | MIT OR Apache-2.0 |
 | memchr | 2.8.3 | Unlicense OR MIT |
 | memoffset | 0.9.1 | MIT |
@@ -395,10 +403,14 @@ this report only when the app adopts it (ADR 0008).
 | pdfium-render | 0.9.5 | MIT OR Apache-2.0 |
 | percent-encoding | 2.3.2 | MIT OR Apache-2.0 |
 | phf | 0.13.1 | MIT |
+| phf | 0.14.0 | MIT |
 | phf_codegen | 0.13.1 | MIT |
+| phf_codegen | 0.14.0 | MIT |
 | phf_generator | 0.13.1 | MIT |
+| phf_generator | 0.14.0 | MIT |
 | phf_macros | 0.13.1 | MIT |
 | phf_shared | 0.13.1 | MIT |
+| phf_shared | 0.14.0 | MIT |
 | pin-project-lite | 0.2.17 | Apache-2.0 OR MIT |
 | piper | 0.2.5 | MIT OR Apache-2.0 |
 | piston-float | 1.0.1 | MIT |
@@ -428,6 +440,7 @@ this report only when the app adopts it (ADR 0008).
 | rand_core | 0.10.1 | MIT OR Apache-2.0 |
 | rand_pcg | 0.10.2 | MIT OR Apache-2.0 |
 | raw-window-handle | 0.6.2 | MIT OR Apache-2.0 OR Zlib |
+| rbook | 0.7.12 | Apache-2.0 |
 | redox_syscall | 0.5.18 | MIT |
 | redox_users | 0.5.3 | MIT |
 | ref-cast | 1.0.27 | MIT OR Apache-2.0 |
@@ -494,7 +507,9 @@ this report only when the app adopts it (ADR 0008).
 | stable_deref_trait | 1.2.1 | MIT OR Apache-2.0 |
 | starship-battery | 0.12.0 | ISC |
 | static_vcruntime | 3.0.0 | MIT OR Apache-2.0 OR Zlib |
+| string_cache | 0.11.0 | MIT OR Apache-2.0 |
 | string_cache | 0.9.0 | MIT OR Apache-2.0 |
+| string_cache_codegen | 0.11.2 | MIT OR Apache-2.0 |
 | string_cache_codegen | 0.6.1 | MIT OR Apache-2.0 |
 | strsim | 0.11.1 | MIT |
 | subtle | 2.6.1 | BSD-3-Clause |
@@ -556,12 +571,14 @@ this report only when the app adopts it (ADR 0008).
 | try-lock | 0.2.5 | MIT |
 | ts-rs | 12.0.1 | MIT |
 | ts-rs-macros | 12.0.1 | MIT |
+| typed-path | 0.13.0 | MIT OR Apache-2.0 |
 | typeid | 1.0.3 | MIT OR Apache-2.0 |
 | typenum | 1.20.1 | MIT OR Apache-2.0 |
 | uds_windows | 1.2.1 | MIT |
 | unicode-ident | 1.0.27 | (MIT OR Apache-2.0) AND Unicode-3.0 |
 | unicode-normalization | 0.1.26 | (MIT OR Apache-2.0) AND Unicode-3.0 |
 | unicode-segmentation | 1.13.3 | MIT OR Apache-2.0 |
+| unicode-width | 0.2.3 | MIT OR Apache-2.0 |
 | untrusted | 0.9.0 | ISC |
 | uom | 0.38.0 | Apache-2.0 OR MIT |
 | url | 2.5.8 | MIT OR Apache-2.0 |
@@ -587,6 +604,7 @@ this report only when the app adopts it (ADR 0008).
 | wasm-bindgen-shared | 0.2.130 | MIT OR Apache-2.0 |
 | wasm-streams | 0.5.0 | MIT OR Apache-2.0 |
 | web_atoms | 0.2.6 | MIT OR Apache-2.0 |
+| web_atoms | 0.3.0 | MIT OR Apache-2.0 |
 | web-sys | 0.3.107 | MIT OR Apache-2.0 |
 | web-time | 1.1.0 | MIT OR Apache-2.0 |
 | webkit2gtk | 2.0.2 | MIT |
@@ -651,9 +669,11 @@ this report only when the app adopts it (ADR 0008).
 | zerofrom | 0.1.8 | Unicode-3.0 |
 | zerofrom-derive | 0.1.8 | Unicode-3.0 |
 | zeroize | 1.9.1 | Apache-2.0 OR MIT |
+| zeroize_derive | 1.5.0 | Apache-2.0 OR MIT |
 | zerotrie | 0.2.5 | Unicode-3.0 |
 | zerovec | 0.11.9 | Unicode-3.0 |
 | zerovec-derive | 0.11.7 | Unicode-3.0 |
+| zip | 9.4.2 | MIT |
 | zlib-rs | 0.6.8 | Zlib |
 | zmij | 1.0.23 | MIT |
 | zvariant | 5.15.1 | MIT |

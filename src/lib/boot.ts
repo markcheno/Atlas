@@ -6,6 +6,7 @@ import { atlas } from './api/client';
 import type { DataRootStatus } from './api/bindings/DataRootStatus';
 import { appInfo } from './stores/app.svelte';
 import { inventory } from './stores/inventory.svelte';
+import { extraction } from './stores/extraction.svelte';
 import { library } from './stores/library.svelte';
 import { sources } from './stores/sources.svelte';
 import { theme } from './stores/theme.svelte';
@@ -27,11 +28,14 @@ export async function applyStatus(status: DataRootStatus, opts: { justChosen?: b
       sources.refresh(),
       inventory.refresh(),
       inventory.subscribe(),
+      extraction.refresh(),
+      extraction.subscribe(),
     ]);
     view.go(opts.justChosen && sources.roots.length === 0 ? 'library-folders' : 'home');
   } else if (status.state === 'not_configured') {
     sources.clear();
     inventory.clear();
+    extraction.clear();
     view.go('welcome');
   } else {
     view.go('unavailable');

@@ -16,6 +16,7 @@ const { theme } = await import('./lib/stores/theme.svelte');
 const { workspace } = await import('./lib/stores/workspace.svelte');
 const { sources } = await import('./lib/stores/sources.svelte');
 const { inventory } = await import('./lib/stores/inventory.svelte');
+const { extraction } = await import('./lib/stores/extraction.svelte');
 
 const h1 = (name: string | RegExp) => screen.findByRole('heading', { level: 1, name });
 
@@ -39,6 +40,7 @@ function resetAll() {
   workspace.status = null;
   sources.clear();
   inventory.clear();
+  extraction.clear();
   theme.apply('system');
 }
 
@@ -607,7 +609,8 @@ describe('library table', () => {
     await openLibrary();
     const rows = within(screen.getByRole('table')).getAllByRole('row');
     expect(rows).toHaveLength(5);
-    expect(screen.getByText('Only in the cloud')).toBeInTheDocument();
+    // In the table: the Text status filter also offers "Only in the cloud".
+    expect(within(screen.getByRole('table')).getByText('Only in the cloud')).toBeInTheDocument();
     expect(screen.getByText('Missing')).toBeInTheDocument();
     expect(screen.getByText('Not connected')).toBeInTheDocument();
     expect(screen.getByTestId('range')).toHaveTextContent('Showing 1–4 of 4 matches');
@@ -733,6 +736,190 @@ describe('library table', () => {
     await user.type(screen.getByLabelText('Search file names and folders'), 'meteor{Enter}');
     await screen.findByRole('heading', { level: 1, name: 'Library' });
     await waitFor(() => expect(lastQuery().text).toBe('meteor'));
+  });
+});
+
+describe('reading text', () => {
+  beforeEach(resetAll);
+
+  async function launchWith(ov: ReturnType<typeof tauri.extractionOverview>) {
+    tauri.setHandler('list_source_roots', () => [tauri.sourceRoot()]);
+    tauri.setHandler('get_extraction_status', () => ov);
+    return launchOpen();
+  }
+
+  const line = () => screen.getByTestId('extraction-status');
+  const counts = tauri.extractionCounts({ done: 3, pending: 7, total: 10 });
+
+  it.each([
+    [{ state: 'running' }, false, 'Reading text · 3 of 10 files'],
+    [{ state: 'running' }, true, 'Reading text · 3 files so far'],
+    [
+      { state: 'running', throttleReason: 'on_battery' },
+      false,
+      'Reading text · 3 of 10 files · Slowed on battery',
+    ],
+    [
+      { state: 'paused_policy', pauseReason: 'battery_low' },
+      false,
+      'Paused reading text · Resumes at 25% or when plugged in',
+    ],
+    [{ state: 'paused_user' }, false, 'Paused reading text by you · 3 of 10 files'],
+    [{ state: 'queued' }, false, 'Waiting to read text · 3 of 10 files'],
+  ] as const)('status line %#', async (active, scanning, text) => {
+    await launchWith(
+      tauri.extractionOverview({ active: tauri.extractionStatus(active), counts, scanning }),
+    );
+    expect(line()).toHaveTextContent(text);
+    if (scanning) expect(line().textContent).not.toMatch(/of \d/);
+  });
+
+  it('is up to date when every file has a status', async () => {
+    await launchWith(
+      tauri.extractionOverview({
+        counts: tauri.extractionCounts({ done: 8, needsOcr: 1, encrypted: 1, total: 10 }),
+      }),
+    );
+    expect(line()).toHaveTextContent('Text up to date · 8 of 10 files readable');
+    expect(screen.queryByRole('button', { name: 'Pause reading text' })).toBeNull();
+  });
+
+  it('shows nothing before any file is cataloged', async () => {
+    await launchWith(tauri.extractionOverview());
+    expect(screen.queryByTestId('extraction-status')).toBeNull();
+  });
+
+  it('pauses, resumes and cancels the reading job, not the scan', async () => {
+    const user = await launchWith(
+      tauri.extractionOverview({ active: tauri.extractionStatus(), counts }),
+    );
+    await user.click(screen.getByRole('button', { name: 'Pause reading text' }));
+    expect(tauri.invoke).toHaveBeenCalledWith('pause_job', { jobId: 'extract-1' });
+    events.emit(
+      'extraction-status',
+      tauri.extractionOverview({
+        active: tauri.extractionStatus({ state: 'paused_user' }),
+        counts,
+      }),
+    );
+    await user.click(await screen.findByRole('button', { name: 'Resume reading text' }));
+    expect(tauri.invoke).toHaveBeenCalledWith('resume_job', { jobId: 'extract-1' });
+    await user.click(screen.getByRole('button', { name: 'Cancel reading text' }));
+    expect(tauri.invoke).toHaveBeenCalledWith('cancel_job', { jobId: 'extract-1' });
+  });
+
+  it("says when a folder's reading is paused", async () => {
+    await launchWith(
+      tauri.extractionOverview({
+        active: tauri.extractionStatus({ state: 'paused_user' }),
+        counts,
+        roots: [
+          {
+            sourceRootId: 'root-books',
+            counts,
+            lastState: 'paused_user',
+            activeJobId: 'extract-1',
+          },
+        ],
+      }),
+    );
+    expect(await screen.findByTestId('root-text-line')).toHaveTextContent('Reading text paused');
+  });
+
+  it('reads a folder now from its line', async () => {
+    const user = await launchWith(tauri.extractionOverview());
+    await user.click(await screen.findByRole('button', { name: 'Read text now in Books' }));
+    expect(tauri.invoke).toHaveBeenCalledWith('start_extraction', { sourceRootId: 'root-books' });
+  });
+
+  const files = [
+    tauri.fileInstance({
+      id: 'r1',
+      displayName: 'Ready.pdf',
+      extraction: { state: 'done', reason: null },
+    }),
+    tauri.fileInstance({ id: 'r2', displayName: 'Now.pdf' }),
+    tauri.fileInstance({
+      id: 'r3',
+      displayName: 'Scan.pdf',
+      extraction: { state: 'needs_ocr', reason: 'no_text_layer' },
+    }),
+    tauri.fileInstance({
+      id: 'r4',
+      displayName: 'Locked.epub',
+      fileType: 'epub',
+      extraction: { state: 'encrypted', reason: 'drm' },
+    }),
+    tauri.fileInstance({
+      id: 'r5',
+      displayName: 'Away.pdf',
+      storage: 'cloud_only',
+      extraction: { state: 'cloud_only', reason: null },
+    }),
+    tauri.fileInstance({
+      id: 'r6',
+      displayName: 'Broken.pdf',
+      extraction: { state: 'unreadable', reason: 'not_a_pdf' },
+    }),
+    tauri.fileInstance({ id: 'r7', displayName: 'Later.pdf' }),
+  ];
+
+  async function openLibrary() {
+    tauri.setHandler('list_source_roots', () => [tauri.sourceRoot()]);
+    tauri.setHandler('list_documents', () =>
+      tauri.documentPage({ items: files, matchedSoFar: files.length }),
+    );
+    tauri.setHandler('get_extraction_status', () =>
+      tauri.extractionOverview({
+        active: tauri.extractionStatus({ currentFileId: 'r2' }),
+        counts: tauri.extractionCounts({ done: 1, pending: 2, total: 7 }),
+      }),
+    );
+    const user = await launchOpen();
+    await user.click(screen.getByRole('button', { name: 'Library' }));
+    await screen.findByRole('table');
+    return user;
+  }
+
+  it('shows a Text badge with a symbol and the reason for every file', async () => {
+    await openLibrary();
+    const badges = screen.getAllByTestId('text-status').map((b) => b.textContent?.trim());
+    expect(badges).toEqual([
+      '✓ Text ready',
+      '↻ Reading…',
+      '⊘ Needs OCR',
+      '🔒 Encrypted',
+      '☁ Only in the cloud',
+      "! Couldn't read",
+      '… Waiting',
+    ]);
+    const scan = screen.getAllByTestId('text-status')[2];
+    expect(scan).toHaveAttribute('title', expect.stringMatching(/looks scanned/));
+    expect(screen.getAllByTestId('text-status')[0]).not.toHaveAttribute('title');
+  });
+
+  it('refreshes the page as text is read, while cataloging status is also present', async () => {
+    await openLibrary();
+    tauri.invoke.mockClear();
+    events.emit(
+      'extraction-status',
+      tauri.extractionOverview({ counts: tauri.extractionCounts({ done: 7, total: 7 }) }),
+    );
+    await waitFor(
+      () => expect(tauri.invoke.mock.calls.filter(([c]) => c === 'list_documents').length).toBe(1),
+      { timeout: 2000 },
+    );
+  });
+
+  it('filters by text status', async () => {
+    const user = await openLibrary();
+    const calls = () => tauri.invoke.mock.calls.filter(([c]) => c === 'list_documents');
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Text status' }), 'needs_ocr');
+    await waitFor(() =>
+      expect((calls().at(-1)![1] as { query: Record<string, unknown> }).query.textStatus).toBe(
+        'needs_ocr',
+      ),
+    );
   });
 });
 

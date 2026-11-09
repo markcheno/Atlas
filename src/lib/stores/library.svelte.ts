@@ -6,6 +6,7 @@ import { atlas, AtlasApiError, toApiError } from '../api/client';
 import type { DocumentPage } from '../api/bindings/DocumentPage';
 import type { DocumentQuery } from '../api/bindings/DocumentQuery';
 import type { DocumentSort } from '../api/bindings/DocumentSort';
+import type { ExtractionState } from '../api/bindings/ExtractionState';
 import type { FileInstance } from '../api/bindings/FileInstance';
 import type { FileType } from '../api/bindings/FileType';
 
@@ -22,6 +23,7 @@ class LibraryState {
   sourceRootId = $state<string | null>(null);
   fileType = $state<FileType | null>(null);
   includeMissing = $state(false);
+  textStatus = $state<ExtractionState | null>(null);
   sort = $state<DocumentSort>('name_asc');
   page = $state(0);
 
@@ -47,6 +49,7 @@ class LibraryState {
       page: this.page,
       pageSize: PAGE_SIZE,
       includeMissing: this.includeMissing,
+      textStatus: this.textStatus,
     };
   }
 
@@ -78,7 +81,11 @@ class LibraryState {
     }
   }
 
-  setFilters(change: Partial<Pick<LibraryState, 'sourceRootId' | 'fileType' | 'includeMissing'>>) {
+  setFilters(
+    change: Partial<
+      Pick<LibraryState, 'sourceRootId' | 'fileType' | 'includeMissing' | 'textStatus'>
+    >,
+  ) {
     Object.assign(this, change);
     this.page = 0;
     void this.load();
@@ -143,6 +150,7 @@ class LibraryState {
     this.sourceRootId = null;
     this.fileType = null;
     this.includeMissing = false;
+    this.textStatus = null;
     this.sort = 'name_asc';
     this.page = 0;
     this.result = null;

@@ -3,6 +3,8 @@
   import { atlas } from '../api/client';
   import type { AppStatus } from '../api/bindings/AppStatus';
   import { count, elapsedText, statusLine } from '../inventoryCopy';
+  import { extractionLine } from '../extractionCopy';
+  import { extraction } from '../stores/extraction.svelte';
   import { inventory } from '../stores/inventory.svelte';
 
   let status = $state<AppStatus | null>(null);
@@ -13,6 +15,13 @@
       ['queued', 'running', 'paused_policy', 'failed_retryable'].includes(active.state),
   );
   const resumable = $derived(active?.state === 'paused_user');
+
+  const reading = $derived(extraction.overview?.active ?? null);
+  const readingLine = $derived(extractionLine(extraction.overview));
+  const readingPausable = $derived(
+    reading !== null &&
+      ['queued', 'running', 'paused_policy', 'failed_retryable'].includes(reading.state),
+  );
 
   onMount(() => {
     atlas.getAppStatus().then(
@@ -75,6 +84,44 @@
       <span class="muted">{count(inventory.overview.missingFiles, 'file')} missing</span>
     {/if}
   </div>
+  {#if readingLine}
+    <div class="cataloging">
+      <span role="status" data-testid="extraction-status">{readingLine}</span>
+      {#if reading}
+        <div class="controls">
+          {#if readingPausable}
+            <button
+              type="button"
+              class="small-button"
+              aria-label="Pause reading text"
+              onclick={() => extraction.pause(reading.jobId)}
+            >
+              Pause
+            </button>
+          {/if}
+          {#if reading.state === 'paused_user'}
+            <button
+              type="button"
+              class="small-button"
+              aria-label="Resume reading text"
+              onclick={() => extraction.resume(reading.jobId)}
+            >
+              Resume
+            </button>
+          {/if}
+          <button
+            type="button"
+            class="small-button"
+            aria-label="Cancel reading text"
+            title="Stop reading text. Text already read stays in your library."
+            onclick={() => extraction.cancel(reading.jobId)}
+          >
+            Cancel
+          </button>
+        </div>
+      {/if}
+    </div>
+  {/if}
   {#if status}
     <span class="muted">
       Atlas {status.appVersion} · Phase {status.slice.split('.')[0]} slice {status.slice}{status.buildProfile ===

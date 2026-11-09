@@ -91,6 +91,7 @@ impl Lib {
                 page: 0,
                 page_size: 200,
                 include_missing: true,
+                text_status: None,
             },
         )
         .unwrap();
