@@ -66,6 +66,8 @@ can't forge a highlight.
 The Search view (Slice 1.5) renders each span as plain text, a hit inside
 `<mark>`, and never uses `{@html}`; a Vitest case checks that HTML inside
 a snippet stays text.
+Typographic double quotes (`“ ” „ « »`) quote phrases like `"`, since
+macOS smart quotes turn a typed `"` into `“` (Slice 1.5).
 
 **Reads never wait for writes.** Search runs on the read-only connection
 pool, raised from 2 to 4 connections so a slow search never starves the

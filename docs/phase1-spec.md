@@ -464,6 +464,7 @@ Do **not** start extraction, FTS, or the search UI before Slice 1.1's gate passe
 - Search is a main tab (Home, Search, Library, Settings; Cmd/Ctrl+1–4). Home's box submits to it; nothing is searched while typing. Product-owner decision.
 - `get_document_detail(file_instance_id)` replaces `get_document(document_id)`: every Library row and result has a file ID, while a file not read yet has no document.
 - The smoke test generates the 1,000-file fixture with `--text-kb 4` and reads it fully; it also checks that no `--extract-worker` process outlives quitting while text is being read (the observable half of the Slice 1.7 carry-over).
+- Typographic double quotes (`“ ” „ ‟ « »`, full-width `＂`) quote phrases like `"`, because macOS smart quotes type them (found in the manual check).
 - Search results carry no Text badge (`SearchHit` has no text status, and a text match is read by definition); the detail panel shows it.
 
 ### Primary reference documentation (verify current versions at implementation time)

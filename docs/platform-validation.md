@@ -703,7 +703,43 @@ trap), and two new smoke steps on Windows and Linux: "quit while reading
 leaves no worker process" and "search finds a passage" on the 1,000-file
 text fixture.
 
-<!-- CI and macOS results are added below when they are in. -->
+<!-- CI results are added below when they are in. -->
+
+### macOS arm64, Slice 1.5 (2026-11-09)
+
+All on scratch data: the 1,000-file text fixture (`--text-kb 4`, 1,007
+files with one extra copy), a scratch data root and `ATLAS_CONFIG_DIR`,
+and `ATLAS_E2E_OPENER_LOG`, so nothing was opened in another app. The
+debug build ran on battery, in dark mode.
+
+1. Onboarding, cataloging and reading finished in seconds: "Text up to
+   date · 1,007 of 1,007 files readable". Home showed "Search your
+   library" and the new help text.
+2. Searching `"Astronomy marker 0"` from Home opened Search. **Found a
+   bug:** macOS smart quotes typed the opening quote as `“`, which the query
+   builder didn't treat as a quote, so the phrase became separate words
+   (the right book first, then any-words results). Fixed: `“ ” „ ‟ « »` and
+   the full-width `＂` now quote too (unit test
+   `typographic_quotes_make_phrases_too`). After the fix it was exactly one
+   document: "Astronomy Café crème book 000000", Chapter 1, part 1, the
+   phrase highlighted, "In the text", "Also in 1 other place".
+3. Details showed the title, file name, author Ada Lin, English, 4
+   chapters, type, size, modified, folder, path, "✓ Text ready", and Also
+   at with the copy, its status and its own Open and Show in Finder. The
+   panel is announced as a modal dialog, and focus lands on Close.
+4. Escape closed it, and Return then reopened it, so focus had gone back to
+   Details.
+5. Cmd+Q with an idle `--extract-worker` running left no Atlas process.
+
+**Known issue:** EPUB snippets can start with `# Chapter 1`: html2text
+writes headings as Markdown, and the stored text keeps the `#`. It's
+cosmetic, and is for Slice 1.6 (text clean-up, which means reading files
+again).
+
+**Not verified on macOS in Slice 1.5:** light mode; a full keyboard-only
+pass and the Tab trap in WebKit (Vitest covers the trap); filters and paging
+by hand; Open from a result. The run was stopped early because the
+keystrokes it sends go to whichever app is in front.
 
 ## Manual checklist for Windows and Linux
 
