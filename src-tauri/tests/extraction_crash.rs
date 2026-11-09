@@ -40,7 +40,10 @@ fn workers_of(parent: u32) -> Vec<sysinfo::Pid> {
     );
     sys.processes()
         .iter()
-        .filter(|(_, p)| p.parent() == Some(sysinfo::Pid::from_u32(parent)))
+        // On Linux sysinfo lists threads too, with their process as parent.
+        .filter(|(_, p)| {
+            p.parent() == Some(sysinfo::Pid::from_u32(parent)) && p.thread_kind().is_none()
+        })
         .map(|(pid, _)| *pid)
         .collect()
 }

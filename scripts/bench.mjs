@@ -340,12 +340,16 @@ function summarizeExtraction(r) {
     '',
     `## Text extraction: ${r.label} (${r.machine.os} ${r.machine.arch}${r.machine.ci ? ', CI runner' : ''})`,
     '',
-    '| Duty cycle | Files | PDF pages | Passages | Read s | Files/s | Pages/s | Passages/s | First searchable s | App CPU % | Worker CPU % | App / worker peak RSS MiB | Worker starts | Peak WAL MiB |',
-    '| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |',
+    '| Duty cycle | Files | PDF pages | Passages | Read s | Files/s | Pages/s | Passages/s | First searchable s | App CPU % | Worker CPU % | App / worker peak RSS MiB | Worker starts | Peak WAL MiB | Policy seen |',
+    '| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- |',
   ];
   for (const x of r.runs) {
     lines.push(
-      `| ${x.duty} | ${x.files} | ${x.pdfPages} | ${x.passages} | ${x.readSeconds} | ${x.filesPerSecond} | ${x.pagesPerSecond} | ${x.passagesPerSecond} | ${x.firstSearchableSeconds ?? '–'} | ${x.appCpuPercentOfOneCore} | ${x.workerCpuPercentOfOneCore} | ${x.appPeakRssMiB} / ${x.workerPeakRssMiB} | ${x.workerSpawns} | ${x.peakWalMiB} |`,
+      `| ${x.duty} | ${x.files} | ${x.pdfPages} | ${x.passages} | ${x.readSeconds} | ${x.filesPerSecond} | ${x.pagesPerSecond} | ${x.passagesPerSecond} | ${x.firstSearchableSeconds ?? '–'} | ${x.appCpuPercentOfOneCore} | ${x.workerCpuPercentOfOneCore} | ${x.appPeakRssMiB} / ${x.workerPeakRssMiB} | ${x.workerSpawns} | ${x.peakWalMiB} | ${Object.entries(
+        x.policySeen ?? {},
+      )
+        .map(([k, n]) => `${k} ${n}`)
+        .join(', ')} |`,
     );
   }
   const g = r.runs[0].growth;

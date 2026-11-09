@@ -226,8 +226,9 @@ fn one(ws: &Workspace, sql: &'static str) -> i64 {
         .unwrap_or(-1)
 }
 
-/// (cataloging finished, files still waiting for text, a reading job left)
-fn progress(ws: &Workspace) -> (bool, u32, bool) {
+/// (cataloging finished, files still waiting for text, a reading job left,
+/// what the reading job is doing: "running", "slow:<reason>", "paused:<reason>")
+fn progress(ws: &Workspace) -> (bool, u32, bool, Option<String>) {
     let root = ws.require_open().unwrap();
     let inv = inventory::control::overview(root).unwrap();
     let ov = root
@@ -235,10 +236,20 @@ fn progress(ws: &Workspace) -> (bool, u32, bool) {
         .read(|c| extraction_db::overview(c, None))
         .unwrap()
         .unwrap();
+    let doing = ov.active.as_ref().map(|a| {
+        if let Some(p) = a.pause_reason {
+            format!("paused:{p:?}")
+        } else if let Some(t) = a.throttle_reason {
+            format!("slow:{t:?}")
+        } else {
+            format!("{:?}", a.state)
+        }
+    });
     (
         inv.active.is_none() && ov.counts.total > 0,
         ov.counts.pending,
         ov.active.is_some() || ov.queued_jobs > 0,
+        doing,
     )
 }
 
@@ -266,7 +277,12 @@ fn children_of(sys: &mut System, parent: Pid) -> Vec<Pid> {
     sys.refresh_processes_specifics(ProcessesToUpdate::All, true, ProcessRefreshKind::nothing());
     sys.processes()
         .iter()
-        .filter(|(_, p)| p.parent() == Some(parent) && p.status() != ProcessStatus::Zombie)
+        // On Linux sysinfo lists threads too, with their process as parent.
+        .filter(|(_, p)| {
+            p.parent() == Some(parent)
+                && p.thread_kind().is_none()
+                && p.status() != ProcessStatus::Zombie
+        })
         .map(|(pid, _)| *pid)
         .collect()
 }
@@ -384,11 +400,16 @@ fn read_run(args: &Args, duty: Duty) -> Value {
     let mut first_searchable = None;
     let mut all_read = None;
     let mut peak_wal = 0u64;
+    // How often each policy state was seen while reading.
+    let mut seen: HashMap<String, u32> = HashMap::new();
     loop {
         if start.elapsed() > DEADLINE {
             fail("reading did not finish within two hours");
         }
-        let (_, pending, active) = progress(&ws);
+        let (_, pending, active, doing) = progress(&ws);
+        if let Some(doing) = doing {
+            *seen.entry(doing).or_default() += 1;
+        }
         peak_wal = peak_wal.max(file_bytes(&wal));
         if first_searchable.is_none() && one(&ws, "SELECT EXISTS (SELECT 1 FROM passages)") == 1 {
             first_searchable = Some(start.elapsed());
@@ -466,6 +487,7 @@ fn read_run(args: &Args, duty: Duty) -> Value {
         "workerSpawns": WorkerStats::get(&stats.spawns),
         "workerKills": WorkerStats::get(&stats.kills),
         "peakWalMiB": mib(peak_wal),
+        "policySeen": seen,
         "growth": {
             "pageSize": page_size,
             "textStoredBytes": text_stored,
@@ -543,7 +565,7 @@ fn recovery_run(args: &Args) -> Value {
         if t.elapsed() > DEADLINE {
             fail("reading did not finish after the kill");
         }
-        let (catalogued, pending, active) = progress(&ws);
+        let (catalogued, pending, active, _) = progress(&ws);
         if catalogued && pending == 0 && !active {
             break;
         }
