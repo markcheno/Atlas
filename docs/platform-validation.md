@@ -772,7 +772,15 @@ Library › Duplicates (`list_duplicates`) and Settings › Storage
   Linux: "duplicates list the six Introduction copies" and "settings show
   storage".
 
-<!-- CI results are added below when they are in. -->
+CI on branch `slice-16`: the full tier
+[42562391167](https://github.com/markcheno/Atlas/actions/runs/42562391167),
+10 of 10 jobs green in 10 minutes (2026-11-09). Smoke on Linux (39 s) and
+Windows (107 s): "duplicates list the six Introduction copies" (one group,
+6 copies, "1 group · 28.5 KB in extra copies") and "settings show storage"
+(the estimate and "Nothing to clean"), alongside Slice 1.5's steps (the
+worker was again caught mid-reading on both OSes and gone after quit). An
+earlier run failed on Windows only because `tests/metadata.rs` imported a
+Node module by a bare `D:\…` path; it now uses a `file://` URL.
 
 ### macOS arm64, Slice 1.6 (2026-11-09)
 
