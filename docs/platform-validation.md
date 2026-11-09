@@ -703,7 +703,15 @@ trap), and two new smoke steps on Windows and Linux: "quit while reading
 leaves no worker process" and "search finds a passage" on the 1,000-file
 text fixture.
 
-<!-- CI results are added below when they are in. -->
+CI on branch `slice-15`: the full tier
+[42553889553](https://github.com/markcheno/Atlas/actions/runs/42553889553),
+10 of 10 jobs green in 9.5 minutes (2026-11-09). In both smoke runs the
+worker was caught mid-reading ("Reading text · 126 of 1,006 files" on
+Linux, 129 on Windows), and quitting left no `--extract-worker` process.
+After the relaunch, reading finished ("Text up to date · 1,006 of 1,006
+files readable", 30 s into the run on Linux and 79 s on Windows), and
+`"Astronomy marker 0"` found Café crème book 000000.epub with the phrase
+highlighted. The whole smoke run took 32 s on Linux and 83 s on Windows.
 
 ### macOS arm64, Slice 1.5 (2026-11-09)
 
