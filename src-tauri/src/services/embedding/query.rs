@@ -147,6 +147,11 @@ impl QueryEmbedder {
         Ok(resolved)
     }
 
+    /// Forgets every cached query (benchmarks measure uncached queries).
+    pub fn forget_queries(&self) {
+        self.cache.lock().unwrap_or_else(|p| p.into_inner()).clear();
+    }
+
     fn cached(&self, model: &str, text: &str) -> Option<Vec<f32>> {
         let cache = self.cache.lock().unwrap_or_else(|p| p.into_inner());
         cache.get(model).and_then(|(_, m)| m.get(text).cloned())

@@ -27,17 +27,27 @@ use std::time::{Duration, Instant};
 
 use serde_json::{Value, json};
 
-use atlas_lib::domain::dto::{DuplicateQuery, JobKind, SearchQuery};
+use atlas_lib::domain::dto::{DuplicateQuery, JobKind, ProviderKind, SearchQuery};
+use atlas_lib::domain::traits::EmbeddingBackend;
+use atlas_lib::infrastructure::http_probe::ProbeConfig;
+use atlas_lib::infrastructure::keychain::LazyKeychain;
 use atlas_lib::infrastructure::local_source::LocalFsSource;
 use atlas_lib::infrastructure::system_probe::{OsResourceMonitor, SimulatedMonitor, Simulation};
 use atlas_lib::infrastructure::volume::OsVolumeInspector;
 use atlas_lib::services::documents::duplicates;
+use atlas_lib::services::embedding::chunk_map::ChunkMap;
+use atlas_lib::services::embedding::client::ProviderEmbeddingBackend;
+use atlas_lib::services::embedding::index::{VectorIndex, VectorPaths, open_readonly};
+use atlas_lib::services::embedding::models;
 use atlas_lib::services::extraction::db as extraction_db;
 use atlas_lib::services::extraction::job::{
     self as extraction_job, ExtractionConfig, ExtractionDeps,
 };
 use atlas_lib::services::extraction::supervisor::WorkerCommand;
 use atlas_lib::services::inventory::{InventoryConfig, InventoryDeps};
+use atlas_lib::services::providers::recommend::{QueryProfile, query_profile};
+use atlas_lib::services::providers::secrets::{Secret, SecretStore, account_for};
+use atlas_lib::services::search::hybrid::Semantic;
 use atlas_lib::services::system::ResourceGovernor;
 use atlas_lib::services::workspace::{Workspace, WorkspaceConfig};
 use atlas_lib::services::{inventory, search, sources, storage};
@@ -70,6 +80,7 @@ struct Args {
     eval: Option<PathBuf>,
     data_root: Option<PathBuf>,
     manifest: Option<PathBuf>,
+    semantic: bool,
 }
 
 fn parse_args() -> Args {
@@ -95,6 +106,7 @@ fn parse_args() -> Args {
             "--eval" => a.eval = Some(PathBuf::from(value())),
             "--data-root" => a.data_root = Some(PathBuf::from(value())),
             "--manifest" => a.manifest = Some(PathBuf::from(value())),
+            "--semantic" => a.semantic = true,
             other => fail(&format!("unknown argument {other}")),
         }
     }
@@ -108,7 +120,12 @@ fn main() {
             .data_root
             .as_deref()
             .unwrap_or_else(|| fail("--eval needs --data-root <library folder>"));
-        eval(questions, data_root, args.manifest.as_deref());
+        eval(
+            questions,
+            data_root,
+            args.manifest.as_deref(),
+            args.semantic,
+        );
         return;
     }
     let fixture = args
@@ -376,7 +393,7 @@ fn machine() -> Value {
 // ------------------------------------------------------------------ eval
 
 /// Prints each question's rank against an existing library, read-only.
-fn eval(questions: &Path, data_root: &Path, manifest: Option<&Path>) {
+fn eval(questions: &Path, data_root: &Path, manifest: Option<&Path>, semantic: bool) {
     let db = data_root.join("library").join("catalog.sqlite");
     if !db.is_file() {
         fail(&format!("no catalog at {}", db.display()));
@@ -420,14 +437,35 @@ fn eval(questions: &Path, data_root: &Path, manifest: Option<&Path>) {
     let list = questions["questions"]
         .as_array()
         .unwrap_or_else(|| fail("no questions"));
+    let meaning = semantic.then(|| meaning_for(&conn, data_root));
+    let mut map = ChunkMap::default();
     for q in list {
         let text = q["question"].as_str().unwrap_or_default();
         let relevant: Vec<String> = q["relevant"]
             .as_array()
             .map(|r| r.iter().filter_map(|v| v.as_str()).map(path_for).collect())
             .unwrap_or_default();
-        let page =
-            search::search(&conn, &query(text)).unwrap_or_else(|e| fail(&format!("search: {e}")));
+        let page = match &meaning {
+            None => search::search(&conn, &query(text)),
+            Some((index, backend, profile)) => {
+                let input = format!("{}{text}", profile.prefix.as_deref().unwrap_or(""));
+                let vector = backend
+                    .embed(&[input.as_str()])
+                    .unwrap_or_else(|e| fail(&format!("embed the question: {e}")))
+                    .remove(0);
+                search::search_with(
+                    &conn,
+                    &query(text),
+                    Some(Semantic {
+                        vector: Box::new(move || Some(vector)),
+                        index,
+                        chunk_map: &mut map,
+                        min_similarity: profile.min_similarity,
+                    }),
+                )
+            }
+        }
+        .unwrap_or_else(|e| fail(&format!("search: {e}")));
         let rank = page.hits.iter().position(|hit| {
             let mut paths = vec![hit.display_path.replace('\\', "/")];
             if let Some(doc) = &hit.document_id {
@@ -464,4 +502,67 @@ fn eval(questions: &Path, data_root: &Path, manifest: Option<&Path>) {
         list.len(),
         f64::from(passed) / list.len().max(1) as f64
     );
+}
+
+/// The library's meaning index, opened read-only, and its embedding
+/// service: the key from `ATLAS_EVAL_EMBED_KEY`, else the keychain.
+fn meaning_for(
+    conn: &rusqlite::Connection,
+    data_root: &Path,
+) -> (VectorIndex, ProviderEmbeddingBackend, QueryProfile) {
+    let model = models::serving(conn)
+        .ok()
+        .flatten()
+        .unwrap_or_else(|| fail("this library has no meaning index yet"));
+    let paths = VectorPaths::for_root(data_root);
+    let index = open_readonly(&paths, conn, &model.id).unwrap_or_else(|e| {
+        fail(&format!(
+            "{e}; open the library in Atlas once, then try again"
+        ))
+    });
+    let profile_id = model
+        .provider_profile_id
+        .clone()
+        .unwrap_or_else(|| fail("the meaning index's AI service was removed"));
+    let (kind, base, storage): (String, String, Option<String>) = conn
+        .query_row(
+            "SELECT kind, base_url, credential_storage FROM provider_profiles WHERE id = ?1",
+            [&profile_id],
+            |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
+        )
+        .unwrap_or_else(|_| fail("the meaning index's AI service was removed"));
+    let key = std::env::var("ATLAS_EVAL_EMBED_KEY")
+        .ok()
+        .filter(|k| !k.is_empty())
+        .or_else(|| {
+            (storage.as_deref() == Some("keychain"))
+                .then(|| {
+                    LazyKeychain::default()
+                        .get(&account_for(&profile_id))
+                        .ok()
+                        .flatten()
+                        .map(|s| s.expose().to_owned())
+                })
+                .flatten()
+        });
+    let backend = ProviderEmbeddingBackend {
+        kind: if kind == "ollama" {
+            ProviderKind::Ollama
+        } else {
+            ProviderKind::OpenaiCompatible
+        },
+        base: base.trim_end_matches('/').to_owned(),
+        key: key.map(Secret::new),
+        model: model.model_name.clone(),
+        dims: model.dims,
+        config: ProbeConfig::embedding(),
+        stop: Arc::new(|| false),
+    };
+    eprintln!(
+        "meaning search: {} ({} dimensions, {} vectors)",
+        model.model_name,
+        model.dims,
+        index.len()
+    );
+    (index, backend, query_profile(&model.model_name))
 }

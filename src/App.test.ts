@@ -1502,6 +1502,74 @@ describe('search', () => {
     expect(screen.getByTestId('search-range')).toHaveTextContent('Showing 1–3 of 3 documents');
   });
 
+  it('says when a result was found by meaning, never "Some of your words"', async () => {
+    await searchFor(
+      'a bored child underground',
+      tauri.searchPage({
+        hits: [
+          tauri.searchHit({
+            fileInstanceId: 'file-a',
+            title: 'Alice',
+            why: 'semantic',
+            allWords: true,
+            snippet: [
+              { text: '… down the rabbit-hole, never once considering how ', hit: false },
+              { text: 'underground', hit: true },
+              { text: ' …', hit: false },
+            ],
+          }),
+          tauri.searchHit({ fileInstanceId: 'file-b', title: 'Both ways', why: 'text_semantic' }),
+        ],
+        matchedDocuments: 2,
+        semantic: { state: 'ready', coveragePercent: 100 },
+      }),
+    );
+    const [first, second] = (await screen.findAllByTestId('search-hit')).map((h) => within(h));
+    expect(first.getByText('Similar meaning')).toBeInTheDocument();
+    expect(first.queryByText('Some of your words')).not.toBeInTheDocument();
+    expect(first.getByText('underground').tagName).toBe('MARK');
+    expect(second.getByText('In the text and similar meaning')).toBeInTheDocument();
+    expect(screen.queryByTestId('meaning-note')).not.toBeInTheDocument();
+  });
+
+  it.each([
+    [
+      { state: 'ready', coveragePercent: 31 },
+      'Meaning search covers 31% of files while the index builds.',
+    ],
+    [
+      { state: 'unavailable', reason: 'unreachable' },
+      "Showing text matches only: the AI service isn't reachable.",
+    ],
+    [
+      { state: 'unavailable', reason: 'timeout' },
+      'Showing text matches only: the AI service took too long. Search again in a moment.',
+    ],
+    [
+      { state: 'unavailable', reason: 'loading' },
+      'Showing text matches only: the meaning index is still loading.',
+    ],
+    [
+      { state: 'unavailable', reason: 'not_permitted' },
+      "Showing text matches only: embedding through an internet service isn't allowed in Settings › Privacy.",
+    ],
+  ] as const)('notes how meaning search went %#', async (semantic, text) => {
+    await searchFor(
+      'harmonic',
+      tauri.searchPage({ hits: [tauri.searchHit()], matchedDocuments: 1, semantic }),
+    );
+    expect(await screen.findByTestId('meaning-note')).toHaveTextContent(text);
+  });
+
+  it('says nothing about meaning when no embedding model is set up', async () => {
+    await searchFor(
+      'harmonic',
+      tauri.searchPage({ hits: [tauri.searchHit()], matchedDocuments: 1 }),
+    );
+    await screen.findAllByTestId('search-hit');
+    expect(screen.queryByTestId('meaning-note')).not.toBeInTheDocument();
+  });
+
   it('renders snippet text as text, never as markup', async () => {
     const hostile = tauri.searchHit({
       snippet: [

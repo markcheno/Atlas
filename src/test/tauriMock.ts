@@ -46,7 +46,7 @@ export const fakeStatus: AppStatus = {
   os: 'macos',
   arch: 'aarch64',
   buildProfile: 'debug',
-  slice: '2.3',
+  slice: '2.4',
   features: [],
 };
 
@@ -296,6 +296,7 @@ export function searchPage(overrides: Partial<SearchPage> = {}): SearchPage {
     readingText: false,
     textReadFiles: 10,
     totalFiles: 10,
+    semantic: { state: 'off' },
     ...overrides,
   };
 }
