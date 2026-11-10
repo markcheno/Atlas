@@ -633,6 +633,14 @@ eval-ask`; [ADR 0015](adr/0015-ask-atlas-answers-citations-injection.md)):
   nothing on, which `just eval-ask` asks after the vague set. They tune the
   weak margin and check refusals.
 
+**2026-11-10, amended during Slice 2.6.3** (after the third `just
+eval-ask`; [benchmarks](benchmarks.md#ask-atlas-slice-26)):
+
+- **The weak margin is 0.20** (from 0.10), from the margins of the vague
+  and off-library sets with Qwen3-Embedding-0.6B.
+- **A refusal stops after one sentence:** it doesn't list what the
+  excerpts cover, and cites nothing.
+
 ### Primary reference documentation (verify current versions at implementation time)
 
 - usearch (Rust): <https://docs.rs/usearch/latest/usearch/> and <https://github.com/unum-cloud/usearch>

@@ -52,17 +52,21 @@ chose. Three things make that risky:
   answer from its own memory with nothing to cite (product-owner decision,
   2026-11-10).
 - **Weak retrieval** is flagged when there are fewer than 3 sources, or
-  when the best meaning match is less than 0.10 above the model's
+  when the best meaning match is less than **0.20** above the model's
   similarity floor. Only without meaning search does a document with every
   word count instead. The screen says "Atlas found little about this; the
   answer may be thin".
   - Slice 2.6 also accepted every word as enough. A long book has every
     word of most questions, and the first `just eval-ask` never flagged
     one (Slice 2.6.1).
-  - `just eval-ask` prints each question's margin, to tune 0.10 from. It
-    also asks 12 questions the corpus has nothing on
-    (`questions-off.json`, Slice 2.6.2), since every vague question has a
-    document and so can't show where weak begins.
+  - `just eval-ask` prints each question's margin. It also asks 12
+    questions the corpus has nothing on (`questions-off.json`, Slice
+    2.6.2), since every vague question has a document and so can't show
+    where weak begins.
+  - **0.20 is set from that run** (Slice 2.6.3; it was 0.10). With
+    Qwen3-Embedding-0.6B (floor 0.25), covered questions began at 0.22
+    above the floor. Uncovered ones reached 0.24 at most, median 0.12.
+    Another embedding model may need its own margin.
 
 ### The prompt
 
@@ -75,9 +79,12 @@ chose. Three things make that risky:
     knows to recognise the work, but the details must come from the
     excerpts (Slice 2.6.2: with thinking off, 18 of 40 answers refused to
     name a book that was in front of them);
-  - only if no excerpt is about the question, say so and cite nothing
-    (Slice 2.6.1: the first `just eval-ask` cited every source in such
-    answers);
+  - only if no excerpt is about the question, say so in one sentence and
+    stop, without listing what the excerpts cover, and cite nothing.
+    - Slice 2.6.1: the first `just eval-ask` cited every source in such
+      answers.
+    - Slice 2.6.3: after "cite nothing", 9 of 12 off-library refusals
+      still listed every excerpt's subject, each cited.
   - be brief, in plain text, in the question's language.
 - **One user message** carries the sources as
   `<source id="n" title="…" location="…">…</source>` blocks, then

@@ -1155,6 +1155,13 @@ off-library questions for the evaluation. On every OS:
 [42890183602](https://github.com/markcheno/Atlas/actions/runs/42890183602),
 all green; `tests/answers.rs` passed 13 of 13 on each OS.
 
+## Slice 2.6.3
+
+From the third `just eval-ask`: the weak margin is 0.20, and a refusal is
+one uncited sentence. Ask Atlas's tests run unchanged on every OS.
+
+<!-- ci-2.6.3 -->
+
 ## Manual checklist for Windows and Linux
 
 CI runs an automated smoke test on Windows and Linux (Slice 0.8, below),

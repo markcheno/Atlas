@@ -803,7 +803,7 @@ fn ask_atlas_against_real_models() {
             "doesn't",
             "no excerpt",
             "none of",
-            "nothing",
+            // Not "nothing": "ruling by doing nothing" is a question's words.
         ]
         .iter()
         .any(|p| first.contains(p))
@@ -829,7 +829,10 @@ fn ask_atlas_against_real_models() {
                 AskReply::NothingFound { .. } => {
                     t.nothing_found += 1;
                     eprintln!("{qid} nothing found · margin {close:?}");
-                    transcript.push_str(&format!("## {qid} · nothing found\n\n{text}\n\n"));
+                    transcript.push_str(&format!(
+                        "## {qid} · margin {} · nothing found\n\n{text}\n\n",
+                        close.map_or("—".into(), |m| format!("{m:.2}"))
+                    ));
                     continue;
                 }
                 AskReply::NeedsDisclosure(_) => {
@@ -919,7 +922,8 @@ fn ask_atlas_against_real_models() {
             }
             t.wholes.push(end_at.duration_since(start).as_secs_f64());
             transcript.push_str(&format!(
-                "## {qid} · {}{}\n\n{text}\n\n{}\n\n",
+                "## {qid} · margin {} · {}{}\n\n{text}\n\n{}\n\n",
+                close.map_or("—".into(), |m| format!("{m:.2}")),
                 if started.weak { "weak" } else { "not weak" },
                 if not_covered { " · not covered" } else { "" },
                 match last {

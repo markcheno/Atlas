@@ -801,6 +801,11 @@ What it shows:
 - **Second places cost little.** About 2 more sources per question; the
   first word came 1 s later.
 
+**Slice 2.6.3** sets the weak margin to 0.20. A refusal is one sentence
+that stops: it doesn't list what the excerpts cover, and cites nothing.
+The eval no longer reads "nothing" as a refusal, and the answers file
+gives each question's margin. *The run after Slice 2.6.3 is pending.*
+
 CI has no model. There, the engine runs against a scripted service
 streaming canned answers (`tests/answers.rs`, P2-13 to P2-16).
 
