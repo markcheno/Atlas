@@ -614,6 +614,39 @@ the 30k text fixture, under the 250 ms target.
 - **The fake answers at once,** so the job's pace here is Atlas's own work.
   With oMLX the service sets it (about 72 chunks/s, Slice 2.3).
 
+**Throughput and recall on real vectors** (`just eval-embed`, run by the
+product owner on 2026-11-10, release build):
+
+- **The setup:** oMLX with `Qwen3-Embedding-0.6B-8bit`. Every chunk of the
+  spike corpus (1,954) was embedded again in the job's batches (126
+  requests of at most 16 chunks and 16,000 characters), timed at the
+  service.
+- **The recall queries:** the 40 vague questions and 200 chunks, the
+  index's top 10 against an exact cosine scan.
+
+| Measure | 1,024 dimensions (the service's) | 512 (stored) |
+| --- | ---: | ---: |
+| Chunks per second | 48.4 | the same |
+| Tokens per second (counted by the service) | 12,134 | the same |
+| Characters per second | 47,011 | the same |
+| Recall@10 of the index on real vectors | **0.9933** | **0.9979** |
+
+- **512 costs the service nothing less:** it always computes 1,024
+  numbers, and Atlas cuts them. The gain is storage and search, not
+  embedding time.
+- **Recall clears the ≥ 0.95 target** on real vectors at both lengths.
+  Synthetic vectors gave 0.960 at a million (Slice 2.2).
+- **The pace differs from Slice 2.3's 72 chunks/s** (67,000 characters/s).
+  Chunk size doesn't explain it: both average about 950 characters. The
+  two runs differ in library (1,000 generated books there), build (debug
+  there) and who sends the requests (the job there, this test here). At 48
+  to 72 chunks/s the 30k text fixture (0.6 to 0.9 million chunks) would
+  take 2.5 to 5 hours: overnight, but not measured.
+- **The share only meaning finds:** of the 40 vague questions, text alone
+  puts a relevant document in the top 5 for 35, and hybrid search at the
+  stored 512 for 38. Three (8%) are found only with meaning: v06 ("verses
+  about a grief that refuses to end"), v11 and v14.
+
 ## Related documents (Slice 2.5)
 
 `benches/embedding.rs`, after the job has finished: related documents for

@@ -102,10 +102,10 @@ Tests are in `src-tauri/tests/`.
 | --- | --- |
 | The index alone: build, save, reload, rebuild, recall@10, filtered p95, memory; 100k on CI, 300k and 1M locally | ✅ [benchmarks](benchmarks.md#vector-index-slice-22): every runner at 100k, the M5 Pro at 300k and 1M (recall@10 0.960 at 1M on synthetic vectors). Memory is measured on the M5 Pro only |
 | Embedding through the scripted backend: chunks/s, catalog growth, index ÷ raw, save time, hybrid p95 while embedding, event rate | ✅ M5 Pro at 1k and 30k (P2-18: p95 228 ms; 60.6 MiB per 1,000 documents; 0.536× raw); runners at 1k and 10k <!-- pending --> |
-| Against oMLX: embeddings/s and tokens/s at 1,024 and 512; recall@10 on real vectors | <!-- pending: just eval-embed --> |
-| Quality: P2-17 at 1,024 and 512; the share of vague questions only meaning answers | ✅ 0.925 / 0.950 hybrid at 1,024 / 512 (Slice 2.4) <!-- pending: share from eval-embed --> |
+| Against oMLX: embeddings/s and tokens/s at 1,024 and 512; recall@10 on real vectors | ✅ `just eval-embed`: 48.4 chunks/s, 12,134 tokens/s (the service's own count), the same at 512 since Atlas truncates; recall@10 0.9933 at 1,024 and 0.9979 at 512 ([benchmarks](benchmarks.md#meaning-search-slice-24)) |
+| Quality: P2-17 at 1,024 and 512; the share of vague questions only meaning answers | ✅ 0.925 / 0.950 hybrid at 1,024 / 512 (Slice 2.4); 3 of 40 (8%) found only with meaning: text alone 35, hybrid 38 (`just eval-embed`) |
 | Ask Atlas: time to first token and to the whole answer; citation and dropped-citation rates | ✅ Qwen3.8-27B on oMLX, thinking off: first word p50 15.6 s, whole answer 25.7 s; citation rate 0.20; 3 invented citations in 40 answers, all removed ([benchmarks](benchmarks.md#ask-atlas-slice-26)) |
-| Provisional targets | Recall@10 ≥ 0.95 on real vectors <!-- pending -->; hybrid p95 228 ms (≤ 250) ✅; 2,529–2,597 bytes per vector (≤ 2.5 KB) ◐ about 1% over; index 0.536× raw (≤ 0.6×) ✅; 30k embedded overnight ◐ projected at 2.5–3.5 hours on oMLX, not run |
+| Provisional targets | Recall@10 ≥ 0.95 on real vectors: 0.9979 at 512 ✅; hybrid p95 228 ms (≤ 250) ✅; 2,529–2,597 bytes per vector (≤ 2.5 KB) ◐ about 1% over; index 0.536× raw (≤ 0.6×) ✅; 30k embedded overnight ◐ projected at 2.5–5 hours on oMLX, not run |
 
 ## Packaging, CI and release evidence (§14)
 
@@ -194,7 +194,7 @@ ADRs 0012 to 0015.
 | Real battery during embedding | Windows, Linux | Manual checklist |
 | The Ask Atlas screen by hand, with a screen reader | Windows, Linux | Manual checklist (Ask Atlas screen) |
 | 30k search latency while embedding (P2-18) | Windows, Linux | 1k and 10k on CI; the reference machine is macOS |
-| The 30k fixture embedded through oMLX overnight | macOS | Projected at 2.5–3.5 hours (Slice 2.3); not run |
+| The 30k fixture embedded through oMLX overnight | macOS | Projected at 2.5–5 hours from 48–72 chunks/s (Slices 2.3, 2.8); not run |
 | Signing and notarization | all | As in Phase 1: ad hoc on macOS, unsigned elsewhere |
 
 ## Carry into Phase 3
