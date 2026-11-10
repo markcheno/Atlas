@@ -24,6 +24,7 @@ use infrastructure::local_source::LocalFsSource;
 use infrastructure::system_probe::{OsResourceMonitor, SimulatedMonitor, Simulation};
 use infrastructure::volume::OsVolumeInspector;
 use services::embedding::job::{self as embedding_job, EmbedConfig, EmbedDeps};
+use services::embedding::query::QueryEmbedder;
 use services::extraction::job::{self as extraction_job, ExtractionConfig, ExtractionDeps};
 use services::extraction::supervisor::WorkerCommand;
 use services::inventory::{InventoryConfig, InventoryDeps};
@@ -147,6 +148,15 @@ pub fn run() {
                 // Debug builds may record opens instead (smoke tests).
                 infrastructure::e2e::opener(),
                 vault,
+                // Search waits 1.5 s for a query's vector; a slower request
+                // finishes anyway and fills the cache (Slice 2.4).
+                Arc::new(QueryEmbedder::new(embedding_job::http_backends(
+                    ProbeConfig {
+                        connect_timeout: std::time::Duration::from_millis(500),
+                        total_timeout: std::time::Duration::from_secs(30),
+                        max_body_bytes: 1024 * 1024,
+                    },
+                ))),
             ));
             main_window(app)?;
             Ok(())

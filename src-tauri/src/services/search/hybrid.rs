@@ -34,8 +34,10 @@ const NAME_BOOST: f64 = 1.25;
 
 /// What meaning search needs for one query.
 pub struct Semantic<'a> {
-    /// The query's unit vector (with the model's query prefix).
-    pub vector: &'a [f32],
+    /// The query's unit vector (with the model's query prefix), asked for
+    /// after the text pass, so embedding the query overlaps it. `None`
+    /// when there is none (the service failed or was too slow).
+    pub vector: Box<dyn FnOnce() -> Option<Vec<f32>> + 'a>,
     pub index: &'a VectorIndex,
     pub chunk_map: &'a mut ChunkMap,
     /// Cosine similarity below which a chunk isn't a meaning match.
@@ -72,12 +74,15 @@ pub(super) fn nearest(
     if allowed.is_empty() {
         return Ok(Vec::new());
     }
+    let Some(vector) = (s.vector)() else {
+        return Ok(Vec::new());
+    };
     let map = &*s.chunk_map;
     let keep = |chunk: u64| map.document_of(chunk).is_some_and(|d| allowed.contains(&d));
     let found = if f.narrowed {
-        s.index.filtered_search(s.vector, NEIGHBOURS, keep)
+        s.index.filtered_search(&vector, NEIGHBOURS, keep)
     } else {
-        s.index.search(s.vector, NEIGHBOURS)
+        s.index.search(&vector, NEIGHBOURS)
     };
     let Ok(found) = found else {
         return Ok(Vec::new());

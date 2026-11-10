@@ -7,6 +7,7 @@ use crate::domain::dto::{DeviceCheck, DeviceSnapshot};
 use crate::domain::traits::SourceOpener;
 use crate::error::{AtlasError, AtlasResult};
 use crate::infrastructure::http_probe::ProbeConfig;
+use crate::services::embedding::query::QueryEmbedder;
 use crate::services::providers::secrets::SecretVault;
 use crate::services::system::ResourceGovernor;
 use crate::services::workspace::Workspace;
@@ -20,6 +21,8 @@ pub struct AppState {
     /// API keys: the OS keychain, or this session only.
     pub vault: Arc<SecretVault>,
     pub probe: ProbeConfig,
+    /// Embeds search queries for meaning search (Slice 2.4).
+    pub query: Arc<QueryEmbedder>,
 }
 
 impl AppState {
@@ -28,6 +31,7 @@ impl AppState {
         governor: Arc<Mutex<ResourceGovernor>>,
         opener: Arc<dyn SourceOpener>,
         vault: Arc<SecretVault>,
+        query: Arc<QueryEmbedder>,
     ) -> Self {
         Self {
             workspace: Arc::new(Mutex::new(workspace)),
@@ -35,6 +39,7 @@ impl AppState {
             opener,
             vault,
             probe: ProbeConfig::default(),
+            query,
         }
     }
 

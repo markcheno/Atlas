@@ -21,17 +21,23 @@ use std::collections::{HashMap, HashSet};
 use rusqlite::types::Value;
 use rusqlite::{Connection, OptionalExtension, params_from_iter};
 
+use std::sync::Arc;
+
 use crate::domain::dto::{
     Availability, FileStorage, FileType, MatchReason, SearchHit, SearchPage, SearchQuery,
-    SourceRootStatus,
+    SemanticStatus, SemanticUnavailable, SourceRootStatus,
 };
 use crate::error::{AtlasError, AtlasResult};
 use crate::services::catalog::codec::{from_db, to_db};
 use crate::services::catalog::reader::CatalogReader;
+use crate::services::catalog::writer::CatalogHandle;
 use crate::services::documents::metadata;
+use crate::services::embedding::query::{NoTarget, QueryEmbedder};
+use crate::services::embedding::registry::VectorRegistry;
 use crate::services::jobs::db::{ACTIVE_STATES, state_list};
 use crate::services::library::RootStatusCache;
 use crate::services::library::fold::{fold, like_escape};
+use crate::services::providers::secrets::SecretVault;
 
 pub const MAX_PAGE_SIZE: u32 = 50;
 /// Best passages considered per query, before grouping (phase1-spec §7.4).
@@ -450,32 +456,25 @@ pub fn search_with(
     Ok(page)
 }
 
-/// Searches on the read-only pool and marks results whose folder is not
-/// connected `unreachable`, as the Library does.
-pub fn run(
-    reader: &CatalogReader,
-    roots: &RootStatusCache,
-    q: &SearchQuery,
-) -> AtlasResult<SearchPage> {
-    let (mut page, root_paths) = reader
-        .read(|c| {
-            let page = search(c, q)?;
-            let mut paths: Vec<(String, Vec<u8>)> = Vec::new();
-            for hit in &page.hits {
-                if paths.iter().any(|(id, _)| *id == hit.source_root_id) {
-                    continue;
-                }
-                let bytes: Vec<u8> = c.query_row(
-                    "SELECT path_bytes FROM source_roots WHERE id = ?1",
-                    [&hit.source_root_id],
-                    |r| r.get(0),
-                )?;
-                paths.push((hit.source_root_id.clone(), bytes));
-            }
-            Ok::<_, rusqlite::Error>((page, paths))
-        })?
-        .map_err(AtlasError::db("search"))?;
-    let statuses = roots.statuses(&root_paths);
+/// The source folders of a page's hits, for marking unreachable ones.
+fn hit_roots(c: &Connection, page: &SearchPage) -> rusqlite::Result<Vec<(String, Vec<u8>)>> {
+    let mut paths: Vec<(String, Vec<u8>)> = Vec::new();
+    for hit in &page.hits {
+        if paths.iter().any(|(id, _)| *id == hit.source_root_id) {
+            continue;
+        }
+        let bytes: Vec<u8> = c.query_row(
+            "SELECT path_bytes FROM source_roots WHERE id = ?1",
+            [&hit.source_root_id],
+            |r| r.get(0),
+        )?;
+        paths.push((hit.source_root_id.clone(), bytes));
+    }
+    Ok(paths)
+}
+
+fn mark_unreachable(page: &mut SearchPage, roots: &RootStatusCache, paths: &[(String, Vec<u8>)]) {
+    let statuses = roots.statuses(paths);
     for hit in &mut page.hits {
         let reachable = statuses
             .get(&hit.source_root_id)
@@ -484,5 +483,124 @@ pub fn run(
             hit.availability = Availability::Unreachable;
         }
     }
+}
+
+/// Searches on the read-only pool and marks results whose folder is not
+/// connected `unreachable`, as the Library does. Text only (Phase 1).
+pub fn run(
+    reader: &CatalogReader,
+    roots: &RootStatusCache,
+    q: &SearchQuery,
+) -> AtlasResult<SearchPage> {
+    let (mut page, root_paths) = reader
+        .read(|c| {
+            let page = search(c, q)?;
+            let paths = hit_roots(c, &page)?;
+            Ok::<_, rusqlite::Error>((page, paths))
+        })?
+        .map_err(AtlasError::db("search"))?;
+    mark_unreachable(&mut page, roots, &root_paths);
     Ok(page)
+}
+
+/// What hybrid search needs from the open library and the app.
+pub struct MeaningContext<'a> {
+    pub vectors: &'a Arc<VectorRegistry>,
+    pub catalog: &'a CatalogHandle,
+    pub embedder: &'a Arc<QueryEmbedder>,
+    pub vault: &'a SecretVault,
+    /// The library's privacy setting.
+    pub allow_remote: bool,
+}
+
+/// Threads for opening an index that search found closed.
+const BACKGROUND_OPEN_THREADS: usize = 2;
+
+/// Search with meaning (Slice 2.4): as [`run`], plus meaning search when
+/// an embedding model, its index and its service are there, and the
+/// page's `semantic` status. Never fails for want of meaning search.
+pub fn run_hybrid(
+    reader: &CatalogReader,
+    roots: &RootStatusCache,
+    m: &MeaningContext<'_>,
+    q: &SearchQuery,
+) -> AtlasResult<SearchPage> {
+    let (mut page, root_paths) = reader
+        .read(|c| {
+            let (page, status) = hybrid_page(c, m, q)?;
+            let mut page = page;
+            page.semantic = status;
+            let paths = hit_roots(c, &page)?;
+            Ok::<_, rusqlite::Error>((page, paths))
+        })?
+        .map_err(AtlasError::db("search"))?;
+    mark_unreachable(&mut page, roots, &root_paths);
+    Ok(page)
+}
+
+fn hybrid_page(
+    c: &Connection,
+    m: &MeaningContext<'_>,
+    q: &SearchQuery,
+) -> rusqlite::Result<(SearchPage, SemanticStatus)> {
+    let target = match m.embedder.target(c, m.vault, m.allow_remote) {
+        Ok(t) => t,
+        Err(NoTarget::Off) => return Ok((search(c, q)?, SemanticStatus::Off)),
+        Err(NoTarget::Unavailable(reason)) => {
+            return Ok((search(c, q)?, SemanticStatus::Unavailable { reason }));
+        }
+    };
+    let Some(index) = m.vectors.loaded(&target.model.id) else {
+        m.vectors
+            .open_in_background(m.catalog, &target.model.id, BACKGROUND_OPEN_THREADS);
+        return Ok((
+            search(c, q)?,
+            SemanticStatus::Unavailable {
+                reason: SemanticUnavailable::Loading,
+            },
+        ));
+    };
+    let ready = SemanticStatus::Ready {
+        coverage_percent: coverage(c, &target.model.id)?,
+    };
+    if query::build(&q.text).is_none() {
+        return Ok((search(c, q)?, ready));
+    }
+    let pending = m.embedder.start(&target, &q.text);
+    let failure: std::cell::Cell<Option<SemanticUnavailable>> = std::cell::Cell::new(None);
+    let mut map = m.vectors.chunk_map();
+    let semantic = hybrid::Semantic {
+        vector: Box::new(|| match pending.wait() {
+            Ok(v) => Some(v),
+            Err(reason) => {
+                failure.set(Some(reason));
+                None
+            }
+        }),
+        index: &index,
+        chunk_map: &mut map,
+        min_similarity: target.profile.min_similarity,
+    };
+    let page = search_with(c, q, Some(semantic))?;
+    let status = match failure.get() {
+        Some(reason) => SemanticStatus::Unavailable { reason },
+        None => ready,
+    };
+    Ok((page, status))
+}
+
+/// The share of documents with text that the model has finished with.
+fn coverage(c: &Connection, model_id: &str) -> rusqlite::Result<u8> {
+    let (done, total): (i64, i64) = c.query_row(
+        "SELECT (SELECT COUNT(*) FROM document_embeddings
+                 WHERE model_id = ?1 AND status IN ('done', 'empty')),
+                (SELECT COUNT(*) FROM documents WHERE state = 'done')",
+        [model_id],
+        |r| Ok((r.get(0)?, r.get(1)?)),
+    )?;
+    Ok(if total == 0 {
+        100
+    } else {
+        ((done * 100) / total).clamp(0, 100) as u8
+    })
 }
