@@ -89,6 +89,11 @@ harness = false
 name = "vectors"
 harness = false
 
+[[bench]]
+# Phase 2 embedding job and hybrid search while it runs: `just bench-embedding`.
+name = "embedding"
+harness = false
+
 [dev-dependencies]
 plist = "1.10.3"
 tempfile = "3.27.0"

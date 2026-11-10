@@ -3,4 +3,4 @@
 /**
  * Why a result matched.
  */
-export type MatchReason = "text" | "name" | "both";
+export type MatchReason = "text" | "name" | "both" | "semantic" | "text_semantic";

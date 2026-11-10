@@ -513,6 +513,29 @@ pub fn open_index(
     ))
 }
 
+/// Opens a model's saved index without writing anything: the file is
+/// loaded only if its hash matches, and reconciled with the catalog in
+/// memory; nothing is saved, rebuilt or deleted. For reading a library
+/// with Atlas closed (`just eval --semantic`, Slice 2.4).
+pub fn open_readonly(
+    paths: &VectorPaths,
+    conn: &Connection,
+    model_id: &str,
+) -> Result<VectorIndex, String> {
+    let model = db::get_model(conn, model_id)
+        .map_err(|e| e.to_string())?
+        .ok_or("no such embedding model")?;
+    let index =
+        load_saved(paths, &model).map_err(|r| format!("the saved index can't be used ({r:?})"))?;
+    match reconcile(conn, &model, index, 2) {
+        Ok(Ok((index, _, _))) => Ok(index),
+        Ok(Err(r)) => Err(format!(
+            "the saved index is too far behind the catalog ({r:?})"
+        )),
+        Err(e) => Err(e.to_string()),
+    }
+}
+
 fn load_saved(paths: &VectorPaths, model: &EmbeddingModel) -> Result<VectorIndex, RebuildReason> {
     let Some(expected) = model.index_blake3.filter(|_| model.index_generation > 0) else {
         return Err(RebuildReason::NeverSaved);

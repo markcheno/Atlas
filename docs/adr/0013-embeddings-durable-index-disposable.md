@@ -182,3 +182,13 @@ index) plus the chunk row.
   both I/O routes; searches during saves; kills during saves), in
   `tests/vectors.rs`, `tests/vectors_crash.rs` and the unit tests of
   `chunk`, `vector`, `fake`, `index` and migration 0012.
+
+*Amended 2026-11-09 (Slice 2.4):* Qwen3-Embedding is stored at **512
+dimensions**. Its vectors may be cut short (Matryoshka), and on the vague
+evaluation set 512 loses nothing against 1,024 (hybrid hit@5 0.950 against
+0.925, on oMLX). The bundled catalog's `storedDimensions` marks the models
+this applies to. The service still returns its full length, and the
+backend keeps the first 512 numbers, normalised again. This halves the
+f16 vectors and the index file. A library indexed at 1,024 builds a new
+512 index while the old one serves (ADR 0014's model change).
+

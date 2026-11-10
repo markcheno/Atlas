@@ -509,6 +509,37 @@ Do **not** add usearch, chunking or any embedding table before Slice 2.1's gate 
 - **Model change:** a user-paused or cancelled folder holds a model change
   until it is resumed or "Index meaning now" is pressed.
 
+**2026-11-09, amended during Slice 2.4** ([ADR 0010 amendment](adr/0010-full-text-search.md#amendment-hybrid-search-phase-2-slice-24-2026-11-09)):
+
+- **Fusion is in two tiers.** Every-word text matches come first, fused
+  with meaning among themselves; then partial text matches and
+  meaning-only documents, fused (§7.4 said one RRF). One RRF dropped an
+  every-word match behind partial ones on Phase 1's set.
+- **Caps on meaning-only results.** At most 20 meaning-only documents per
+  search, and a per-model similarity floor (0.25 for Qwen3-Embedding), so
+  nonsense still finds nothing.
+- **The Phase 1 set with the fake backend is 39/40, not 1.00 on every OS**
+  (§10, P2-17): the fake's word overlap misses q40's long chunk. With the
+  real model on the reference machine it is 40/40, and that run asserts it.
+- **Filters use a chunk → document map** instead of a per-chunk (root,
+  type) table, with the allowed documents asked per query: it never goes
+  stale.
+- **No exact path for small scopes:** a 0.5% folder takes 85 ms p95 at 200
+  results and a million vectors (§7.3 planned one under 2%).
+- **512 dimensions are the default for Qwen3-Embedding** (§6.1, §13): on the
+  vague set hybrid hit@5 is 0.950 at 512 against 0.925 at 1,024, so 512
+  loses nothing. It is kept for the models the bundled catalog marks
+  (`storedDimensions`): the service returns 1,024 numbers, Atlas keeps the
+  first 512, normalised again.
+- **The vague set is less vague than intended:** text search alone finds
+  0.875 of it on oMLX's run. Meaning alone finds 0.950 to 0.975.
+- **Recipes:** `just eval-meaning` is the read-only `--semantic` run on a
+  library (rather than a flag on `just eval`); `just eval-semantic` is the
+  P2-17 gate against a real model.
+- **Query embedding:** search embeds queries with the serving model (not
+  the role's, which may be building), and checks permission against its
+  service.
+
 ### Primary reference documentation (verify current versions at implementation time)
 
 - usearch (Rust): <https://docs.rs/usearch/latest/usearch/> and <https://github.com/unum-cloud/usearch>

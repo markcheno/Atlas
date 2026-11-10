@@ -54,6 +54,64 @@ pub fn spans(marked: &str) -> Vec<SnippetSpan> {
     out
 }
 
+/// About how many characters a meaning-search snippet shows.
+pub const MEANING_SNIPPET_CHARS: usize = 240;
+
+/// A meaning-search hit's snippet: the chunk's text, trimmed to about
+/// [`MEANING_SNIPPET_CHARS`] around its middle at word boundaries, with
+/// each word whose folded form is one of `terms` (already folded) marked.
+pub fn meaning(chunk: &str, terms: &[String]) -> Vec<SnippetSpan> {
+    let chars: Vec<char> = chunk.chars().collect();
+    let (mut start, mut end) = (0, chars.len());
+    if chars.len() > MEANING_SNIPPET_CHARS {
+        start = (chars.len() - MEANING_SNIPPET_CHARS) / 2;
+        end = start + MEANING_SNIPPET_CHARS;
+        // To whole words, where there are spaces to find.
+        if let Some(i) = (start..end.min(start + 40)).find(|&i| chars[i].is_whitespace()) {
+            start = i + 1;
+        }
+        if let Some(i) = (end.saturating_sub(40).max(start)..end)
+            .rev()
+            .find(|&i| chars[i].is_whitespace())
+        {
+            end = i;
+        }
+    }
+    let mut marked = String::new();
+    if start > 0 {
+        marked.push('…');
+    }
+    let window: String = chars[start..end].iter().collect();
+    let mut word = String::new();
+    let flush = |word: &mut String, marked: &mut String| {
+        if word.is_empty() {
+            return;
+        }
+        let folded = crate::services::library::fold::fold(word);
+        if terms.contains(&folded) {
+            marked.push(HIT_START);
+            marked.push_str(word);
+            marked.push(HIT_END);
+        } else {
+            marked.push_str(word);
+        }
+        word.clear();
+    };
+    for c in strip_markers(&window).chars() {
+        if c.is_alphanumeric() {
+            word.push(c);
+        } else {
+            flush(&mut word, &mut marked);
+            marked.push(c);
+        }
+    }
+    flush(&mut word, &mut marked);
+    if end < chars.len() {
+        marked.push('…');
+    }
+    spans(&marked)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -89,5 +147,35 @@ mod tests {
     #[test]
     fn stored_text_cannot_carry_markers() {
         assert_eq!(strip_markers("a\u{E000}b\u{E001}c"), "abc");
+    }
+
+    #[test]
+    fn meaning_snippets_trim_at_words_and_mark_query_words() {
+        let text = format!(
+            "{} the starship passed a Comète {}",
+            "alpha ".repeat(60),
+            "omega ".repeat(60)
+        );
+        let spans = meaning(&text, &["comete".into(), "starship".into()]);
+        let joined: String = spans.iter().map(|s| s.text.as_str()).collect();
+        assert!(joined.starts_with('…') && joined.ends_with('…'));
+        assert!(joined.chars().count() <= MEANING_SNIPPET_CHARS + 2);
+        assert!(
+            !joined.contains("lpha") || joined.contains("alpha"),
+            "whole words only"
+        );
+        let hits: Vec<&str> = spans
+            .iter()
+            .filter(|s| s.hit)
+            .map(|s| s.text.as_str())
+            .collect();
+        assert_eq!(
+            hits,
+            ["starship", "Comète"],
+            "folded match, original text shown"
+        );
+        let short = meaning("A short chunk.", &[]);
+        assert_eq!(short.len(), 1);
+        assert_eq!(short[0].text, "A short chunk.");
     }
 }

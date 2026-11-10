@@ -4,6 +4,9 @@
   "models": [
     {
       "id": "qwen3-embedding-0.6b",
+      "queryPrefix": "Instruct: Given a search query, retrieve passages that answer it\nQuery: ",
+      "minSimilarity": 0.25,
+      "storedDimensions": 512,
       "label": "Qwen3-Embedding 0.6B",
       "role": "embedding",
       "kind": "recommended",
@@ -49,6 +52,9 @@
     },
     {
       "id": "qwen3-embedding-4b",
+      "queryPrefix": "Instruct: Given a search query, retrieve passages that answer it\nQuery: ",
+      "minSimilarity": 0.25,
+      "storedDimensions": 512,
       "label": "Qwen3-Embedding 4B",
       "role": "embedding",
       "kind": "higher_quality",

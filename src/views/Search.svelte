@@ -16,8 +16,12 @@
     resultRange,
     SEARCH_HELP,
     WHY_LABEL,
+    foundByWords,
+    meaningNote,
+    meaningPending,
   } from '../lib/searchCopy';
   import { details } from '../lib/stores/details.svelte';
+  import { embedding } from '../lib/stores/embedding.svelte';
   import { extraction } from '../lib/stores/extraction.svelte';
   import { fromHit, originals } from '../lib/stores/originals.svelte';
   import { search, SEARCH_PAGE_SIZE } from '../lib/stores/search.svelte';
@@ -45,6 +49,16 @@
     if (extraction.overview) {
       untrack(() => {
         if (search.result?.readingText) search.refreshLive();
+      });
+    }
+  });
+
+  // Meaning search was loading its index or the service was slow: the
+  // next embedding-status event is a good moment to search again.
+  $effect(() => {
+    if (embedding.overview) {
+      untrack(() => {
+        if (search.result && meaningPending(search.result.semantic)) search.refreshLive();
       });
     }
   });
@@ -113,6 +127,9 @@
         {readingNote(page.textReadFiles, page.totalFiles)}
       </p>
     {/if}
+    {#if meaningNote(page.semantic)}
+      <p class="note" data-testid="meaning-note">{meaningNote(page.semantic)}</p>
+    {/if}
     {#if page.hits.length === 0}
       <div class="empty">
         {#if page.textReadFiles === 0}
@@ -144,7 +161,7 @@
             {/if}
             <p class="why small">
               <span>{WHY_LABEL[hit.why]}</span>
-              {#if !hit.allWords}<span>Some of your words</span>{/if}
+              {#if !hit.allWords && foundByWords(hit.why)}<span>Some of your words</span>{/if}
               {#if also}<span>{also}</span>{/if}
               {#if hit.availability !== 'available' || hit.storage === 'cloud_only'}
                 <span class="badge" data-status={hit.availability}>{statusLabel(hit)}</span>

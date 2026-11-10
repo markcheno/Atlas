@@ -256,7 +256,9 @@ jobs:
         # minutes.
         # The vector index at 100,000 synthetic vectors (Phase 2, Slice 2.2);
         # 300,000 and 1,000,000 run on the reference machine.
-        run: node scripts/bench.mjs --out "$RUNNER_TEMP/bench" --search-size 1k --vectors-size 100000
+        # The embedding job with hybrid search while it runs, on the 1k text
+        # fixture (Slice 2.4; 30k on the reference machine).
+        run: node scripts/bench.mjs --out "$RUNNER_TEMP/bench" --search-size 1k --vectors-size 100000 --embedding-size 1k
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always()
         with:

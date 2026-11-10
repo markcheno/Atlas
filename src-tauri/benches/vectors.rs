@@ -399,6 +399,13 @@ fn main() {
             found.push(hits.into_iter().map(|(k, _)| k).collect::<Vec<_>>());
         }
     }
+    let mut wide = Vec::new();
+    for q in &queries {
+        let t = Instant::now();
+        index.search(q, 200).unwrap();
+        wide.push(ms(t));
+    }
+    let unfiltered_at_200 = latency(&mut wide);
     let rq = &queries[..a.recall_queries.min(queries.len())];
     let t = Instant::now();
     let truth = brute_force(&data, a.dims, rq, a.threads, |_| true);
@@ -406,6 +413,7 @@ fn main() {
     let unfiltered = json!({
         "recallAt10": recall(&found, &truth),
         "latency": latency(&mut lat),
+        "latencyAt200": unfiltered_at_200,
         "bruteForceMsPerQuery": (brute_ms * 1000.0).round() / 1000.0,
     });
 
@@ -424,8 +432,16 @@ fn main() {
                 found.push(hits.into_iter().map(|(k, _)| k).collect::<Vec<_>>());
             }
         }
+        // As hybrid search asks (Slice 2.4): the 200 nearest in the folder.
+        let mut wide = Vec::new();
+        for q in &queries {
+            let t = Instant::now();
+            index.filtered_search(q, 200, keep).unwrap();
+            wide.push(ms(t));
+        }
         let truth = brute_force(&data, a.dims, rq, a.threads, |i| roots[i] == root);
         filtered.push(json!({
+            "latencyAt200": latency(&mut wide),
             "share": (share * 1000.0).round() / 1000.0,
             // No vectors in that folder at this size: nothing to recall.
             "recallAt10": (share > 0.0).then(|| recall(&found, &truth)),

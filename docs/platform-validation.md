@@ -1068,6 +1068,36 @@ The catalog afterwards:
 - **Size:** the index file is 58.3 MB (0.536 of the raw f32 vectors), and
   the catalog is 105.7 MB.
 
+## Slice 2.4
+
+Hybrid search ([ADR 0010 amendment](adr/0010-full-text-search.md#amendment-hybrid-search-phase-2-slice-24-2026-11-09)).
+On every OS:
+
+- `tests/hybrid_search.rs` (P2-10, P2-11) and `tests/semantic_eval.rs` (the
+  plumbing, with the fake backend);
+- the bench job's embedding benchmark at 1k.
+
+**CI on `slice-24`:** full run
+[42753958804](https://github.com/markcheno/Atlas/actions/runs/42753958804),
+all green. The run before it,
+[42751707645](https://github.com/markcheno/Atlas/actions/runs/42751707645),
+failed `semantic_eval` on Windows: it compared a relevant path built with
+`/` against a display path with `\`. The test now compares paths as paths.
+
+### macOS arm64, Slice 2.4 (2026-11-09)
+
+The product owner ran the quality gate (P2-17) against oMLX on the
+reference machine twice:
+
+- **Before the dimension decision:** 512 dimensions were computed in
+  memory.
+- **After it, on what ships:** Atlas's own 512-dimension index, with the
+  0.25 similarity floor.
+
+Both passed: hybrid hit@5 0.950 on the vague set (text only 0.875), and
+Phase 1's set 40/40 ([benchmarks](benchmarks.md#meaning-search-slice-24)).
+P2-18 ran locally on the 30k text fixture: hybrid search p95 228 ms while embedding 733,668 chunks, under the 250 ms target.
+
 ## Manual checklist for Windows and Linux
 
 CI runs an automated smoke test on Windows and Linux (Slice 0.8, below),
@@ -1380,6 +1410,17 @@ and read:
 6. Add a service at an internet address and choose it for Embeddings: the
    line says "Indexing meaning needs your permission" until Settings ›
    Privacy allows it.
+
+### Searching by meaning (Slice 2.4)
+
+1. With an embedding model chosen and the library indexed (Slice 2.3),
+   search for a question in your own words, for example "a bored child on a
+   riverbank wanders into a strange underground world" with the spike
+   corpus. *Alice's Adventures in Wonderland* comes first, marked "Similar
+   meaning" or "In the text and similar meaning".
+2. Stop the AI service and search again: the same text results, with
+   "Showing text matches only: the AI service isn't reachable."
+3. Search for nonsense ("zqxjv plorbix"): nothing is found.
 
 ## Known platform notes
 

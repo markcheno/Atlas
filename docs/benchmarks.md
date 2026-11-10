@@ -536,4 +536,81 @@ At duty 0.5 that is roughly twice as long: still within "overnight"
 (phase2-spec §13). Slice 2.4 measures tokens per second and 1,024 against
 512 dimensions properly.
 
+## Meaning search (Slice 2.4)
+
+**P2-17: the vague question set against oMLX.** The product owner ran it
+on the reference machine on 2026-11-09 with `just eval-semantic`.
+
+- **Model and corpus:** Qwen3-Embedding-0.6B-8bit, with its query
+  instruction. The spike corpus's 19 readable documents make 1,954 chunks.
+- **The 512 column** is Atlas's own index (it stores 512). The 1,024 column
+  is the same chunks embedded again at full length for comparison.
+- **The floor:** a chunk counts as a meaning match from cosine similarity
+  0.25.
+
+| Hit@5 of 40 | Text only | Meaning only | Hybrid |
+| --- | ---: | ---: | ---: |
+| 1,024 dimensions | 0.875 | 0.950 | 0.925 |
+| **512 dimensions (stored)** | 0.875 | **0.975** | **0.950** |
+
+- **The gate:** hybrid hit@5 ≥ 0.80 and meaning only above text only both
+  hold. Phase 1's set through hybrid search on the stored index is 40/40.
+- **Query embedding** takes 16 to 17 ms median and 34 ms at most on oMLX.
+- **Similarity:** relevant documents' best chunks average 0.50 (lowest
+  0.26), and other documents' 0.44. The floor only keeps out nonsense; it
+  can't separate relevant from related.
+- **The dimension default (§6.1):** 512 loses nothing against 1,024, so
+  Qwen3-Embedding is stored at 512 (`storedDimensions` in the bundled
+  catalog). Vectors and the index file are half the size.
+- **The set is less vague than intended:** text search alone finds 35 of
+  the 40. Meaning lifts the hard ones, for example:
+  - v06 ("verses about a grief that refuses to end"): text 9th, hybrid 3rd;
+  - v11: text 10th, hybrid 4th;
+  - v14: text 6th, hybrid 2nd;
+  - v38 ("a jetliner's height-above-ground instrument"): text misses it,
+    meaning finds it first. Hybrid still misses it, because partial text
+    matches that also match by meaning outrank a meaning-only result.
+- **With the fake backend on every OS** (`tests/semantic_eval.rs`):
+  Phase 1's set is 39/40 through hybrid search, and every question gets a
+  page with meaning search ready.
+
+**Search at 200 results** (`benches/vectors.rs`, a million 1,024-dimension
+vectors on the reference machine): hybrid search asks for the 200 nearest
+chunks.
+
+| Search | Recall@10 | p95 at 10 results | p95 at 200 results |
+| --- | ---: | ---: | ---: |
+| Unfiltered | 0.949 | 0.78 ms | 0.92 ms |
+| One folder (5%) | 0.989 | 6.9 ms | 10.3 ms |
+| One folder (0.5%) | 0.990 | 60 ms | 85 ms |
+
+Even the narrowest folder stays within the 250 ms search budget, so there
+is no separate exact-search path for small scopes.
+
+**P2-18: hybrid search while the embedding job runs** (`benches/embedding.rs`):
+
+- **The job:** the embed job with the deterministic backend at 1,024
+  dimensions, at its Run duty cycle.
+- **The queries:** every 200 ms, 10 queries (the text search mix plus
+  vague questions) go through hybrid search uncached, each waiting 50 ms
+  for its query embedding, as a local service would.
+
+| Fixture | Machine | Documents | Chunks | Chunks/s | Bytes per vector | File ÷ raw | Save | Hybrid p50 / p95 / max |
+| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | --- |
+| 1k text | M5 Pro | 1,001 | 24,606 | 408 | 2,528 | 0.536 | 98 ms | 60 / 85 / 101 ms |
+| 30k text | M5 Pro | 30,001 | 733,668 | 178 | 2,597 | 0.536 | 1,864 ms | 145 / **228** / 813 ms |
+
+**P2-18 holds:** hybrid search p95 is 228 ms while the embedding job fills
+the 30k text fixture, under the 250 ms target.
+
+- **The run:** the job embedded 733,668 chunks in 69 minutes, slower as
+  the index grew and with searches every 200 ms. The catalog grew 60.6 MiB
+  per 1,000 documents, and the index file reached 1.5 GB (1,024 dimensions;
+  Qwen3-Embedding is now stored at 512, half that).
+- **The slowest search (813 ms)** coincided with the job holding the index
+  for its adds. Searches wait for adds and removes, not for saves
+  (ADR 0013).
+- **The fake answers at once,** so the job's pace here is Atlas's own work.
+  With oMLX the service sets it (about 72 chunks/s, Slice 2.3).
+
 <!-- results:end -->

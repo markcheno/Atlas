@@ -122,7 +122,11 @@ pub struct ResolvedService {
     pub base: String,
     pub key: Option<Secret>,
     pub model: String,
+    /// The vector length Atlas stores (the model row's dimensions).
     pub dims: usize,
+    /// The vector length the service returns: more than `dims` when Atlas
+    /// keeps only the first `dims` (Slice 2.4).
+    pub native_dims: usize,
 }
 
 /// Builds the backend a job sends its chunks to.
@@ -137,7 +141,8 @@ pub fn http_backends(config: ProbeConfig) -> BackendFactory {
             base: s.base.clone(),
             key: s.key.clone(),
             model: s.model.clone(),
-            dims: s.dims,
+            dims: s.native_dims.max(s.dims),
+            keep: s.dims,
             config,
             stop,
         })
@@ -478,6 +483,7 @@ impl EmbedProcessor {
                 key,
                 model: model.model_name.clone(),
                 dims: model.dims,
+                native_dims: role.dims,
             },
             Some(Ok(Prepared::Blocked(_))) => {
                 self.fail(&job.id, "address_rejected");
@@ -494,7 +500,6 @@ impl EmbedProcessor {
                 return Flow::Continue;
             }
         };
-        debug_assert_eq!(role.dims, model.dims);
         let stop_signal = Arc::clone(&self.signal);
         let stop: StopCheck = Arc::new(move || stop_signal.stopped());
         let backend = (self.deps.backends)(&service, stop);

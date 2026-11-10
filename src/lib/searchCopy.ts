@@ -1,8 +1,10 @@
 /**
- * Words for full-text search (phase1-spec §5.1, §5.2).
+ * Words for search (phase1-spec §5.1, §5.2; meaning search, phase2-spec
+ * §5.3).
  */
 import type { ExtractionOverview } from './api/bindings/ExtractionOverview';
 import type { MatchReason } from './api/bindings/MatchReason';
+import type { SemanticStatus } from './api/bindings/SemanticStatus';
 import type { TitleSource } from './api/bindings/TitleSource';
 import { count } from './inventoryCopy';
 
@@ -13,7 +15,44 @@ export const WHY_LABEL: Record<MatchReason, string> = {
   text: 'In the text',
   name: 'In the name',
   both: 'In the text and the name',
+  semantic: 'Similar meaning',
+  text_semantic: 'In the text and similar meaning',
 };
+
+/** Whether "Some of your words" can apply: never to a meaning match. */
+export function foundByWords(why: MatchReason): boolean {
+  return why !== 'semantic' && why !== 'text_semantic';
+}
+
+/** The one-line note above the results about meaning search, or null. */
+export function meaningNote(s: SemanticStatus): string | null {
+  switch (s.state) {
+    case 'off':
+      return null;
+    case 'ready':
+      return s.coveragePercent < 100
+        ? `Meaning search covers ${s.coveragePercent}% of files while the index builds.`
+        : null;
+    case 'unavailable':
+      switch (s.reason) {
+        case 'not_permitted':
+          return "Showing text matches only: embedding through an internet service isn't allowed in Settings › Privacy.";
+        case 'unreachable':
+          return "Showing text matches only: the AI service isn't reachable.";
+        case 'timeout':
+          return 'Showing text matches only: the AI service took too long. Search again in a moment.';
+        case 'loading':
+          return 'Showing text matches only: the meaning index is still loading.';
+        default:
+          return "Showing text matches only: meaning search didn't work this time.";
+      }
+  }
+}
+
+/** Whether the shown results may improve by searching again soon. */
+export function meaningPending(s: SemanticStatus): boolean {
+  return s.state === 'unavailable' && (s.reason === 'loading' || s.reason === 'timeout');
+}
 
 /** Where a title came from, when it isn't the file's own metadata. */
 export const TITLE_SOURCE_NOTE: Record<TitleSource, string | null> = {

@@ -11,12 +11,14 @@
 //! (Slice 2.4) build on this module.
 
 pub mod chunk;
+pub mod chunk_map;
 pub mod client;
 pub mod db;
 pub mod fake;
 pub mod index;
 pub mod job;
 pub mod models;
+pub mod query;
 pub mod registry;
 pub mod status;
 pub mod triggers;

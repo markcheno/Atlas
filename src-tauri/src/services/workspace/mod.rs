@@ -59,8 +59,11 @@ pub struct OpenRoot {
     jobs: JobRunners,
     /// The vector indexes, after the runners (which save them as they stop).
     vectors: Arc<VectorRegistry>,
-    reader: CatalogReader,
-    root_status: RootStatusCache,
+    /// Shared so a search can run without the workspace lock (Slice 2.4).
+    /// A search still running when the library closes keeps its reader
+    /// connections for the rest of it (at most a couple of seconds).
+    reader: Arc<CatalogReader>,
+    root_status: Arc<RootStatusCache>,
     catalog: CatalogWriter,
     _lock: RootLock,
     path: PathBuf,
@@ -94,6 +97,13 @@ impl OpenRoot {
     /// Briefly cached reachability of library folders.
     pub fn root_status(&self) -> &RootStatusCache {
         &self.root_status
+    }
+    /// The read-only pool, to use without the workspace lock.
+    pub fn reader_handle(&self) -> Arc<CatalogReader> {
+        Arc::clone(&self.reader)
+    }
+    pub fn root_status_handle(&self) -> Arc<RootStatusCache> {
+        Arc::clone(&self.root_status)
     }
     /// Asks every job runner to re-read job states now, for example after
     /// a user pauses a job or adds a folder.
@@ -419,8 +429,8 @@ impl Workspace {
         Ok(OpenRoot {
             jobs: self.start_jobs(&catalog, path, &vectors)?,
             vectors,
-            reader: CatalogReader::open(&catalog_path)?,
-            root_status: RootStatusCache::default(),
+            reader: Arc::new(CatalogReader::open(&catalog_path)?),
+            root_status: Arc::default(),
             catalog,
             _lock: lock,
             path: path.to_path_buf(),
@@ -481,8 +491,8 @@ impl Workspace {
         Ok(OpenRoot {
             jobs: self.start_jobs(&catalog, path, &vectors)?,
             vectors,
-            reader: CatalogReader::open(&path.join(CATALOG))?,
-            root_status: RootStatusCache::default(),
+            reader: Arc::new(CatalogReader::open(&path.join(CATALOG))?),
+            root_status: Arc::default(),
             catalog,
             _lock: lock,
             path: path.to_path_buf(),

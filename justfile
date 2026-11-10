@@ -135,6 +135,14 @@ bench-search out="":
 bench-extraction size="30k" out="":
     pnpm bench --extraction-only --extraction-size {{ size }} {{ if out == "" { "" } else { "--out " + out } }}
 
+# The embedding job and hybrid search while it runs (Phase 2, P2-18): `size` is 30k (the reference measurement, with a 250 ms p95 bar) or 1k (CI)
+bench-embedding size="30k" out="":
+    pnpm bench --embedding-only --embedding-size {{ size }} {{ if size == "30k" { "--max-p95-ms 250" } else { "" } }} {{ if out == "" { "" } else { "--out " + out } }}
+
+# The quality gate (P2-17) against a real embedding model, run by its owner: set ATLAS_EVAL_EMBED_URL (e.g. http://localhost:8000/v1), ATLAS_EVAL_EMBED_MODEL, and ATLAS_EVAL_EMBED_KEY if the service needs one
+eval-semantic:
+    cargo test --manifest-path {{ manifest }} --locked --release --test semantic_eval -- --ignored --nocapture p2_17_the_vague_set_against_a_real_model
+
 # The vector index alone (Phase 2): build, save, load, rebuild, recall and latency at `size` synthetic 1,024-dimension vectors (CI runs 100000)
 bench-vectors size="300000" out="":
     pnpm bench --vectors-only --vectors-size {{ size }} {{ if out == "" { "" } else { "--out " + out } }}
@@ -142,6 +150,10 @@ bench-vectors size="300000" out="":
 # Ask a question set (fixtures/README.md) against a library, read-only, e.g. `just eval my-questions.json ~/AtlasData`; `ids` maps corpus ids (spikes/extraction-bench/corpus/manifest.json)
 eval questions data_root ids="":
     cargo bench --manifest-path {{ manifest }} --locked --bench search -- --eval {{ questions }} --data-root {{ data_root }} {{ if ids == "" { "" } else { "--manifest " + ids } }}
+
+# As eval, with meaning search through the library's embedding model (Atlas closed; the key from ATLAS_EVAL_EMBED_KEY or the keychain). The only network use of eval
+eval-meaning questions data_root ids="":
+    cargo bench --manifest-path {{ manifest }} --locked --bench search -- --eval {{ questions }} --data-root {{ data_root }} --semantic {{ if ids == "" { "" } else { "--manifest " + ids } }}
 
 # WebDriver smoke test of the debug build (Windows and Linux; needs tauri-driver)
 e2e *args:

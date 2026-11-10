@@ -118,3 +118,76 @@ status poll.
   ([benchmarks](../benchmarks.md#duplicates-and-storage-slice-16)).
 - Semantic search (embeddings, ADR 0008's vector engine) arrives in a later
   phase and will rank alongside, not replace, this index.
+
+## Amendment: hybrid search (Phase 2, Slice 2.4, 2026-11-09)
+
+Search now uses meaning as well as words (phase2-spec §7.4). Phase 1's
+ranking above is unchanged and runs first; `search::search` is still
+exactly it, and `search::search_with` adds meaning.
+
+**The meaning pass** (`services/search/hybrid.rs`):
+
+- **Which model:** the query is embedded with the model search serves
+  (`models::serving`), with the model's query prefix from the bundled
+  catalog (Qwen3-Embedding:
+  `Instruct: Given a search query, retrieve passages that answer it\nQuery: `).
+  The embedding runs on its own thread while the text pass runs. Search
+  waits for it at most 1.5 s; a slower request finishes in the background
+  and fills a cache of 256 queries per model.
+- **Nearest chunks:** the 200 nearest chunks in the index, with
+  `filtered_search` when a folder or type is chosen. A dense chunk →
+  document map (`embedding/chunk_map.rs`) answers which chunks a filter
+  allows. It is topped up as chunks are added and never goes stale, since
+  chunk ids are never reused, and the allowed documents come from
+  `file_instances` per query.
+- **Kept per document:** the best chunk, if its cosine similarity clears
+  the model's floor (0.25 for Qwen3-Embedding, from the evaluation). At
+  most 20 documents found by meaning alone take part, so nonsense still
+  finds nothing.
+
+**Fusion:**
+
+- **Reciprocal rank fusion**, k = 60, over the text list's document order
+  and the meaning list's, **in two tiers**.
+  - Tier 1: documents containing every word come first, fused with
+    meaning among themselves.
+  - Tier 2: documents with some of the words, and those found by meaning
+    alone, fused together.
+  - A single RRF over both lists let an all-words match fall behind
+    partial matches that also matched by meaning (q04 of Phase 1's set,
+    with the fake backend), so the tier keeps the strongest evidence a
+    search has on top.
+- **Name matches** still strengthen a result by ×1.25.
+- **Without a meaning list** (meaning search off, failed, or finding
+  nothing), the order is exactly Phase 1's.
+- **Reasons:** `Semantic` (similar meaning only) and `TextSemantic` (in the
+  text and similar meaning). A meaning match never says "Some of your
+  words".
+- **Snippets:** a meaning-only hit's snippet is its chunk, trimmed to about
+  240 characters at word boundaries, with query words marked by folded
+  match.
+
+**Never an error.** `SearchPage.semantic` says what happened:
+
+- `Off`: no embedding model;
+- `Ready { coveragePercent }`;
+- `Unavailable { not_permitted | unreachable | timeout | loading | failed }`.
+
+The page is otherwise exactly Phase 1's. An index that isn't open yet is
+opened in the background, and the Search screen searches again when the
+embedding status next changes.
+
+**Off the workspace lock.** The search command takes the library's handles
+(the reader pool, root status, vector registry) and runs without holding
+the workspace, so a query's embedding never blocks other commands.
+
+**Measured.**
+
+- **On oMLX (Qwen3-Embedding-0.6B):** hit@5 on the 40 vague questions is
+  0.950 hybrid (0.875 for text alone), and Phase 1's set stays 40/40
+  ([benchmarks](../benchmarks.md#meaning-search-slice-24)).
+- **With the fake backend on every OS:** Phase 1's set is 39/40. The fake's
+  word-overlap "meaning" misses q40's long chunk, so partial matches fuse
+  above it.
+- **P2-18, search while the embedding job runs:** see the benchmarks.
+

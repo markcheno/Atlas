@@ -12,6 +12,7 @@
 //!
 //! Runs on the read-only connections, so it never waits for writes.
 
+pub mod hybrid;
 pub mod query;
 pub mod snippet;
 
@@ -20,17 +21,23 @@ use std::collections::{HashMap, HashSet};
 use rusqlite::types::Value;
 use rusqlite::{Connection, OptionalExtension, params_from_iter};
 
+use std::sync::Arc;
+
 use crate::domain::dto::{
     Availability, FileStorage, FileType, MatchReason, SearchHit, SearchPage, SearchQuery,
-    SourceRootStatus,
+    SemanticStatus, SemanticUnavailable, SourceRootStatus,
 };
 use crate::error::{AtlasError, AtlasResult};
 use crate::services::catalog::codec::{from_db, to_db};
 use crate::services::catalog::reader::CatalogReader;
+use crate::services::catalog::writer::CatalogHandle;
 use crate::services::documents::metadata;
+use crate::services::embedding::query::{NoTarget, QueryEmbedder};
+use crate::services::embedding::registry::VectorRegistry;
 use crate::services::jobs::db::{ACTIVE_STATES, state_list};
 use crate::services::library::RootStatusCache;
 use crate::services::library::fold::{fold, like_escape};
+use crate::services::providers::secrets::SecretVault;
 
 pub const MAX_PAGE_SIZE: u32 = 50;
 /// Best passages considered per query, before grouping (phase1-spec §7.4).
@@ -42,6 +49,8 @@ struct Filters {
     /// Conditions on file instance `f`, each starting with " AND ".
     sql: String,
     params: Vec<Value>,
+    /// A folder or file type is chosen (not only "available").
+    narrowed: bool,
 }
 
 fn filters(q: &SearchQuery) -> Filters {
@@ -58,7 +67,12 @@ fn filters(q: &SearchQuery) -> Filters {
         sql.push_str(" AND f.file_type = ?");
         params.push(Value::Text(to_db(&kind)));
     }
-    Filters { sql, params }
+    let narrowed = q.source_root_id.is_some() || q.file_type.is_some();
+    Filters {
+        sql,
+        params,
+        narrowed,
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -72,6 +86,8 @@ struct Entry {
     all_words: bool,
     /// The FTS expression that matched, for the snippet.
     expr: Option<String>,
+    /// A meaning match's chunk, in characters of its passage (Slice 2.4).
+    span: Option<(usize, usize)>,
 }
 
 /// A document's best passage: (document id, passage id, bm25).
@@ -160,7 +176,12 @@ fn status(conn: &Connection) -> rusqlite::Result<(bool, u32, u32)> {
     Ok((reading, read, total))
 }
 
-fn hit(conn: &Connection, e: &Entry, f: &Filters) -> rusqlite::Result<Option<SearchHit>> {
+fn hit(
+    conn: &Connection,
+    e: &Entry,
+    f: &Filters,
+    terms: &[String],
+) -> rusqlite::Result<Option<SearchHit>> {
     // The file to show: an available copy inside the filters first.
     let (where_sql, key) = match (&e.document, &e.instance) {
         (Some(doc), _) => ("f.document_id = ?", doc.clone()),
@@ -235,6 +256,20 @@ fn hit(conn: &Connection, e: &Entry, f: &Filters) -> rusqlite::Result<Option<Sea
                 marked.map(|m| snippet::spans(&m)).unwrap_or_default(),
             )
         }
+        (Some(passage), None) if e.span.is_some() => {
+            let (location, page_no, text): (Option<String>, Option<u32>, String) = conn.query_row(
+                "SELECT location, page_no, text FROM passages WHERE id = ?1",
+                [passage],
+                |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
+            )?;
+            let (start, end) = e.span.unwrap_or_default();
+            let chunk = crate::services::embedding::chunk::slice(
+                &text,
+                crate::services::embedding::chunk::Span { start, end },
+            )
+            .unwrap_or("");
+            (location, page_no, snippet::meaning(chunk, terms))
+        }
         _ => (None, None, Vec::new()),
     };
     Ok(Some(SearchHit {
@@ -265,30 +300,24 @@ fn hit(conn: &Connection, e: &Entry, f: &Filters) -> rusqlite::Result<Option<Sea
     }))
 }
 
-/// One page of results. Empty or punctuation-only input gives an empty
-/// page, not an error.
-pub fn search(conn: &Connection, q: &SearchQuery) -> rusqlite::Result<SearchPage> {
-    let page_size = q.page_size.clamp(1, MAX_PAGE_SIZE);
-    let (reading_text, text_read_files, total_files) = status(conn)?;
-    let mut page = SearchPage {
-        hits: Vec::new(),
-        page: q.page,
-        page_size,
-        matched_documents: 0,
-        capped: false,
-        reading_text,
-        text_read_files,
-        total_files,
-    };
-    let Some(built) = query::build(&q.text) else {
-        return Ok(page);
-    };
-    let f = filters(q);
+/// Phase 1's ranking: text matches (all words, then any words) by bm25,
+/// those that also match by name marked and boosted; and, apart, the
+/// documents or files that match by name only.
+struct TextRank {
+    entries: Vec<Entry>,
+    names_only: Vec<Entry>,
+    capped: bool,
+}
 
+fn rank_text(
+    conn: &Connection,
+    built: &query::Query,
+    f: &Filters,
+    page_size: u32,
+) -> rusqlite::Result<TextRank> {
     let mut entries: Vec<Entry> = Vec::new();
     let mut by_document: HashMap<String, usize> = HashMap::new();
-    let (all, capped) = text_matches(conn, &built.all, &f)?;
-    page.capped = capped;
+    let (all, mut capped) = text_matches(conn, &built.all, f)?;
     for (doc, passage, score) in all {
         by_document.insert(doc.clone(), entries.len());
         entries.push(Entry {
@@ -299,13 +328,14 @@ pub fn search(conn: &Connection, q: &SearchQuery) -> rusqlite::Result<SearchPage
             why: MatchReason::Text,
             all_words: true,
             expr: Some(built.all.clone()),
+            span: None,
         });
     }
     if entries.len() < page_size as usize
         && let Some(any) = &built.any
     {
-        let (more, capped) = text_matches(conn, any, &f)?;
-        page.capped |= capped;
+        let (more, more_capped) = text_matches(conn, any, f)?;
+        capped |= more_capped;
         for (doc, passage, score) in more {
             if by_document.contains_key(&doc) {
                 continue;
@@ -319,13 +349,14 @@ pub fn search(conn: &Connection, q: &SearchQuery) -> rusqlite::Result<SearchPage
                 why: MatchReason::Text,
                 all_words: false,
                 expr: Some(any.clone()),
+                span: None,
             });
         }
     }
 
-    let mut name_only: Vec<Entry> = Vec::new();
+    let mut names_only: Vec<Entry> = Vec::new();
     let mut seen_names: HashSet<String> = HashSet::new();
-    for (instance, document) in name_matches(conn, &query::name_terms(&built), &f)? {
+    for (instance, document) in name_matches(conn, &query::name_terms(built), f)? {
         match document.as_ref().and_then(|d| by_document.get(d)) {
             Some(&i) => {
                 if entries[i].why != MatchReason::Both {
@@ -336,7 +367,7 @@ pub fn search(conn: &Connection, q: &SearchQuery) -> rusqlite::Result<SearchPage
             None => {
                 let key = document.clone().unwrap_or_else(|| instance.clone());
                 if seen_names.insert(key) {
-                    name_only.push(Entry {
+                    names_only.push(Entry {
                         document,
                         instance: Some(instance),
                         passage: None,
@@ -344,55 +375,120 @@ pub fn search(conn: &Connection, q: &SearchQuery) -> rusqlite::Result<SearchPage
                         why: MatchReason::Name,
                         all_words: true,
                         expr: None,
+                        span: None,
                     });
                 }
             }
         }
     }
-    // All-words matches, then any-words, by score; then names in name order.
+    // All-words matches, then any-words, by score; names come after.
     entries.sort_by(|a, b| {
         b.all_words
             .cmp(&a.all_words)
             .then(a.score.total_cmp(&b.score))
     });
-    entries.extend(name_only);
+    Ok(TextRank {
+        entries,
+        names_only,
+        capped,
+    })
+}
+
+/// The query's words, folded, for marking a meaning match's snippet.
+fn snippet_terms(text: &str) -> Vec<String> {
+    text.split(|c: char| !c.is_alphanumeric())
+        .filter(|w| !w.is_empty() && !query::is_common_word(w))
+        .map(fold)
+        .collect()
+}
+
+fn empty_page(conn: &Connection, q: &SearchQuery) -> rusqlite::Result<SearchPage> {
+    let (reading_text, text_read_files, total_files) = status(conn)?;
+    Ok(SearchPage {
+        hits: Vec::new(),
+        page: q.page,
+        page_size: q.page_size.clamp(1, MAX_PAGE_SIZE),
+        matched_documents: 0,
+        capped: false,
+        reading_text,
+        text_read_files,
+        total_files,
+        semantic: Default::default(),
+    })
+}
+
+/// One page of results. Empty or punctuation-only input gives an empty
+/// page, not an error. Text only (Phase 1).
+pub fn search(conn: &Connection, q: &SearchQuery) -> rusqlite::Result<SearchPage> {
+    search_with(conn, q, None)
+}
+
+/// One page of results, with meaning search when `semantic` is given
+/// (Slice 2.4, [`hybrid`]). Without it, or when it finds nothing, the page
+/// is exactly Phase 1's.
+pub fn search_with(
+    conn: &Connection,
+    q: &SearchQuery,
+    semantic: Option<hybrid::Semantic<'_>>,
+) -> rusqlite::Result<SearchPage> {
+    let mut page = empty_page(conn, q)?;
+    let page_size = page.page_size;
+    let Some(built) = query::build(&q.text) else {
+        return Ok(page);
+    };
+    let f = filters(q);
+    let ranked = rank_text(conn, &built, &f, page_size)?;
+    page.capped = ranked.capped;
+    let near = match semantic {
+        Some(s) => hybrid::nearest(conn, s, &f)?,
+        None => Vec::new(),
+    };
+    let entries = hybrid::fuse(ranked.entries, ranked.names_only, near);
 
     page.matched_documents = u32::try_from(entries.len()).unwrap_or(u32::MAX);
+    let terms = snippet_terms(&q.text);
     let start = (q.page as usize).saturating_mul(page_size as usize);
     for e in entries.iter().skip(start).take(page_size as usize) {
-        if let Some(hit) = hit(conn, e, &f)? {
+        if let Some(hit) = hit(conn, e, &f, &terms)? {
             page.hits.push(hit);
         }
     }
     Ok(page)
 }
 
-/// Searches on the read-only pool and marks results whose folder is not
-/// connected `unreachable`, as the Library does.
-pub fn run(
-    reader: &CatalogReader,
-    roots: &RootStatusCache,
+/// The documents meaning search alone finds for `q`, best first (the
+/// evaluation's "meaning only" column; Slice 2.4).
+pub fn meaning_ranking(
+    conn: &Connection,
     q: &SearchQuery,
-) -> AtlasResult<SearchPage> {
-    let (mut page, root_paths) = reader
-        .read(|c| {
-            let page = search(c, q)?;
-            let mut paths: Vec<(String, Vec<u8>)> = Vec::new();
-            for hit in &page.hits {
-                if paths.iter().any(|(id, _)| *id == hit.source_root_id) {
-                    continue;
-                }
-                let bytes: Vec<u8> = c.query_row(
-                    "SELECT path_bytes FROM source_roots WHERE id = ?1",
-                    [&hit.source_root_id],
-                    |r| r.get(0),
-                )?;
-                paths.push((hit.source_root_id.clone(), bytes));
-            }
-            Ok::<_, rusqlite::Error>((page, paths))
-        })?
-        .map_err(AtlasError::db("search"))?;
-    let statuses = roots.statuses(&root_paths);
+    semantic: hybrid::Semantic<'_>,
+) -> rusqlite::Result<Vec<String>> {
+    let f = filters(q);
+    Ok(hybrid::nearest(conn, semantic, &f)?
+        .into_iter()
+        .map(|n| n.document)
+        .collect())
+}
+
+/// The source folders of a page's hits, for marking unreachable ones.
+fn hit_roots(c: &Connection, page: &SearchPage) -> rusqlite::Result<Vec<(String, Vec<u8>)>> {
+    let mut paths: Vec<(String, Vec<u8>)> = Vec::new();
+    for hit in &page.hits {
+        if paths.iter().any(|(id, _)| *id == hit.source_root_id) {
+            continue;
+        }
+        let bytes: Vec<u8> = c.query_row(
+            "SELECT path_bytes FROM source_roots WHERE id = ?1",
+            [&hit.source_root_id],
+            |r| r.get(0),
+        )?;
+        paths.push((hit.source_root_id.clone(), bytes));
+    }
+    Ok(paths)
+}
+
+fn mark_unreachable(page: &mut SearchPage, roots: &RootStatusCache, paths: &[(String, Vec<u8>)]) {
+    let statuses = roots.statuses(paths);
     for hit in &mut page.hits {
         let reachable = statuses
             .get(&hit.source_root_id)
@@ -401,5 +497,124 @@ pub fn run(
             hit.availability = Availability::Unreachable;
         }
     }
+}
+
+/// Searches on the read-only pool and marks results whose folder is not
+/// connected `unreachable`, as the Library does. Text only (Phase 1).
+pub fn run(
+    reader: &CatalogReader,
+    roots: &RootStatusCache,
+    q: &SearchQuery,
+) -> AtlasResult<SearchPage> {
+    let (mut page, root_paths) = reader
+        .read(|c| {
+            let page = search(c, q)?;
+            let paths = hit_roots(c, &page)?;
+            Ok::<_, rusqlite::Error>((page, paths))
+        })?
+        .map_err(AtlasError::db("search"))?;
+    mark_unreachable(&mut page, roots, &root_paths);
     Ok(page)
+}
+
+/// What hybrid search needs from the open library and the app.
+pub struct MeaningContext<'a> {
+    pub vectors: &'a Arc<VectorRegistry>,
+    pub catalog: &'a CatalogHandle,
+    pub embedder: &'a Arc<QueryEmbedder>,
+    pub vault: &'a SecretVault,
+    /// The library's privacy setting.
+    pub allow_remote: bool,
+}
+
+/// Threads for opening an index that search found closed.
+const BACKGROUND_OPEN_THREADS: usize = 2;
+
+/// Search with meaning (Slice 2.4): as [`run`], plus meaning search when
+/// an embedding model, its index and its service are there, and the
+/// page's `semantic` status. Never fails for want of meaning search.
+pub fn run_hybrid(
+    reader: &CatalogReader,
+    roots: &RootStatusCache,
+    m: &MeaningContext<'_>,
+    q: &SearchQuery,
+) -> AtlasResult<SearchPage> {
+    let (mut page, root_paths) = reader
+        .read(|c| {
+            let (page, status) = hybrid_page(c, m, q)?;
+            let mut page = page;
+            page.semantic = status;
+            let paths = hit_roots(c, &page)?;
+            Ok::<_, rusqlite::Error>((page, paths))
+        })?
+        .map_err(AtlasError::db("search"))?;
+    mark_unreachable(&mut page, roots, &root_paths);
+    Ok(page)
+}
+
+fn hybrid_page(
+    c: &Connection,
+    m: &MeaningContext<'_>,
+    q: &SearchQuery,
+) -> rusqlite::Result<(SearchPage, SemanticStatus)> {
+    let target = match m.embedder.target(c, m.vault, m.allow_remote) {
+        Ok(t) => t,
+        Err(NoTarget::Off) => return Ok((search(c, q)?, SemanticStatus::Off)),
+        Err(NoTarget::Unavailable(reason)) => {
+            return Ok((search(c, q)?, SemanticStatus::Unavailable { reason }));
+        }
+    };
+    let Some(index) = m.vectors.loaded(&target.model.id) else {
+        m.vectors
+            .open_in_background(m.catalog, &target.model.id, BACKGROUND_OPEN_THREADS);
+        return Ok((
+            search(c, q)?,
+            SemanticStatus::Unavailable {
+                reason: SemanticUnavailable::Loading,
+            },
+        ));
+    };
+    let ready = SemanticStatus::Ready {
+        coverage_percent: coverage(c, &target.model.id)?,
+    };
+    if query::build(&q.text).is_none() {
+        return Ok((search(c, q)?, ready));
+    }
+    let pending = m.embedder.start(&target, &q.text);
+    let failure: std::cell::Cell<Option<SemanticUnavailable>> = std::cell::Cell::new(None);
+    let mut map = m.vectors.chunk_map();
+    let semantic = hybrid::Semantic {
+        vector: Box::new(|| match pending.wait() {
+            Ok(v) => Some(v),
+            Err(reason) => {
+                failure.set(Some(reason));
+                None
+            }
+        }),
+        index: &index,
+        chunk_map: &mut map,
+        min_similarity: target.profile.min_similarity,
+    };
+    let page = search_with(c, q, Some(semantic))?;
+    let status = match failure.get() {
+        Some(reason) => SemanticStatus::Unavailable { reason },
+        None => ready,
+    };
+    Ok((page, status))
+}
+
+/// The share of documents with text that the model has finished with.
+fn coverage(c: &Connection, model_id: &str) -> rusqlite::Result<u8> {
+    let (done, total): (i64, i64) = c.query_row(
+        "SELECT (SELECT COUNT(*) FROM document_embeddings
+                 WHERE model_id = ?1 AND status IN ('done', 'empty')),
+                (SELECT COUNT(*) FROM documents WHERE state = 'done')",
+        [model_id],
+        |r| Ok((r.get(0)?, r.get(1)?)),
+    )?;
+    Ok(if total == 0 {
+        100
+    } else {
+        ((done * 100) / total).clamp(0, 100) as u8
+    })
 }

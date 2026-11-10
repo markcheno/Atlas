@@ -34,6 +34,51 @@ pub struct CatalogModel {
     #[serde(rename = "match")]
     pub matches: Vec<String>,
     pub runtimes: Vec<RuntimeSteps>,
+    /// Embedding models: the instruction put before a search query (never
+    /// before document text), per the model's own instructions.
+    #[serde(default, rename = "queryPrefix")]
+    pub query_prefix: Option<String>,
+    /// Embedding models: cosine similarity below which a chunk is not a
+    /// meaning match (calibrated with the evaluation set, Slice 2.4).
+    #[serde(default, rename = "minSimilarity")]
+    pub min_similarity: Option<f32>,
+    /// Embedding models that may be cut short (Matryoshka): the number of
+    /// dimensions Atlas keeps, decided by the evaluation (Slice 2.4).
+    #[serde(default, rename = "storedDimensions")]
+    pub stored_dimensions: Option<usize>,
+}
+
+/// How search treats queries for an embedding model.
+#[derive(Debug, Clone, PartialEq)]
+pub struct QueryProfile {
+    pub prefix: Option<String>,
+    pub min_similarity: f32,
+    /// How many of the model's dimensions Atlas keeps, if fewer than all.
+    pub stored_dimensions: Option<usize>,
+}
+
+/// The floor for embedding models the catalog doesn't know.
+pub const DEFAULT_MIN_SIMILARITY: f32 = 0.25;
+
+/// The query profile for `model_name`, from the bundled catalog when the
+/// name matches one of its embedding models (as installed copies match).
+pub fn query_profile(model_name: &str) -> QueryProfile {
+    let catalog = bundled();
+    let listed = [model_name.to_owned()];
+    catalog
+        .models
+        .iter()
+        .find(|m| m.role == AiRole::Embedding && installed_as(m, &listed).is_some())
+        .map(|m| QueryProfile {
+            prefix: m.query_prefix.clone(),
+            min_similarity: m.min_similarity.unwrap_or(DEFAULT_MIN_SIMILARITY),
+            stored_dimensions: m.stored_dimensions,
+        })
+        .unwrap_or(QueryProfile {
+            prefix: None,
+            min_similarity: DEFAULT_MIN_SIMILARITY,
+            stored_dimensions: None,
+        })
 }
 
 /// The catalog bundled with this build.
@@ -131,6 +176,32 @@ pub fn recommend(catalog: &Catalog, device: &DeviceSnapshot, listed: &[String]) 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn qwen3_embedding_queries_get_their_instruction() {
+        for name in [
+            "Qwen3-Embedding-0.6B-8bit",
+            "qwen3-embedding:0.6b",
+            "mlx-community/Qwen3-Embedding-4B",
+        ] {
+            let p = query_profile(name);
+            assert!(
+                p.prefix
+                    .as_deref()
+                    .is_some_and(|x| x.starts_with("Instruct: ")),
+                "{name}"
+            );
+            assert!(p.prefix.unwrap().ends_with("\nQuery: "));
+        }
+        assert_eq!(
+            query_profile("Qwen3-Embedding-0.6B-8bit").stored_dimensions,
+            Some(512)
+        );
+        let other = query_profile("nomic-embed-text");
+        assert_eq!(other.prefix, None);
+        assert_eq!(other.stored_dimensions, None);
+        assert_eq!(other.min_similarity, DEFAULT_MIN_SIMILARITY);
+    }
     use crate::domain::dto::{AiRuntime, OsKind, PowerSource, PressureLevel, ThermalLevel};
 
     fn device(gb: Option<u64>) -> DeviceSnapshot {

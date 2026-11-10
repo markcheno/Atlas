@@ -7,8 +7,9 @@
 // and writes JSON results plus a Markdown summary.
 //
 //   node scripts/bench.mjs [--out <dir>] [--sweep] [--search-only] [--extraction-only]
-//                          [--vectors-only] [--search-size 30k|1k] [--extraction-size 30k|1k]
-//                          [--vectors-size 100000] [--max-p95-ms 250]
+//                          [--vectors-only] [--embedding-only] [--search-size 30k|1k]
+//                          [--extraction-size 30k|1k] [--vectors-size 100000]
+//                          [--embedding-size 30k|1k] [--max-p95-ms 250]
 //
 // --search-size picks the search fixture: 30k (default; the P1-19 reference
 // measurement, run locally) or 1k (CI: the 30k text fixture takes over 40
@@ -20,6 +21,10 @@
 // --extraction-only just the extraction benchmark; --evidence is the Phase 1
 // close-out's run (`just ci-remote evidence`): extraction only, on the 30k
 // text fixture, unthrottled, failing unless every file is read;
+// --embedding-only runs just the embedding benchmark (Phase 2, P2-18): the
+// embed job on the text fixture of --embedding-size (default: the search
+// size) with hybrid search timed while it runs; --max-p95-ms then applies
+// to that p95.
 // --vectors-only runs just the vector index benchmark (Phase 2), at
 // --vectors-size vectors of 1,024 dimensions (default 100,000, as CI; the
 // reference machine also records 300,000 and 1,000,000);
@@ -45,12 +50,16 @@ const searchOnly = args.includes('--search-only');
 const evidence = args.includes('--evidence');
 const extractionOnly = evidence || args.includes('--extraction-only');
 const vectorsOnly = args.includes('--vectors-only');
-if ([searchOnly, extractionOnly, vectorsOnly].filter(Boolean).length > 1)
-  throw new Error('--search-only, --extraction-only and --vectors-only exclude each other');
-const runInventory = !searchOnly && !extractionOnly && !vectorsOnly;
-const runSearch = !extractionOnly && !vectorsOnly;
-const runExtraction = !searchOnly && !vectorsOnly;
-const runVectors = !searchOnly && !extractionOnly;
+const embeddingOnly = args.includes('--embedding-only');
+if ([searchOnly, extractionOnly, vectorsOnly, embeddingOnly].filter(Boolean).length > 1)
+  throw new Error(
+    '--search-only, --extraction-only, --vectors-only and --embedding-only exclude each other',
+  );
+const runInventory = !searchOnly && !extractionOnly && !vectorsOnly && !embeddingOnly;
+const runSearch = !extractionOnly && !vectorsOnly && !embeddingOnly;
+const runExtraction = !searchOnly && !vectorsOnly && !embeddingOnly;
+const runVectors = !searchOnly && !extractionOnly && !embeddingOnly;
+const runEmbedding = !searchOnly && !extractionOnly && !vectorsOnly && !evidence;
 const vectorsSize = Number(opt('vectors-size', '100000'));
 if (!Number.isInteger(vectorsSize) || vectorsSize < 100)
   throw new Error('--vectors-size is a whole number of at least 100');
@@ -93,6 +102,10 @@ const searchLabel = `${searchSize}-text`;
 const searchFixture = runSearch ? textFixture(searchSize) : null;
 const extractionLabel = `${extractionSize}-text`;
 const extractionFixture = runExtraction ? textFixture(extractionSize) : null;
+const embeddingSize = opt('embedding-size', searchSize);
+if (!['30k', '1k'].includes(embeddingSize)) throw new Error('--embedding-size is 30k or 1k');
+const embeddingLabel = `${embeddingSize}-text`;
+const embeddingFixture = runEmbedding ? textFixture(embeddingSize) : null;
 
 const scenarios = !runInventory
   ? []
@@ -142,6 +155,8 @@ execFileSync(
     'extraction',
     '--bench',
     'vectors',
+    '--bench',
+    'embedding',
     '--no-run',
   ],
   { stdio: 'inherit' },
@@ -268,11 +283,41 @@ if (runVectors) {
   vectorsResult = JSON.parse(fs.readFileSync(vectorsFile, 'utf8'));
 }
 
+let embeddingResult = null;
+if (runEmbedding) {
+  console.error(`bench: ${embeddingLabel} embedding`);
+  const embeddingFile = path.join(out, `bench-${embeddingLabel}-embedding.json`);
+  execFileSync(
+    'cargo',
+    [
+      'bench',
+      '--manifest-path',
+      path.join(repo, 'src-tauri', 'Cargo.toml'),
+      '--locked',
+      '--bench',
+      'embedding',
+      '--',
+      '--fixture',
+      embeddingFixture.dir,
+      '--label',
+      embeddingLabel,
+      '--expect',
+      String(embeddingFixture.expect),
+      '--out',
+      embeddingFile,
+      ...(maxP95 && embeddingOnly ? ['--max-p95-ms', String(maxP95)] : []),
+    ],
+    { stdio: ['ignore', 'ignore', 'inherit'] },
+  );
+  embeddingResult = JSON.parse(fs.readFileSync(embeddingFile, 'utf8'));
+}
+
 const md =
   (results.length ? summarize(results) : '') +
   (searchResult ? summarizeSearch(searchResult) : '') +
   (extractionResult ? summarizeExtraction(extractionResult) : '') +
-  (vectorsResult ? summarizeVectors(vectorsResult) : '');
+  (vectorsResult ? summarizeVectors(vectorsResult) : '') +
+  (embeddingResult ? summarizeEmbedding(embeddingResult) : '');
 fs.writeFileSync(path.join(out, `bench-${process.platform}.md`), md);
 console.log(md);
 if (process.env.GITHUB_STEP_SUMMARY) fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, md);
@@ -441,14 +486,31 @@ function summarizeVectors(r) {
     '| ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |',
     `| ${s(r.buildMs)} | ${s(r.saveMs)} | ${s(r.loadMs)} | ${s(r.openToFirstAnswerMs)} | ${s(r.rebuildFromCatalogMs)} | ${mib(r.fileBytes)} | ${r.fileToRawF32} | ${mib(r.indexMemoryBytes)} | ${r.catalogBytesPerVector} |`,
     '',
-    `| Search (${r.queries} queries, one thread) | Share | Recall@10 | p50 / p95 / max ms |`,
-    '| --- | ---: | ---: | ---: |',
-    `| Unfiltered | 100% | ${r.unfiltered.recallAt10} | ${lat(r.unfiltered.latency)} |`,
+    `| Search (${r.queries} queries, one thread) | Share | Recall@10 | p50 / p95 / max ms | At 200: p50 / p95 / max ms |`,
+    '| --- | ---: | ---: | ---: | ---: |',
+    `| Unfiltered | 100% | ${r.unfiltered.recallAt10} | ${lat(r.unfiltered.latency)} | ${r.unfiltered.latencyAt200 ? lat(r.unfiltered.latencyAt200) : '–'} |`,
     ...r.filtered.map(
-      (f) => `| One folder | ${pct(f.share)} | ${f.recallAt10 ?? '–'} | ${lat(f.latency)} |`,
+      (f) =>
+        `| One folder | ${pct(f.share)} | ${f.recallAt10 ?? '–'} | ${lat(f.latency)} | ${f.latencyAt200 ? lat(f.latencyAt200) : '–'} |`,
     ),
     '',
     `Brute force: ${r.unfiltered.bruteForceMsPerQuery} ms per query (${r.recallQueries} recall queries).`,
+  ];
+  return `${lines.join('\n')}\n`;
+}
+
+function summarizeEmbedding(r) {
+  const mib = (b) => (b / 1048576).toFixed(1);
+  const h = r.hybridWhileEmbedding;
+  const lines = [
+    '',
+    `## Embedding: ${r.label} (${r.machine.os} ${r.machine.arch}${r.machine.ci ? ', CI runner' : ''})`,
+    '',
+    `The embed job with the deterministic backend at ${r.dims} dimensions; hybrid search timed while it runs, with ${r.queryDelayMs} ms of query embedding.`,
+    '',
+    '| Documents | Chunks | Embed s | Chunks/s | Catalog growth per 1,000 docs MiB | Bytes per vector | Index file MiB | File ÷ raw | Save ms | Hybrid p50 / p95 / max ms | Meaning ready | Events/s |',
+    '| ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |',
+    `| ${r.documents} | ${r.chunks} | ${r.embedSeconds} | ${r.chunksPerSecond} | ${mib(r.catalogGrowthPer1000Documents)} | ${r.catalogBytesPerVector} | ${mib(r.indexFileBytes)} | ${r.indexFileToRawF32} | ${r.saveMs} | ${h ? `${h.p50Ms} / ${h.p95Ms} / ${h.maxMs}` : '–'} | ${Math.round(r.meaningReadyShare * 100)}% | ${r.eventsPerSecond} |`,
   ];
   return `${lines.join('\n')}\n`;
 }
