@@ -524,8 +524,15 @@ fn load_saved(paths: &VectorPaths, model: &EmbeddingModel) -> Result<VectorIndex
         Ok(h) if h != expected => return Err(RebuildReason::HashMismatch),
         Ok(_) => {}
     }
-    if let Some(p) = path_for_native_io(&file)
-        && let Ok(head) = Index::metadata(p)
+    // The file's header says how many of its slots hold removed vectors,
+    // whichever way the file is read.
+    let head = match path_for_native_io(&file) {
+        Some(p) => Index::metadata(p).ok(),
+        None => fs::read(&file)
+            .ok()
+            .and_then(|b| Index::metadata_from_buffer(&b).ok()),
+    };
+    if let Some(head) = head
         && head.count_deleted as f64 > COMPACT_ABOVE * head.count_present.max(1) as f64
     {
         return Err(RebuildReason::Compaction);
