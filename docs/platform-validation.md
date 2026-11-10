@@ -1125,7 +1125,9 @@ every OS:
   the stream parser and the privacy gate;
 - the Vitest cases for Settings › Privacy.
 
-<!-- slice-26-ci -->
+**CI on `slice-26`:** full run
+[42848628789](https://github.com/markcheno/Atlas/actions/runs/42848628789),
+all green; `tests/answers.rs` passed 11 of 11 on each OS.
 
 ## Manual checklist for Windows and Linux
 
