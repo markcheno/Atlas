@@ -804,7 +804,36 @@ What it shows:
 **Slice 2.6.3** sets the weak margin to 0.20. A refusal is one sentence
 that stops: it doesn't list what the excerpts cover, and cites nothing.
 The eval no longer reads "nothing" as a refusal, and the answers file
-gives each question's margin. *The run after Slice 2.6.3 is pending.*
+gives each question's margin.
+
+**The run after Slice 2.6.3** (2026-11-10, the same machine, services and
+model; 1,316 s for 52 questions):
+
+| Measure | Vague set (40) | Off set (12) |
+| --- | ---: | ---: |
+| First word, p50 / p95 | 15.6 s / 19.1 s | 15.6 s / 17.1 s |
+| Whole answer, p50 / p95 | 25.7 s / 33.9 s | 19.2 s / 21.8 s |
+| A relevant document among the sources | 39 / 40 | — |
+| Citation rate (cited ÷ supplied) | 0.20 | **0.18** (from 0.68) |
+| Invented citations (removed) | 3 | 0 |
+| Answers saying the excerpts don't cover it | 3 | 12 of 12 |
+| … citing nothing | 0 | **9** (from 3) |
+| Flagged as weak retrieval (margin below 0.20) | **0** | **8** (from 5) |
+
+What it shows:
+
+- **The vague set is as good as this model and corpus allow.** The 3 "not
+  covered" answers are v23 and v28, which say honestly that no excerpt
+  settles the question, and v38, whose document wasn't retrieved.
+- **Refusals are short now.** 9 of 12 are one uncited sentence. Three
+  still list the excerpts' subjects with citations (o02, o08, o11).
+- **The weak flag works.** No vague question is flagged. The 4 off-library
+  questions not flagged (o02 0.21, o08 0.22, o12 0.22, o10 0.24) are
+  inside the vague set's range, which starts at 0.22. No margin separates
+  them, and each was still refused.
+- **Ask Atlas is ready for its screen** with this model: about 16 s to the
+  first word and 26 s to the whole answer, citations checked, nothing
+  invented reaching the text.
 
 CI has no model. There, the engine runs against a scripted service
 streaming canned answers (`tests/answers.rs`, P2-13 to P2-16).
