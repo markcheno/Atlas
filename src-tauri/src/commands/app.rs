@@ -46,6 +46,12 @@ const FEATURES: &[(&str, &str, &str, bool)] = &[
         "2.3",
         true,
     ),
+    (
+        "semantic_search",
+        "Search by meaning as well as words",
+        "2.4",
+        true,
+    ),
 ];
 
 /// Builds the status from facts about this process only.
