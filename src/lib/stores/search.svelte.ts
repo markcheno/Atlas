@@ -12,7 +12,12 @@ import { hasWords } from '../searchCopy';
 export const SEARCH_PAGE_SIZE = 20;
 export const SEARCH_REFRESH_MS = 2000;
 
+/** The Search screen's two modes (phase2-spec §5.3, §5.5). */
+export type SearchMode = 'find' | 'ask';
+
 class SearchState {
+  /** Find sources (results) or Ask Atlas (an answer); filters are shared. */
+  mode = $state<SearchMode>('find');
   /** What is in the box. */
   draft = $state('');
   /** What the shown results are for; empty before the first search. */
@@ -26,6 +31,8 @@ class SearchState {
   error = $state<AtlasApiError | null>(null);
 
   #seq = 0;
+  /** Filters changed in Ask mode: Find sources searches again on return. */
+  #filtersMoved = false;
   #lastLive = 0;
   #liveTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -79,7 +86,21 @@ class SearchState {
   setFilters(change: Partial<Pick<SearchState, 'sourceRootId' | 'fileType'>>) {
     Object.assign(this, change);
     this.page = 0;
+    if (this.mode === 'ask') {
+      // The next question uses them; asking again is the user's choice.
+      this.#filtersMoved = true;
+      return Promise.resolve();
+    }
     return this.load();
+  }
+
+  setMode(mode: SearchMode) {
+    this.mode = mode;
+    if (mode === 'find' && this.#filtersMoved) {
+      this.#filtersMoved = false;
+      if (this.result) return this.load();
+    }
+    return Promise.resolve();
   }
 
   goTo(page: number) {
@@ -105,6 +126,8 @@ class SearchState {
     this.#seq++;
     if (this.#liveTimer) clearTimeout(this.#liveTimer);
     this.#liveTimer = null;
+    this.#filtersMoved = false;
+    this.mode = 'find';
     this.draft = '';
     this.text = '';
     this.sourceRootId = null;

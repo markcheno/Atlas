@@ -163,6 +163,10 @@ eval-meaning questions data_root ids="":
 e2e *args:
     pnpm e2e {{ args }}
 
+# The smoke test's scripted model service on 127.0.0.1 (Slice 2.7): add it in Settings › AI Models as "Other OpenAI-compatible" at http://127.0.0.1:<port>/v1, with models atlas-hashed-bag-of-words and atlas-scripted-chat
+fake-ai port="8765":
+    node e2e/fake-ai.mjs --port {{ port }}
+
 # ------------------------------------------- Slice 0.9 spike (spikes/)
 
 # Download the pinned spike tools (PDFium, protoc, typst) into spikes/.tools

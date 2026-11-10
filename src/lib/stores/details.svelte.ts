@@ -1,11 +1,13 @@
 /**
  * The document detail panel (phase1-spec §5.3): which file it shows, its
  * details, where focus goes back to when it closes, and the documents
- * shown before it via Related (Slice 2.5).
+ * shown before it via Related (Slice 2.5), and the passage an Ask Atlas
+ * citation pointed at (Slice 2.7).
  */
 import { tick } from 'svelte';
 import { atlas, AtlasApiError, toApiError } from '../api/client';
 import type { DocumentDetail } from '../api/bindings/DocumentDetail';
+import type { SourceUsed } from '../api/bindings/SourceUsed';
 
 /** A document the panel showed before the current one. */
 export interface PanelStep {
@@ -22,6 +24,8 @@ class DetailsState {
   history = $state<PanelStep[]>([]);
   /** Opened by "More like this": Related takes focus once it's shown. */
   focusRelated = $state(false);
+  /** Opened from an Ask Atlas citation: the passage sent to the model. */
+  cited = $state<SourceUsed | null>(null);
 
   #seq = 0;
   #trigger: HTMLElement | null = null;
@@ -30,11 +34,12 @@ class DetailsState {
   async open(
     fileId: string,
     trigger: HTMLElement | null = null,
-    options: { focusRelated?: boolean } = {},
+    options: { focusRelated?: boolean; cited?: SourceUsed } = {},
   ) {
     this.#trigger = trigger;
     this.history = [];
     this.focusRelated = options.focusRelated ?? false;
+    this.cited = options.cited ?? null;
     await this.#load(fileId);
   }
 
@@ -45,6 +50,7 @@ class DetailsState {
       this.history = [...this.history, { fileId: this.fileId, title }];
     }
     this.focusRelated = false;
+    this.cited = null;
     await this.#load(fileId);
   }
 
@@ -54,6 +60,7 @@ class DetailsState {
     if (!previous) return;
     this.history = this.history.slice(0, -1);
     this.focusRelated = false;
+    this.cited = null;
     await this.#load(previous.fileId);
   }
 
@@ -91,6 +98,7 @@ class DetailsState {
     this.error = null;
     this.history = [];
     this.focusRelated = false;
+    this.cited = null;
   }
 }
 

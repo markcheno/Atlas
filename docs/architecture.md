@@ -732,9 +732,10 @@ rationale in the related-documents amendment to
 
 ## Ask Atlas
 
-Implemented in `src-tauri/src/services/answers/` (Slice 2.6, the engine;
-the screen is Slice 2.7) and `services/providers/privacy.rs`; rationale in
-[ADR 0015](adr/0015-ask-atlas-answers-citations-injection.md).
+Implemented in `src-tauri/src/services/answers/` (Slice 2.6, the engine)
+and `services/providers/privacy.rs`. The screen (Slice 2.7) is in
+`src/lib/stores/answer.svelte.ts` and the components named below.
+Rationale in [ADR 0015](adr/0015-ask-atlas-answers-citations-injection.md).
 
 - **`ask_atlas({question, sourceRootId?, fileType?})`** returns an
   `AskReply`:
@@ -788,6 +789,35 @@ the screen is Slice 2.7) and `services/providers/privacy.rs`; rationale in
     agreed services, each with Forget.
 - **Measured** with `just eval-ask` against real models, run by the owner
   ([benchmarks](benchmarks.md#ask-atlas-slice-26)).
+- **The screen** (Slice 2.7):
+  - **Mode:** Search's "Find sources | Ask Atlas" radio group
+    (`search.mode`). Filter changes in Ask mode don't search; Find sources
+    searches again on return.
+  - **`answer.svelte.ts`:**
+    - It subscribes to `answer-stream` at boot and holds one answer: phase,
+      sources, text, cited, dropped, and the failure or disclosure.
+    - Steps that arrive before `ask_atlas` returns are kept by id and
+      applied once the reply names it.
+    - A library change resets it, cancelling a live answer.
+  - **`AskForm.svelte`:** a textarea (Enter asks, Shift+Enter starts a new
+    line), Ask or Stop, and a counter near 2,000 characters.
+  - **`AnswerView.svelte`:**
+    - status lines (finding, waiting, Thinking…, stopped);
+    - the answer from `answerText.ts` pieces, with chips;
+    - the weak, dropped and meaning notes;
+    - failures, with Try again or a way to Settings;
+    - a polite announcer.
+  - **`SourcesUsed.svelte`** and **`DisclosureDialog.svelte`**.
+  - **The details panel:** `details.open(fileId, trigger, { cited })`
+    shows "Cited passage" first.
+- **Smoke** (Windows and Linux, `e2e/smoke.mjs`):
+  - It starts `e2e/fake-ai.mjs`, a scripted OpenAI-compatible service on
+    127.0.0.1 (models, hashed bag-of-words embeddings, a canned answer
+    citing `[1]`), and adds it in Settings as a user would.
+  - It then chooses both models, waits for meaning, finds a short
+    lighthouse book by a question in other words, and asks Atlas. The chip
+    opens the cited passage.
+  - `just fake-ai` runs the service by hand.
 
 ## Build, CI and measurement
 

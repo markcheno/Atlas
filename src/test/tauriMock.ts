@@ -38,6 +38,8 @@ import type { SearchPage } from '../lib/api/bindings/SearchPage';
 import type { Settings } from '../lib/api/bindings/Settings';
 import type { SourceRoot } from '../lib/api/bindings/SourceRoot';
 import type { AskReply } from '../lib/api/bindings/AskReply';
+import type { AskStarted } from '../lib/api/bindings/AskStarted';
+import type { SourceUsed } from '../lib/api/bindings/SourceUsed';
 import type { RelatedHit } from '../lib/api/bindings/RelatedHit';
 import type { RelatedPage } from '../lib/api/bindings/RelatedPage';
 import type { StorageUsage } from '../lib/api/bindings/StorageUsage';
@@ -49,7 +51,7 @@ export const fakeStatus: AppStatus = {
   os: 'macos',
   arch: 'aarch64',
   buildProfile: 'debug',
-  slice: '2.6',
+  slice: '2.7',
   features: [],
 };
 
@@ -333,6 +335,46 @@ export function relatedHit(overrides: Partial<RelatedHit> = {}): RelatedHit {
     storage: 'local',
     location: 'Page 40',
     pageNo: 40,
+    ...overrides,
+  };
+}
+
+/** A passage sent to the model for an Ask Atlas answer. */
+export function sourceUsed(overrides: Partial<SourceUsed> = {}): SourceUsed {
+  return {
+    n: 1,
+    documentId: 'doc-1',
+    fileInstanceId: 'file-1',
+    title: 'Harmonic Drives',
+    displayName: 'harmonic.pdf',
+    fileType: 'pdf',
+    location: 'Page 12',
+    pageNo: 12,
+    excerpt: 'A harmonic drive uses a flexible spline to reach high reduction ratios.',
+    ...overrides,
+  };
+}
+
+/** `ask_atlas`'s reply when the answer started: two sources by default. */
+export function askStarted(overrides: Partial<AskStarted> = {}): AskReply {
+  return {
+    kind: 'started',
+    answerId: 'answer-1',
+    sources: [
+      sourceUsed(),
+      sourceUsed({
+        n: 2,
+        documentId: 'doc-2',
+        fileInstanceId: 'file-2',
+        title: 'Strain Wave Gearing',
+        displayName: 'strain-wave.pdf',
+        location: null,
+        pageNo: null,
+        excerpt: 'Strain wave gearing was invented in 1957.',
+      }),
+    ],
+    weak: false,
+    semantic: { state: 'ready', coveragePercent: 100 },
     ...overrides,
   };
 }

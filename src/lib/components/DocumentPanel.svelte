@@ -3,8 +3,10 @@
   // file and the document read from it, its text status in plain words,
   // and the other places the same content is (Also at). Escape or Close
   // returns focus to whatever opened it. Related documents (Slice 2.5) can
-  // be shown in the panel in turn, with Back to the one before.
+  // be shown in the panel in turn, with Back to the one before. Opened from
+  // an Ask Atlas citation, it shows the passage sent first (Slice 2.7).
   import type { FileInstance } from '../api/bindings/FileInstance';
+  import { CITED_PASSAGE, FROM_LAST_QUESTION } from '../answerCopy';
   import { reasonText } from '../extractionCopy';
   import { TITLE_SOURCE_NOTE } from '../searchCopy';
   import { formatBytes } from '../format';
@@ -126,6 +128,19 @@
       </div>
       <OriginalNotice item={fromFile(file)} />
 
+      {#if details.cited}
+        {@const cited = details.cited}
+        <section class="cited" aria-labelledby="cited-title" data-testid="cited-passage">
+          <h3 id="cited-title">{CITED_PASSAGE}</h3>
+          <p class="cited-meta muted small">
+            <span>Source {cited.n}</span>
+            {#if cited.location}<span>{cited.location}</span>{/if}
+          </p>
+          <p class="cited-text">{cited.excerpt}</p>
+          <p class="muted small">{FROM_LAST_QUESTION}</p>
+        </section>
+      {/if}
+
       <dl>
         {#if d.authors.length > 0}
           <dt>{d.authors.length === 1 ? 'Author' : 'Authors'}</dt>
@@ -190,6 +205,38 @@
 {/if}
 
 <style>
+  .cited {
+    display: grid;
+    gap: var(--space-2);
+    padding: var(--space-3);
+    border: 1px solid var(--notice-border);
+    border-radius: var(--radius);
+    background: var(--notice-bg);
+  }
+
+  .cited h3,
+  .cited p {
+    margin: 0;
+  }
+
+  .cited h3 {
+    font-size: 14px;
+  }
+
+  .cited-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-1) var(--space-3);
+  }
+
+  .cited-text {
+    max-height: 18em;
+    overflow-y: auto;
+    white-space: pre-line;
+    line-height: 1.5;
+    overflow-wrap: anywhere;
+  }
+
   .backdrop {
     position: fixed;
     inset: 0;

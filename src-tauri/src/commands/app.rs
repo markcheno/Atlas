@@ -8,7 +8,7 @@ use crate::state::AppState;
 
 /// The slice this build implements, "<phase>.<slice>" (Phase 1, Slice 1 is
 /// "1.1"). The UI derives the phase from it.
-pub const CURRENT_SLICE: &str = "2.6";
+pub const CURRENT_SLICE: &str = "2.7";
 
 /// (id, label, delivering slice, implemented in this build)
 const FEATURES: &[(&str, &str, &str, bool)] = &[
@@ -62,6 +62,12 @@ const FEATURES: &[(&str, &str, &str, bool)] = &[
         "ask_atlas_engine",
         "Answers from the library with checked citations; privacy choices",
         "2.6",
+        true,
+    ),
+    (
+        "ask_atlas_screen",
+        "The Ask Atlas screen: answers with citation chips and the sources used",
+        "2.7",
         true,
     ),
 ];

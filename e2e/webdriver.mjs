@@ -60,6 +60,30 @@ export class WebDriver {
     await this.#call('POST', this.#s(`/element/${element}/value`), { text });
   }
 
+  /** Empties a text field (Slice 2.7: the AI service form is prefilled). */
+  async clear(element) {
+    await this.#call('POST', this.#s(`/element/${element}/clear`), {});
+  }
+
+  /**
+   * Chooses the option with this visible text in a `<select>`, firing the
+   * `input` and `change` events a person's choice would. (Clicking an
+   * `<option>` isn't handled alike by every native driver.)
+   */
+  async select(element, label) {
+    const ok = await this.execute(
+      `const s = arguments[0];
+       const o = [...s.options].find((o) => o.textContent.trim() === arguments[1]);
+       if (!o) return false;
+       s.value = o.value;
+       s.dispatchEvent(new Event('input', { bubbles: true }));
+       s.dispatchEvent(new Event('change', { bubbles: true }));
+       return true;`,
+      [{ [ELEMENT]: element }, label],
+    );
+    if (!ok) throw new Error(`no option ${label}`);
+  }
+
   async text(element) {
     return this.#call('GET', this.#s(`/element/${element}/text`));
   }

@@ -8,6 +8,7 @@ import { appInfo } from './stores/app.svelte';
 import { inventory } from './stores/inventory.svelte';
 import { extraction } from './stores/extraction.svelte';
 import { embedding } from './stores/embedding.svelte';
+import { answer } from './stores/answer.svelte';
 import { details } from './stores/details.svelte';
 import { duplicates } from './stores/duplicates.svelte';
 import { library } from './stores/library.svelte';
@@ -26,6 +27,7 @@ export async function applyStatus(status: DataRootStatus, opts: { justChosen?: b
   workspace.status = status;
   library.reset();
   search.reset();
+  answer.reset();
   duplicates.reset();
   details.reset();
   if (!appInfo.status) void appInfo.load();
@@ -39,6 +41,7 @@ export async function applyStatus(status: DataRootStatus, opts: { justChosen?: b
       extraction.subscribe(),
       embedding.refresh(),
       embedding.subscribe(),
+      answer.subscribe(),
     ]);
     view.go(opts.justChosen && sources.roots.length === 0 ? 'library-folders' : 'home');
   } else if (status.state === 'not_configured') {

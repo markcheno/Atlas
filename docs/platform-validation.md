@@ -1164,6 +1164,21 @@ one uncited sentence. Ask Atlas's tests run unchanged on every OS.
 [42895340978](https://github.com/markcheno/Atlas/actions/runs/42895340978),
 all green; `tests/answers.rs` passed 13 of 13 on each OS.
 
+## Slice 2.7
+
+The Ask Atlas screen. On every OS:
+
+- 19 new Vitest cases for the screen's states, and 5 for `answerText.ts`
+  (179 in all);
+- five new smoke steps on Windows and Linux, against `e2e/fake-ai.mjs`:
+  - "set up the scripted AI service";
+  - "choose the embedding and chat models";
+  - "index meaning";
+  - "a vague question finds the document by meaning";
+  - "ask Atlas answers with a citation that opens the source".
+
+<!-- ci-2.7 -->
+
 ## Manual checklist for Windows and Linux
 
 CI runs an automated smoke test on Windows and Linux (Slice 0.8, below),
@@ -1537,6 +1552,30 @@ The Ask Atlas screen arrives in Slice 2.7. Until then:
    Test an internet service's connection in Settings › AI Models: it says
    all external AI is turned off and sends nothing. Your oMLX service still
    tests normally. Turn it off again.
+
+### Ask Atlas screen (Slice 2.7, macOS)
+
+The smoke can't drive macOS's webview, so check the screen by hand with
+`just dev` against oMLX and a scratch `ATLAS_CONFIG_DIR`:
+
+1. Search › **Ask Atlas**. Ask a vague question about a book in your
+   library.
+   - The status says "Finding passages…", then "Waiting for the answer…".
+   - The answer streams in with numbered chips, and Sources used lists
+     every passage, the cited ones marked.
+2. Activate a chip. The details panel opens with **Cited passage** (source
+   number, page or chapter, the excerpt sent). Escape returns focus to the
+   chip. Open opens the file.
+3. Ask again and press **Stop** while it streams. "Stopped. The answer so
+   far is kept." Ask Atlas returns.
+4. Ask about something your library has nothing on. The weak note shows,
+   or "Atlas found nothing…", and the answer is a single uncited sentence.
+5. With VoiceOver on, ask once. It says "Atlas is answering", then reads
+   the answer once at the end, not piece by piece. Each chip reads as
+   "Source n: title, location".
+6. Optional, with an internet profile as the chat model: the first
+   question shows "Send excerpts to an internet service?" with the real
+   sizes. Cancel sends nothing; Continue asks.
 
 ## Known platform notes
 
