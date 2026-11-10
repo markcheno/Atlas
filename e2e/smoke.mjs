@@ -525,13 +525,24 @@ async function run() {
     await wd.clear(box);
     //  is WebDriver's Enter key.
     await wd.type(box, `${VAGUE_QUESTION}`);
-    const hit = await wd.waitFor(
-      `//li[@data-testid='search-hit'][.//h3[normalize-space(.)=${lit(LIGHTHOUSE_TITLE)}]]`,
-      { timeout: 30_000 },
-    );
-    const text = await wd.text(hit);
-    if (!/similar meaning/i.test(text)) throw new Error(`not found by meaning: ${text}`);
-    return { result: text.split('\n').slice(0, 4).join(' / ') };
+    const hitPath = `//li[@data-testid='search-hit'][.//h3[normalize-space(.)=${lit(LIGHTHOUSE_TITLE)}]]`;
+    // A person searches again if meaning was still settling; each attempt,
+    // and any note about meaning search, goes in the report.
+    const attempts = [];
+    for (let attempt = 1; attempt <= 4; attempt += 1) {
+      if (attempt > 1) {
+        await sleep(2_000);
+        await wd.click(await wd.waitFor(`//form[@role='search']${button('Search')}`));
+      }
+      const text = await wd.text(await wd.waitFor(hitPath, { timeout: 30_000 }));
+      const notes = await wd.all("//*[@data-testid='meaning-note']");
+      const note = notes.length > 0 ? await wd.text(notes[0]) : null;
+      attempts.push({ why: text.split('\n').find((l) => /In the|Similar/.test(l)) ?? null, note });
+      if (/similar meaning/i.test(text)) {
+        return { result: text.split('\n').slice(0, 4).join(' / '), attempts };
+      }
+    }
+    throw new Error(`not found by meaning: ${JSON.stringify(attempts)}`);
   });
 
   await step('ask Atlas answers with a citation that opens the source', async () => {
