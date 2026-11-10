@@ -9,7 +9,7 @@
 //   node scripts/bench.mjs [--out <dir>] [--sweep] [--search-only] [--extraction-only]
 //                          [--vectors-only] [--embedding-only] [--search-size 30k|1k]
 //                          [--extraction-size 30k|1k] [--vectors-size 100000]
-//                          [--embedding-size 30k|1k] [--max-p95-ms 250]
+//                          [--embedding-size 30k|10k|1k] [--max-p95-ms 250]
 //
 // --search-size picks the search fixture: 30k (default; the P1-19 reference
 // measurement, run locally) or 1k (CI: the 30k text fixture takes over 40
@@ -18,9 +18,10 @@
 // the Slow duty cycle (simulated battery), which takes too long at 30k.
 // --sweep adds the 30k throttle sweep (about 10 minutes) used to choose
 // the cataloging rate. --search-only runs just the search benchmark,
-// --extraction-only just the extraction benchmark; --evidence is the Phase 1
-// close-out's run (`just ci-remote evidence`): extraction only, on the 30k
-// text fixture, unthrottled, failing unless every file is read;
+// --extraction-only just the extraction benchmark; --evidence is the
+// close-outs' run (`just ci-remote evidence`): Phase 1's extraction on the
+// 30k text fixture, unthrottled, failing unless every file is read, and
+// (Phase 2, Slice 2.8) the embedding benchmark on the 10k text fixture;
 // --embedding-only runs just the embedding benchmark (Phase 2, P2-18): the
 // embed job on the text fixture of --embedding-size (default: the search
 // size) with hybrid search timed while it runs; --max-p95-ms then applies
@@ -59,7 +60,7 @@ const runInventory = !searchOnly && !extractionOnly && !vectorsOnly && !embeddin
 const runSearch = !extractionOnly && !vectorsOnly && !embeddingOnly;
 const runExtraction = !searchOnly && !vectorsOnly && !embeddingOnly;
 const runVectors = !searchOnly && !extractionOnly && !embeddingOnly;
-const runEmbedding = !searchOnly && !extractionOnly && !vectorsOnly && !evidence;
+const runEmbedding = evidence || (!searchOnly && !extractionOnly && !vectorsOnly);
 const vectorsSize = Number(opt('vectors-size', '100000'));
 if (!Number.isInteger(vectorsSize) || vectorsSize < 100)
   throw new Error('--vectors-size is a whole number of at least 100');
@@ -97,13 +98,18 @@ const large = runInventory ? fixture('30k', 10000, 20000) : null;
 const textFixture = (size) =>
   size === '30k'
     ? fixture('30k-text-copies', 10000, 20000, 20, 2000)
-    : fixture('1k-text-copies', 1000, 0, 20, 100);
+    : size === '10k'
+      ? fixture('10k-text-copies', 10000, 0, 20, 700)
+      : fixture('1k-text-copies', 1000, 0, 20, 100);
 const searchLabel = `${searchSize}-text`;
 const searchFixture = runSearch ? textFixture(searchSize) : null;
 const extractionLabel = `${extractionSize}-text`;
 const extractionFixture = runExtraction ? textFixture(extractionSize) : null;
-const embeddingSize = opt('embedding-size', searchSize);
-if (!['30k', '1k'].includes(embeddingSize)) throw new Error('--embedding-size is 30k or 1k');
+// The close-out's embedding evidence is 10k files on every runner: 30k
+// took 69 minutes on the reference machine (Slice 2.4), too long for them.
+const embeddingSize = evidence ? '10k' : opt('embedding-size', searchSize);
+if (!['30k', '10k', '1k'].includes(embeddingSize))
+  throw new Error('--embedding-size is 30k, 10k or 1k');
 const embeddingLabel = `${embeddingSize}-text`;
 const embeddingFixture = runEmbedding ? textFixture(embeddingSize) : null;
 

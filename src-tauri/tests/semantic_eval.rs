@@ -602,6 +602,279 @@ fn p2_17_the_vague_set_against_a_real_model() {
     assert!(totals[1] > totals[0], "meaning alone must beat text alone");
 }
 
+/// Embedding throughput, index recall and the meaning-only share against a
+/// real model (phase2-spec §13; Slice 2.8), run by its owner with
+/// `just eval-embed` and the `ATLAS_EVAL_EMBED_*` variables of
+/// `eval-semantic`:
+///
+/// - **Throughput:** every chunk of the spike corpus embedded again in the
+///   job's batches (at most 16 chunks and 16,000 characters), timed at the
+///   service. Tokens are the service's own count (`usage.prompt_tokens`,
+///   Ollama's `prompt_eval_count`) when it reports one; otherwise
+///   characters ÷ 4, said to be an estimate. The service always answers at
+///   its full length; 512 is Atlas truncating, so its pace is the same.
+/// - **Recall@10 of the index on real vectors**, at the full length and at
+///   512: the vague questions (with the model's query instruction) and 200
+///   chunks as queries, the index's top 10 against an exact cosine scan.
+/// - **The meaning-only share:** vague questions with a relevant document in
+///   the top 5 by hybrid search (as Atlas searches, its own index) but not
+///   by text alone.
+#[test]
+#[ignore = "needs a real embedding model: just eval-embed"]
+fn embedding_throughput_and_recall_against_a_real_model() {
+    use atlas_lib::infrastructure::http_probe::{
+        EmbedReply, client, embedding_vectors, embeddings_request, post_embeddings,
+    };
+    use std::collections::HashSet;
+
+    let var = |k: &str| std::env::var(k).ok().filter(|v| !v.is_empty());
+    let (Some(base), Some(model)) = (var("ATLAS_EVAL_EMBED_URL"), var("ATLAS_EVAL_EMBED_MODEL"))
+    else {
+        panic!(
+            "just eval-embed needs, for example:\n\
+             ATLAS_EVAL_EMBED_URL=http://localhost:8000/v1\n\
+             ATLAS_EVAL_EMBED_MODEL=Qwen3-Embedding-0.6B-8bit\n\
+             and, if the service needs one, ATLAS_EVAL_EMBED_KEY=<key>. Optional:\n\
+             ATLAS_EVAL_EMBED_KIND (openai_compatible or ollama), ATLAS_EVAL_EMBED_DIMS (1024)."
+        );
+    };
+    let key = var("ATLAS_EVAL_EMBED_KEY");
+    let kind_text = var("ATLAS_EVAL_EMBED_KIND").unwrap_or_else(|| "openai_compatible".into());
+    let kind = if kind_text == "ollama" {
+        ProviderKind::Ollama
+    } else {
+        ProviderKind::OpenaiCompatible
+    };
+    let dims: usize = var("ATLAS_EVAL_EMBED_DIMS").map_or(1024, |d| d.parse().unwrap());
+    let base = base.trim_end_matches('/').to_owned();
+
+    let mut config = fast_embedding();
+    config.unthrottled = true;
+    let h = EmbedHarness::new(config).over_http(ProbeConfig::embedding());
+    let corpus = Corpus::embedded(h, &kind_text, &base, &model, dims as i64, key.as_deref());
+    let root = corpus.root();
+    let serving = root
+        .reader()
+        .read(models::serving)
+        .unwrap()
+        .unwrap()
+        .unwrap();
+    let stored = root.vectors().loaded(&serving.id).unwrap();
+    let profile = query_profile(&model);
+
+    let chunk_texts: Vec<(u64, String)> = root
+        .reader()
+        .read(|c| {
+            let mut stmt = c.prepare(
+                "SELECT c.id, p.text, c.char_start, c.char_end FROM chunks c
+                 JOIN passages p ON p.id = c.passage_id ORDER BY c.id",
+            )?;
+            let rows = stmt
+                .query_map([], |r| {
+                    Ok((
+                        r.get::<_, i64>(0)? as u64,
+                        r.get::<_, String>(1)?,
+                        r.get::<_, i64>(2)? as usize,
+                        r.get::<_, i64>(3)? as usize,
+                    ))
+                })?
+                .collect::<rusqlite::Result<Vec<_>>>()?;
+            Ok::<_, rusqlite::Error>(
+                rows.into_iter()
+                    .filter_map(|(id, text, a, b)| {
+                        chunk::slice(&text, chunk::Span { start: a, end: b })
+                            .map(|t| (id, t.to_owned()))
+                    })
+                    .collect::<Vec<_>>(),
+            )
+        })
+        .unwrap()
+        .unwrap();
+
+    // The job's batches: at most 16 chunks and 16,000 characters.
+    let mut batches: Vec<Vec<usize>> = Vec::new();
+    let (mut current, mut chars) = (Vec::new(), 0usize);
+    for (i, (_, t)) in chunk_texts.iter().enumerate() {
+        let n = t.chars().count();
+        if !current.is_empty() && (current.len() == 16 || chars + n > 16_000) {
+            batches.push(std::mem::take(&mut current));
+            chars = 0;
+        }
+        current.push(i);
+        chars += n;
+    }
+    if !current.is_empty() {
+        batches.push(current);
+    }
+
+    let http = client(&ProbeConfig::embedding());
+    let cap = ProbeConfig::embedding().max_body_bytes;
+    let embed = |inputs: &[&str]| -> (Vec<Vec<f32>>, Option<u64>) {
+        let (path, body) = embeddings_request(kind, &model, inputs);
+        let url = format!("{base}{path}");
+        let reply = tauri::async_runtime::block_on(post_embeddings(
+            &http,
+            &url,
+            key.as_deref(),
+            &body,
+            cap,
+        ));
+        let EmbedReply::Ok(answer) = reply else {
+            panic!("the service refused an embedding request: {reply:?}");
+        };
+        let tokens = answer
+            .pointer("/usage/prompt_tokens")
+            .or_else(|| answer.pointer("/usage/total_tokens"))
+            .or_else(|| answer.get("prompt_eval_count"))
+            .and_then(Value::as_u64);
+        let mut vectors = embedding_vectors(kind, &answer).expect("vectors");
+        for v in &mut vectors {
+            let norm = v.iter().map(|x| x * x).sum::<f32>().sqrt();
+            v.iter_mut().for_each(|x| *x /= norm);
+        }
+        (vectors, tokens)
+    };
+
+    let started = Instant::now();
+    let (mut full, mut tokens, mut counted) = (Vec::new(), 0u64, true);
+    let total_chars: usize = chunk_texts.iter().map(|(_, t)| t.chars().count()).sum();
+    for batch in &batches {
+        let texts: Vec<&str> = batch.iter().map(|&i| chunk_texts[i].1.as_str()).collect();
+        let (vectors, used) = embed(&texts);
+        assert_eq!(vectors.len(), texts.len());
+        match used {
+            Some(n) => tokens += n,
+            None => counted = false,
+        }
+        full.extend(vectors);
+    }
+    let secs = started.elapsed().as_secs_f64();
+    let (tokens, how) = if counted {
+        (tokens as f64, "counted by the service")
+    } else {
+        (total_chars as f64 / 4.0, "estimated as characters ÷ 4")
+    };
+    eprintln!(
+        "model {model} ({kind_text}): {} chunks in {} requests, {:.1} s: {:.1} chunks/s, {:.0} tokens/s ({how}), {:.0} characters/s; the service returns {} dimensions, Atlas stores {}",
+        full.len(),
+        batches.len(),
+        secs,
+        full.len() as f64 / secs,
+        tokens / secs,
+        total_chars as f64 / secs,
+        full[0].len(),
+        serving.dims,
+    );
+
+    // Recall@10 of the index against an exact scan, on these vectors.
+    let keys: Vec<u64> = chunk_texts.iter().map(|(k, _)| *k).collect();
+    let questions_list = questions("questions-vague.json");
+    let query_texts: Vec<String> = questions_list
+        .iter()
+        .map(|q| {
+            format!(
+                "{}{}",
+                profile.prefix.as_deref().unwrap_or(""),
+                q["question"].as_str().unwrap()
+            )
+        })
+        .collect();
+    let question_vectors: Vec<Vec<f32>> = query_texts
+        .iter()
+        .flat_map(|t| embed(&[t.as_str()]).0)
+        .collect();
+    let step = (full.len() / 200).max(1);
+    let lengths: Vec<usize> = [full[0].len(), 512]
+        .into_iter()
+        .filter(|&w| w <= full[0].len())
+        .collect::<std::collections::BTreeSet<_>>()
+        .into_iter()
+        .rev()
+        .collect();
+    for want in lengths {
+        let vectors: Vec<Vec<f32>> = full
+            .iter()
+            .map(|v| truncate_normalize(v, want).unwrap())
+            .collect();
+        let index = VectorIndex::new("recall", want).unwrap();
+        let items: Vec<(u64, Vec<f32>)> = keys.iter().copied().zip(vectors.clone()).collect();
+        index.add_batch(&items, 4).unwrap();
+        let mut queries: Vec<Vec<f32>> = question_vectors
+            .iter()
+            .map(|v| truncate_normalize(v, want).unwrap())
+            .collect();
+        queries.extend(vectors.iter().step_by(step).take(200).cloned());
+        let mut found = 0usize;
+        for q in &queries {
+            let mut exact: Vec<(f32, u64)> = vectors
+                .iter()
+                .zip(&keys)
+                .map(|(v, k)| (v.iter().zip(q).map(|(a, b)| a * b).sum::<f32>(), *k))
+                .collect();
+            exact.sort_by(|a, b| b.0.total_cmp(&a.0));
+            let truth: HashSet<u64> = exact.iter().take(10).map(|e| e.1).collect();
+            let got = index.search(q, 10).unwrap();
+            found += got.iter().filter(|(k, _)| truth.contains(k)).count();
+        }
+        eprintln!(
+            "recall@10 of the index at {want} dimensions: {:.4} over {} queries ({} questions, {} chunks)",
+            found as f64 / (queries.len() * 10) as f64,
+            queries.len(),
+            question_vectors.len(),
+            queries.len() - question_vectors.len(),
+        );
+    }
+
+    // The meaning-only share: as Atlas searches, its own index and floor.
+    let (mut text_hits, mut hybrid_hits, mut only_meaning) = (0, 0, Vec::new());
+    for (q, vector) in questions_list.iter().zip(&question_vectors) {
+        let text = q["question"].as_str().unwrap();
+        let relevant = corpus.relevant(q);
+        let text_page = root
+            .reader()
+            .read(|c| search::search(c, &query(text)))
+            .unwrap()
+            .unwrap();
+        let text_docs: Vec<String> = text_page
+            .hits
+            .iter()
+            .filter_map(|h| h.document_id.clone())
+            .collect();
+        let by_text = corpus.rank(&text_docs, &relevant).is_some_and(|r| r <= 5);
+        let vector = truncate_normalize(vector, serving.dims).unwrap();
+        let mut map = ChunkMap::default();
+        let semantic = Semantic {
+            vector: Box::new(move || Some(vector)),
+            index: &stored,
+            chunk_map: &mut map,
+            min_similarity: profile.min_similarity,
+        };
+        let page = root
+            .reader()
+            .read(|c| search::search_with(c, &query(text), Some(semantic)))
+            .unwrap()
+            .unwrap();
+        let docs: Vec<String> = page
+            .hits
+            .iter()
+            .filter_map(|h| h.document_id.clone())
+            .collect();
+        let by_hybrid = corpus.rank(&docs, &relevant).is_some_and(|r| r <= 5);
+        text_hits += usize::from(by_text);
+        hybrid_hits += usize::from(by_hybrid);
+        if by_hybrid && !by_text {
+            only_meaning.push(q["id"].as_str().unwrap().to_owned());
+        }
+    }
+    let n = questions_list.len();
+    eprintln!(
+        "vague set at the stored {} dimensions: text alone {text_hits}/{n}, hybrid {hybrid_hits}/{n}; found only with meaning: {}/{n} ({:.0}%) {only_meaning:?}",
+        serving.dims,
+        only_meaning.len(),
+        100.0 * only_meaning.len() as f64 / n as f64,
+    );
+}
+
 /// Ask Atlas against real models (Slice 2.6, phase2-spec §13), run by its
 /// owner with `just eval-ask`: the corpus embedded as above, then every
 /// vague question asked through the chat model. Reports, per question and
