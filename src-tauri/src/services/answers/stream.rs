@@ -30,6 +30,10 @@ pub struct ChatTarget {
     pub base: String,
     pub key: Option<Secret>,
     pub model: String,
+    /// Whether the service is on this computer or another of the user's,
+    /// and so may be sent the template's thinking switch (see
+    /// [`chat_request`]).
+    pub nearby: bool,
 }
 
 /// The limits of one answer (phase2-spec §3).
@@ -93,7 +97,7 @@ pub fn run(
     stop: &dyn Fn() -> bool,
     mut on_piece: impl FnMut(Piece),
 ) -> Ended {
-    let (path, body) = chat_request(target.kind, &target.model, messages);
+    let (path, body) = chat_request(target.kind, &target.model, messages, target.nearby);
     let url = format!("{}{path}", target.base);
     let http = client(&ProbeConfig {
         connect_timeout: limits.connect,

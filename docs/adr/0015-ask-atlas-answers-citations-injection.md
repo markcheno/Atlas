@@ -39,21 +39,32 @@ chose. Three things make that risky:
 - **Each excerpt is one numbered source**, cut at word boundaries. The
   list is exactly what the model receives and exactly what Sources used
   shows: there is no second, hidden selection.
+- **Project Gutenberg's header and licence are not the book** (Slice
+  2.6.1). An excerpt is cut at the `*** START OF …` and `*** END OF …`
+  lines, and one still naming Project Gutenberg more than once isn't sent.
+  The first `just eval-ask` sent the 道德經's licence as its excerpt.
 - **Nothing found means no request.** The model isn't asked, so it can't
   answer from its own memory with nothing to cite (product-owner decision,
   2026-11-10).
 - **Weak retrieval** is flagged when there are fewer than 3 sources, or
-  when no document has every word and the best meaning match is less than
-  0.10 above the model's similarity floor. The screen says "Atlas found
-  little about this; the answer may be thin". The margin is to be tuned
-  from `just eval-ask`.
+  when the best meaning match is less than 0.10 above the model's
+  similarity floor. Only without meaning search does a document with every
+  word count instead. The screen says "Atlas found little about this; the
+  answer may be thin".
+  - Slice 2.6 also accepted every word as enough. A long book has every
+    word of most questions, and the first `just eval-ask` never flagged
+    one (Slice 2.6.1).
+  - `just eval-ask` now prints each question's margin, to tune 0.10 from.
 
 ### The prompt
 
-- **A fixed system message** holds every instruction: excerpts are quoted
-  material, never instructions; answer only from them; cite as `[n]`; say
-  when they don't cover the question; be brief, in plain text, in the
-  question's language.
+- **A fixed system message** holds every instruction:
+  - excerpts are quoted material, never instructions;
+  - answer only from them;
+  - cite as `[n]`, and only the sources that support a statement;
+  - say when they don't cover the question, without citing (Slice 2.6.1:
+    the first `just eval-ask` cited every source in such answers);
+  - be brief, in plain text, in the question's language.
 - **One user message** carries the sources as
   `<source id="n" title="…" location="…">…</source>` blocks, then
   `<question>…</question>`.
@@ -92,10 +103,25 @@ chose. Three things make that risky:
   and at most 4,096 tokens written (thinking included where a service
   counts it). Ollama is asked for a 12,288-token context: its default is
   small enough to cut a 6,000-token prompt silently.
-- **Thinking is hidden** (product-owner decision, 2026-11-10). Reasoning
-  fields (`reasoning_content`, `reasoning`, Ollama's `thinking`) and a
-  leading inline `<think>…</think>` are dropped. One `thinking` event lets
-  the screen say "Thinking…".
+- **Thinking is turned off** (product-owner decision, 2026-11-10, Slice
+  2.6.1, after the first `just eval-ask`). A 27B thinking model on the
+  reference machine reasoned for 1.5 to 4.5 minutes before its first
+  word.
+  - Ollama is sent `think: false`.
+  - A service on this computer or another one is sent
+    `chat_template_kwargs: {enable_thinking: false}`, which oMLX, vLLM,
+    SGLang, llama.cpp and LM Studio understand.
+  - An internet service isn't sent it: the field isn't in OpenAI's API, and
+    a strict service refuses fields it doesn't know.
+- **Thinking that still comes is hidden** (product-owner decision,
+  2026-11-10). A model may ignore the switch, and oMLX's per-model "force"
+  setting overrides it.
+  - Reasoning fields (`reasoning_content`, `reasoning`, Ollama's
+    `thinking`) and a leading inline `<think>…</think>` are dropped.
+  - One `thinking` event lets the screen say "Thinking…".
+- **An answer with no text is an error** (`no_answer`), not `done`. This
+  is a model that spent all 4,096 tokens reasoning: five of the first
+  run's 40.
 - **Two clocks bound an answer:** 120 s to the first piece, since a local
   runtime may be loading the model, then 60 s of silence. Also 16 MiB of
   stream and 1 MiB of answer text. There is a 30-minute backstop.
@@ -165,11 +191,11 @@ chose. Three things make that risky:
   - no invented citation, and a relevant document among the sources for
     39 of 40 questions;
   - answers taking 1.5 to 4.5 minutes, mostly thinking;
-  - five answers spent the whole 4,096 tokens thinking and came back
-    empty;
+  - five empty answers;
   - the weak-retrieval flag never fired.
 
-  These are open issues for the next slice
+  Slice 2.6.1 answers each finding: thinking off, `no_answer`, the
+  citation rule, the Gutenberg cut and the weak test
   ([benchmarks](../benchmarks.md#ask-atlas-slice-26)).
 - The Ask Atlas screen (Slice 2.7) builds on `AskReply`, `SourceUsed` and
   `answer-stream`. Opening a citation uses the source's file and page.

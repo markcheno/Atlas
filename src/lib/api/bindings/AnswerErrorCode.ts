@@ -3,4 +3,4 @@
 /**
  * Why an answer stopped early, in fixed codes; the UI words them.
  */
-export type AnswerErrorCode = "network_error" | "timeout" | "authentication_failed" | "model_not_found" | "service_error" | "protocol_mismatch" | "too_long";
+export type AnswerErrorCode = "network_error" | "timeout" | "authentication_failed" | "model_not_found" | "service_error" | "protocol_mismatch" | "too_long" | "no_answer";

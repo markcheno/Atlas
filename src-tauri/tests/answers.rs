@@ -430,6 +430,11 @@ fn p2_15_an_internet_service_gets_nothing_until_agreed() {
     );
     ask.finished(&started.answer_id);
     assert_eq!(ask.chat_requests().len(), 1);
+    let body: Value = serde_json::from_str(&ask.chat_requests()[0].body).unwrap();
+    assert!(
+        body.get("chat_template_kwargs").is_none(),
+        "an internet service isn't sent a field outside OpenAI's API"
+    );
 
     // A new address asks again.
     let moved = ask.server.url("/v1").replace("127.0.0.1", "localhost");
@@ -656,6 +661,7 @@ fn thinking_is_reported_but_never_shown() {
     let body: Value = serde_json::from_str(&ask.chat_requests()[0].body).unwrap();
     assert!(body["options"]["num_ctx"].as_u64().unwrap() >= 8192);
     assert_eq!(body["stream"], true);
+    assert_eq!(body["think"], false, "thinking is asked to be off");
 
     // An OpenAI-compatible service that puts it inline.
     let ask = Ask::openai(
@@ -669,6 +675,53 @@ fn thinking_is_reported_but_never_shown() {
     let steps = ask.finished(&started.answer_id);
     assert_eq!(steps.first(), Some(&AnswerStep::Thinking));
     assert_eq!(text(&steps), "Comets [1].");
+    // A service on this computer gets the template's switch too.
+    let body: Value = serde_json::from_str(&ask.chat_requests()[0].body).unwrap();
+    assert_eq!(body["chat_template_kwargs"]["enable_thinking"], false);
+}
+
+#[test]
+fn a_model_that_only_thinks_gives_no_answer() {
+    let reasoning = |text: &str| {
+        format!(
+            "data: {}\n\n",
+            json!({"choices":[{"delta":{"reasoning_content": text}}]})
+        )
+    };
+    let lines = vec![
+        reasoning("Let me look at source 1."),
+        reasoning(" And source 2."),
+        delta("\n\n"),
+        "data: [DONE]\n\n".to_owned(),
+    ];
+    let ask = Ask::openai(
+        &[SKY, NEAR_SKY],
+        streamed(&lines, Duration::from_millis(10)),
+    );
+    let started = ask.started(QUESTION);
+    let steps = ask.finished(&started.answer_id);
+    match steps.last() {
+        Some(AnswerStep::Error {
+            code: AnswerErrorCode::NoAnswer,
+            message,
+            partial: false,
+            ..
+        }) => assert!(message.contains("thinking"), "{message}"),
+        other => panic!("expected no answer: {other:?}"),
+    }
+    assert!(!steps.iter().any(|s| matches!(s, AnswerStep::Done { .. })));
+
+    // Nothing at all, not even thinking.
+    let ask = Ask::openai(&[SKY, NEAR_SKY], streamed(&sse(&[]), Duration::ZERO));
+    let started = ask.started(QUESTION);
+    match ask.finished(&started.answer_id).last() {
+        Some(AnswerStep::Error {
+            code: AnswerErrorCode::NoAnswer,
+            message,
+            ..
+        }) => assert!(!message.contains("thinking"), "{message}"),
+        other => panic!("expected no answer: {other:?}"),
+    }
 }
 
 #[test]

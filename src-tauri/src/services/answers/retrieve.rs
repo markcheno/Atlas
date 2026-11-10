@@ -12,6 +12,10 @@
 //! every document's first excerpt, then second ones, so one long book
 //! can't crowd out the rest. Each excerpt is one numbered source, sent and
 //! shown exactly as cut.
+//!
+//! Project Gutenberg's header and licence are not the book: an excerpt is
+//! cut at the `*** START OF …` and `*** END OF …` lines, and one that is
+//! still licence text isn't sent ([`without_boilerplate`]).
 
 use rusqlite::{Connection, OptionalExtension};
 
@@ -30,7 +34,7 @@ pub const TEXT_WINDOW_CHARS: usize = 1_500;
 /// An excerpt cut shorter than this to fit the budget isn't worth sending.
 const SHORTEST: usize = 300;
 /// How far above the model's similarity floor the best meaning match must
-/// be for retrieval not to count as weak, when no document has every word.
+/// be for retrieval not to count as weak.
 pub const WEAK_MARGIN: f32 = 0.10;
 /// Fewer sources (excerpts) than this and retrieval is weak.
 pub const FEW_SOURCES: usize = 3;
@@ -87,6 +91,9 @@ pub(crate) fn excerpts(conn: &Connection, found: &[Found]) -> rusqlite::Result<V
             else {
                 continue;
             };
+            let Some(text) = without_boilerplate(&text).map(str::to_owned) else {
+                continue;
+            };
             let document_id = f.hit.document_id.clone().unwrap_or_default();
             if out
                 .iter()
@@ -117,8 +124,11 @@ pub(crate) fn excerpts(conn: &Connection, found: &[Found]) -> rusqlite::Result<V
 }
 
 /// Whether Atlas found little (phase2-spec §7.6): fewer than
-/// [`FEW_SOURCES`] excerpts, or no document with every word and no meaning
-/// match well above the model's floor.
+/// [`FEW_SOURCES`] excerpts, or, when meaning search ran, no meaning match
+/// [`WEAK_MARGIN`] above the model's floor. Without meaning search: no
+/// document with every word. (A long book has every word of most
+/// questions, so with meaning search that says little; `just eval-ask`,
+/// 2026-11-10.)
 pub(crate) fn weak(
     found: &[Found],
     sources: usize,
@@ -128,12 +138,10 @@ pub(crate) fn weak(
     if sources < FEW_SOURCES {
         return true;
     }
-    let every_word = found.iter().any(|f| f.hit.all_words && f.text.is_some());
-    let close = match (best_similarity, min_similarity) {
-        (Some(best), Some(floor)) => best >= floor + WEAK_MARGIN,
-        _ => false,
-    };
-    !(every_word || close)
+    match min_similarity {
+        Some(floor) => best_similarity.is_none_or(|best| best < floor + WEAK_MARGIN),
+        None => !found.iter().any(|f| f.hit.all_words && f.text.is_some()),
+    }
 }
 
 fn overlaps(a: &Place, b: &Place) -> bool {
@@ -234,6 +242,29 @@ fn quote(conn: &Connection, place: &Place, max: usize) -> rusqlite::Result<Optio
     Ok(Some((cut.to_owned(), location, page_no)))
 }
 
+/// `text` without Project Gutenberg's header and licence: what follows a
+/// `*** START OF …` line and comes before an `*** END OF …` line. `None`
+/// when nothing is left, or what is left still reads as licence text
+/// (it names Project Gutenberg more than once).
+pub(crate) fn without_boilerplate(text: &str) -> Option<&str> {
+    let (mut start, mut end) = (0, text.len());
+    let mut at = 0;
+    for line in text.split_inclusive('\n') {
+        let lower = line.trim().to_lowercase();
+        if lower.starts_with("***") && lower.contains("project gutenberg") {
+            if lower.contains("start of") && at + line.len() <= end {
+                start = at + line.len();
+            } else if lower.contains("end of") && at >= start {
+                end = end.min(at);
+            }
+        }
+        at += line.len();
+    }
+    let kept = text.get(start..end.max(start))?.trim();
+    let licence = kept.to_lowercase().matches("gutenberg").count() >= 2;
+    (!kept.is_empty() && !licence).then_some(kept)
+}
+
 /// Drops a partial word at a cut edge (not at the passage's own edges).
 fn at_words(text: &str, cut_start: bool, cut_end: bool) -> &str {
     let mut t = text;
@@ -255,6 +286,28 @@ mod tests {
         assert_eq!(at_words("lo world again", true, true), "world");
         assert_eq!(at_words("hello world", false, false), "hello world");
         assert_eq!(at_words("hello world", false, true), "hello");
+    }
+
+    #[test]
+    fn project_gutenberg_header_and_licence_are_left_out() {
+        let header = "The Project Gutenberg eBook of The Prince\nThis ebook is for the use of anyone \
+                      anywhere. See www.gutenberg.org.\n*** START OF THE PROJECT GUTENBERG EBOOK THE \
+                      PRINCE ***\nCHAPTER I\nAll states are republics or principalities.";
+        assert_eq!(
+            without_boilerplate(header),
+            Some("CHAPTER I\nAll states are republics or principalities.")
+        );
+        let end = "and so it ended.\n\n*** END OF THE PROJECT GUTENBERG EBOOK X ***\nUpdated \
+                   editions will replace the previous one. Project Gutenberg™ …";
+        assert_eq!(without_boilerplate(end), Some("and so it ended."));
+        let licence = "1.E.1. The following sentence, with active links to Project Gutenberg™, \
+                       must appear whenever any copy of a Project Gutenberg™ work is accessed.";
+        assert_eq!(without_boilerplate(licence), None);
+        let marker_only = "*** START OF THIS PROJECT GUTENBERG EBOOK X ***\n";
+        assert_eq!(without_boilerplate(marker_only), None);
+        // A book that only mentions it once is a book.
+        let book = "Michael Hart started Project Gutenberg in 1971.";
+        assert_eq!(without_boilerplate(book), Some(book));
     }
 
     #[test]

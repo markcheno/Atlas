@@ -1129,6 +1129,16 @@ every OS:
 [42848628789](https://github.com/markcheno/Atlas/actions/runs/42848628789),
 all green; `tests/answers.rs` passed 11 of 11 on each OS.
 
+## Slice 2.6.1
+
+Fixes from the first `just eval-ask`: thinking off, `no_answer`, the
+citation rule, the Gutenberg cut, the weak test. On every OS,
+`tests/answers.rs` gains an answer that only thinks, and the thinking
+switch in Ollama, nearby and internet request bodies. The Gutenberg cut
+has unit tests.
+
+<!-- ci-2.6.1 -->
+
 ## Manual checklist for Windows and Linux
 
 CI runs an automated smoke test on Windows and Linux (Slice 0.8, below),
@@ -1474,15 +1484,22 @@ and read:
 
 The Ask Atlas screen arrives in Slice 2.7. Until then:
 
-1. With oMLX serving an embedding model and a chat model (for example
-   Qwen3.5), run `just eval-ask` with the `ATLAS_EVAL_EMBED_*` and
-   `ATLAS_EVAL_CHAT_*` variables set. Every vague question gets an answer
-   or "nothing found", no `[n]` in any answer is beyond its sources, and
-   the summary line gives the times and citation rates for
-   [benchmarks](benchmarks.md#ask-atlas-slice-26). It builds its own
-   scratch library from the corpus; your library isn't used.
-   *Run 2026-11-10 against oMLX with `Qwen3.8-27B-MLX-4bit`: 40 answers,
-   no invented citation, five empty answers (see benchmarks).*
+1. With oMLX serving an embedding model and a chat model, run
+   `just eval-ask` with `ATLAS_EVAL_EMBED_URL`, `ATLAS_EVAL_EMBED_MODEL`,
+   `ATLAS_EVAL_EMBED_KEY` and `ATLAS_EVAL_CHAT_MODEL` set. The chat model
+   uses the same service and key unless `ATLAS_EVAL_CHAT_*` say
+   otherwise.
+   - Every vague question gets an answer, "nothing found" or an error.
+   - No `[n]` in any answer is beyond its sources.
+   - The summary lines give the times, citation rates and margins for
+     [benchmarks](benchmarks.md#ask-atlas-slice-26).
+   - The whole answers are in `src-tauri/target/tmp/eval-ask-answers.md`.
+   - It builds its own scratch library from the corpus; your library isn't
+     used.
+
+   *First run 2026-11-10 against oMLX with `Qwen3.8-27B-MLX-4bit` and
+   thinking on: 40 answers, no invented citation, five empty answers (see
+   benchmarks). The run after Slice 2.6.1 is pending.*
 2. In Settings › Privacy, turn on **Disable all external AI**. "Allow
    embedding my library through an internet service" becomes unavailable.
    Test an internet service's connection in Settings › AI Models: it says

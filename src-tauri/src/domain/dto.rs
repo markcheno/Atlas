@@ -1025,6 +1025,9 @@ pub enum AnswerErrorCode {
     ProtocolMismatch,
     /// The answer passed Atlas's size limit.
     TooLong,
+    /// The service finished without writing any answer (a thinking model
+    /// can spend its whole allowance reasoning).
+    NoAnswer,
 }
 
 /// One step of a streamed answer (the `answer-stream` event).

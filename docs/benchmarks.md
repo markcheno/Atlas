@@ -703,6 +703,19 @@ What the run shows:
   the space is most likely lost in the service's streaming. This is to be
   confirmed against a raw stream.
 
+**Slice 2.6.1** answers these findings ([ADR 0015](adr/0015-ask-atlas-answers-citations-injection.md)):
+
+- thinking is asked to be off;
+- an answer with no text is the error `no_answer`;
+- a "not covered" answer cites nothing;
+- Project Gutenberg's header and licence are cut from excerpts;
+- weak retrieval goes by the meaning margin alone, which `just eval-ask` now
+  prints for each question.
+
+*The run after Slice 2.6.1 is pending.* If answers are still slow with
+thinking off, the model is the next lever: about 17 tokens/s is this
+machine's ceiling for a 27B model.
+
 CI has no model. There, the engine runs against a scripted service
 streaming canned answers (`tests/answers.rs`, P2-13 to P2-16).
 

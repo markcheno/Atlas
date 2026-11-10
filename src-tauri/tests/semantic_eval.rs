@@ -614,7 +614,7 @@ fn p2_17_the_vague_set_against_a_real_model() {
 #[test]
 #[ignore = "needs real embedding and chat models: just eval-ask"]
 fn ask_atlas_against_real_models() {
-    use atlas_lib::domain::dto::{AnswerEvent, AnswerStep, AskQuery, AskReply};
+    use atlas_lib::domain::dto::{AnswerErrorCode, AnswerEvent, AnswerStep, AskQuery, AskReply};
     use atlas_lib::services::answers::stream::ChatLimits;
     use atlas_lib::services::answers::{self, AnswerEvents, AskDeps};
     use atlas_lib::services::embedding::job::http_backends;
@@ -622,15 +622,23 @@ fn ask_atlas_against_real_models() {
     use std::sync::Mutex;
 
     let var = |k: &str| std::env::var(k).ok().filter(|v| !v.is_empty());
-    let (Some(base), Some(model)) = (var("ATLAS_EVAL_EMBED_URL"), var("ATLAS_EVAL_EMBED_MODEL"))
-    else {
-        panic!("set ATLAS_EVAL_EMBED_URL and ATLAS_EVAL_EMBED_MODEL");
+    let (Some(base), Some(model), Some(chat_model)) = (
+        var("ATLAS_EVAL_EMBED_URL"),
+        var("ATLAS_EVAL_EMBED_MODEL"),
+        var("ATLAS_EVAL_CHAT_MODEL"),
+    ) else {
+        panic!(
+            "just eval-ask needs, for example:\n\
+             ATLAS_EVAL_EMBED_URL=http://localhost:8000/v1\n\
+             ATLAS_EVAL_EMBED_MODEL=Qwen3-Embedding-0.6B-8bit\n\
+             ATLAS_EVAL_CHAT_MODEL=<a chat model the service has>\n\
+             and, if the service needs one, ATLAS_EVAL_EMBED_KEY=<key>.\n\
+             The chat model uses the same service and key unless ATLAS_EVAL_CHAT_URL\n\
+             and ATLAS_EVAL_CHAT_KEY say otherwise. Optional: ATLAS_EVAL_EMBED_KIND,\n\
+             ATLAS_EVAL_CHAT_KIND (openai_compatible or ollama), ATLAS_EVAL_EMBED_DIMS."
+        );
     };
-    let (Some(chat_base), Some(chat_model)) =
-        (var("ATLAS_EVAL_CHAT_URL"), var("ATLAS_EVAL_CHAT_MODEL"))
-    else {
-        panic!("set ATLAS_EVAL_CHAT_URL and ATLAS_EVAL_CHAT_MODEL");
-    };
+    let chat_base = var("ATLAS_EVAL_CHAT_URL").unwrap_or_else(|| base.clone());
     let kind_text = var("ATLAS_EVAL_EMBED_KIND").unwrap_or_else(|| "openai_compatible".into());
     let chat_kind = var("ATLAS_EVAL_CHAT_KIND").unwrap_or_else(|| "openai_compatible".into());
     let dims: i64 = var("ATLAS_EVAL_EMBED_DIMS").map_or(1024, |d| d.parse().unwrap());
@@ -650,7 +658,12 @@ fn ask_atlas_against_real_models() {
         var("ATLAS_EVAL_EMBED_KEY").as_deref(),
     );
     let root = corpus.root();
-    let chat_key = var("ATLAS_EVAL_CHAT_KEY");
+    let chat_key = var("ATLAS_EVAL_CHAT_KEY").or_else(|| {
+        var("ATLAS_EVAL_CHAT_URL")
+            .is_none()
+            .then(|| var("ATLAS_EVAL_EMBED_KEY"))
+            .flatten()
+    });
     if let Some(key) = &chat_key {
         vault.put(&account_for("chat"), Secret::new(key.clone()));
     }
@@ -713,6 +726,41 @@ fn ask_atlas_against_real_models() {
         )
         .unwrap()
     };
+    // How far the best meaning match is above the model's floor: what the
+    // weak-retrieval margin is tuned from.
+    let margin = |question: &str| -> Option<f32> {
+        let query = atlas_lib::domain::dto::SearchQuery {
+            text: question.into(),
+            source_root_id: None,
+            file_type: None,
+            include_missing: false,
+            page: 0,
+            page_size: answers::retrieve::DOCUMENTS as u32,
+        };
+        let meaning = MeaningContext {
+            vectors: root.vectors(),
+            catalog: &root.catalog().handle(),
+            embedder: &embedder,
+            vault: &vault,
+            allow_remote: privacy::remote_embedding(&privacy_settings),
+        };
+        let r = root
+            .reader()
+            .read(|c| {
+                atlas_lib::services::search::retrieve(
+                    c,
+                    &meaning,
+                    &query,
+                    answers::retrieve::DOCUMENTS,
+                )
+            })
+            .unwrap()
+            .unwrap();
+        Some(r.best_similarity? - r.min_similarity?)
+    };
+    let mut transcript = String::new();
+    let (mut no_answer, mut errors, mut silent) = (0, 0, 0);
+    let (mut margins_cited, mut margins_silent) = (Vec::new(), Vec::new());
     // The first query embedding loads the model; don't time it.
     let _ = corpus.root().reader().read(|c| {
         embedder
@@ -727,6 +775,7 @@ fn ask_atlas_against_real_models() {
     let mut weak_count = 0;
     for q in questions("questions-vague.json") {
         let text = q["question"].as_str().unwrap();
+        let close = margin(text);
         let start = Instant::now();
         let started = match ask(text) {
             AskReply::Started(s) => s,
@@ -802,15 +851,36 @@ fn ask_atlas_against_real_models() {
         cited_total += cited;
         dropped_total += dropped as usize;
         weak_count += usize::from(started.weak);
+        match last {
+            AnswerStep::Error { code, .. } => {
+                errors += 1;
+                no_answer += usize::from(*code == AnswerErrorCode::NoAnswer);
+            }
+            _ if cited == 0 => {
+                silent += 1;
+                margins_silent.extend(close);
+            }
+            _ => margins_cited.extend(close),
+        }
+        transcript.push_str(&format!(
+            "## {} · {}\n\n{text}\n\n{}\n\n",
+            q["id"].as_str().unwrap(),
+            if started.weak { "weak" } else { "not weak" },
+            match last {
+                AnswerStep::Error { code, message, .. } => format!("error {code:?}: {message}"),
+                _ => answer.clone(),
+            }
+        ));
         if let Some(f) = first {
             firsts.push(f.as_secs_f64());
         }
         wholes.push(end_at.duration_since(start).as_secs_f64());
         eprintln!(
-            "{} first {:>6} whole {:>6.1} s · {} sources, {cited} cited, {dropped} invented{} · relevant source: {} · {}",
+            "{} first {:>6} whole {:>6.1} s · margin {} · {} sources, {cited} cited, {dropped} invented{} · relevant source: {} · {}",
             q["id"].as_str().unwrap(),
             first.map_or("—".into(), |f| format!("{:.1} s", f.as_secs_f64())),
             end_at.duration_since(start).as_secs_f64(),
+            close.map_or("—".into(), |m| format!("{m:.2}")),
             started.sources.len(),
             if started.weak { " · weak" } else { "" },
             if hit { "yes" } else { "no" },
@@ -840,4 +910,20 @@ fn ask_atlas_against_real_models() {
         cited_total as f64 / supplied.max(1) as f64,
         dropped_total as f64 / asked.max(1) as f64,
     );
+    let median = |v: &mut Vec<f32>| -> String {
+        if v.is_empty() {
+            return "—".into();
+        }
+        v.sort_by(f32::total_cmp);
+        format!("{:.2}", v[v.len() / 2])
+    };
+    eprintln!(
+        "errors {errors} (no answer {no_answer}); answers citing nothing {silent}; median margin above the floor: citing {} / citing nothing {} (weak below {:.2})",
+        median(&mut margins_cited),
+        median(&mut margins_silent),
+        answers::retrieve::WEAK_MARGIN,
+    );
+    let out = std::path::Path::new(env!("CARGO_TARGET_TMPDIR")).join("eval-ask-answers.md");
+    std::fs::write(&out, transcript).unwrap();
+    eprintln!("the whole answers: {}", out.display());
 }

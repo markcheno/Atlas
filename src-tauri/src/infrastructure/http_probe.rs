@@ -497,20 +497,35 @@ pub const ANSWER_CONTEXT_TOKENS: u32 = 12_288;
 
 /// An Ask Atlas request (phase2-spec §7.6): the messages, streamed, low
 /// temperature, no tools.
-pub fn chat_request(kind: ProviderKind, model: &str, messages: &Value) -> (&'static str, Value) {
+///
+/// Thinking is turned off (ADR 0015): Ollama's `think: false`, and for an
+/// OpenAI-compatible service `chat_template_kwargs.enable_thinking: false`
+/// (oMLX, vLLM, SGLang, llama.cpp, LM Studio). That second field isn't in
+/// OpenAI's own API, and a strict service refuses fields it doesn't know,
+/// so it is sent only when `template_switch` is set: a service on this
+/// computer or another of the user's, which run such templates.
+pub fn chat_request(
+    kind: ProviderKind,
+    model: &str,
+    messages: &Value,
+    template_switch: bool,
+) -> (&'static str, Value) {
     match kind {
         ProviderKind::Ollama => (
             "/api/chat",
-            json!({ "model": model, "messages": messages, "stream": true,
+            json!({ "model": model, "messages": messages, "stream": true, "think": false,
                     "options": { "num_ctx": ANSWER_CONTEXT_TOKENS,
                                  "num_predict": ANSWER_MAX_TOKENS,
                                  "temperature": 0.2 } }),
         ),
-        ProviderKind::OpenaiCompatible => (
-            "/chat/completions",
-            json!({ "model": model, "messages": messages, "stream": true,
-                    "max_tokens": ANSWER_MAX_TOKENS, "temperature": 0.2 }),
-        ),
+        ProviderKind::OpenaiCompatible => {
+            let mut body = json!({ "model": model, "messages": messages, "stream": true,
+                                   "max_tokens": ANSWER_MAX_TOKENS, "temperature": 0.2 });
+            if template_switch {
+                body["chat_template_kwargs"] = json!({ "enable_thinking": false });
+            }
+            ("/chat/completions", body)
+        }
     }
 }
 
@@ -1105,14 +1120,21 @@ mod tests {
     #[test]
     fn an_ollama_answer_asks_for_room_for_the_excerpts() {
         let messages = json!([{"role":"user","content":"q"}]);
-        let (path, body) = chat_request(ProviderKind::Ollama, "m", &messages);
+        let (path, body) = chat_request(ProviderKind::Ollama, "m", &messages, false);
         assert_eq!(path, "/api/chat");
         assert_eq!(body["options"]["num_ctx"], ANSWER_CONTEXT_TOKENS);
         assert_eq!(body["stream"], true);
-        let (path, body) = chat_request(ProviderKind::OpenaiCompatible, "m", &messages);
+        assert_eq!(body["think"], false, "thinking is off");
+        let (path, body) = chat_request(ProviderKind::OpenaiCompatible, "m", &messages, false);
         assert_eq!(path, "/chat/completions");
         assert_eq!(body["max_tokens"], ANSWER_MAX_TOKENS);
         assert!(body.get("tools").is_none(), "the model has no tools");
+        assert!(
+            body.get("chat_template_kwargs").is_none(),
+            "a strict service isn't sent a field it doesn't know"
+        );
+        let (_, body) = chat_request(ProviderKind::OpenaiCompatible, "m", &messages, true);
+        assert_eq!(body["chat_template_kwargs"]["enable_thinking"], false);
     }
 
     #[test]

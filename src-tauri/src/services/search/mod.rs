@@ -651,7 +651,7 @@ fn with_meaning<T>(
 /// A document found for Ask Atlas (Slice 2.6): where it matched, by words
 /// and by meaning, and the file to show for it.
 #[derive(Debug, Clone)]
-pub(crate) struct Found {
+pub struct Found {
     pub hit: SearchHit,
     /// The best passage containing the words, and the FTS expression.
     pub text: Option<(i64, String)>,
@@ -659,8 +659,8 @@ pub(crate) struct Found {
     pub meaning: Option<(i64, (usize, usize))>,
 }
 
-/// What Ask Atlas retrieval found, best first.
-pub(crate) struct Retrieval {
+/// What Ask Atlas retrieval found, best first (public for `just eval-ask`).
+pub struct Retrieval {
     pub found: Vec<Found>,
     pub semantic: SemanticStatus,
     /// The best meaning similarity among all documents, if any.
@@ -672,7 +672,7 @@ pub(crate) struct Retrieval {
 /// The `limit` best documents for a question, as hybrid search ranks them,
 /// with both their text and meaning matches. Name-only matches have no
 /// passage to quote and are left out.
-pub(crate) fn retrieve(
+pub fn retrieve(
     c: &Connection,
     m: &MeaningContext<'_>,
     q: &SearchQuery,
