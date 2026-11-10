@@ -606,3 +606,31 @@ pub fn delete_model_rows(
         params![model_id, limit as i64],
     )
 }
+
+/// Where chunks are: (document id, passage id, character start, end), by
+/// chunk id. Chunks no longer in the catalog are left out.
+pub fn chunk_places(
+    conn: &Connection,
+    ids: &[u64],
+) -> rusqlite::Result<std::collections::HashMap<u64, (String, i64, usize, usize)>> {
+    let mut stmt = conn.prepare_cached(
+        "SELECT document_id, passage_id, char_start, char_end FROM chunks WHERE id = ?1",
+    )?;
+    let mut out = std::collections::HashMap::with_capacity(ids.len());
+    for id in ids {
+        if let Some(place) = stmt
+            .query_row([*id as i64], |r| {
+                Ok((
+                    r.get::<_, String>(0)?,
+                    r.get::<_, i64>(1)?,
+                    r.get::<_, i64>(2)? as usize,
+                    r.get::<_, i64>(3)? as usize,
+                ))
+            })
+            .optional()?
+        {
+            out.insert(*id, place);
+        }
+    }
+    Ok(out)
+}

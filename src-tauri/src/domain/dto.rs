@@ -789,7 +789,47 @@ pub struct SnippetSpan {
 pub enum MatchReason {
     Text,
     Name,
+    /// In the text and the name.
     Both,
+    /// Similar meaning only (Slice 2.4).
+    Semantic,
+    /// In the text and similar meaning.
+    TextSemantic,
+}
+
+/// Why meaning search did not take part in a search.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "snake_case")]
+#[ts(export)]
+pub enum SemanticUnavailable {
+    /// The embedding service is on the internet and not allowed.
+    NotPermitted,
+    /// The embedding service couldn't be reached.
+    Unreachable,
+    /// It took longer than search waits for (1.5 s).
+    Timeout,
+    /// The meaning index is being opened; the next search can use it.
+    Loading,
+    /// Anything else (the service refused the query, a damaged index).
+    Failed,
+}
+
+/// Whether meaning search took part (phase2-spec §5.3, §7.4).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize, TS)]
+#[serde(tag = "state", rename_all = "snake_case")]
+#[ts(export)]
+pub enum SemanticStatus {
+    /// No embedding model is chosen: text search only.
+    #[default]
+    Off,
+    /// Meaning search ran over the files indexed so far.
+    Ready {
+        #[serde(rename = "coveragePercent")]
+        coverage_percent: u8,
+    },
+    Unavailable {
+        reason: SemanticUnavailable,
+    },
 }
 
 /// One document (or, for a name match on a file not read yet, one file).
@@ -837,6 +877,8 @@ pub struct SearchPage {
     /// Available files with a final text status, and all available files.
     pub text_read_files: u32,
     pub total_files: u32,
+    /// Whether meaning search took part, and if not, why (Slice 2.4).
+    pub semantic: SemanticStatus,
 }
 
 /// Machine-readable pause reasons; display text is chosen by the UI.

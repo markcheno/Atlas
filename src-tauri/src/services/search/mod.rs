@@ -12,6 +12,7 @@
 //!
 //! Runs on the read-only connections, so it never waits for writes.
 
+pub mod hybrid;
 pub mod query;
 pub mod snippet;
 
@@ -42,6 +43,8 @@ struct Filters {
     /// Conditions on file instance `f`, each starting with " AND ".
     sql: String,
     params: Vec<Value>,
+    /// A folder or file type is chosen (not only "available").
+    narrowed: bool,
 }
 
 fn filters(q: &SearchQuery) -> Filters {
@@ -58,7 +61,12 @@ fn filters(q: &SearchQuery) -> Filters {
         sql.push_str(" AND f.file_type = ?");
         params.push(Value::Text(to_db(&kind)));
     }
-    Filters { sql, params }
+    let narrowed = q.source_root_id.is_some() || q.file_type.is_some();
+    Filters {
+        sql,
+        params,
+        narrowed,
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -72,6 +80,8 @@ struct Entry {
     all_words: bool,
     /// The FTS expression that matched, for the snippet.
     expr: Option<String>,
+    /// A meaning match's chunk, in characters of its passage (Slice 2.4).
+    span: Option<(usize, usize)>,
 }
 
 /// A document's best passage: (document id, passage id, bm25).
@@ -160,7 +170,12 @@ fn status(conn: &Connection) -> rusqlite::Result<(bool, u32, u32)> {
     Ok((reading, read, total))
 }
 
-fn hit(conn: &Connection, e: &Entry, f: &Filters) -> rusqlite::Result<Option<SearchHit>> {
+fn hit(
+    conn: &Connection,
+    e: &Entry,
+    f: &Filters,
+    terms: &[String],
+) -> rusqlite::Result<Option<SearchHit>> {
     // The file to show: an available copy inside the filters first.
     let (where_sql, key) = match (&e.document, &e.instance) {
         (Some(doc), _) => ("f.document_id = ?", doc.clone()),
@@ -235,6 +250,20 @@ fn hit(conn: &Connection, e: &Entry, f: &Filters) -> rusqlite::Result<Option<Sea
                 marked.map(|m| snippet::spans(&m)).unwrap_or_default(),
             )
         }
+        (Some(passage), None) if e.span.is_some() => {
+            let (location, page_no, text): (Option<String>, Option<u32>, String) = conn.query_row(
+                "SELECT location, page_no, text FROM passages WHERE id = ?1",
+                [passage],
+                |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
+            )?;
+            let (start, end) = e.span.unwrap_or_default();
+            let chunk = crate::services::embedding::chunk::slice(
+                &text,
+                crate::services::embedding::chunk::Span { start, end },
+            )
+            .unwrap_or("");
+            (location, page_no, snippet::meaning(chunk, terms))
+        }
         _ => (None, None, Vec::new()),
     };
     Ok(Some(SearchHit {
@@ -265,30 +294,24 @@ fn hit(conn: &Connection, e: &Entry, f: &Filters) -> rusqlite::Result<Option<Sea
     }))
 }
 
-/// One page of results. Empty or punctuation-only input gives an empty
-/// page, not an error.
-pub fn search(conn: &Connection, q: &SearchQuery) -> rusqlite::Result<SearchPage> {
-    let page_size = q.page_size.clamp(1, MAX_PAGE_SIZE);
-    let (reading_text, text_read_files, total_files) = status(conn)?;
-    let mut page = SearchPage {
-        hits: Vec::new(),
-        page: q.page,
-        page_size,
-        matched_documents: 0,
-        capped: false,
-        reading_text,
-        text_read_files,
-        total_files,
-    };
-    let Some(built) = query::build(&q.text) else {
-        return Ok(page);
-    };
-    let f = filters(q);
+/// Phase 1's ranking: text matches (all words, then any words) by bm25,
+/// those that also match by name marked and boosted; and, apart, the
+/// documents or files that match by name only.
+struct TextRank {
+    entries: Vec<Entry>,
+    names_only: Vec<Entry>,
+    capped: bool,
+}
 
+fn rank_text(
+    conn: &Connection,
+    built: &query::Query,
+    f: &Filters,
+    page_size: u32,
+) -> rusqlite::Result<TextRank> {
     let mut entries: Vec<Entry> = Vec::new();
     let mut by_document: HashMap<String, usize> = HashMap::new();
-    let (all, capped) = text_matches(conn, &built.all, &f)?;
-    page.capped = capped;
+    let (all, mut capped) = text_matches(conn, &built.all, f)?;
     for (doc, passage, score) in all {
         by_document.insert(doc.clone(), entries.len());
         entries.push(Entry {
@@ -299,13 +322,14 @@ pub fn search(conn: &Connection, q: &SearchQuery) -> rusqlite::Result<SearchPage
             why: MatchReason::Text,
             all_words: true,
             expr: Some(built.all.clone()),
+            span: None,
         });
     }
     if entries.len() < page_size as usize
         && let Some(any) = &built.any
     {
-        let (more, capped) = text_matches(conn, any, &f)?;
-        page.capped |= capped;
+        let (more, more_capped) = text_matches(conn, any, f)?;
+        capped |= more_capped;
         for (doc, passage, score) in more {
             if by_document.contains_key(&doc) {
                 continue;
@@ -319,13 +343,14 @@ pub fn search(conn: &Connection, q: &SearchQuery) -> rusqlite::Result<SearchPage
                 why: MatchReason::Text,
                 all_words: false,
                 expr: Some(any.clone()),
+                span: None,
             });
         }
     }
 
-    let mut name_only: Vec<Entry> = Vec::new();
+    let mut names_only: Vec<Entry> = Vec::new();
     let mut seen_names: HashSet<String> = HashSet::new();
-    for (instance, document) in name_matches(conn, &query::name_terms(&built), &f)? {
+    for (instance, document) in name_matches(conn, &query::name_terms(built), f)? {
         match document.as_ref().and_then(|d| by_document.get(d)) {
             Some(&i) => {
                 if entries[i].why != MatchReason::Both {
@@ -336,7 +361,7 @@ pub fn search(conn: &Connection, q: &SearchQuery) -> rusqlite::Result<SearchPage
             None => {
                 let key = document.clone().unwrap_or_else(|| instance.clone());
                 if seen_names.insert(key) {
-                    name_only.push(Entry {
+                    names_only.push(Entry {
                         document,
                         instance: Some(instance),
                         passage: None,
@@ -344,23 +369,81 @@ pub fn search(conn: &Connection, q: &SearchQuery) -> rusqlite::Result<SearchPage
                         why: MatchReason::Name,
                         all_words: true,
                         expr: None,
+                        span: None,
                     });
                 }
             }
         }
     }
-    // All-words matches, then any-words, by score; then names in name order.
+    // All-words matches, then any-words, by score; names come after.
     entries.sort_by(|a, b| {
         b.all_words
             .cmp(&a.all_words)
             .then(a.score.total_cmp(&b.score))
     });
-    entries.extend(name_only);
+    Ok(TextRank {
+        entries,
+        names_only,
+        capped,
+    })
+}
+
+/// The query's words, folded, for marking a meaning match's snippet.
+fn snippet_terms(text: &str) -> Vec<String> {
+    text.split(|c: char| !c.is_alphanumeric())
+        .filter(|w| !w.is_empty() && !query::is_common_word(w))
+        .map(fold)
+        .collect()
+}
+
+fn empty_page(conn: &Connection, q: &SearchQuery) -> rusqlite::Result<SearchPage> {
+    let (reading_text, text_read_files, total_files) = status(conn)?;
+    Ok(SearchPage {
+        hits: Vec::new(),
+        page: q.page,
+        page_size: q.page_size.clamp(1, MAX_PAGE_SIZE),
+        matched_documents: 0,
+        capped: false,
+        reading_text,
+        text_read_files,
+        total_files,
+        semantic: Default::default(),
+    })
+}
+
+/// One page of results. Empty or punctuation-only input gives an empty
+/// page, not an error. Text only (Phase 1).
+pub fn search(conn: &Connection, q: &SearchQuery) -> rusqlite::Result<SearchPage> {
+    search_with(conn, q, None)
+}
+
+/// One page of results, with meaning search when `semantic` is given
+/// (Slice 2.4, [`hybrid`]). Without it, or when it finds nothing, the page
+/// is exactly Phase 1's.
+pub fn search_with(
+    conn: &Connection,
+    q: &SearchQuery,
+    semantic: Option<hybrid::Semantic<'_>>,
+) -> rusqlite::Result<SearchPage> {
+    let mut page = empty_page(conn, q)?;
+    let page_size = page.page_size;
+    let Some(built) = query::build(&q.text) else {
+        return Ok(page);
+    };
+    let f = filters(q);
+    let ranked = rank_text(conn, &built, &f, page_size)?;
+    page.capped = ranked.capped;
+    let near = match semantic {
+        Some(s) => hybrid::nearest(conn, s, &f)?,
+        None => Vec::new(),
+    };
+    let entries = hybrid::fuse(ranked.entries, ranked.names_only, near);
 
     page.matched_documents = u32::try_from(entries.len()).unwrap_or(u32::MAX);
+    let terms = snippet_terms(&q.text);
     let start = (q.page as usize).saturating_mul(page_size as usize);
     for e in entries.iter().skip(start).take(page_size as usize) {
-        if let Some(hit) = hit(conn, e, &f)? {
+        if let Some(hit) = hit(conn, e, &f, &terms)? {
             page.hits.push(hit);
         }
     }

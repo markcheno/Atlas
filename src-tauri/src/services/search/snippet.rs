@@ -91,3 +91,61 @@ mod tests {
         assert_eq!(strip_markers("a\u{E000}b\u{E001}c"), "abc");
     }
 }
+
+/// About how many characters a meaning-search snippet shows.
+pub const MEANING_SNIPPET_CHARS: usize = 240;
+
+/// A meaning-search hit's snippet: the chunk's text, trimmed to about
+/// [`MEANING_SNIPPET_CHARS`] around its middle at word boundaries, with
+/// each word whose folded form is one of `terms` (already folded) marked.
+pub fn meaning(chunk: &str, terms: &[String]) -> Vec<SnippetSpan> {
+    let chars: Vec<char> = chunk.chars().collect();
+    let (mut start, mut end) = (0, chars.len());
+    if chars.len() > MEANING_SNIPPET_CHARS {
+        start = (chars.len() - MEANING_SNIPPET_CHARS) / 2;
+        end = start + MEANING_SNIPPET_CHARS;
+        // To whole words, where there are spaces to find.
+        if let Some(i) = (start..end.min(start + 40)).find(|&i| chars[i].is_whitespace()) {
+            start = i + 1;
+        }
+        if let Some(i) = (end.saturating_sub(40).max(start)..end)
+            .rev()
+            .find(|&i| chars[i].is_whitespace())
+        {
+            end = i;
+        }
+    }
+    let mut marked = String::new();
+    if start > 0 {
+        marked.push('…');
+    }
+    let window: String = chars[start..end].iter().collect();
+    let mut word = String::new();
+    let flush = |word: &mut String, marked: &mut String| {
+        if word.is_empty() {
+            return;
+        }
+        let folded = crate::services::library::fold::fold(word);
+        if terms.iter().any(|t| *t == folded) {
+            marked.push(HIT_START);
+            marked.push_str(word);
+            marked.push(HIT_END);
+        } else {
+            marked.push_str(word);
+        }
+        word.clear();
+    };
+    for c in strip_markers(&window).chars() {
+        if c.is_alphanumeric() {
+            word.push(c);
+        } else {
+            flush(&mut word, &mut marked);
+            marked.push(c);
+        }
+    }
+    flush(&mut word, &mut marked);
+    if end < chars.len() {
+        marked.push('…');
+    }
+    spans(&marked)
+}

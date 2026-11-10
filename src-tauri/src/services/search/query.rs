@@ -150,6 +150,12 @@ pub fn build(input: &str) -> Option<Query> {
 }
 
 /// The words for the file-name match (Phase 0's folded `search_key`).
+/// Whether `word` (any case) is one of the common words the any-words
+/// form drops.
+pub fn is_common_word(word: &str) -> bool {
+    STOPWORDS.contains(&word.to_lowercase().as_str())
+}
+
 pub fn name_terms(query: &Query) -> Vec<String> {
     query
         .tokens

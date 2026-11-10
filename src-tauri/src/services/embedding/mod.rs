@@ -11,6 +11,7 @@
 //! (Slice 2.4) build on this module.
 
 pub mod chunk;
+pub mod chunk_map;
 pub mod client;
 pub mod db;
 pub mod fake;
