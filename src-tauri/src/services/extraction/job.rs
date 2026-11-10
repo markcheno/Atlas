@@ -24,30 +24,19 @@ use crate::domain::dto::{
 use crate::infrastructure::clock::now_rfc3339;
 use crate::infrastructure::native_path;
 use crate::services::catalog::writer::CatalogHandle;
+use crate::services::embedding;
 use crate::services::jobs::{
-    self, Flow, JobProcessor, JobRow, ProcessorContext, ProcessorFactory, Signal,
+    self, Flow, JobProcessor, JobRow, JobWaker, ProcessorContext, ProcessorFactory, Signal,
 };
 use crate::services::sources;
 use crate::services::system::ResourceGovernor;
+use crate::services::workspace::settings;
 
 /// Debug builds only: no duty-cycle sleep between files (benchmarks).
 pub const UNTHROTTLED_ENV: &str = "ATLAS_EXTRACT_UNTHROTTLED";
 
-/// The shortest rest the duty cycle takes: shorter rests are added up
-/// first. The busy fraction is the same; work comes in bursts of about
-/// `REST_QUANTUM × duty / (1 − duty)` (100 ms at the Run duty cycle).
-pub const REST_QUANTUM: Duration = Duration::from_millis(100);
-
-/// Adds the rest a file of `busy` owes at `duty` to `owed`, and returns
-/// the rest to take now, if `owed` has reached [`REST_QUANTUM`].
-fn rest_due(owed: &mut Duration, busy: Duration, duty: f64) -> Option<Duration> {
-    if duty >= 1.0 {
-        *owed = Duration::ZERO;
-        return None;
-    }
-    *owed += busy.mul_f64((1.0 / duty.max(0.01)) - 1.0);
-    (*owed >= REST_QUANTUM).then(|| std::mem::take(owed))
-}
+pub use crate::services::scheduler::duty::REST_QUANTUM;
+use crate::services::scheduler::duty::rest_due;
 
 #[derive(Debug, Clone)]
 pub struct ExtractionConfig {
@@ -175,6 +164,9 @@ pub struct ExtractProcessor {
     data_root: PathBuf,
     deps: ExtractionDeps,
     signal: Arc<Signal>,
+    /// Wakes the other kinds' runners: the embed job, once a folder's text
+    /// is read.
+    waker: JobWaker,
     processor: Box<dyn DocumentProcessor>,
     last_emit: Option<Instant>,
     current: Option<String>,
@@ -207,6 +199,7 @@ impl ExtractProcessor {
             data_root: dunce::canonicalize(&ctx.data_root).unwrap_or(ctx.data_root),
             deps,
             signal: ctx.signal,
+            waker: ctx.waker,
             last_emit: None,
             current: None,
         }
@@ -407,13 +400,23 @@ impl ExtractProcessor {
             if files.is_empty() {
                 // Tidy the text index for search before reporting done.
                 let _ = self.catalog.call(|c| db::merge_index(c, 20));
-                self.transition(
+                if self.transition(
                     &job.id,
                     JobState::Completed,
                     &[JobState::Running],
                     None,
                     None,
-                );
+                ) {
+                    // The folder's text is read: its meaning can be indexed.
+                    let allow = settings::read(&self.data_root)
+                        .privacy
+                        .allow_remote_embedding;
+                    let root_id = job.source_root_id.clone();
+                    let _ = self.catalog.call(move |c| {
+                        embedding::triggers::queue_root(c, &root_id, allow, &now_rfc3339())
+                    });
+                    self.waker.wake();
+                }
                 return Flow::Continue;
             }
 
@@ -697,29 +700,4 @@ fn hex_bytes(hex: &str) -> Option<Vec<u8>> {
         .step_by(2)
         .map(|i| u8::from_str_radix(hex.get(i..i + 2)?, 16).ok())
         .collect()
-}
-
-#[cfg(test)]
-mod rest_tests {
-    use super::*;
-
-    #[test]
-    fn short_rests_add_up_before_they_are_taken() {
-        let ms = Duration::from_millis;
-        let mut owed = Duration::ZERO;
-        // At the Run duty cycle each file owes its own length.
-        for _ in 0..9 {
-            assert_eq!(rest_due(&mut owed, ms(10), 0.5), None);
-        }
-        assert_eq!(rest_due(&mut owed, ms(10), 0.5), Some(ms(100)));
-        assert_eq!(owed, Duration::ZERO);
-        // A long file rests at once, as long as it owes.
-        assert_eq!(rest_due(&mut owed, ms(300), 0.5), Some(ms(300)));
-        // At the Slow duty cycle a file owes four times its length.
-        assert_eq!(rest_due(&mut owed, ms(30), 0.2), Some(ms(120)));
-        // Unthrottled never rests and forgets what was owed.
-        assert_eq!(rest_due(&mut owed, ms(40), 0.5), None);
-        assert_eq!(rest_due(&mut owed, ms(40), 1.0), None);
-        assert_eq!(owed, Duration::ZERO);
-    }
 }

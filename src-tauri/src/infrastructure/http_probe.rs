@@ -4,9 +4,12 @@
 //! A connection test asks the service for its list of models: bodiless
 //! `GET` requests. A capability test sends one fixed request to one model
 //! ("Atlas capability test" to embed, "Reply with the word OK." to chat).
-//! Neither ever carries anything from the library. Redirects are never
-//! followed and system proxies are never used, so a request goes exactly
-//! where the user pointed it. Timeouts and response sizes are bounded.
+//! Neither ever carries anything from the library. The embedding job
+//! (Slice 2.3, ADR 0014) sends library text to the embedding role's own
+//! service through [`post_embeddings`]. Redirects are never followed and
+//! system proxies are never used, so a request goes exactly where the user
+//! pointed it. Timeouts and response sizes are bounded; bodies are never
+//! logged.
 
 use std::future::Future;
 use std::time::{Duration, Instant};
@@ -40,6 +43,16 @@ impl Default for ProbeConfig {
 }
 
 impl ProbeConfig {
+    /// An embedding request from the job (phase2-spec §3): up to 16 chunks,
+    /// whose answer is at most 16 vectors of a few thousand numbers.
+    pub fn embedding() -> Self {
+        Self {
+            connect_timeout: Duration::from_secs(3),
+            total_timeout: Duration::from_secs(90),
+            max_body_bytes: 8 * 1024 * 1024,
+        }
+    }
+
     /// A capability test: local runtimes (oMLX, Ollama, LM Studio) load a
     /// model on its first request, which can take most of a minute for a
     /// large chat model, so the total budget is two minutes.
@@ -444,18 +457,24 @@ pub const CHAT_TEST_PROMPT: &str = "Reply with the word OK.";
 /// token, thought or answer, shows the model chats.
 const CHAT_TEST_MAX_TOKENS: u32 = 16;
 
+/// The path and body of an embeddings request for `inputs`.
+pub fn embeddings_request(
+    kind: ProviderKind,
+    model: &str,
+    inputs: &[&str],
+) -> (&'static str, Value) {
+    let path = match kind {
+        ProviderKind::Ollama => "/api/embed",
+        ProviderKind::OpenaiCompatible => "/embeddings",
+    };
+    (path, json!({ "model": model, "input": inputs }))
+}
+
 /// The path and fixed body of a capability test.
 pub fn capability_request(kind: ProviderKind, role: AiRole, model: &str) -> (&'static str, Value) {
     let messages = json!([{ "role": "user", "content": CHAT_TEST_PROMPT }]);
     match (kind, role) {
-        (ProviderKind::Ollama, AiRole::Embedding) => (
-            "/api/embed",
-            json!({ "model": model, "input": [EMBED_TEST_INPUT] }),
-        ),
-        (ProviderKind::OpenaiCompatible, AiRole::Embedding) => (
-            "/embeddings",
-            json!({ "model": model, "input": [EMBED_TEST_INPUT] }),
-        ),
+        (_, AiRole::Embedding) => embeddings_request(kind, model, &[EMBED_TEST_INPUT]),
         (ProviderKind::Ollama, AiRole::Chat) => (
             "/api/chat",
             json!({ "model": model, "messages": messages, "stream": true,
@@ -466,6 +485,110 @@ pub fn capability_request(kind: ProviderKind, role: AiRole, model: &str) -> (&'s
             json!({ "model": model, "messages": messages, "stream": true,
                     "max_tokens": CHAT_TEST_MAX_TOKENS }),
         ),
+    }
+}
+
+/// Every embedding in an answer, in input order: Ollama's `embeddings`, or
+/// OpenAI's `data`, ordered by each item's `index` when it has one. `None`
+/// unless each is a non-empty array of finite numbers.
+pub fn embedding_vectors(kind: ProviderKind, answer: &Value) -> Option<Vec<Vec<f32>>> {
+    let numbers = |v: &Value| -> Option<Vec<f32>> {
+        let values = v.as_array()?;
+        if values.is_empty() {
+            return None;
+        }
+        values
+            .iter()
+            .map(|x| x.as_f64().filter(|f| f.is_finite()).map(|f| f as f32))
+            .collect()
+    };
+    match kind {
+        ProviderKind::Ollama => answer
+            .get("embeddings")?
+            .as_array()?
+            .iter()
+            .map(numbers)
+            .collect(),
+        ProviderKind::OpenaiCompatible => {
+            let mut items: Vec<(u64, Vec<f32>)> = answer
+                .get("data")?
+                .as_array()?
+                .iter()
+                .enumerate()
+                .map(|(i, item)| {
+                    let at = item
+                        .get("index")
+                        .and_then(Value::as_u64)
+                        .unwrap_or(i as u64);
+                    Some((at, numbers(item.get("embedding")?)?))
+                })
+                .collect::<Option<_>>()?;
+            items.sort_by_key(|(at, _)| *at);
+            Some(items.into_iter().map(|(_, v)| v).collect())
+        }
+    }
+}
+
+/// The longest Retry-After Atlas honours.
+pub const MAX_RETRY_AFTER: Duration = Duration::from_secs(300);
+
+/// A `Retry-After` given in seconds (an HTTP date is ignored), capped at
+/// [`MAX_RETRY_AFTER`].
+pub fn retry_after(value: Option<&str>) -> Option<Duration> {
+    let secs: u64 = value?.trim().parse().ok()?;
+    Some(Duration::from_secs(secs).min(MAX_RETRY_AFTER))
+}
+
+/// The answer to an embeddings request, before interpretation.
+#[derive(Debug)]
+pub enum EmbedReply {
+    Ok(Value),
+    /// A non-2xx answer with its Retry-After and JSON error message (used
+    /// only to classify it).
+    Status {
+        status: StatusCode,
+        retry_after: Option<Duration>,
+        message: Option<String>,
+    },
+    NotJson,
+    TooLarge,
+    Failed(ConnectionOutcome),
+}
+
+/// `POST` an embeddings request and read its JSON answer of at most `cap`
+/// bytes, keeping a refusal's Retry-After.
+pub async fn post_embeddings(
+    client: &Client,
+    url: &str,
+    bearer: Option<&str>,
+    body: &Value,
+    cap: usize,
+) -> EmbedReply {
+    let response = match send(client.post(url).json(body), bearer).await {
+        Ok(r) => r,
+        Err((outcome, _)) => return EmbedReply::Failed(outcome),
+    };
+    if !response.status().is_success() {
+        let wait = retry_after(
+            response
+                .headers()
+                .get(reqwest::header::RETRY_AFTER)
+                .and_then(|v| v.to_str().ok()),
+        );
+        return match status_of(response).await {
+            Fetched::Status(status, message) => EmbedReply::Status {
+                status,
+                retry_after: wait,
+                message,
+            },
+            _ => EmbedReply::NotJson,
+        };
+    }
+    match json_of(response, cap).await {
+        Fetched::Ok(v) => EmbedReply::Ok(v),
+        Fetched::TooLarge => EmbedReply::TooLarge,
+        Fetched::Failed(outcome, _) => EmbedReply::Failed(outcome),
+        _ => EmbedReply::NotJson,
     }
 }
 
@@ -548,7 +671,7 @@ pub fn chat_line(kind: ProviderKind, line: &str) -> ChatLine {
     }
 }
 
-fn mentions_model_missing(message: &str) -> bool {
+pub(crate) fn mentions_model_missing(message: &str) -> bool {
     let m = message.to_ascii_lowercase();
     m.contains("model")
         && [

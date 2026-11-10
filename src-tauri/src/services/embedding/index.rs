@@ -32,7 +32,7 @@ use crate::infrastructure::clock::now_rfc3339;
 use crate::infrastructure::fsutil::atomic_replace_with;
 use crate::services::catalog::reader;
 use crate::services::catalog::writer::CatalogHandle;
-use crate::services::workspace::layout::{CATALOG, TMP};
+use crate::services::workspace::layout::CATALOG;
 
 pub const CONNECTIVITY: usize = 16;
 pub const EXPANSION_ADD: usize = 128;
@@ -41,6 +41,8 @@ pub const EXPANSION_SEARCH: usize = 128;
 pub const BATCH: usize = 10_000;
 const RESERVE_STEP: usize = 10_000;
 pub const VECTORS_DIR: &str = "indexes/vectors";
+/// Where saves are staged before their rename, inside [`VECTORS_DIR`].
+pub const STAGING_DIR: &str = "staging";
 
 /// Where a library keeps the catalog, the index files and staged writes.
 #[derive(Debug, Clone)]
@@ -55,7 +57,9 @@ impl VectorPaths {
         Self {
             catalog: root.join(CATALOG),
             vectors: root.join(VECTORS_DIR),
-            tmp: root.join(TMP),
+            // Not the library's tmp/, which Clean caches empties while a
+            // save may be staging (Slice 2.3). Emptied when the library opens.
+            tmp: root.join(VECTORS_DIR).join(STAGING_DIR),
         }
     }
 
@@ -74,7 +78,13 @@ pub enum RebuildReason {
     LoadFailed,
     WrongDimensions,
     TooFarBehind,
+    /// More than [`COMPACT_ABOVE`] of the file's slots hold removed vectors.
+    Compaction,
 }
+
+/// The share of removed vectors in a saved file above which opening it
+/// rebuilds into a fresh one (phase2-spec §7.3).
+pub const COMPACT_ABOVE: f64 = 0.2;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Opened {
@@ -253,6 +263,25 @@ impl VectorIndex {
     }
     pub fn memory_usage(&self) -> usize {
         self.read().index.memory_usage()
+    }
+
+    /// Removes the chunks deleted since the last tombstone this index
+    /// applied (a re-read on another thread deletes chunks). Returns how
+    /// many it removed.
+    pub fn apply_tombstones(&self, conn: &Connection) -> AtlasResult<usize> {
+        let through = self.read().tombstones_through;
+        let tombstones = db::tombstones_after(conn, through)
+            .map_err(AtlasError::db("read the meaning index rows"))?;
+        let Some((last, _)) = tombstones.last() else {
+            return Ok(0);
+        };
+        let keys: Vec<u64> = tombstones.iter().map(|(_, k)| *k).collect();
+        let removed = self
+            .remove(&keys)
+            .map_err(AtlasError::io("update the meaning index"))?;
+        let mut inner = self.write();
+        inner.tombstones_through = inner.tombstones_through.max(*last);
+        Ok(removed)
     }
 
     /// Records that the index now holds every document up to `seq`.
@@ -494,6 +523,19 @@ fn load_saved(paths: &VectorPaths, model: &EmbeddingModel) -> Result<VectorIndex
         Err(_) => return Err(RebuildReason::LoadFailed),
         Ok(h) if h != expected => return Err(RebuildReason::HashMismatch),
         Ok(_) => {}
+    }
+    // The file's header says how many of its slots hold removed vectors,
+    // whichever way the file is read.
+    let head = match path_for_native_io(&file) {
+        Some(p) => Index::metadata(p).ok(),
+        None => fs::read(&file)
+            .ok()
+            .and_then(|b| Index::metadata_from_buffer(&b).ok()),
+    };
+    if let Some(head) = head
+        && head.count_deleted as f64 > COMPACT_ABOVE * head.count_present.max(1) as f64
+    {
+        return Err(RebuildReason::Compaction);
     }
     let index = read_index(&file, model.dims).map_err(|_| RebuildReason::LoadFailed)?;
     if index.dimensions() != model.dims {

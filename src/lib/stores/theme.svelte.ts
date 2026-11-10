@@ -7,9 +7,9 @@
  * storage is not used: Atlas-owned persistent data belongs under that root.
  * Before a root is open the choice lasts only for the session.
  */
-import { atlas, type AtlasApiError } from '../api/client';
-import type { Settings } from '../api/bindings/Settings';
+import type { AtlasApiError } from '../api/client';
 import type { ThemePreference } from '../api/bindings/ThemePreference';
+import { settings } from './settings.svelte';
 
 export type { ThemePreference };
 
@@ -22,7 +22,6 @@ export const THEME_OPTIONS: ReadonlyArray<{ value: ThemePreference; label: strin
 class ThemeState {
   preference = $state<ThemePreference>('system');
   saveError = $state<AtlasApiError | null>(null);
-  #settings: Settings = { appearance: { theme: 'system' } };
 
   /** Applies a preference to the document without saving it. */
   apply(next: ThemePreference) {
@@ -37,12 +36,9 @@ class ThemeState {
 
   /** Loads the saved preference from the open data root. */
   async load() {
-    try {
-      this.#settings = await atlas.getSettings();
-      this.apply(this.#settings.appearance.theme);
-    } catch {
-      // No open root: keep the session preference.
-    }
+    const loaded = await settings.load();
+    // No open root: keep the session preference.
+    if (loaded) this.apply(loaded.appearance.theme);
   }
 
   /** Applies and saves a preference chosen by the user. */
@@ -50,12 +46,8 @@ class ThemeState {
     this.apply(next);
     this.saveError = null;
     if (!persist) return;
-    const updated: Settings = {
-      ...this.#settings,
-      appearance: { ...this.#settings.appearance, theme: next },
-    };
     try {
-      this.#settings = await atlas.updateSettings(updated);
+      await settings.update((s) => ({ ...s, appearance: { ...s.appearance, theme: next } }));
     } catch (err) {
       this.saveError = err as AtlasApiError;
     }

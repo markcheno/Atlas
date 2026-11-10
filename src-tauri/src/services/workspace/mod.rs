@@ -35,6 +35,7 @@ use crate::infrastructure::fsutil::{clear_dir, sync_dir};
 use crate::infrastructure::native_path;
 use crate::services::catalog::reader::CatalogReader;
 use crate::services::catalog::{self, CatalogWriter};
+use crate::services::embedding::{self, registry::VectorRegistry};
 use crate::services::extraction;
 use crate::services::inventory::{self, InventoryDeps};
 use crate::services::jobs::{self, JobRunners, ProcessorFactory};
@@ -56,6 +57,8 @@ pub struct WorkspaceConfig {
 /// writer close, then the lock is released.
 pub struct OpenRoot {
     jobs: JobRunners,
+    /// The vector indexes, after the runners (which save them as they stop).
+    vectors: Arc<VectorRegistry>,
     reader: CatalogReader,
     root_status: RootStatusCache,
     catalog: CatalogWriter,
@@ -75,6 +78,14 @@ impl OpenRoot {
     }
     pub fn catalog(&self) -> &CatalogWriter {
         &self.catalog
+    }
+    /// The library's vector indexes (Slice 2.3).
+    pub fn vectors(&self) -> &Arc<VectorRegistry> {
+        &self.vectors
+    }
+    /// The library's preferences as last saved.
+    pub fn settings(&self) -> &Settings {
+        &self.settings
     }
     /// Read-only connections for UI queries.
     pub fn reader(&self) -> &CatalogReader {
@@ -143,6 +154,38 @@ impl Workspace {
     /// Used when the app exits.
     pub fn shutdown(&mut self) {
         self.state = State::NotConfigured;
+    }
+
+    /// Closes the open library and opens it again, for example to convert
+    /// its catalog's pages (Slice 2.3). Problems become the reported status,
+    /// as at startup.
+    pub fn reopen(&mut self) -> DataRootStatus {
+        let State::Open(root) = &self.state else {
+            return self.status();
+        };
+        let (path, display, root_id) = (
+            root.path.clone(),
+            root.display.clone(),
+            root.manifest.root_id.clone(),
+        );
+        // Dropping the root stops its jobs and closes the catalog.
+        self.state = State::NotConfigured;
+        self.state = match self.open_existing(&path) {
+            Ok(root) => State::Open(Box::new(root)),
+            Err(err) => State::Unavailable {
+                state: state_for(&err),
+                display,
+                root_id: Some(root_id),
+                problem: err.payload(),
+            },
+        };
+        self.status()
+    }
+
+    /// Whether the open library's catalog would be converted on reopening.
+    pub fn wants_page_conversion(&self) -> bool {
+        self.open_root()
+            .is_some_and(|root| catalog::convert::wanted(&root.path.join(CATALOG)))
     }
 
     /// Reopens the remembered root, if any. Never fails: problems become
@@ -260,7 +303,12 @@ impl Workspace {
             return Err(AtlasError::NoDataRoot);
         };
         settings::write(&root.path, &new)?;
+        let privacy_changed = root.settings.privacy != new.privacy;
         root.settings = new.clone();
+        if privacy_changed {
+            // Allowing an internet service lets embedding start (Slice 2.3).
+            embedding::triggers::changed(root)?;
+        }
         Ok(new)
     }
 
@@ -321,6 +369,16 @@ impl Workspace {
                 reason: "its catalog is missing",
             });
         }
+        // A catalog with 4 KiB pages gets 16 KiB ones before its first
+        // embedding (Slice 2.3), while nothing else has it open. Without
+        // room for the copy it stays as it is.
+        if catalog::convert::wanted(&catalog_path) {
+            let needed = catalog::convert::size(&catalog_path) / 5 * 6;
+            let room = self.volumes.inspect(path).map(|v| v.free_bytes);
+            if room.is_ok_and(|free| free.is_some_and(|f| f >= needed)) {
+                catalog::convert::to_large_pages(&catalog_path, &path.join(TMP))?;
+            }
+        }
         let (catalog, version) = catalog::open(&catalog_path, now_rfc3339())?;
 
         // Layout repair and housekeeping, only after the lock is held.
@@ -341,20 +399,26 @@ impl Workspace {
         // Interrupted jobs become queued; a user's pause is kept. Folders
         // never scanned are queued once.
         let now = now_rfc3339();
+        let allow_remote = settings::read(path).privacy.allow_remote_embedding;
         catalog
             .call(move |c| {
                 jobs::db::requeue_interrupted(c, &now)?;
                 inventory::db::queue_never_scanned(c, &now)?;
                 // Files still waiting for their text, including ones read
                 // by an older extractor (phase1-spec §7.1).
-                extraction::db::queue_pending(c, &now)
+                extraction::db::queue_pending(c, &now)?;
+                // Text waiting for its meaning (Slice 2.3).
+                embedding::models::sync(c, &now)?;
+                embedding::triggers::queue_waiting(c, allow_remote, &now)
             })?
             .map_err(AtlasError::db("recover interrupted cataloging"))?;
         // Rows cataloged before search keys existed (Slice 0.5).
         library::backfill_keys(&catalog)?;
 
+        let vectors = Arc::new(VectorRegistry::new(path));
         Ok(OpenRoot {
-            jobs: self.start_jobs(&catalog, path)?,
+            jobs: self.start_jobs(&catalog, path, &vectors)?,
+            vectors,
             reader: CatalogReader::open(&catalog_path)?,
             root_status: RootStatusCache::default(),
             catalog,
@@ -366,8 +430,13 @@ impl Workspace {
         })
     }
 
-    fn start_jobs(&self, catalog: &CatalogWriter, path: &Path) -> AtlasResult<JobRunners> {
-        JobRunners::start(&catalog.handle(), path, &self.processors)
+    fn start_jobs(
+        &self,
+        catalog: &CatalogWriter,
+        path: &Path,
+        vectors: &Arc<VectorRegistry>,
+    ) -> AtlasResult<JobRunners> {
+        JobRunners::start(&catalog.handle(), path, &self.processors, vectors)
     }
 
     /// Creates a root, or finishes a previously interrupted creation.
@@ -408,8 +477,10 @@ impl Workspace {
         fs::remove_file(&marker).map_err(AtlasError::io("finish creating the library"))?;
         let _ = sync_dir(path);
 
+        let vectors = Arc::new(VectorRegistry::new(path));
         Ok(OpenRoot {
-            jobs: self.start_jobs(&catalog, path)?,
+            jobs: self.start_jobs(&catalog, path, &vectors)?,
+            vectors,
             reader: CatalogReader::open(&path.join(CATALOG))?,
             root_status: RootStatusCache::default(),
             catalog,

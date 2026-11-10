@@ -2,6 +2,7 @@
  * Words for Settings › Storage and the duplicates view (phase1-spec §5.5).
  */
 import type { IndexingEstimate } from './api/bindings/IndexingEstimate';
+import type { MeaningEstimate } from './api/bindings/MeaningEstimate';
 import { formatBytes } from './format';
 import { count } from './inventoryCopy';
 
@@ -26,6 +27,12 @@ export function estimateText(e: IndexingEstimate, freeBytes: number | null): str
         : sentence;
     }
   }
+}
+
+/** The meaning index's estimate (Slice 2.3); null when nothing waits. */
+export function meaningEstimateText(e: MeaningEstimate | null): string | null {
+  if (!e || e.remainingFiles === 0) return null;
+  return `Meaning for the remaining ${count(e.remainingFiles, 'file')} will need about ${bytesRange(e.lowBytes, e.highBytes)}.`;
 }
 
 export function freedText(bytes: number): string {

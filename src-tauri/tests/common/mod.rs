@@ -2,6 +2,7 @@
 //! folders, and a fake volume inspector.
 #![allow(dead_code)] // Each test crate uses a different subset.
 
+pub mod embedding;
 pub mod http;
 pub mod vectors;
 

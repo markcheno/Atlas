@@ -13,6 +13,7 @@ use crate::domain::dto::JobKind;
 use crate::error::{AtlasError, AtlasResult};
 use crate::services::catalog::codec::to_db;
 use crate::services::catalog::writer::CatalogHandle;
+use crate::services::embedding::registry::VectorRegistry;
 
 /// Wakes a runner early (user commands) and tells it to stop (shutdown).
 pub struct Signal {
@@ -90,12 +91,14 @@ impl JobRunner {
         factory: ProcessorFactory,
         signal: Arc<Signal>,
         waker: JobWaker,
+        vectors: Arc<VectorRegistry>,
     ) -> AtlasResult<Self> {
         let ctx = ProcessorContext {
             catalog: catalog.clone(),
             data_root: data_root.to_path_buf(),
             signal: Arc::clone(&signal),
             waker,
+            vectors,
         };
         let loop_signal = Arc::clone(&signal);
         let thread = thread::Builder::new()
@@ -173,6 +176,7 @@ impl JobRunners {
         catalog: &CatalogHandle,
         data_root: &Path,
         factories: &BTreeMap<JobKind, ProcessorFactory>,
+        vectors: &Arc<VectorRegistry>,
     ) -> AtlasResult<Self> {
         // Every signal exists before any runner starts, so each processor's
         // waker reaches all of them.
@@ -195,6 +199,7 @@ impl JobRunners {
                     factory,
                     signal,
                     waker.clone(),
+                    Arc::clone(vectors),
                 )?,
             );
         }

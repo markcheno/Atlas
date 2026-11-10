@@ -21,6 +21,9 @@ import type { DuplicateGroup } from '../lib/api/bindings/DuplicateGroup';
 import type { DuplicatePage } from '../lib/api/bindings/DuplicatePage';
 import type { ExtractionCounts } from '../lib/api/bindings/ExtractionCounts';
 import type { ExtractionOverview } from '../lib/api/bindings/ExtractionOverview';
+import type { EmbeddingCounts } from '../lib/api/bindings/EmbeddingCounts';
+import type { EmbeddingOverview } from '../lib/api/bindings/EmbeddingOverview';
+import type { EmbeddingStatus } from '../lib/api/bindings/EmbeddingStatus';
 import type { ExtractionStatus } from '../lib/api/bindings/ExtractionStatus';
 import type { FileInstance } from '../lib/api/bindings/FileInstance';
 import type { ErrorPayload } from '../lib/api/bindings/ErrorPayload';
@@ -43,7 +46,7 @@ export const fakeStatus: AppStatus = {
   os: 'macos',
   arch: 'aarch64',
   buildProfile: 'debug',
-  slice: '2.2',
+  slice: '2.3',
   features: [],
 };
 
@@ -217,6 +220,42 @@ export function extractionOverview(
   };
 }
 
+export function embeddingCounts(overrides: Partial<EmbeddingCounts> = {}): EmbeddingCounts {
+  return { indexed: 0, waiting: 0, failed: 0, total: 0, ...overrides };
+}
+
+export function embeddingStatus(overrides: Partial<EmbeddingStatus> = {}): EmbeddingStatus {
+  return {
+    jobId: 'embed-1',
+    sourceRootId: 'root-books',
+    sourceRootDisplayPath: '/Users/me/Books',
+    state: 'running',
+    pauseReason: null,
+    throttleReason: null,
+    lastError: null,
+    embeddedChunks: 0,
+    sentChars: 0,
+    serviceMs: 0,
+    ...overrides,
+  };
+}
+
+export function embeddingOverview(overrides: Partial<EmbeddingOverview> = {}): EmbeddingOverview {
+  return {
+    active: null,
+    queuedJobs: 0,
+    counts: embeddingCounts(),
+    model: null,
+    rebuilding: false,
+    needsModel: true,
+    hasAiService: false,
+    needsPermission: false,
+    roots: [],
+    reading: false,
+    ...overrides,
+  };
+}
+
 export function documentPage(overrides: Partial<DocumentPage> = {}): DocumentPage {
   return { items: [], page: 0, pageSize: 50, matchedSoFar: 0, scanning: false, ...overrides };
 }
@@ -290,6 +329,9 @@ export function storageUsage(overrides: Partial<StorageUsage> = {}): StorageUsag
       lowBytes: 1_500_000_000,
       highBytes: 2_500_000_000,
     },
+    meaningCatalogBytes: 0,
+    meaningFileBytes: 0,
+    meaningEstimate: null,
     measuredAt: '2026-11-09T00:00:00Z',
     ...overrides,
   };
@@ -420,7 +462,10 @@ type Handler = (args: Record<string, unknown> | undefined) => unknown;
 const plannedSlices: Record<string, string> = {};
 
 function defaults(): Record<string, Handler> {
-  let settings: Settings = { appearance: { theme: 'system' } };
+  let settings: Settings = {
+    appearance: { theme: 'system' },
+    privacy: { allowRemoteEmbedding: false },
+  };
   let roots: SourceRoot[] = [];
   let profiles: ProviderProfile[] = [];
   let modelRoles: ModelRoles = { chat: null, embedding: null };
@@ -493,6 +538,8 @@ function defaults(): Record<string, Handler> {
     get_inventory_status: () => overview(),
     get_extraction_status: () => extractionOverview(),
     start_extraction: () => 'extract-2',
+    get_embedding_status: () => embeddingOverview(),
+    start_embedding: () => 'embed-2',
     list_documents: () => documentPage(),
     search_documents: () => searchPage(),
     list_duplicates: () => duplicatePage(),

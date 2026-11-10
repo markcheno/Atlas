@@ -7,6 +7,7 @@ import type { DataRootStatus } from './api/bindings/DataRootStatus';
 import { appInfo } from './stores/app.svelte';
 import { inventory } from './stores/inventory.svelte';
 import { extraction } from './stores/extraction.svelte';
+import { embedding } from './stores/embedding.svelte';
 import { details } from './stores/details.svelte';
 import { duplicates } from './stores/duplicates.svelte';
 import { library } from './stores/library.svelte';
@@ -36,12 +37,15 @@ export async function applyStatus(status: DataRootStatus, opts: { justChosen?: b
       inventory.subscribe(),
       extraction.refresh(),
       extraction.subscribe(),
+      embedding.refresh(),
+      embedding.subscribe(),
     ]);
     view.go(opts.justChosen && sources.roots.length === 0 ? 'library-folders' : 'home');
   } else if (status.state === 'not_configured') {
     sources.clear();
     inventory.clear();
     extraction.clear();
+    embedding.clear();
     view.go('welcome');
   } else {
     view.go('unavailable');

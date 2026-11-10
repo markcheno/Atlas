@@ -84,6 +84,14 @@ fn bulk(lib: &Lib, model: &str) {
         .unwrap();
 }
 
+fn index_files(lib: &Lib) -> usize {
+    fs::read_dir(&lib.paths.vectors)
+        .unwrap()
+        .flatten()
+        .filter(|e| e.file_name().to_string_lossy().ends_with(".usearch"))
+        .count()
+}
+
 fn generation(lib: &Lib, model: &str) -> i64 {
     edb::get_model(&lib.conn(), model)
         .unwrap()
@@ -140,15 +148,11 @@ fn p2_08_kill_during_save_never_loses_the_index() {
         child.wait().unwrap();
 
         // What the kill left, then what the next open makes of it.
-        let staged = fs::read_dir(&lib.paths.tmp).unwrap().count();
-        let files = fs::read_dir(&lib.paths.vectors).unwrap().count();
+        let staged = fs::read_dir(&lib.paths.tmp).map_or(0, |d| d.count());
+        let files = index_files(&lib);
         let (index, report) = open_index(&lib.paths, &lib.writer, &model, 4).unwrap();
         assert_matches_catalog(&lib, &index, &model, DIMS);
-        assert_eq!(
-            fs::read_dir(&lib.paths.vectors).unwrap().count(),
-            1,
-            "only the recorded generation is kept"
-        );
+        assert_eq!(index_files(&lib), 1, "only the recorded generation is kept");
         assert_catalog_consistent(&lib);
         outcomes.push((
             staged,
@@ -156,10 +160,8 @@ fn p2_08_kill_during_save_never_loses_the_index() {
             matches!(report.opened, Opened::Loaded { .. }),
         ));
         drop(index);
-        // Opening a library empties tmp/ (workspace open).
-        for e in fs::read_dir(&lib.paths.tmp).unwrap() {
-            fs::remove_file(e.unwrap().path()).unwrap();
-        }
+        // Opening a library empties the staging folder (VectorRegistry::new).
+        let _ = fs::remove_dir_all(&lib.paths.tmp);
         lib = Lib::open(&root);
     }
     let c = lib.conn();

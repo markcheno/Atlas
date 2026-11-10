@@ -10,6 +10,7 @@ use crate::domain::traits::ModelProvider;
 use crate::error::AtlasResult;
 use crate::infrastructure::clock::now_rfc3339;
 use crate::infrastructure::http_probe::{HttpModelProvider, ProbeConfig};
+use crate::services::embedding;
 use crate::services::providers::profiles::{self, Prepared};
 use crate::services::providers::{recommend, roles};
 use crate::state::AppState;
@@ -77,7 +78,17 @@ pub async fn set_model_role(
 ) -> AtlasResult<ModelRoles> {
     state
         .with_workspace(move |ws| {
-            roles::set(ws.require_open()?, role, &profile_id, &model_id, &result)
+            let root = ws.require_open()?;
+            let roles = roles::set(root, role, &profile_id, &model_id, &result)?;
+            embedding::triggers::changed(root)?;
+            // A first embedding model in a catalog with 4 KiB pages: reopen
+            // the library, which converts it before anything is embedded
+            // (the UI says it is preparing while this command runs).
+            if role == AiRole::Embedding && ws.wants_page_conversion() {
+                ws.reopen();
+                ws.require_open()?;
+            }
+            Ok(roles)
         })
         .await
 }
@@ -85,7 +96,12 @@ pub async fn set_model_role(
 #[tauri::command]
 pub async fn clear_model_role(state: State<'_, AppState>, role: AiRole) -> AtlasResult<ModelRoles> {
     state
-        .with_workspace(move |ws| roles::clear(ws.require_open()?, role))
+        .with_workspace(move |ws| {
+            let root = ws.require_open()?;
+            let roles = roles::clear(root, role)?;
+            embedding::triggers::changed(root)?;
+            Ok(roles)
+        })
         .await
 }
 

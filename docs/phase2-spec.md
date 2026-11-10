@@ -388,7 +388,7 @@ Implement and verify **one slice at a time**. Build and rerun tests after each s
 | 2.3 | **The embedding job.** `JobKind::Embed`, status line and event, the battery pause, backoff, versioned re-embedding, the Storage category and estimate, the remote opt-in | P2-05, P2-06, P2-07, P2-09, P2-19 |
 | 2.4 | **Hybrid search.** Query embedding, fusion, the `semantic` reason and status, filters; `tests/semantic_eval.rs`; `just eval --semantic`; `benches/embedding.rs`; the 1024-vs-512 measurement and tokens per second on oMLX (the owner loads Qwen3-Embedding-0.6B); the dimension default decided | P2-10, P2-11, P2-17 (reference machine), P2-18 |
 | 2.5 | **Related documents** in the detail panel and "More like this" from a result | P2-12 |
-| 2.6 | **The Ask Atlas engine.** Chat adapters (OpenAI-compatible SSE, Ollama NDJSON); retrieve → delimited prompt → streamed answer → verified citations; disclosure and privacy settings; ADR 0014 (answers, citations, injection bounds) | P2-13, P2-14, P2-15, P2-16 |
+| 2.6 | **The Ask Atlas engine.** Chat adapters (OpenAI-compatible SSE, Ollama NDJSON); retrieve → delimited prompt → streamed answer → verified citations; disclosure and privacy settings; ADR 0015 (answers, citations, injection bounds) | P2-13, P2-14, P2-15, P2-16 |
 | 2.7 | **The Ask Atlas screen.** The mode switch, answer panel, citation chips opening the document at its location, Sources used, Stop, Home's note; the smoke steps with `e2e/fake-ai.mjs` | Vitest for every new screen state; smoke on Windows and Linux |
 | 2.8 | **Evidence and close-out.** Benchmarks with vectors on three OSes (scripted backend) and real-model results on the reference machine; the 30k embedding evidence run; license report; the DMG smoke against oMLX; `docs/phase2-closeout.md`; version 0.3.0 | All CI green on `main`; review against §1, §12, §13, §14 and §16 |
 
@@ -478,6 +478,36 @@ Do **not** add usearch, chunking or any embedding table before Slice 2.1's gate 
 - **Open question for 2.3:** catalogs created before Slice 1.7 have 4 KiB
   pages and store each 2 KB vector on its own page (4,294 bytes per
   vector, 1.7×).
+
+**2026-11-09, amended during Slice 2.3** ([ADR 0014](adr/0014-the-embedding-job.md)):
+
+- **ADR numbers:** ADR 0014 is the embedding job; the Ask Atlas ADR (Slice
+  2.6) becomes 0015.
+- **Preconditions are flags, not job states.** "Needs an embedding model"
+  and "needs your permission" are flags on the status, not job pause
+  states, and no job is queued without a model or permission. The only
+  new pause reason is `on_battery`. "Needs an embedding model" is shown
+  only to someone who added an AI service: Atlas works without AI.
+- **Old catalogs are converted** (product-owner decision, 2026-11-09):
+  catalogs created before Slice 1.7 (4 KiB pages) are converted to 16 KiB
+  pages when the library opens with an embedding role and no vectors.
+  Choosing a first embedding model reopens the library to do it.
+- **Settings › Privacy has one checkbox in 2.3:** "Allow embedding my
+  library through an internet service" (product-owner decision). The
+  disclosure and "Disable all external AI" stay in 2.6, so the privacy
+  settings live in `config/settings.json` (`privacy.allowRemoteEmbedding`),
+  not a migration.
+- **Migration 0013** adds the embed job's counters to `jobs` (chunks and
+  characters sent, time waiting on the service), which also makes a Slice
+  2.2 build refuse the library.
+- **What the job sends:** a document's text is re-checked by a fingerprint
+  inside its write transaction; vectors received are kept across retries;
+  the job checks every vector's length itself; requests are abandoned when
+  the library closes.
+- **The index:** saves stage in `indexes/vectors/staging/` (not `tmp/`), and
+  compaction happens when a file is opened.
+- **Model change:** a user-paused or cancelled folder holds a model change
+  until it is resumed or "Index meaning now" is pressed.
 
 ### Primary reference documentation (verify current versions at implementation time)
 

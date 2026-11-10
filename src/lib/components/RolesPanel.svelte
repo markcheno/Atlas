@@ -10,6 +10,8 @@
   import {
     capabilityText,
     clearedText,
+    NEW_INDEX_NOTE,
+    PREPARING_NOTE,
     clearQuestion,
     ROLES,
     roleTitle,
@@ -19,10 +21,16 @@
   } from '../roleCopy';
   import { appInfo } from '../stores/app.svelte';
   import { providers } from '../stores/providers.svelte';
+  import { embedding } from '../stores/embedding.svelte';
   import { roles } from '../stores/roles.svelte';
   import Recommendation from './Recommendation.svelte';
 
   let editing = $state<AiRole | null>(null);
+  /** Use was pressed on an embedding model that would replace an index. */
+  let confirmingNewIndex = $state(false);
+  /** A Use is being saved (for a first embedding model, possibly with
+   * the library's preparation for meaning search). */
+  let using = $state<AiRole | null>(null);
   let confirmingClear = $state<AiRole | null>(null);
   /** The role cleared last, for one line of confirmation. */
   let cleared = $state<AiRole | null>(null);
@@ -54,6 +62,7 @@
     profileId = profile || current?.profileId || providers.profiles[0]?.id || '';
     modelId = model || current?.modelId || '';
     roles.forget(role);
+    confirmingNewIndex = false;
   }
 
   function passing(role: AiRole) {
@@ -67,9 +76,34 @@
     if (!roles.error) cleared = role;
   }
 
-  async function use(role: AiRole) {
+  /** Choosing another embedding model, service or size builds a new index. */
+  function replacesIndex(role: AiRole, r: { modelId: string; dimensions: number | null }) {
+    const current = roles.roles.embedding;
+    if (role !== 'embedding' || !current || (embedding.overview?.counts.indexed ?? 0) === 0) {
+      return false;
+    }
+    return (
+      current.profileId !== profileId ||
+      current.modelId !== r.modelId ||
+      current.dimensions !== r.dimensions
+    );
+  }
+
+  async function use(role: AiRole, confirmed = false) {
     const r = passing(role);
-    if (r && (await roles.use(role, profileId, r))) editing = null;
+    if (!r) return;
+    if (!confirmed && replacesIndex(role, r)) {
+      confirmingNewIndex = true;
+      return;
+    }
+    confirmingNewIndex = false;
+    using = role;
+    try {
+      if (await roles.use(role, profileId, r)) editing = null;
+    } finally {
+      using = null;
+    }
+    if (role === 'embedding') void embedding.refresh();
   }
 
   $effect(() => {
@@ -155,8 +189,13 @@
             <button type="submit" class="button" disabled={roles.testing !== null || !profileId}>
               Test
             </button>
-            {#if passing(role)}
-              <button type="button" class="button primary" onclick={() => use(role)}>Use</button>
+            {#if passing(role) && !confirmingNewIndex}
+              <button
+                type="button"
+                class="button primary"
+                disabled={using !== null}
+                onclick={() => use(role)}>{using === role ? 'Saving…' : 'Use'}</button
+              >
             {/if}
             <button
               type="button"
@@ -167,6 +206,24 @@
               }}>Cancel</button
             >
           </div>
+          {#if role === 'embedding' && confirmingNewIndex}
+            <div class="confirm" role="group" aria-label="Confirm a new meaning index">
+              <p class="small">{NEW_INDEX_NOTE}</p>
+              <button type="button" class="button primary" onclick={() => use(role, true)}>
+                Build a new index
+              </button>
+              <button
+                type="button"
+                class="button quiet"
+                onclick={() => (confirmingNewIndex = false)}
+              >
+                Keep the current one
+              </button>
+            </div>
+          {/if}
+          {#if using === 'embedding'}
+            <p class="muted small" role="status">{PREPARING_NOTE}</p>
+          {/if}
         </form>
       {:else if assigned}
         <p data-testid={`role-${role}`}>
@@ -304,6 +361,17 @@
 
   .ok {
     font-weight: 500;
+  }
+
+  .confirm {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-2);
+  }
+
+  .confirm p {
+    flex-basis: 100%;
   }
 
   .small {

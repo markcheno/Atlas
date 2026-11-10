@@ -19,6 +19,7 @@ pub use db::JobRow;
 pub use runner::{JobRunner, JobRunners, JobWaker, Signal};
 
 use crate::services::catalog::writer::CatalogHandle;
+use crate::services::embedding::registry::VectorRegistry;
 
 /// Whether a runner keeps going after a job returns.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -49,6 +50,8 @@ pub struct ProcessorContext {
     pub signal: Arc<Signal>,
     /// Wakes every runner of this data root (other kinds included).
     pub waker: JobWaker,
+    /// The library's vector indexes (Slice 2.3).
+    pub vectors: Arc<VectorRegistry>,
 }
 
 /// Builds a kind's processor for each data root the workspace opens.

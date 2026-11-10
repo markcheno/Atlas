@@ -226,7 +226,7 @@ describe('main shell', () => {
     expect(document.documentElement.dataset.theme).toBe('dark');
     await waitFor(() =>
       expect(tauri.invoke).toHaveBeenCalledWith('update_settings', {
-        settings: { appearance: { theme: 'dark' } },
+        settings: { appearance: { theme: 'dark' }, privacy: { allowRemoteEmbedding: false } },
       }),
     );
     await user.click(screen.getByRole('radio', { name: 'Match system' }));
@@ -1223,6 +1223,55 @@ describe('Model roles', () => {
     ).not.toBeInTheDocument();
   });
 
+  it('confirms before a new embedding model replaces the meaning index', async () => {
+    tauri.setHandler('get_embedding_status', () =>
+      tauri.embeddingOverview({
+        model: { name: 'old-embed', dims: 1024, profileLabel: 'oMLX', location: 'this_computer' },
+        needsModel: false,
+        hasAiService: true,
+        counts: tauri.embeddingCounts({ indexed: 5, total: 5 }),
+      }),
+    );
+    tauri.setHandler('test_model_capability', () =>
+      tauri.capabilityResult({ modelId: 'new-embed', dimensions: 512 }),
+    );
+    const user = await openModels();
+    // An embedding model in use, with an index.
+    await user.click(
+      within(role('Embeddings')).getByRole('button', { name: 'Choose a model for embeddings' }),
+    );
+    let form = screen.getByRole('form', { name: 'Choose the embeddings model' });
+    tauri.setHandler('test_model_capability', () =>
+      tauri.capabilityResult({ modelId: 'old-embed', dimensions: 1024 }),
+    );
+    await user.type(within(form).getByLabelText('Model'), 'old-embed');
+    await user.click(within(form).getByRole('button', { name: 'Test' }));
+    await user.click(await within(form).findByRole('button', { name: 'Use' }));
+    await screen.findByTestId('role-embedding');
+
+    await user.click(screen.getByRole('button', { name: 'Change the embeddings model' }));
+    form = screen.getByRole('form', { name: 'Choose the embeddings model' });
+    tauri.setHandler('test_model_capability', () =>
+      tauri.capabilityResult({ modelId: 'new-embed', dimensions: 512 }),
+    );
+    const model = within(form).getByLabelText('Model');
+    await user.clear(model);
+    await user.type(model, 'new-embed');
+    await user.click(within(form).getByRole('button', { name: 'Test' }));
+    await user.click(await within(form).findByRole('button', { name: 'Use' }));
+    const confirm = screen.getByRole('group', { name: 'Confirm a new meaning index' });
+    expect(confirm).toHaveTextContent('The current one keeps working until the new one is ready.');
+    expect(tauri.invoke).not.toHaveBeenCalledWith(
+      'set_model_role',
+      expect.objectContaining({ modelId: 'new-embed' }),
+    );
+    await user.click(within(confirm).getByRole('button', { name: 'Build a new index' }));
+    expect(tauri.invoke).toHaveBeenCalledWith(
+      'set_model_role',
+      expect.objectContaining({ modelId: 'new-embed' }),
+    );
+  });
+
   it('says it may take a minute while the model loads', async () => {
     let finish: (r: unknown) => void = () => {};
     tauri.setHandler('test_model_capability', () => new Promise((resolve) => (finish = resolve)));
@@ -2003,5 +2052,171 @@ describe('title sources', () => {
     await user.click(hit.getByRole('button', { name: 'Details for harmonic.pdf' }));
     const d = await screen.findByRole('dialog');
     expect(within(d).getByTestId('title-source')).toHaveTextContent('Title from the first page');
+  });
+});
+
+describe('indexing meaning', () => {
+  beforeEach(resetAll);
+
+  const model = {
+    name: 'Qwen3-Embedding-0.6B-8bit',
+    dims: 1024,
+    profileLabel: 'oMLX',
+    location: 'this_computer',
+  } as const;
+  const counts = tauri.embeddingCounts({ indexed: 3, waiting: 7, total: 10 });
+  const withModel = (o: Partial<ReturnType<typeof tauri.embeddingOverview>> = {}) =>
+    tauri.embeddingOverview({ model, needsModel: false, hasAiService: true, counts, ...o });
+
+  async function launchWith(ov: ReturnType<typeof tauri.embeddingOverview>) {
+    tauri.setHandler('list_source_roots', () => [tauri.sourceRoot()]);
+    tauri.setHandler('get_embedding_status', () => ov);
+    return launchOpen();
+  }
+
+  const line = () => screen.getByTestId('embedding-status');
+
+  it.each([
+    [{ state: 'running' }, {}, 'Indexing meaning · 3 of 10 files'],
+    [{ state: 'running' }, { reading: true }, 'Indexing meaning · 3 files so far'],
+    [
+      { state: 'running' },
+      { rebuilding: true },
+      'Rebuilding meaning index · 3 of 10 files · search uses the previous index',
+    ],
+    [
+      { state: 'paused_policy', pauseReason: 'on_battery' },
+      {},
+      'Paused indexing meaning · On battery',
+    ],
+    [
+      { state: 'paused_policy', pauseReason: 'battery_low' },
+      {},
+      'Paused indexing meaning · Resumes at 25% or when plugged in',
+    ],
+    [{ state: 'paused_user' }, {}, 'Paused indexing meaning by you · 3 of 10 files'],
+    [{ state: 'queued' }, {}, 'Waiting to index meaning · 3 of 10 files'],
+    [
+      { state: 'failed_retryable', lastError: 'provider_unreachable' },
+      {},
+      "Can't index meaning · AI service not reachable",
+    ],
+  ] as const)('status line %#', async (active, extra, text) => {
+    await launchWith(withModel({ active: tauri.embeddingStatus(active), ...extra }));
+    expect(line()).toHaveTextContent(text);
+  });
+
+  it('is up to date when every file is indexed', async () => {
+    await launchWith(withModel({ counts: tauri.embeddingCounts({ indexed: 10, total: 10 }) }));
+    expect(line()).toHaveTextContent('Meaning up to date · 10 files');
+    expect(screen.queryByRole('button', { name: 'Pause indexing meaning' })).toBeNull();
+  });
+
+  it('says nothing about meaning to someone without an AI service', async () => {
+    await launchWith(tauri.embeddingOverview({ counts: tauri.embeddingCounts({ total: 10 }) }));
+    expect(screen.queryByTestId('embedding-status')).toBeNull();
+  });
+
+  it('asks for a model or for permission, with a way to Settings', async () => {
+    const user = await launchWith(
+      tauri.embeddingOverview({ hasAiService: true, counts: tauri.embeddingCounts({ total: 10 }) }),
+    );
+    expect(line()).toHaveTextContent('Indexing meaning needs an embedding model');
+    await user.click(screen.getByRole('button', { name: 'Open Settings' }));
+    await h1('Settings');
+    events.emit('embedding-status', withModel({ needsPermission: true }));
+    await waitFor(() => expect(line()).toHaveTextContent('Indexing meaning needs your permission'));
+  });
+
+  it('pauses, resumes, cancels and retries the meaning job only', async () => {
+    const user = await launchWith(withModel({ active: tauri.embeddingStatus() }));
+    await user.click(screen.getByRole('button', { name: 'Pause indexing meaning' }));
+    expect(tauri.invoke).toHaveBeenCalledWith('pause_job', { jobId: 'embed-1' });
+    events.emit(
+      'embedding-status',
+      withModel({ active: tauri.embeddingStatus({ state: 'paused_user' }) }),
+    );
+    await user.click(await screen.findByRole('button', { name: 'Resume indexing meaning' }));
+    expect(tauri.invoke).toHaveBeenCalledWith('resume_job', { jobId: 'embed-1' });
+    await user.click(screen.getByRole('button', { name: 'Cancel indexing meaning' }));
+    expect(tauri.invoke).toHaveBeenCalledWith('cancel_job', { jobId: 'embed-1' });
+    events.emit(
+      'embedding-status',
+      withModel({
+        active: tauri.embeddingStatus({
+          state: 'failed_retryable',
+          lastError: 'provider_unreachable',
+        }),
+      }),
+    );
+    await user.click(await screen.findByRole('button', { name: 'Retry indexing meaning' }));
+    expect(tauri.invoke).toHaveBeenCalledWith('resume_job', { jobId: 'embed-1' });
+    expect(tauri.invoke).not.toHaveBeenCalledWith('pause_job', { jobId: 'extract-1' });
+  });
+
+  it('shows a folder line, Index meaning now, and Home’s note', async () => {
+    const user = await launchWith(
+      withModel({
+        active: tauri.embeddingStatus(),
+        roots: [{ sourceRootId: 'root-books', counts, activeJobId: null }],
+      }),
+    );
+    expect(screen.getByTestId('meaning-note')).toHaveTextContent(
+      "Atlas is still indexing meaning: 3 of 10 files. Meaning search covers what's been indexed.",
+    );
+    expect(screen.getByTestId('root-meaning-line')).toHaveTextContent(
+      'Meaning: 3 indexed · 7 waiting',
+    );
+    await user.click(screen.getByRole('button', { name: /Index meaning now in/ }));
+    expect(tauri.invoke).toHaveBeenCalledWith('start_embedding', { sourceRootId: 'root-books' });
+  });
+
+  it('lets the owner allow embedding through an internet service, showing the volume', async () => {
+    tauri.setHandler('get_embedding_status', () =>
+      withModel({ needsPermission: true, counts: tauri.embeddingCounts({ total: 29_870 }) }),
+    );
+    const user = await launchOpen();
+    await user.click(screen.getByRole('button', { name: 'Settings' }));
+    const box = await screen.findByRole('checkbox', {
+      name: 'Allow embedding my library through an internet service',
+    });
+    expect(box).not.toBeChecked();
+    expect(await screen.findByText(/about 620 MB of text from 29,870 files/)).toBeInTheDocument();
+    await user.click(box);
+    await waitFor(() =>
+      expect(tauri.invoke).toHaveBeenCalledWith('update_settings', {
+        settings: { appearance: { theme: 'system' }, privacy: { allowRemoteEmbedding: true } },
+      }),
+    );
+    // A theme saved afterwards keeps the privacy choice.
+    await user.click(screen.getByRole('radio', { name: 'Dark' }));
+    await waitFor(() =>
+      expect(tauri.invoke).toHaveBeenCalledWith('update_settings', {
+        settings: { appearance: { theme: 'dark' }, privacy: { allowRemoteEmbedding: true } },
+      }),
+    );
+  });
+
+  it('shows the Meaning index in Storage, with its estimate', async () => {
+    tauri.setHandler('get_storage_usage', () =>
+      tauri.storageUsage({
+        meaningCatalogBytes: 300_000_000,
+        meaningFileBytes: 100_000_000,
+        meaningEstimate: {
+          remainingFiles: 17_600,
+          lowBytes: 800_000_000,
+          highBytes: 1_300_000_000,
+        },
+      }),
+    );
+    const user = await launchOpen();
+    await user.click(screen.getByRole('button', { name: 'Settings' }));
+    expect(await screen.findByTestId('meaning-bytes')).toHaveTextContent('400 MB');
+    expect(screen.getByTestId('meaning-estimate')).toHaveTextContent(
+      'Meaning for the remaining 17,600 files will need about 800 MB–1.3 GB.',
+    );
+    expect(
+      screen.getByText(/never removes your catalog, the text Atlas has read, the meaning index/),
+    ).toBeInTheDocument();
   });
 });

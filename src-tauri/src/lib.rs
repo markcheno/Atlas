@@ -17,11 +17,13 @@ use std::sync::{Arc, Mutex};
 
 use tauri::{Emitter, Manager};
 
-use domain::dto::{ExtractionOverview, InventoryOverview, JobKind};
+use domain::dto::{EmbeddingOverview, ExtractionOverview, InventoryOverview, JobKind};
+use infrastructure::http_probe::ProbeConfig;
 use infrastructure::keychain::LazyKeychain;
 use infrastructure::local_source::LocalFsSource;
 use infrastructure::system_probe::{OsResourceMonitor, SimulatedMonitor, Simulation};
 use infrastructure::volume::OsVolumeInspector;
+use services::embedding::job::{self as embedding_job, EmbedConfig, EmbedDeps};
 use services::extraction::job::{self as extraction_job, ExtractionConfig, ExtractionDeps};
 use services::extraction::supervisor::WorkerCommand;
 use services::inventory::{InventoryConfig, InventoryDeps};
@@ -37,6 +39,11 @@ pub const INVENTORY_EVENT: &str = "inventory-status";
 /// Tauri event carrying an `ExtractionOverview` whenever reading text makes
 /// progress or changes state (at most four per second, plus every change).
 pub const EXTRACTION_EVENT: &str = "extraction-status";
+
+/// Tauri event carrying an `EmbeddingOverview` whenever indexing meaning
+/// makes progress or changes state (at most four per second, plus every
+/// change; Slice 2.3).
+pub const EMBEDDING_EVENT: &str = "embedding-status";
 
 /// Debug builds only: redirects the locator (and the suggested data root)
 /// so tests and smoke runs never touch the real per-user configuration.
@@ -112,17 +119,28 @@ pub fn run() {
                 ExtractionConfig::from_env(),
                 worker,
             );
-            let mut workspace = Workspace::new(config, volumes)
-                .with_inventory(deps)
-                .with_job_processor(JobKind::Extract, extraction_job::factory(extraction));
-            // Reopens the remembered root and resumes interrupted cataloging;
-            // problems become status, never a crash.
-            workspace.startup();
             // Keys go to the OS keychain, opened on first use so startup
             // never waits for it. If it's unavailable, keys are kept for
             // this session only and never written to disk.
             let keychain: Arc<dyn SecretStore> = Arc::new(LazyKeychain::default());
             let vault = Arc::new(SecretVault::new(Some(keychain)));
+            let embedding_emitter = app.handle().clone();
+            let embedding = EmbedDeps {
+                governor: governor.clone(),
+                vault: vault.clone(),
+                events: Arc::new(move |overview: &EmbeddingOverview| {
+                    let _ = embedding_emitter.emit(EMBEDDING_EVENT, overview);
+                }),
+                config: EmbedConfig::from_env(),
+                backends: embedding_job::http_backends(ProbeConfig::embedding()),
+            };
+            let mut workspace = Workspace::new(config, volumes)
+                .with_inventory(deps)
+                .with_job_processor(JobKind::Extract, extraction_job::factory(extraction))
+                .with_job_processor(JobKind::Embed, embedding_job::factory(embedding));
+            // Reopens the remembered root and resumes interrupted cataloging;
+            // problems become status, never a crash.
+            workspace.startup();
             app.manage(AppState::new(
                 workspace,
                 governor,
@@ -156,6 +174,8 @@ pub fn run() {
             commands::inventory::get_inventory_status,
             commands::extraction::start_extraction,
             commands::extraction::get_extraction_status,
+            commands::embedding::start_embedding,
+            commands::embedding::get_embedding_status,
             commands::search::search_documents,
             commands::documents::get_document_detail,
             commands::documents::list_duplicates,

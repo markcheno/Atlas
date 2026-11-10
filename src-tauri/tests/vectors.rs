@@ -231,6 +231,17 @@ fn p2_08_a_file_behind_the_catalog_is_reconciled() {
         count(&lib.conn(), "SELECT COUNT(*) FROM vector_tombstones"),
         0
     );
+    // So many of this small file's vectors were removed that opening it
+    // compacts it (over 20% of its slots); then it simply loads.
+    let (index, report) = open_index(&lib.paths, &lib.writer, &model, 4).unwrap();
+    assert_eq!(
+        report.opened,
+        Opened::Rebuilt {
+            reason: RebuildReason::Compaction
+        }
+    );
+    assert_matches_catalog(&lib, &index, &model, DIMS);
+    drop(index);
     let (index, report) = open_index(&lib.paths, &lib.writer, &model, 4).unwrap();
     assert_eq!(
         report.opened,

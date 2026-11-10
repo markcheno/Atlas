@@ -6,6 +6,7 @@
   import DeviceReadings from '../lib/components/DeviceReadings.svelte';
   import LibraryFoldersPanel from '../lib/components/LibraryFoldersPanel.svelte';
   import AiModelsPanel from '../lib/components/AiModelsPanel.svelte';
+  import PrivacyPanel from '../lib/components/PrivacyPanel.svelte';
   import ProblemNotice from '../lib/components/ProblemNotice.svelte';
   import StoragePanel from '../lib/components/StoragePanel.svelte';
   import ViewHeading from '../lib/components/ViewHeading.svelte';
@@ -141,11 +142,11 @@
 
   <section aria-labelledby="settings-privacy">
     <h2 id="settings-privacy">Privacy</h2>
-    <p>
-      Atlas reads only the names, sizes, and dates of files in your library folders, never their
-      contents, and never changes them. It contacts an AI service only when you test a connection,
-      and sends nothing from your library.
-    </p>
+    {#if workspace.isOpen}
+      <PrivacyPanel />
+    {:else}
+      <p class="muted">No Atlas library is open.</p>
+    {/if}
   </section>
 
   <section aria-labelledby="settings-ai">
