@@ -1518,7 +1518,9 @@ The Ask Atlas screen arrives in Slice 2.7. Until then:
    benchmarks). After Slice 2.6.1, thinking off: first word p50 14.4 s,
    whole answer p50 23.4 s, no empty answers, 18 answers too literal. The
    run after Slice 2.6.2 adds the 12 off-library questions: they should
-   find nothing, be weak, or be answered "not covered", citing nothing.*
+   find nothing, be weak, or be answered "not covered", citing nothing.
+   Run after 2.6.2: 4 of 40 vague answers "not covered" (from 18); all 12
+   off-library questions refused, 9 of them citing every source.*
 2. In Settings › Privacy, turn on **Disable all external AI**. "Allow
    embedding my library through an internet service" becomes unavailable.
    Test an internet service's connection in Settings › AI Models: it says

@@ -762,7 +762,44 @@ What it shows:
   budget, with excerpts of at most 2,000 characters;
 - the 12 off-library questions tune the weak margin.
 
-*The run after Slice 2.6.2 is pending.*
+**The run after Slice 2.6.2** (2026-11-10, the same machine, services and
+model; 1,341 s for 52 questions):
+
+| Measure | Vague set (40) | Off set (12) |
+| --- | ---: | ---: |
+| First word, p50 / p95 | 15.3 s / 18.8 s | 16.3 s / 17.8 s |
+| Whole answer, p50 / p95 | 25.6 s / 37.2 s | 22.1 s / 24.2 s |
+| A relevant document among the sources | 39 / 40 | — |
+| Sources per question | 14.2 | 14.0 |
+| Citation rate (cited ÷ supplied) | 0.19 | **0.68** |
+| Invented citations (removed) | 2 | 0 |
+| Answers saying the excerpts don't cover it | **4** (from 18) | **12 of 12** |
+| … citing nothing | 0 | 3 |
+| Flagged as weak retrieval (margin below 0.10) | 0 | 5 |
+| Margin above the floor, min / median / max | 0.22 / 0.39 / 0.51 | 0.04 / 0.12 / 0.24 |
+
+What it shows:
+
+- **The described works are named.** v04 now quotes "Nevermore" from a
+  second Raven passage, and v13 names Pangloss. v06 and v11 name The Raven
+  and Candide. Of the 4 "not covered" answers:
+  - v14 is a good answer that the eval's phrase test misread ("ruling by
+    doing nothing");
+  - v23 and v28 are honest partial answers;
+  - v38's document wasn't retrieved, the one miss in both runs.
+- **Off-library questions are refused, and nothing is made up.** All 12
+  say the library doesn't cover them. The three famous works the corpus
+  lacks (o05, o10, o12) are not claimed.
+- **But refusals inventory the sources.** 9 of the 12 go on to list what
+  every excerpt covers, citing each ("The sources cover Alice [1][3][4]…"),
+  hence the 0.68 citation rate. Rule 5 ("cite nothing") isn't enough on its
+  own.
+- **The margin separates the sets.** The off set reaches 0.24 at most, and
+  the vague set starts at 0.22. A weak margin of 0.20 would flag no vague
+  question and at least half the off set; 0.10 flags 5 of 12. These
+  margins are for Qwen3-Embedding-0.6B with its 0.25 floor.
+- **Second places cost little.** About 2 more sources per question; the
+  first word came 1 s later.
 
 CI has no model. There, the engine runs against a scripted service
 streaming canned answers (`tests/answers.rs`, P2-13 to P2-16).
