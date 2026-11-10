@@ -655,8 +655,8 @@ pub struct Found {
     pub hit: SearchHit,
     /// The best passage containing the words, and the FTS expression.
     pub text: Option<(i64, String)>,
-    /// The best chunk by meaning: passage and character span.
-    pub meaning: Option<(i64, (usize, usize))>,
+    /// The best chunks by meaning, best first: passage and character span.
+    pub meaning: Vec<(i64, (usize, usize))>,
 }
 
 /// What Ask Atlas retrieval found, best first (public for `just eval-ask`).
@@ -693,9 +693,13 @@ pub fn retrieve(
             None => Vec::new(),
         };
         let best = near.iter().map(|n| n.similarity).reduce(f32::max);
-        let meaning: HashMap<String, (i64, (usize, usize))> = near
+        let meaning: HashMap<String, Vec<(i64, (usize, usize))>> = near
             .iter()
-            .map(|n| (n.document.clone(), (n.passage, n.span)))
+            .map(|n| {
+                let mut chunks = vec![(n.passage, n.span)];
+                chunks.extend(n.also.iter().copied());
+                (n.document.clone(), chunks)
+            })
             .collect();
         let mut found = Vec::new();
         for e in hybrid::fuse(ranked.entries, ranked.names_only, near) {
@@ -709,8 +713,8 @@ pub fn retrieve(
                 (Some(p), Some(expr)) => Some((p, expr.clone())),
                 _ => None,
             };
-            let meaning = meaning.get(&document).copied();
-            if text.is_none() && meaning.is_none() {
+            let meaning = meaning.get(&document).cloned().unwrap_or_default();
+            if text.is_none() && meaning.is_empty() {
                 continue;
             }
             if let Some(hit) = hit(c, &e, &f, &[])? {

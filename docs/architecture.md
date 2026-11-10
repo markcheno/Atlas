@@ -747,10 +747,12 @@ the screen is Slice 2.7) and `services/providers/privacy.rs`; rationale in
   - Errors: `chat_model_needed`, `external_ai_disabled`, `invalid_question`
     (1–2,000 characters).
 - **Retrieve** (`retrieve.rs`, `search::retrieve`): hybrid search's best 8
-  documents. Excerpts come from the best meaning chunk with its neighbours,
-  and from the text around the first word match. About 24,000 characters
-  in all, filled round-robin, at most 3,000 each. Project Gutenberg's
-  header and licence are cut out.
+  documents.
+  - Excerpts come from the best meaning chunk with its neighbours, a
+    second meaning place that doesn't touch or repeat it, and the text
+    around the first word match.
+  - About 24,000 characters in all, filled round-robin, at most 2,000 each.
+  - Project Gutenberg's header and licence are cut out.
   - `weak`: fewer than 3 sources, or the best meaning match under the
     floor + 0.10.
 - **Prompt** (`prompt.rs`): a fixed system message, then one user message

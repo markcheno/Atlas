@@ -143,7 +143,7 @@ bench-embedding size="30k" out="":
 eval-semantic:
     cargo test --manifest-path {{ manifest }} --locked --release --test semantic_eval -- --ignored --nocapture p2_17_the_vague_set_against_a_real_model
 
-# Ask Atlas against real models, run by its owner (Slice 2.6): set the ATLAS_EVAL_EMBED_* variables as for eval-semantic plus ATLAS_EVAL_CHAT_MODEL; the chat model uses the same service and key unless ATLAS_EVAL_CHAT_URL/_KEY/_KIND say otherwise. Whole answers go to src-tauri/target/tmp/eval-ask-answers.md
+# Ask Atlas against real models, run by its owner (Slice 2.6): set the ATLAS_EVAL_EMBED_* variables as for eval-semantic plus ATLAS_EVAL_CHAT_MODEL; the chat model uses the same service and key unless ATLAS_EVAL_CHAT_URL/_KEY/_KIND say otherwise. Asks the vague set, then the off-library set; whole answers go to src-tauri/target/tmp/eval-ask-answers.md
 eval-ask:
     cargo test --manifest-path {{ manifest }} --locked --release --test semantic_eval -- --ignored --nocapture ask_atlas_against_real_models
 

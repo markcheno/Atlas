@@ -16,9 +16,11 @@ const readable = new Set(manifest.documents.filter((d) => d.expect === 'text').m
 const sets = [
   { file: 'questions.json', kinds: ['exact', 'phrase', 'paraphrase'], count: 40 },
   { file: 'questions-vague.json', kinds: ['vague'], count: 40 },
+  // Questions the corpus has nothing on (just eval-ask, Slice 2.6.2).
+  { file: 'questions-off.json', kinds: ['off'], count: 12, off: true },
 ];
 
-for (const { file, kinds, count } of sets) {
+for (const { file, kinds, count, off } of sets) {
   test(`${file} is well formed and every relevant document has text`, () => {
     const set = JSON.parse(fs.readFileSync(path.join(repo, 'fixtures/evaluation', file), 'utf8'));
     assert.equal(set.version, 1);
@@ -30,7 +32,12 @@ for (const { file, kinds, count } of sets) {
       ids.add(q.id);
       assert.ok(kinds.includes(q.kind), `${file} ${q.id}: kind ${q.kind}`);
       assert.ok(q.question.trim().length >= 8, `${file} ${q.id}: question too short`);
-      assert.ok(Array.isArray(q.relevant) && q.relevant.length > 0, `${file} ${q.id}: no relevant`);
+      assert.ok(Array.isArray(q.relevant), `${file} ${q.id}: no relevant list`);
+      if (off) {
+        assert.equal(q.relevant.length, 0, `${file} ${q.id}: an off question has no document`);
+      } else {
+        assert.ok(q.relevant.length > 0, `${file} ${q.id}: no relevant`);
+      }
       for (const r of q.relevant) {
         assert.ok(readable.has(r), `${file} ${q.id}: ${r} is not a readable corpus document`);
       }

@@ -334,6 +334,44 @@ fn p2_13_every_citation_resolves_to_a_source_that_was_sent() {
 }
 
 #[test]
+fn a_long_document_gives_a_second_place_by_meaning() {
+    // The question's subject at both ends of one long text, a chunk's
+    // worth each, with unrelated words between: more than two chunks
+    // (1,200 characters each) apart.
+    let filler =
+        "Ledger entries for the harbour office were copied by hand each morning. ".repeat(60);
+    let long = format!(
+        "{} {filler}{}",
+        format!("{SKY} ").repeat(14),
+        format!("{NEAR_SKY} ").repeat(14)
+    );
+    let reply = streamed(&sse(&["Comets [1]."]), Duration::ZERO);
+    let ask = Ask::openai(&[&long, BREAD, SEA], reply);
+    let started = ask.started(QUESTION);
+    let mine: Vec<&str> = started
+        .sources
+        .iter()
+        .filter(|s| s.document_id == ask.lib.docs[0].0)
+        .map(|s| s.excerpt.as_str())
+        .collect();
+    assert!(
+        mine.iter().any(|e| e.contains("glowing nebulae drifted")),
+        "the far end of the book is sent too: {mine:#?}"
+    );
+    assert!(
+        mine.iter().any(|e| e.contains("past distant comets")),
+        "{mine:#?}"
+    );
+    for e in &mine {
+        assert!(
+            e.chars().count() <= 2_000,
+            "an excerpt is at most 2,000 characters"
+        );
+    }
+    ask.finished(&started.answer_id);
+}
+
+#[test]
 fn p2_14_instructions_inside_a_document_are_only_data() {
     let reply = streamed(
         &sse(&["The log ends with a note asking to change things [1]."]),

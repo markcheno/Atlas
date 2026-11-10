@@ -1141,6 +1141,18 @@ has unit tests.
 [42882126056](https://github.com/markcheno/Atlas/actions/runs/42882126056),
 all green; `tests/answers.rs` passed 12 of 12 on each OS.
 
+## Slice 2.6.2
+
+Fixes from the second `just eval-ask`: the prompt names a described work,
+each document gives a second place by meaning, and there are 12
+off-library questions for the evaluation. On every OS:
+
+- `tests/answers.rs` gains a long document whose far end is sent as a
+  second excerpt (13 tests);
+- `scripts/evaluation-questions.test.mjs` checks `questions-off.json`.
+
+<!-- ci-2.6.2 -->
+
 ## Manual checklist for Windows and Linux
 
 CI runs an automated smoke test on Windows and Linux (Slice 0.8, below),
@@ -1502,7 +1514,9 @@ The Ask Atlas screen arrives in Slice 2.7. Until then:
    *First run 2026-11-10 against oMLX with `Qwen3.8-27B-MLX-4bit` and
    thinking on: 40 answers, no invented citation, five empty answers (see
    benchmarks). After Slice 2.6.1, thinking off: first word p50 14.4 s,
-   whole answer p50 23.4 s, no empty answers, 18 answers too literal.*
+   whole answer p50 23.4 s, no empty answers, 18 answers too literal. The
+   run after Slice 2.6.2 adds the 12 off-library questions: they should
+   find nothing, be weak, or be answered "not covered", citing nothing.*
 2. In Settings › Privacy, turn on **Disable all external AI**. "Allow
    embedding my library through an internet service" becomes unavailable.
    Test an internet service's connection in Settings › AI Models: it says

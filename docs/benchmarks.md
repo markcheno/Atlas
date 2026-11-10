@@ -638,7 +638,8 @@ document finds ten.
 `just eval-ask`, run by the product owner on the reference machine: the
 spike corpus embedded through a real embedding model, as for
 `eval-semantic`. Then each of the 40 vague questions is asked through a
-real chat model. It reports:
+real chat model, and from Slice 2.6.2 also 12 questions the corpus has
+nothing on (`questions-off.json`). It reports, for each set:
 
 - the time to the first word and to the whole answer;
 - the sources sent, cited and invented;
@@ -751,6 +752,17 @@ What it shows:
   document in the corpus, and their margins (0.22 to 0.51) overlap
   whether the answer was found or not. The weak flag needs questions the
   library has nothing on.
+
+**Slice 2.6.2** answers these findings
+([ADR 0015](adr/0015-ask-atlas-answers-citations-injection.md)):
+
+- a question describing a work is answered by naming the source that
+  matches;
+- each document can give a second passage by meaning, within the same
+  budget, with excerpts of at most 2,000 characters;
+- the 12 off-library questions tune the weak margin.
+
+*The run after Slice 2.6.2 is pending.*
 
 CI has no model. There, the engine runs against a scripted service
 streaming canned answers (`tests/answers.rs`, P2-13 to P2-16).
