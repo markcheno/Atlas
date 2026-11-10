@@ -36,6 +36,8 @@ import type { InventoryOverview } from './bindings/InventoryOverview';
 import type { LocalProviderSuggestion } from './bindings/LocalProviderSuggestion';
 import type { ProviderProfile } from './bindings/ProviderProfile';
 import type { ProviderProfileInput } from './bindings/ProviderProfileInput';
+import type { AskQuery } from './bindings/AskQuery';
+import type { AskReply } from './bindings/AskReply';
 import type { Settings } from './bindings/Settings';
 import type { SourceRoot } from './bindings/SourceRoot';
 import type { SearchPage } from './bindings/SearchPage';
@@ -173,6 +175,17 @@ export const atlas = {
   /** From the bundled catalog and this computer's memory; no network. */
   getModelRecommendations: (listedModelIds: string[]) =>
     call<Recommendations>('get_model_recommendations', { listedModelIds }),
+
+  /**
+   * Answers from the library (Slice 2.6): the sources and an answer id
+   * whose `answer-stream` events follow, or why not yet. Sends only the
+   * passages found, to the chat model, after this explicit action.
+   */
+  askAtlas: (query: AskQuery) => call<AskReply>('ask_atlas', { query }),
+  cancelAnswer: (answerId: string) => call<void>('cancel_answer', { answerId }),
+  /** The user saw what Ask Atlas sends to this internet service and agreed. */
+  acknowledgeDisclosure: (profileId: string) =>
+    call<Settings>('acknowledge_disclosure', { profileId }),
 } as const;
 
 export type AtlasApi = typeof atlas;

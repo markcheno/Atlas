@@ -127,7 +127,9 @@ impl Lib {
     }
 
     fn overview(&self) -> EmbeddingOverview {
-        let allow = self.root().settings().privacy.allow_remote_embedding;
+        let allow = atlas_lib::services::providers::privacy::remote_embedding(
+            &self.root().settings().privacy,
+        );
         self.root()
             .reader()
             .read(move |c| status::overview(c, allow))

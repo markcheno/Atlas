@@ -37,6 +37,7 @@ import type { SearchHit } from '../lib/api/bindings/SearchHit';
 import type { SearchPage } from '../lib/api/bindings/SearchPage';
 import type { Settings } from '../lib/api/bindings/Settings';
 import type { SourceRoot } from '../lib/api/bindings/SourceRoot';
+import type { AskReply } from '../lib/api/bindings/AskReply';
 import type { RelatedHit } from '../lib/api/bindings/RelatedHit';
 import type { RelatedPage } from '../lib/api/bindings/RelatedPage';
 import type { StorageUsage } from '../lib/api/bindings/StorageUsage';
@@ -48,7 +49,7 @@ export const fakeStatus: AppStatus = {
   os: 'macos',
   arch: 'aarch64',
   buildProfile: 'debug',
-  slice: '2.5',
+  slice: '2.6',
   features: [],
 };
 
@@ -489,7 +490,7 @@ const plannedSlices: Record<string, string> = {};
 function defaults(): Record<string, Handler> {
   let settings: Settings = {
     appearance: { theme: 'system' },
-    privacy: { allowRemoteEmbedding: false },
+    privacy: { allowRemoteEmbedding: false, disableExternalAi: false, acknowledged: [] },
   };
   let roots: SourceRoot[] = [];
   let profiles: ProviderProfile[] = [];
@@ -606,6 +607,10 @@ function defaults(): Record<string, Handler> {
       settings = args?.settings as Settings;
       return settings;
     },
+    // Ask Atlas (Slice 2.6): nothing in the library unless a test says so.
+    ask_atlas: (): AskReply => ({ kind: 'nothing_found', semantic: { state: 'off' } }),
+    cancel_answer: () => null,
+    acknowledge_disclosure: () => settings,
   };
 }
 

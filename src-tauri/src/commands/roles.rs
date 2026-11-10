@@ -25,9 +25,25 @@ pub async fn test_model_capability(
     model_id: String,
 ) -> AtlasResult<CapabilityResult> {
     let vault = state.vault.clone();
-    let prepared = state
-        .with_workspace(move |ws| profiles::resolve(ws.require_open()?, &vault, &target))
+    let (prepared, disabled) = state
+        .with_workspace(move |ws| {
+            let root = ws.require_open()?;
+            let prepared = profiles::resolve(root, &vault, &target)?;
+            let disabled = prepared.disabled_by(&root.settings().privacy);
+            Ok((prepared, disabled))
+        })
         .await?;
+    if disabled {
+        return Ok(CapabilityResult {
+            role,
+            model_id,
+            outcome: CapabilityOutcome::ExternalAiDisabled,
+            dimensions: None,
+            message: profiles::EXTERNAL_AI_OFF.to_owned(),
+            elapsed_ms: 0,
+            tested_at: now_rfc3339(),
+        });
+    }
     Ok(match prepared {
         Prepared::Blocked(message) => CapabilityResult {
             role,

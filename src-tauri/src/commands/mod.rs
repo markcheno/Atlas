@@ -6,6 +6,7 @@
 //! not shipped return `AtlasError::NotImplemented` with the planned slice,
 //! never placeholder data.
 
+pub mod answers;
 pub mod app;
 pub mod documents;
 pub mod embedding;
@@ -66,4 +67,7 @@ pub const COMMAND_NAMES: &[&str] = &[
     "set_model_role",
     "clear_model_role",
     "get_model_recommendations",
+    "ask_atlas",
+    "cancel_answer",
+    "acknowledge_disclosure",
 ];

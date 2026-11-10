@@ -934,6 +934,134 @@ pub struct RelatedPage {
     pub hits: Vec<RelatedHit>,
 }
 
+// ------------------------------------------------------------ Ask Atlas
+
+/// A question for Ask Atlas (phase2-spec §5.5, §7.6), with the search
+/// filters. Data, never prompt structure.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct AskQuery {
+    pub question: String,
+    #[serde(default)]
+    pub source_root_id: Option<RecordId>,
+    #[serde(default)]
+    pub file_type: Option<FileType>,
+}
+
+/// One passage given to the model, numbered as the model cites it. The
+/// list is exactly what was sent: "Sources used".
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct SourceUsed {
+    /// The citation number, from 1.
+    pub n: u32,
+    pub document_id: RecordId,
+    pub file_instance_id: RecordId,
+    pub title: String,
+    pub display_name: String,
+    pub file_type: FileType,
+    /// "Page 12", "Chapter 3, part 2".
+    pub location: Option<String>,
+    /// 1-based, for opening a PDF at the page.
+    pub page_no: Option<u32>,
+    /// The excerpt exactly as sent, as plain text.
+    pub excerpt: String,
+}
+
+/// An answer that started streaming; `answer-stream` events follow.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct AskStarted {
+    pub answer_id: String,
+    pub sources: Vec<SourceUsed>,
+    /// Atlas found little about this: the answer may be thin.
+    pub weak: bool,
+    pub semantic: SemanticStatus,
+}
+
+/// What an internet service would receive, asked before the first request
+/// to it (phase2-spec §5.7). Nothing was sent.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct DisclosureNeeded {
+    pub profile_id: RecordId,
+    pub profile_label: String,
+    pub base_url: String,
+    pub excerpt_count: u32,
+    /// The question and excerpts, in UTF-8 bytes.
+    #[ts(type = "number")]
+    pub bytes: u64,
+}
+
+/// The reply to `ask_atlas`.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+#[ts(export)]
+pub enum AskReply {
+    Started(AskStarted),
+    /// The library has nothing on it; the model was not asked.
+    NothingFound {
+        semantic: SemanticStatus,
+    },
+    NeedsDisclosure(DisclosureNeeded),
+}
+
+/// Why an answer stopped early, in fixed codes; the UI words them.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "snake_case")]
+#[ts(export)]
+pub enum AnswerErrorCode {
+    NetworkError,
+    Timeout,
+    AuthenticationFailed,
+    ModelNotFound,
+    /// The service reported an error (overloaded, out of memory, …).
+    ServiceError,
+    /// The service answered in a way Atlas doesn't understand.
+    ProtocolMismatch,
+    /// The answer passed Atlas's size limit.
+    TooLong,
+}
+
+/// One step of a streamed answer (the `answer-stream` event).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+#[ts(export)]
+pub enum AnswerStep {
+    /// The model is reasoning before it answers.
+    Thinking,
+    /// More answer text. Citations appear as `[n]`, each one checked
+    /// against the sources; invented ones are already removed.
+    Delta { text: String },
+    /// Source `n` was cited for the first time.
+    Citation { n: u32 },
+    /// The answer is complete.
+    Done { cited: Vec<u32>, dropped: u32 },
+    /// Stop was pressed; nothing more follows.
+    Stopped,
+    /// The answer stopped early; `partial` when some text had arrived,
+    /// which is kept.
+    Error {
+        code: AnswerErrorCode,
+        message: String,
+        partial: bool,
+        cited: Vec<u32>,
+        dropped: u32,
+    },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct AnswerEvent {
+    pub answer_id: String,
+    pub step: AnswerStep,
+}
+
 /// Machine-readable pause reasons; display text is chosen by the UI.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
 #[serde(rename_all = "snake_case")]
@@ -1135,6 +1263,9 @@ pub enum ConnectionOutcome {
     AuthenticationFailed,
     ProtocolMismatch,
     InsecureUrlRejected,
+    /// "Disable all external AI" is on and this is an internet service;
+    /// nothing was sent.
+    ExternalAiDisabled,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
@@ -1180,6 +1311,9 @@ pub enum CapabilityOutcome {
     NetworkError,
     Timeout,
     InsecureUrlRejected,
+    /// "Disable all external AI" is on and this is an internet service;
+    /// nothing was sent.
+    ExternalAiDisabled,
 }
 
 /// The result of one capability test: a single fixed request, never
@@ -1419,13 +1553,30 @@ pub struct Settings {
     pub privacy: PrivacySettings,
 }
 
-/// Settings › Privacy (phase2-spec §5.7). Slice 2.3 has one choice; the
-/// disclosure and "Disable all external AI" arrive in Slice 2.6.
+/// Settings › Privacy (phase2-spec §5.7, ADR 0015). Services on this
+/// computer or another one are never affected by these choices.
 #[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase", default)]
 #[ts(export)]
 pub struct PrivacySettings {
     /// Embedding the library through an internet service (off by default).
-    /// Services on this computer or another one need no permission.
     pub allow_remote_embedding: bool,
+    /// "Disable all external AI": no request at all to an internet service
+    /// (Ask Atlas, embedding, search, tests).
+    pub disable_external_ai: bool,
+    /// Internet services the user agreed to send Ask Atlas excerpts to,
+    /// after seeing what is sent. Per profile and address.
+    pub acknowledged: Vec<Acknowledgement>,
+}
+
+/// One agreement to the Ask Atlas disclosure (phase2-spec §5.7).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct Acknowledgement {
+    pub profile_id: String,
+    /// The address agreed to; a changed address asks again.
+    pub base_url: String,
+    pub label: String,
+    pub at: String,
 }

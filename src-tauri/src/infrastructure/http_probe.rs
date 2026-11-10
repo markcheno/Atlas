@@ -488,6 +488,32 @@ pub fn capability_request(kind: ProviderKind, role: AiRole, model: &str) -> (&'s
     }
 }
 
+/// How long an Ask Atlas answer may be, in tokens the model writes
+/// (thinking included, for the services that count it).
+pub const ANSWER_MAX_TOKENS: u32 = 4096;
+/// The context Atlas asks Ollama for: its default is small enough to cut a
+/// prompt of about 6,000 tokens of excerpts silently.
+pub const ANSWER_CONTEXT_TOKENS: u32 = 12_288;
+
+/// An Ask Atlas request (phase2-spec §7.6): the messages, streamed, low
+/// temperature, no tools.
+pub fn chat_request(kind: ProviderKind, model: &str, messages: &Value) -> (&'static str, Value) {
+    match kind {
+        ProviderKind::Ollama => (
+            "/api/chat",
+            json!({ "model": model, "messages": messages, "stream": true,
+                    "options": { "num_ctx": ANSWER_CONTEXT_TOKENS,
+                                 "num_predict": ANSWER_MAX_TOKENS,
+                                 "temperature": 0.2 } }),
+        ),
+        ProviderKind::OpenaiCompatible => (
+            "/chat/completions",
+            json!({ "model": model, "messages": messages, "stream": true,
+                    "max_tokens": ANSWER_MAX_TOKENS, "temperature": 0.2 }),
+        ),
+    }
+}
+
 /// Every embedding in an answer, in input order: Ollama's `embeddings`, or
 /// OpenAI's `data`, ordered by each item's `index` when it has one. `None`
 /// unless each is a non-empty array of finite numbers.
@@ -668,6 +694,75 @@ pub fn chat_line(kind: ProviderKind, line: &str) -> ChatLine {
         ChatLine::Done
     } else {
         ChatLine::Nothing
+    }
+}
+
+/// What one line of a streamed chat answer carries, for Ask Atlas.
+#[derive(Debug, PartialEq, Eq)]
+pub enum ChatDelta {
+    /// Answer text.
+    Text(String),
+    /// The model is reasoning; the text is not kept (ADR 0015).
+    Thinking,
+    /// The service reported an error inside the stream.
+    Error(String),
+    /// The stream says it is finished.
+    Done,
+    Nothing,
+}
+
+/// [`chat_line`] keeping the answer text: the `content` of an
+/// OpenAI-compatible `delta` (or `message`), or of Ollama's `message`.
+/// Reasoning fields are only reported as [`ChatDelta::Thinking`].
+pub fn chat_delta(kind: ProviderKind, line: &str) -> ChatDelta {
+    let line = line.trim();
+    let payload = match kind {
+        ProviderKind::OpenaiCompatible => match line.strip_prefix("data:") {
+            Some(rest) => rest.trim(),
+            None if line.starts_with('{') => line,
+            None => return ChatDelta::Nothing,
+        },
+        ProviderKind::Ollama => line,
+    };
+    if payload == "[DONE]" {
+        return ChatDelta::Done;
+    }
+    let Ok(v) = serde_json::from_str::<Value>(payload) else {
+        return ChatDelta::Nothing;
+    };
+    if v.get("error").is_some() {
+        return ChatDelta::Error(error_message(&v).unwrap_or_default());
+    }
+    let text = |m: Option<&Value>, k: &str| {
+        m.and_then(|m| m.get(k))
+            .and_then(Value::as_str)
+            .filter(|s| !s.is_empty())
+            .map(str::to_owned)
+    };
+    let (content, thinking) = match kind {
+        ProviderKind::OpenaiCompatible => {
+            let choice = v.get("choices").and_then(|c| c.get(0));
+            let part = choice
+                .and_then(|c| c.get("delta"))
+                .or_else(|| choice.and_then(|c| c.get("message")));
+            (
+                text(part, "content"),
+                text(part, "reasoning_content").or_else(|| text(part, "reasoning")),
+            )
+        }
+        ProviderKind::Ollama => {
+            let message = v.get("message");
+            (text(message, "content"), text(message, "thinking"))
+        }
+    };
+    if let Some(t) = content {
+        ChatDelta::Text(t)
+    } else if thinking.is_some() {
+        ChatDelta::Thinking
+    } else if v.get("done").and_then(Value::as_bool) == Some(true) {
+        ChatDelta::Done
+    } else {
+        ChatDelta::Nothing
     }
 }
 
@@ -948,6 +1043,77 @@ impl ModelProvider for HttpModelProvider {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn chat_deltas_keep_the_answer_and_drop_the_reasoning() {
+        use ProviderKind::{Ollama, OpenaiCompatible as Oa};
+        let sse = |v: Value| format!("data: {v}");
+        assert_eq!(
+            chat_delta(
+                Oa,
+                &sse(json!({"choices":[{"delta":{"content":"Hi [1]"}}]}))
+            ),
+            ChatDelta::Text("Hi [1]".into())
+        );
+        assert_eq!(
+            chat_delta(
+                Oa,
+                &sse(json!({"choices":[{"delta":{"reasoning_content":"hm"}}]}))
+            ),
+            ChatDelta::Thinking
+        );
+        assert_eq!(
+            chat_delta(Oa, &sse(json!({"choices":[{"delta":{"reasoning":"hm"}}]}))),
+            ChatDelta::Thinking
+        );
+        assert_eq!(
+            chat_delta(
+                Oa,
+                &sse(json!({"choices":[{"delta":{"role":"assistant"}}]}))
+            ),
+            ChatDelta::Nothing
+        );
+        assert_eq!(chat_delta(Oa, "data: [DONE]"), ChatDelta::Done);
+        assert_eq!(chat_delta(Oa, ": keep-alive"), ChatDelta::Nothing);
+        assert_eq!(
+            chat_delta(Oa, &sse(json!({"error":{"message":"overloaded"}}))),
+            ChatDelta::Error("overloaded".into())
+        );
+        assert_eq!(
+            chat_delta(
+                Ollama,
+                &json!({"message":{"content":"Yes"},"done":false}).to_string()
+            ),
+            ChatDelta::Text("Yes".into())
+        );
+        assert_eq!(
+            chat_delta(
+                Ollama,
+                &json!({"message":{"thinking":"so"},"done":false}).to_string()
+            ),
+            ChatDelta::Thinking
+        );
+        assert_eq!(
+            chat_delta(
+                Ollama,
+                &json!({"message":{"content":""},"done":true}).to_string()
+            ),
+            ChatDelta::Done
+        );
+    }
+
+    #[test]
+    fn an_ollama_answer_asks_for_room_for_the_excerpts() {
+        let messages = json!([{"role":"user","content":"q"}]);
+        let (path, body) = chat_request(ProviderKind::Ollama, "m", &messages);
+        assert_eq!(path, "/api/chat");
+        assert_eq!(body["options"]["num_ctx"], ANSWER_CONTEXT_TOKENS);
+        assert_eq!(body["stream"], true);
+        let (path, body) = chat_request(ProviderKind::OpenaiCompatible, "m", &messages);
+        assert_eq!(path, "/chat/completions");
+        assert_eq!(body["max_tokens"], ANSWER_MAX_TOKENS);
+        assert!(body.get("tools").is_none(), "the model has no tools");
+    }
 
     #[test]
     fn lines_split_across_chunks_and_endings() {

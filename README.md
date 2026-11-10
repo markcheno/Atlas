@@ -4,7 +4,7 @@ Atlas is a local-first personal AI librarian for large private collections of
 PDFs, EPUBs, books and papers. *Collect freely. Organize minimally. Retrieve
 intelligently.*
 
-**Status: Phase 2, Slice 2.5 (related documents); Phases 0 and 1 complete (version 0.2.0, [close-out review](docs/phase1-closeout.md)).** Atlas asks where to keep its library and
+**Status: Phase 2, Slice 2.6 (the Ask Atlas engine); Phases 0 and 1 complete (version 0.2.0, [close-out review](docs/phase1-closeout.md)).** Atlas asks where to keep its library and
 which folders hold your books and papers, then catalogs every PDF and EPUB
 in them in the background, read-only. Cataloging slows on battery, pauses
 when the battery is low or the drive is nearly full, survives quitting and
@@ -52,7 +52,13 @@ in your own words finds the book it describes even when the book never
 uses those words, marked "Similar meaning". A document's details list the
 other documents in your library closest to it in meaning (never its own
 copies), and More like this on a result opens them; this compares only
-what Atlas has stored, so it works while the AI service is down.
+what Atlas has stored, so it works while the AI service is down. With a
+chat model chosen, Atlas can answer a question from the passages it finds
+in your library, citing them by number. Every citation is checked against
+the passages it sent, and invented ones are removed. An internet service
+gets nothing until you have seen what will be sent and agreed, and
+Settings › Privacy can turn all external AI off. The screen for asking
+arrives in the next slice.
 
 Every push to `main`, every release tag and every pull request is built
 and tested on macOS (Apple silicon), Windows x64, and Linux x64; pushes to
@@ -107,7 +113,8 @@ with semantic search.
 | Indexing meaning in the background: status, battery pause, backoff, model change, Storage, privacy opt-in | Working (Phase 2, Slice 2.3) |
 | Search by meaning as well as words: "Similar meaning" results, fused with text matches; Phase 1's results whenever meaning search can't run | Working (Phase 2, Slice 2.4) |
 | Related documents in the details panel, and More like this on a result | Working (Phase 2, Slice 2.5) |
-| Ask Atlas with citations | Phase 2, in progress ([spec](docs/phase2-spec.md)): Slices 2.1–2.5 of 2.8 built |
+| Ask Atlas engine: answers from your library through your chat model, citations checked as they stream, prompt-injection bounds; Settings › Privacy: Disable all external AI, agreed services | Working (Phase 2, Slice 2.6; the screen is Slice 2.7) |
+| Ask Atlas screen | Phase 2, in progress ([spec](docs/phase2-spec.md)): Slices 2.1–2.6 of 2.8 built |
 
 Specifications: [product](docs/product-spec.md), [Phase 0](docs/phase0-spec.md),
 [Phase 1](docs/phase1-spec.md), [Phase 2](docs/phase2-spec.md),
@@ -184,6 +191,7 @@ just bench-full       # plus the 30k throttle sweep
 just bench-search     # search benchmark on the 30k text fixture (fails above 250 ms p95)
 just bench-extraction # extraction benchmark on the 30k text fixture (`just bench-extraction 1k` adds battery)
 just eval questions.json ~/AtlasData   # ask a question set against a library, read-only
+just eval-ask         # Ask Atlas against your own embedding and chat models on the corpus (owner-run)
 just e2e              # WebDriver smoke test of the debug build (Windows/Linux; needs tauri-driver)
 just worker-hello     # start the extraction worker and check it loads PDFium (time to hello)
 just ci-remote        # run CI on GitHub for this pushed branch: full (default) or `just ci-remote quick`

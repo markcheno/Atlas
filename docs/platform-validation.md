@@ -1113,6 +1113,22 @@ all green. Related at 1k on the CI runners, p50 / p95 (cold), ten related
 per document: macOS arm64 3.3 / 3.8 ms, Linux x64 4.1 / 4.5 ms, Windows
 x64 6.8 / 8.1 ms.
 
+## Slice 2.6
+
+The Ask Atlas engine and the privacy choices
+([ADR 0015](adr/0015-ask-atlas-answers-citations-injection.md)). On
+every OS:
+
+- `tests/answers.rs` (P2-13 to P2-16 against a scripted chat service
+  streaming SSE and NDJSON);
+- unit tests for the citation parser, prompt escaping, the thinking filter,
+  the stream parser and the privacy gate;
+- the Vitest cases for Settings › Privacy.
+
+**CI on `slice-26`:** full run
+[42848628789](https://github.com/markcheno/Atlas/actions/runs/42848628789),
+all green; `tests/answers.rs` passed 11 of 11 on each OS.
+
 ## Manual checklist for Windows and Linux
 
 CI runs an automated smoke test on Windows and Linux (Slice 0.8, below),
@@ -1453,6 +1469,23 @@ and read:
 5. Open a file Atlas hasn't indexed yet, or a scanned PDF without text.
    Related says "Not indexed for meaning yet" or "Atlas found no text in
    this file to compare".
+
+### Ask Atlas engine and privacy (Slice 2.6)
+
+The Ask Atlas screen arrives in Slice 2.7. Until then:
+
+1. With oMLX serving an embedding model and a chat model (for example
+   Qwen3.5), run `just eval-ask` with the `ATLAS_EVAL_EMBED_*` and
+   `ATLAS_EVAL_CHAT_*` variables set. Every vague question gets an answer
+   or "nothing found", no `[n]` in any answer is beyond its sources, and
+   the summary line gives the times and citation rates for
+   [benchmarks](benchmarks.md#ask-atlas-slice-26). It builds its own
+   scratch library from the corpus; your library isn't used.
+2. In Settings › Privacy, turn on **Disable all external AI**. "Allow
+   embedding my library through an internet service" becomes unavailable.
+   Test an internet service's connection in Settings › AI Models: it says
+   all external AI is turned off and sends nothing. Your oMLX service still
+   tests normally. Turn it off again.
 
 ## Known platform notes
 

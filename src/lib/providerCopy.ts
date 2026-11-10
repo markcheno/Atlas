@@ -23,6 +23,10 @@ export function locationLabel(location: ProviderLocation): string {
   }
 }
 
+/** A request not sent because "Disable all external AI" is on. */
+export const EXTERNAL_AI_OFF =
+  'All external AI is turned off in Settings › Privacy, so nothing was sent to this internet service.';
+
 export const INTERNET_NOTE =
   'An internet service: Atlas will ask before sending anything from your library to it.';
 
@@ -117,6 +121,8 @@ export function outcomeText(
         : 'This address answered, but not like an OpenAI-compatible API. Check that the URL ends in /v1.';
     case 'insecure_url_rejected':
       return 'Unencrypted HTTP to another computer needs your confirmation first.';
+    case 'external_ai_disabled':
+      return EXTERNAL_AI_OFF;
   }
 }
 

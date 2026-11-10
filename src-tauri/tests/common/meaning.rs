@@ -207,7 +207,9 @@ impl Lib {
                 catalog: &root.catalog().handle(),
                 embedder: &self.embedder,
                 vault: &self.vault,
-                allow_remote: root.settings().privacy.allow_remote_embedding,
+                allow_remote: atlas_lib::services::providers::privacy::remote_embedding(
+                    &root.settings().privacy,
+                ),
             },
             q,
         )

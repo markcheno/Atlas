@@ -4,6 +4,7 @@ import type { AiRuntime } from './api/bindings/AiRuntime';
 import type { CapabilityResult } from './api/bindings/CapabilityResult';
 import type { RecommendationKind } from './api/bindings/RecommendationKind';
 import { formatBytes } from './format';
+import { EXTERNAL_AI_OFF } from './providerCopy';
 
 export const ROLES: readonly AiRole[] = ['embedding', 'chat'];
 
@@ -50,6 +51,8 @@ export function capabilityText(r: CapabilityResult): string {
       return 'The service took too long to answer.';
     case 'insecure_url_rejected':
       return 'Unencrypted HTTP to another computer needs your confirmation first.';
+    case 'external_ai_disabled':
+      return EXTERNAL_AI_OFF;
   }
 }
 

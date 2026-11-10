@@ -226,7 +226,10 @@ describe('main shell', () => {
     expect(document.documentElement.dataset.theme).toBe('dark');
     await waitFor(() =>
       expect(tauri.invoke).toHaveBeenCalledWith('update_settings', {
-        settings: { appearance: { theme: 'dark' }, privacy: { allowRemoteEmbedding: false } },
+        settings: {
+          appearance: { theme: 'dark' },
+          privacy: { allowRemoteEmbedding: false, disableExternalAi: false, acknowledged: [] },
+        },
       }),
     );
     await user.click(screen.getByRole('radio', { name: 'Match system' }));
@@ -2253,14 +2256,72 @@ describe('indexing meaning', () => {
     await user.click(box);
     await waitFor(() =>
       expect(tauri.invoke).toHaveBeenCalledWith('update_settings', {
-        settings: { appearance: { theme: 'system' }, privacy: { allowRemoteEmbedding: true } },
+        settings: {
+          appearance: { theme: 'system' },
+          privacy: { allowRemoteEmbedding: true, disableExternalAi: false, acknowledged: [] },
+        },
       }),
     );
     // A theme saved afterwards keeps the privacy choice.
     await user.click(screen.getByRole('radio', { name: 'Dark' }));
     await waitFor(() =>
       expect(tauri.invoke).toHaveBeenCalledWith('update_settings', {
-        settings: { appearance: { theme: 'dark' }, privacy: { allowRemoteEmbedding: true } },
+        settings: {
+          appearance: { theme: 'dark' },
+          privacy: { allowRemoteEmbedding: true, disableExternalAi: false, acknowledged: [] },
+        },
+      }),
+    );
+  });
+
+  it('turns all external AI off, which also locks the embedding choice', async () => {
+    const user = await launchOpen();
+    await user.click(screen.getByRole('button', { name: 'Settings' }));
+    expect(
+      await screen.findByText(/Ask Atlas sends your question and up to 16 short excerpts/),
+    ).toBeInTheDocument();
+    const off = screen.getByRole('checkbox', { name: 'Disable all external AI' });
+    expect(off).not.toBeChecked();
+    await user.click(off);
+    await waitFor(() =>
+      expect(tauri.invoke).toHaveBeenCalledWith('update_settings', {
+        settings: {
+          appearance: { theme: 'system' },
+          privacy: { allowRemoteEmbedding: false, disableExternalAi: true, acknowledged: [] },
+        },
+      }),
+    );
+    expect(
+      await screen.findByRole('checkbox', {
+        name: 'Allow embedding my library through an internet service',
+      }),
+    ).toBeDisabled();
+    expect(screen.getByRole('checkbox', { name: 'Disable all external AI' })).toBeChecked();
+  });
+
+  it('lists the internet services agreed to for Ask Atlas, each one forgettable', async () => {
+    const agreed = {
+      profileId: 'cloud',
+      baseUrl: 'https://api.example.com/v1',
+      label: 'Example Cloud',
+      at: '2026-11-10T09:00:00Z',
+    };
+    tauri.setHandler('get_settings', () => ({
+      appearance: { theme: 'system' },
+      privacy: { allowRemoteEmbedding: false, disableExternalAi: false, acknowledged: [agreed] },
+    }));
+    const user = await launchOpen();
+    await user.click(screen.getByRole('button', { name: 'Settings' }));
+    const row = await screen.findByTestId('agreed-service');
+    expect(row).toHaveTextContent('Example Cloud');
+    expect(row).toHaveTextContent('https://api.example.com/v1');
+    await user.click(screen.getByRole('button', { name: 'Forget agreement for Example Cloud' }));
+    await waitFor(() =>
+      expect(tauri.invoke).toHaveBeenCalledWith('update_settings', {
+        settings: {
+          appearance: { theme: 'system' },
+          privacy: { allowRemoteEmbedding: false, disableExternalAi: false, acknowledged: [] },
+        },
       }),
     );
   });

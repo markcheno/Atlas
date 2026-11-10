@@ -633,4 +633,24 @@ document finds ten.
   file, which is done afresh every time so a missing file drops out at
   once.
 
+## Ask Atlas (Slice 2.6)
+
+`just eval-ask`, run by the product owner on the reference machine: the
+spike corpus embedded through a real embedding model, as for
+`eval-semantic`. Then each of the 40 vague questions is asked through a
+real chat model. It reports:
+
+- the time to the first word and to the whole answer;
+- the sources sent, cited and invented;
+- whether a document relevant to the question was among the sources.
+
+It asserts only that no invented citation reaches the answer (spec §13's
+citation and dropped-citation rates).
+
+<!-- ask-eval -->
+*Pending the owner's run against oMLX.*
+
+CI has no model. There, the engine runs against a scripted service
+streaming canned answers (`tests/answers.rs`, P2-13 to P2-16).
+
 <!-- results:end -->

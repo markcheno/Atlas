@@ -33,6 +33,7 @@ use crate::error::{AtlasError, AtlasResult, ErrorPayload};
 use crate::infrastructure::clock::now_rfc3339;
 use crate::infrastructure::fsutil::{clear_dir, sync_dir};
 use crate::infrastructure::native_path;
+use crate::services::answers::AnswerRegistry;
 use crate::services::catalog::reader::CatalogReader;
 use crate::services::catalog::{self, CatalogWriter};
 use crate::services::embedding::{self, registry::VectorRegistry};
@@ -56,6 +57,8 @@ pub struct WorkspaceConfig {
 /// declaration order: the job runners stop first, then the readers and the
 /// writer close, then the lock is released.
 pub struct OpenRoot {
+    /// The answer in progress (Slice 2.6), ended first.
+    answers: Arc<AnswerRegistry>,
     jobs: JobRunners,
     /// The vector indexes, after the runners (which save them as they stop).
     vectors: Arc<VectorRegistry>,
@@ -81,6 +84,10 @@ impl OpenRoot {
     }
     pub fn catalog(&self) -> &CatalogWriter {
         &self.catalog
+    }
+    /// The library's answer in progress (Slice 2.6).
+    pub fn answers(&self) -> &Arc<AnswerRegistry> {
+        &self.answers
     }
     /// The library's vector indexes (Slice 2.3).
     pub fn vectors(&self) -> &Arc<VectorRegistry> {
@@ -409,7 +416,8 @@ impl Workspace {
         // Interrupted jobs become queued; a user's pause is kept. Folders
         // never scanned are queued once.
         let now = now_rfc3339();
-        let allow_remote = settings::read(path).privacy.allow_remote_embedding;
+        let allow_remote =
+            crate::services::providers::privacy::remote_embedding(&settings::read(path).privacy);
         catalog
             .call(move |c| {
                 jobs::db::requeue_interrupted(c, &now)?;
@@ -427,6 +435,7 @@ impl Workspace {
 
         let vectors = Arc::new(VectorRegistry::new(path));
         Ok(OpenRoot {
+            answers: Arc::default(),
             jobs: self.start_jobs(&catalog, path, &vectors)?,
             vectors,
             reader: Arc::new(CatalogReader::open(&catalog_path)?),
@@ -489,6 +498,7 @@ impl Workspace {
 
         let vectors = Arc::new(VectorRegistry::new(path));
         Ok(OpenRoot {
+            answers: Arc::default(),
             jobs: self.start_jobs(&catalog, path, &vectors)?,
             vectors,
             reader: Arc::new(CatalogReader::open(&path.join(CATALOG))?),

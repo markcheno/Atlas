@@ -56,7 +56,7 @@ fn runnable(conn: &Connection, allow_remote: bool) -> rusqlite::Result<Option<St
 /// After the embedding role or its service changed, or the privacy
 /// setting: bring the model rows in line and queue what's waiting.
 pub fn changed(root: &OpenRoot) -> AtlasResult<()> {
-    let allow = root.settings().privacy.allow_remote_embedding;
+    let allow = crate::services::providers::privacy::remote_embedding(&root.settings().privacy);
     root.catalog()
         .call(move |c| {
             let now = now_rfc3339();
