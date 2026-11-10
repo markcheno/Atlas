@@ -1015,6 +1015,59 @@ all green after one rerun.
 - **Build cost:** usearch, numkong and cxx add about 8 s to a clean release
   build (cargo `--timings`).
 
+## Slice 2.3
+
+The embedding job ([ADR 0014](adr/0014-the-embedding-job.md)). On every
+OS, these run against a scripted backend and a scripted HTTP service:
+`tests/embedding.rs` (P2-05, P2-06, P2-07, P2-09, P2-19, the remote opt-in),
+`tests/embedding_http.rs`, `tests/embedding_crash.rs` and
+`tests/convert.rs`.
+
+**CI on `slice-23`:** full run
+[42744944343](https://github.com/markcheno/Atlas/actions/runs/42744944343),
+all green. The run before it,
+[42742961392](https://github.com/markcheno/Atlas/actions/runs/42742961392),
+failed one Windows test that expected a small index file to load after
+removals. More than 20% of its slots were removed, so the correct outcome
+was compaction. On macOS a concurrent test had switched the index to the
+buffer I/O route, where the compaction check was skipped. The check now
+reads the file header on both routes, and the test expects the compaction.
+
+### macOS arm64, Slice 2.3 (2026-11-09)
+
+Run by the product owner on the reference machine against the real oMLX
+(Qwen3-Embedding-0.6B-8bit, 1,024 dimensions), with the debug build and a
+scratch library:
+
+- **The library:** the spike corpus plus 1,000 generated books, 1,020
+  documents with text and 22.4 million characters.
+- **The conversion:** after reading, the scratch catalog was rewritten with
+  4 KiB pages, as a library created before Slice 1.7. **Use** on the
+  embedding model converted it to 16 KiB pages before anything was
+  embedded.
+
+Every step passed:
+
+- the status line ("Indexing meaning · X of N files") and Home's note;
+- **pulling the power plug** paused it ("Paused indexing meaning · On
+  battery"), and plugging back in resumed it;
+- **quitting mid-way and relaunching** continued where it stopped;
+- **stopping oMLX** led to retries, then "Can't index meaning · AI service
+  not reachable"; starting it and pressing Retry finished the job;
+- Settings › Storage showed the Meaning index and its estimate, and Clean
+  caches left it.
+
+The catalog afterwards:
+
+- **Complete:** 1,020 of 1,020 documents embedded; the model `ready`.
+- **Nothing sent twice:** 26,561 chunks (26,453 distinct texts) and 26,453
+  vectors. The one embed job sent exactly 26,453 chunks across the quit,
+  the outage and its two retries.
+- **Throughput:** 24.8 million characters in 368 s of waiting on oMLX,
+  about **72 chunks per second** ([benchmarks](benchmarks.md#embedding-on-omlx-slice-23)).
+- **Size:** the index file is 58.3 MB (0.536 of the raw f32 vectors), and
+  the catalog is 105.7 MB.
+
 ## Manual checklist for Windows and Linux
 
 CI runs an automated smoke test on Windows and Linux (Slice 0.8, below),

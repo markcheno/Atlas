@@ -513,4 +513,27 @@ What this shows:
   build on the reference machine (cargo `--timings`: numkong 4.5 s, usearch
   2.2 s, cxx 1.1 s).
 
+## Embedding on oMLX (Slice 2.3)
+
+The embedding job's own counters (`jobs.embedded_chunks`, `sent_chars`,
+`service_ms`) from the product owner's run on the reference machine
+(2026-11-09, debug build). The service was oMLX with
+`Qwen3-Embedding-0.6B-8bit` at 1,024 dimensions. The library was the spike
+corpus plus 1,000 generated books: 1,020 documents with text, 22.4 million
+characters.
+
+| Measure | Result |
+| --- | ---: |
+| Chunks sent (1,200 characters, 150 overlap) | 26,453 (all distinct; 26,561 chunks in all) |
+| Characters sent | 24.8 million |
+| Time waiting on oMLX | 368 s |
+| Throughput | **72 chunks/s**, 67,000 characters/s |
+| Index file ÷ raw f32 vectors | 0.536 (58.3 MB) |
+
+At this rate the 30k text fixture (about 0.6–0.9 million chunks) would
+take about 2.5–3.5 hours of oMLX time at the Run duty cycle's full speed.
+At duty 0.5 that is roughly twice as long: still within "overnight"
+(phase2-spec §13). Slice 2.4 measures tokens per second and 1,024 against
+512 dimensions properly.
+
 <!-- results:end -->
