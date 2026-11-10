@@ -213,7 +213,8 @@ function workerProcesses() {
 // Windows, WebKitWebDriver on Linux) on port 4445. On Windows runners that
 // driver sometimes refused the first connection (Slices 1.5–1.7), failing
 // the run before the app opened. Wait briefly for its port, and retry a
-// session that fails to connect once; the report records each retry.
+// session that fails to connect, twice (both of two attempts were refused
+// once in Slice 2.6.2); the report records each retry.
 const NATIVE_PORT = 4445;
 const CONNECT_ERROR = /fetch failed|ECONNREFUSED|actively refused|client error \(Connect\)/i;
 
@@ -224,9 +225,9 @@ async function launch() {
       await wd.start({ 'tauri:options': { application: app } });
       return started;
     } catch (err) {
-      if (attempt >= 2 || !CONNECT_ERROR.test(String(err?.cause ?? err?.message ?? err))) throw err;
+      if (attempt >= 3 || !CONNECT_ERROR.test(String(err?.cause ?? err?.message ?? err))) throw err;
       report.sessionRetries = (report.sessionRetries ?? 0) + 1;
-      console.log(`smoke: the driver refused the session (${err.message}); retrying once`);
+      console.log(`smoke: the driver refused the session (${err.message}); retrying`);
       await sleep(3_000);
     }
   }

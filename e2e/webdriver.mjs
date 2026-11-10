@@ -52,8 +52,25 @@ export class WebDriver {
     return found.map((e) => e[ELEMENT]);
   }
 
+  /**
+   * Clicks an element, scrolled to the middle of the window first: the
+   * fixed status bar can cover one at the bottom, and WebKitGTK's driver
+   * refuses to click a covered element (Slice 2.7). A refusal while the
+   * page settles is retried briefly.
+   */
   async click(element) {
-    await this.#call('POST', this.#s(`/element/${element}/click`), {});
+    for (let attempt = 1; ; attempt += 1) {
+      await this.execute('arguments[0].scrollIntoView({ block: "center", inline: "center" });', [
+        { [ELEMENT]: element },
+      ]).catch(() => {});
+      try {
+        await this.#call('POST', this.#s(`/element/${element}/click`), {});
+        return;
+      } catch (err) {
+        if (attempt >= 3 || !/not interactable|click intercepted/i.test(err.message)) throw err;
+        await sleep(300);
+      }
+    }
   }
 
   async type(element, text) {
