@@ -542,7 +542,31 @@ async function run() {
         return { result: text.split('\n').slice(0, 4).join(' / '), attempts };
       }
     }
-    throw new Error(`not found by meaning: ${JSON.stringify(attempts)}`);
+    // Diagnostics: did the question reach the service, and does Related
+    // (the book's own vectors, no query embedding) find neighbours?
+    const asked = fake.requests.filter(
+      (r) => r.path === '/v1/embeddings' && JSON.stringify(r.body.input).includes('schooners'),
+    );
+    let related;
+    try {
+      await wd.click(
+        await wd.waitFor(`${hitPath}//button[starts-with(@aria-label, 'More like this')]`),
+      );
+      await sleep(3_000);
+      const panel = await wd.all("//*[@role='dialog']");
+      related = panel.length > 0 ? (await wd.text(panel[0])).slice(0, 600) : 'no panel';
+    } catch (err) {
+      related = `error: ${err.message}`;
+    }
+    throw new Error(
+      `not found by meaning: ${JSON.stringify({
+        attempts: attempts.map((a) => a.note),
+        questionEmbeddings: asked.length,
+        inputs: asked.slice(0, 2).map((r) => r.body.input),
+        embeddingRequests: fake.requests.filter((r) => r.path === '/v1/embeddings').length,
+        related,
+      })}`,
+    );
   });
 
   await step('ask Atlas answers with a citation that opens the source', async () => {
