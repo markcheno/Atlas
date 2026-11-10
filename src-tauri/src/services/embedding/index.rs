@@ -19,7 +19,7 @@ use std::fs::{self, File};
 use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{RwLock, RwLockReadGuard, RwLockWriteGuard};
+use std::sync::{Mutex, RwLock, RwLockReadGuard, RwLockWriteGuard};
 use std::thread;
 use std::time::Instant;
 
@@ -113,13 +113,14 @@ struct Inner {
     changes_since_save: usize,
 }
 
-/// One embedding model's index. Searches share a read lock; adds, removes
-/// and saves take the write lock.
+/// One embedding model's index. Searches and saves share a read lock;
+/// adds and removes take the write lock.
 pub struct VectorIndex {
     model_id: String,
     dims: usize,
     threads: usize,
     inner: RwLock<Inner>,
+    save_lock: Mutex<()>,
 }
 
 fn options(dims: usize) -> IndexOptions {
@@ -214,6 +215,7 @@ impl VectorIndex {
                 generation,
                 changes_since_save: 0,
             }),
+            save_lock: Mutex::new(()),
         }
     }
 
@@ -366,10 +368,13 @@ impl VectorIndex {
     }
 
     /// Saves atomically as the next generation, records it in the catalog,
-    /// drains applied tombstones and removes the previous file.
+    /// drains applied tombstones and removes the previous file. Searches
+    /// continue meanwhile (a save only reads the graph); adds and removes
+    /// wait. Saves are one at a time.
     pub fn save(&self, paths: &VectorPaths, catalog: &CatalogHandle) -> AtlasResult<SaveReport> {
+        let _one_save = self.save_lock.lock().unwrap_or_else(|p| p.into_inner());
         let started = Instant::now();
-        let mut inner = self.write();
+        let inner = self.read();
         let generation = inner.generation + 1;
         let target = paths.file(&self.model_id, generation);
         fs::create_dir_all(&paths.vectors).map_err(AtlasError::io("create the index folder"))?;
@@ -390,6 +395,9 @@ impl VectorIndex {
             vector_count: inner.index.size() as u64,
             tombstones_through: inner.tombstones_through,
         };
+        let saved_changes = inner.changes_since_save;
+        // The file holds exactly this state; changes may resume.
+        drop(inner);
         let model = self.model_id.clone();
         let now = now_rfc3339();
         let recorded = catalog
@@ -399,9 +407,11 @@ impl VectorIndex {
             let _ = fs::remove_file(&target);
             return Err(e);
         }
-        inner.generation = generation;
-        inner.changes_since_save = 0;
-        drop(inner);
+        {
+            let mut inner = self.write();
+            inner.generation = generation;
+            inner.changes_since_save = inner.changes_since_save.saturating_sub(saved_changes);
+        }
         remove_other_generations(paths, &self.model_id, generation);
         Ok(SaveReport {
             generation,

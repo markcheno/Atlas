@@ -106,7 +106,8 @@ writer.
 | `InventorySource` | Streamed, read-only directory listing | **0.5 (`LocalFsSource`)** |
 | `VolumeInspector` | Free space, filesystem type, network or cloud-synced | **0.2 (`OsVolumeInspector`)** |
 | `ResourceMonitor` | Device snapshot for the data-root volume | **0.4 (`OsResourceMonitor`, `SimulatedMonitor`)** |
-| `ModelProvider` | Endpoint probe and model listing | **0.7 (`HttpModelProvider`)** |
+| `ModelProvider` | Endpoint probe and model listing; capability tests (2.1) | **0.7 (`HttpModelProvider`)** |
+| `EmbeddingBackend` | Text to vectors | **2.2 (`HashedBagOfWordsBackend`, the test backend)**; the provider-backed one in 2.3 |
 | `SourceOpener` | OS-native open and reveal | **0.6 (`OsOpener` via `tauri-plugin-opener`)** |
 | `JobProcessor` (`services/jobs`) | Runs the jobs of one kind; a `ProcessorFactory` builds one per open library | **1.1 (`ScanProcessor`)**; extraction in 1.3 |
 | `DocumentProcessor` | Reserved name for Phase 1 extraction | Phase 1 |
@@ -201,7 +202,8 @@ Implemented in `src-tauri/src/services/workspace/`. Design rationale is in
 <root>/library/catalog.sqlite SQLite catalog, WAL mode (+ -wal, -shm)
 <root>/tmp/                   staging for atomic writes; emptied on open and by Clean caches
 <root>/cache/                 rebuildable caches (empty so far); emptied by Clean caches
-<root>/content/ indexes/ assets/ jobs/ models/ exports/ logs/ backups/   reserved, empty
+<root>/indexes/vectors/        the vector index per embedding model, <model>-<generation>.usearch (Slice 2.2); derived, rebuilt when needed
+<root>/content/ assets/ jobs/ models/ exports/ logs/ backups/   reserved, empty
 ```
 
 - **Default location:** the OS per-user app-data folder. On macOS that is
@@ -618,6 +620,44 @@ Implemented in `src-tauri/src/services/search/` (Slice 1.4); rationale in
   question set against any library, opening its catalog read-only.
 - **Measured** on 30,000 files with 622 million characters: p95 152 ms
   while reading ([benchmarks](benchmarks.md#search-slice-14)).
+## Embeddings and the vector index
+
+Implemented in `src-tauri/src/services/embedding/` (Slice 2.2); rationale
+in [ADR 0013](adr/0013-embeddings-durable-index-disposable.md).
+
+- **Rows** (migration 0012, `embedding/db.rs`):
+  - `embedding_models`: a model name at a dimension count and chunker
+    version; it also records its saved index file.
+  - `chunks`: AUTOINCREMENT ids, which are the index's keys, with character
+    offsets into a passage. Shared by every model.
+  - `embeddings`: f16 BLOBs keyed by model and the BLAKE3 of the chunk's
+    text, so identical text is embedded once.
+  - `document_embeddings`: per document and model, with a per-model `seq`.
+    No row means the document is waiting.
+  - `vector_tombstones`: sequenced, filled by a trigger when chunks are
+    deleted.
+  - `commit_document` clears a re-read document's embedding state.
+- **Chunks** (`embedding/chunk.rs`): at most 1,200 characters with about
+  150 of overlap, cut at paragraphs, then sentences, then spaces, never
+  across passages.
+- **Index** (`embedding/index.rs`, `VectorIndex`): usearch HNSW, cosine,
+  f16, connectivity 16, expansion 128.
+  - Searches and saves share a read lock; adds and removes take the write
+    lock.
+  - Saves are atomic and generation-named: staged in `tmp/`, renamed into
+    `indexes/vectors/`, hashed, then recorded in the catalog.
+  - `open_index` loads a file only if its BLAKE3 matches the catalog, then
+    reconciles it: it adds documents after its `seq` and removes
+    tombstones. Otherwise it rebuilds from the catalog.
+  - On Windows, a path outside ASCII goes through memory buffers instead of
+    usearch's own file I/O.
+- **Test backend** (`embedding/fake.rs`): `HashedBagOfWordsBackend`, which
+  hashes words into a signed bucket. It is deterministic, and shared words
+  give nearby vectors.
+- **Measured** at a million 1,024-dimension synthetic vectors: recall@10
+  0.960, p95 0.82 ms, open to first answer 1.53 s, rebuild 54 s
+  ([benchmarks](benchmarks.md#vector-index-slice-22)).
+
 ## Build, CI and measurement
 
 - **PDFium** (Slice 1.2) is pinned in `tools.lock.json` (bblanchon/pdfium-binaries
@@ -754,4 +794,7 @@ benchmark; Slice 1.8 the evidence and the
 Phase 2 (the AI librarian: embeddings through a connected model service,
 a usearch index derived from the catalog, hybrid search, related
 documents, and Ask Atlas with verified citations) is specified in
-[phase2-spec.md](phase2-spec.md); nothing of it is in the code yet.
+[phase2-spec.md](phase2-spec.md). Slice 2.1 built the model roles and
+capability tests ([AI service connections](#ai-service-connections));
+Slice 2.2 the chunks, durable embeddings and the vector index
+([Embeddings and the vector index](#embeddings-and-the-vector-index)).

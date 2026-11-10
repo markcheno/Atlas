@@ -393,3 +393,29 @@ fn p2_08_a_library_under_a_non_ascii_path() {
     }
     force_buffer_io(false);
 }
+
+#[test]
+fn p2_08_searches_run_while_the_index_saves() {
+    let lib = Lib::new();
+    let backend = HashedBagOfWordsBackend::new(DIMS);
+    let (model, _) = embedded(&lib, &backend);
+    let (index, _) = open_index(&lib.paths, &lib.writer, &model, 2).unwrap();
+    let q = backend.vector("orbit of the comet");
+    let expected = index.search(&q, 5).unwrap();
+    std::thread::scope(|s| {
+        let saver = s.spawn(|| {
+            for _ in 0..5 {
+                index.save(&lib.paths, &lib.writer).unwrap();
+            }
+        });
+        let searcher = s.spawn(|| {
+            for _ in 0..500 {
+                assert_eq!(index.search(&q, 5).unwrap(), expected);
+            }
+        });
+        saver.join().unwrap();
+        searcher.join().unwrap();
+    });
+    assert_eq!(index.generation(), 6);
+    assert_eq!(index.changes_since_save(), 0);
+}

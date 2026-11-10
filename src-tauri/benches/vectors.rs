@@ -18,6 +18,7 @@
 
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 use std::thread;
 use std::time::Instant;
 
@@ -251,7 +252,7 @@ fn recall(found: &[Vec<u64>], truth: &[Vec<u64>]) -> f64 {
 /// done documents. Returns (paths, writer, model id, insert ms).
 fn library(
     dir: &Path,
-    data: &[Vec<u8>],
+    data: &Arc<Vec<Vec<u8>>>,
     dims: usize,
     page_size: u32,
 ) -> (VectorPaths, CatalogWriter, String, f64) {
@@ -266,7 +267,7 @@ fn library(
         .unwrap();
     writer.call(enable_wal).unwrap().unwrap();
     let started = Instant::now();
-    let data: Vec<Vec<u8>> = data.to_vec();
+    let data = Arc::clone(data);
     let model = writer
         .call(move |c| {
             migrate(c, "t").unwrap();
@@ -339,7 +340,7 @@ fn main() {
 
     let t = Instant::now();
     let centres = centres(a.size, a.dims, a.seed);
-    let data = generate(&a, &centres);
+    let data = Arc::new(generate(&a, &centres));
     let queries: Vec<Vec<f32>> = (0..a.queries)
         .map(|i| point(&centres, a.dims, a.seed, 4, i))
         .collect();

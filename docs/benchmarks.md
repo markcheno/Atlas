@@ -448,4 +448,69 @@ Duplicates' first page takes 33 ms at p95 over 2,001 groups, and Settings
 › Storage 122 ms. Cataloging is unchanged since Phase 0: 483 files/s at
 the policy rate on 30k, browse p95 under 37 ms while scanning.
 
+## Vector index (Slice 2.2)
+
+The index alone (`benches/vectors.rs`, `just bench-vectors <size>`):
+
+- **Data:** synthetic clustered unit vectors of 1,024 dimensions (a Gaussian
+  mixture, as the Slice 0.9 spike's), stored as Atlas stores them.
+- **Catalog rows:** f16 BLOBs in a 16 KiB-page catalog, with one document
+  per 100 chunks.
+- **Index:** built in memory, then saved, loaded and rebuilt through
+  `open_index`.
+- **Recall@10** is against brute force over the same stored vectors (200
+  queries).
+- **Latency:** 1,000 queries on one thread.
+- **Filters:** each document belongs to one of 8 folders of skewed size, so
+  filtered searches run at about 40%, 5% and 0.5% selectivity.
+- **Index settings:** cosine, f16, connectivity 16, expansion 128 / 128.
+- **Runs:** the reference machine (M5 Pro, 18 threads, release build,
+  2026-11-09), and the CI runners at 100,000 in run
+  [42724704393](https://github.com/markcheno/Atlas/actions/runs/42724704393).
+
+| Machine, vectors | Build s | Save s | Open → first answer s | Rebuild from catalog s | File ÷ raw f32 | Index memory MiB | Catalog bytes per vector |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| M5 Pro, 100,000 | 3.1 | 0.28 | 0.15 | 3.5 | 0.536 | 273 | 2,534 |
+| M5 Pro, 300,000 | 11.5 | 0.83 | 0.44 | 12.7 | 0.536 | 1,139 | 2,530 |
+| M5 Pro, 1,000,000 | 49.3 | 2.69 | 1.53 | 53.6 | 0.536 | 2,299 | 2,529 |
+| macOS arm64 runner (3 vCPU), 100,000 | 30.2 | 0.92 | 0.30 | 32.3 | 0.536 | – | 2,534 |
+| Windows x64 runner (4 vCPU), 100,000 | 19.7 | 3.05 | 0.28 | 22.0 | 0.536 | – | 2,534 |
+| Linux x64 runner (4 vCPU), 100,000 | 18.0 | 0.52 | 0.24 | 18.6 | 0.536 | – | 2,534 |
+
+| Recall@10, p95 ms | Unfiltered | One folder, about 40% | About 5% | About 0.5% |
+| --- | ---: | ---: | ---: | ---: |
+| M5 Pro, 100,000 | 0.992, 0.36 | 0.997, 0.46 | 0.997, 4.6 | 0.998, 39 |
+| M5 Pro, 300,000 | 0.990, 0.47 | 0.994, 0.61 | 0.997, 4.8 | 0.993, 48 |
+| M5 Pro, 1,000,000 | 0.960, 0.82 | 0.984, 1.1 | 0.989, 6.7 | 0.994, 58 |
+| macOS arm64 runner, 100,000 | 0.993, 2.2 | 0.997, 1.8 | 1.000, 15 | 0.996, 144 |
+| Windows x64 runner, 100,000 | 0.993, 0.67 | 0.998, 0.93 | 0.999, 8.1 | 1.000, 81 |
+| Linux x64 runner, 100,000 | 0.993, 0.55 | 0.998, 0.70 | 1.000, 6.6 | 0.994, 64 |
+
+What this shows:
+
+- **ADR 0008's targets hold at a million.** Recall@10 is 0.960 (≥ 0.95),
+  p95 0.82 ms (≤ 100 ms), one folder at 5% 0.989 and 6.7 ms (≥ 0.90,
+  ≤ 150 ms), and open to first answer 1.53 s (≤ 2 s). These match the
+  spike's numbers (0.963, 0.84 ms, 0.988 and 6.8 ms), now through
+  Atlas's own code.
+- **Opening includes the BLAKE3 check** of the whole 2.1 GB file before
+  usearch sees it. That is why it takes longer than the spike's 0.50 s
+  memory-mapped view.
+- **The narrowest folder is the slow case.** Graph search slows as a filter
+  narrows: 58 ms at 0.5% on the reference machine, 144 ms on the 3-vCPU
+  macOS runner. Slice 2.4 adds an exact search for such scopes.
+- **Saves take 2.7 s at a million.** Searches continue during a save; only
+  adds wait (ADR 0013).
+- **Catalog: 2,529 bytes per vector with 16 KiB pages.** That is about 1%
+  over the provisional 2.5 KB (phase2-spec §13): the vector is 2,048 bytes,
+  and its hash and model id appear twice. In a catalog created before
+  Slice 1.7 (4 KiB pages; `--page-size 4096`) it is 4,294 bytes, because a
+  page holds only one vector. Slice 2.3 decides what to do about that.
+- **The query plan matters.** Before `CROSS JOIN` pinned the rebuild
+  query to chunk-id order, each batch sorted the whole join, and a rebuild
+  at 100,000 took 9.4 s instead of 3.5 s.
+- **Build cost:** usearch, numkong and cxx add about 8 s to a clean release
+  build on the reference machine (cargo `--timings`: numkong 4.5 s, usearch
+  2.2 s, cxx 1.1 s).
+
 <!-- results:end -->

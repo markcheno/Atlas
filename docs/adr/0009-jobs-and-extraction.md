@@ -119,6 +119,13 @@ running: the document row (an upsert by hash), all its passages, and the
 link. A kill leaves the whole document or nothing (P1-12), and a pause
 lands no late writes.
 
+*Amended 2026-11-09 (Phase 2, Slice 2.2):* the same transaction also
+deletes the document's `document_embeddings` rows. Its old passages take
+their chunks with them, leaving tombstones for the vector index, and the
+document waits to be embedded again. Unchanged text re-chunks to the same
+hashes, so nothing is sent to the model twice
+([ADR 0013](0013-embeddings-durable-index-disposable.md)).
+
 **The extract job walks its root's pending files with a rowid cursor.** A
 file whose size or mtime differs from the catalog stays pending for the
 next scan instead of being retried in a loop. A file that crashes the
