@@ -619,6 +619,20 @@ eval-ask`; [ADR 0015](adr/0015-ask-atlas-answers-citations-injection.md),
   question's margin and the empty and uncited answers, and writes the
   whole answers to `target/tmp/eval-ask-answers.md`.
 
+**2026-11-10, amended during Slice 2.6.2** (after the second `just
+eval-ask`; [ADR 0015](adr/0015-ask-atlas-answers-citations-injection.md)):
+
+- **Questions that describe a work** are answered by naming the source
+  that matches and why. The model may recognise the work from what it
+  knows, but the details must come from the excerpts. Only an answer no
+  excerpt is about says so, citing nothing.
+- **A second meaning place per document:** the next-best chunk that
+  doesn't touch or repeat the best one. Excerpts are at most 2,000
+  characters (from 3,000) so the budget, still 24,000, reaches them.
+- **`fixtures/evaluation/questions-off.json`:** 12 questions the corpus has
+  nothing on, which `just eval-ask` asks after the vague set. They tune the
+  weak margin and check refusals.
+
 ### Primary reference documentation (verify current versions at implementation time)
 
 - usearch (Rust): <https://docs.rs/usearch/latest/usearch/> and <https://github.com/unum-cloud/usearch>

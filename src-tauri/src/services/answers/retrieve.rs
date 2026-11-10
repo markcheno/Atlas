@@ -4,7 +4,9 @@
 //! [`DOCUMENTS`] give excerpts:
 //!
 //! - **by meaning**, the best chunk with the chunks either side of it in
-//!   the same passage (so a page or chapter part stays one location);
+//!   the same passage (so a page or chapter part stays one location), and
+//!   then the next-best chunk that doesn't touch it, likewise: a book's
+//!   second place (Slice 2.6.2);
 //! - **by words**, the text around the first match in the best passage.
 //!
 //! Each document's stronger match comes first (every word, else meaning).
@@ -27,8 +29,9 @@ use crate::services::search::Found;
 pub const DOCUMENTS: usize = 8;
 /// About 6,000 tokens of excerpts, at about four characters a token.
 pub const BUDGET_CHARS: usize = 24_000;
-/// The longest single excerpt.
-pub const EXCERPT_CHARS: usize = 3_000;
+/// The longest single excerpt: a 1,200-character chunk with some of its
+/// neighbours, so the best documents can have a second place in the budget.
+pub const EXCERPT_CHARS: usize = 2_000;
 /// Around a word match, this many characters.
 pub const TEXT_WINDOW_CHARS: usize = 1_500;
 /// An excerpt cut shorter than this to fit the budget isn't worth sending.
@@ -50,28 +53,37 @@ struct Place {
 pub(crate) fn excerpts(conn: &Connection, found: &[Found]) -> rusqlite::Result<Vec<SourceUsed>> {
     let mut places: Vec<Vec<Place>> = Vec::new();
     for f in found {
-        let mut mine = Vec::new();
         let text = match &f.text {
             Some((passage, expr)) => word_place(conn, *passage, expr)?,
             None => None,
         };
-        let meaning = match f.meaning {
-            Some((passage, (start, end))) => {
-                Some(meaning_place(conn, passage, Span { start, end })?)
+        // The best meaning chunk, then the first of the rest that neither
+        // touches it (its neighbours are already in it) nor repeats its
+        // words (the same page twice).
+        let mut meaning: Vec<Place> = Vec::new();
+        let mut words: Vec<String> = Vec::new();
+        for &(passage, (start, end)) in &f.meaning {
+            if meaning.len() == 2 {
+                break;
             }
-            None => None,
-        };
-        let words_first = f.hit.all_words && text.is_some();
-        let (first, second) = if words_first {
-            (text, meaning)
+            let span = Span { start, end };
+            let place = meaning_place(conn, passage, span)?;
+            let text = chunk_text(conn, passage, span)?.unwrap_or_default();
+            if !meaning.iter().any(|p| overlaps(p, &place)) && !words.contains(&text) {
+                meaning.push(place);
+                words.push(text);
+            }
+        }
+        let candidates: Vec<Place> = if f.hit.all_words && text.is_some() {
+            text.into_iter().chain(meaning).collect()
         } else {
-            (meaning, text)
+            meaning.into_iter().chain(text).collect()
         };
-        mine.extend(first);
-        if let Some(s) = second
-            && !mine.iter().any(|p| overlaps(p, &s))
-        {
-            mine.push(s);
+        let mut mine: Vec<Place> = Vec::new();
+        for p in candidates {
+            if !mine.iter().any(|m| overlaps(m, &p)) {
+                mine.push(p);
+            }
         }
         places.push(mine);
     }
@@ -171,6 +183,16 @@ fn meaning_place(conn: &Connection, passage: i64, span: Span) -> rusqlite::Resul
         None => span,
     };
     Ok(Place { passage, span })
+}
+
+/// The text of one chunk, as embedded.
+fn chunk_text(conn: &Connection, passage: i64, span: Span) -> rusqlite::Result<Option<String>> {
+    let text: Option<String> = conn
+        .query_row("SELECT text FROM passages WHERE id = ?1", [passage], |r| {
+            r.get(0)
+        })
+        .optional()?;
+    Ok(text.and_then(|t| chunk::slice(&t, span).map(|c| c.trim().to_owned())))
 }
 
 /// The text around the first word match in `passage`.

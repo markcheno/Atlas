@@ -140,6 +140,16 @@ The format, also used for personal question sets with `just eval`:
 Phase 2 set (phase2-spec §10): 40 questions in a reader's own words that
 avoid each document's distinctive wording, so full-text search alone should
 miss most of them. Written on 2026-11-09 before any semantic search was
-built and not edited to fit it. `scripts/evaluation-questions.test.mjs`
-keeps both sets well formed and every relevant id a readable corpus
-document.
+built and not edited to fit it.
+
+[`evaluation/questions-off.json`](evaluation/questions-off.json) holds 12
+questions the corpus has nothing on (`kind: "off"`, `relevant: []`). With
+the vague set, `just eval-ask` uses them to tune Ask Atlas's weak-retrieval
+margin and to check that an answer says the library doesn't cover them.
+Three describe well-known works the corpus lacks (a whaling captain, a
+Baker Street detective, a summer's-day sonnet). Written on 2026-11-10,
+before the run that uses them.
+
+`scripts/evaluation-questions.test.mjs` keeps the sets well formed, every
+relevant id a readable corpus document, and every off question without
+one.

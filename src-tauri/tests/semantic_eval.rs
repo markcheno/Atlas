@@ -758,9 +758,6 @@ fn ask_atlas_against_real_models() {
             .unwrap();
         Some(r.best_similarity? - r.min_similarity?)
     };
-    let mut transcript = String::new();
-    let (mut no_answer, mut errors, mut silent) = (0, 0, 0);
-    let (mut margins_cited, mut margins_silent) = (Vec::new(), Vec::new());
     // The first query embedding loads the model; don't time it.
     let _ = corpus.root().reader().read(|c| {
         embedder
@@ -770,158 +767,241 @@ fn ask_atlas_against_real_models() {
     std::thread::sleep(Duration::from_secs(5));
     eprintln!("chat model {chat_model} ({chat_kind}) at {chat_base}");
 
-    let (mut firsts, mut wholes) = (Vec::new(), Vec::new());
-    let (mut supplied, mut cited_total, mut dropped_total, mut found, mut asked) = (0, 0, 0, 0, 0);
-    let mut weak_count = 0;
-    for q in questions("questions-vague.json") {
-        let text = q["question"].as_str().unwrap();
-        let close = margin(text);
-        let start = Instant::now();
-        let started = match ask(text) {
-            AskReply::Started(s) => s,
-            AskReply::NothingFound { .. } => {
-                eprintln!("{} nothing found", q["id"].as_str().unwrap());
-                continue;
-            }
-            AskReply::NeedsDisclosure(_) => {
-                panic!("the evaluation doesn't send to an internet service")
-            }
-        };
-        asked += 1;
-        let id = started.answer_id.clone();
-        let steps = |log: &Mutex<Vec<(Instant, AnswerEvent)>>| -> Vec<(Instant, AnswerStep)> {
-            log.lock()
-                .unwrap()
+    /// One set's measures: the vague set (the library covers each) or the
+    /// off set (it covers none).
+    #[derive(Default)]
+    struct Tally {
+        asked: usize,
+        nothing_found: usize,
+        firsts: Vec<f64>,
+        wholes: Vec<f64>,
+        supplied: usize,
+        cited: usize,
+        invented: usize,
+        relevant: usize,
+        weak: usize,
+        errors: usize,
+        no_answer: usize,
+        /// Answers saying the excerpts don't cover the question.
+        not_covered: usize,
+        /// … and of those, how many cite nothing, as the prompt asks.
+        not_covered_uncited: usize,
+        margins: Vec<f32>,
+    }
+    // An answer opening by saying the excerpts don't cover the question.
+    let says_not_covered = |answer: &str| {
+        let first = answer
+            .trim()
+            .split(['.', '\n'])
+            .next()
+            .unwrap_or("")
+            .to_lowercase();
+        [
+            "do not",
+            "don't",
+            "does not",
+            "doesn't",
+            "no excerpt",
+            "none of",
+            "nothing",
+        ]
+        .iter()
+        .any(|p| first.contains(p))
+            && ["excerpt", "source", "librar"]
                 .iter()
-                .filter(|(_, e)| e.answer_id == id)
-                .map(|(t, e)| (*t, e.step.clone()))
-                .collect()
-        };
-        let ended = |s: &AnswerStep| {
-            matches!(
-                s,
-                AnswerStep::Done { .. } | AnswerStep::Stopped | AnswerStep::Error { .. }
-            )
-        };
-        assert!(
-            wait_until(Duration::from_secs(600), || steps(&log)
-                .iter()
-                .any(|(_, s)| ended(s))),
-            "no answer within ten minutes"
-        );
-        let steps = steps(&log);
-        let first = steps
-            .iter()
-            .find(|(_, s)| matches!(s, AnswerStep::Delta { .. }))
-            .map(|(t, _)| t.duration_since(start));
-        let (end_at, last) = steps.last().unwrap();
-        let answer: String = steps
-            .iter()
-            .filter_map(|(_, s)| match s {
-                AnswerStep::Delta { text } => Some(text.as_str()),
-                _ => None,
-            })
-            .collect();
-        // No invented citation survives.
-        for n in answer
-            .split('[')
-            .skip(1)
-            .filter_map(|rest| rest.split(']').next()?.parse::<u32>().ok())
-        {
+                .any(|p| first.contains(p))
+    };
+    let mut transcript = String::new();
+    let mut tallies = Vec::new();
+    for (set, file) in [
+        ("vague", "questions-vague.json"),
+        ("off", "questions-off.json"),
+    ] {
+        let mut t = Tally::default();
+        for q in questions(file) {
+            let qid = q["id"].as_str().unwrap();
+            let text = q["question"].as_str().unwrap();
+            let close = margin(text);
+            t.margins.extend(close);
+            let start = Instant::now();
+            let started = match ask(text) {
+                AskReply::Started(s) => s,
+                AskReply::NothingFound { .. } => {
+                    t.nothing_found += 1;
+                    eprintln!("{qid} nothing found · margin {close:?}");
+                    transcript.push_str(&format!("## {qid} · nothing found\n\n{text}\n\n"));
+                    continue;
+                }
+                AskReply::NeedsDisclosure(_) => {
+                    panic!("the evaluation doesn't send to an internet service")
+                }
+            };
+            t.asked += 1;
+            let id = started.answer_id.clone();
+            let steps = |log: &Mutex<Vec<(Instant, AnswerEvent)>>| -> Vec<(Instant, AnswerStep)> {
+                log.lock()
+                    .unwrap()
+                    .iter()
+                    .filter(|(_, e)| e.answer_id == id)
+                    .map(|(t, e)| (*t, e.step.clone()))
+                    .collect()
+            };
+            let ended = |s: &AnswerStep| {
+                matches!(
+                    s,
+                    AnswerStep::Done { .. } | AnswerStep::Stopped | AnswerStep::Error { .. }
+                )
+            };
             assert!(
-                (1..=started.sources.len() as u32).contains(&n),
-                "[{n}] in {answer:?}"
+                wait_until(Duration::from_secs(600), || steps(&log)
+                    .iter()
+                    .any(|(_, s)| ended(s))),
+                "no answer within ten minutes"
+            );
+            let steps = steps(&log);
+            let first = steps
+                .iter()
+                .find(|(_, s)| matches!(s, AnswerStep::Delta { .. }))
+                .map(|(t, _)| t.duration_since(start));
+            let (end_at, last) = steps.last().unwrap();
+            let answer: String = steps
+                .iter()
+                .filter_map(|(_, s)| match s {
+                    AnswerStep::Delta { text } => Some(text.as_str()),
+                    _ => None,
+                })
+                .collect();
+            // No invented citation survives.
+            for n in answer
+                .split('[')
+                .skip(1)
+                .filter_map(|rest| rest.split(']').next()?.parse::<u32>().ok())
+            {
+                assert!(
+                    (1..=started.sources.len() as u32).contains(&n),
+                    "[{n}] in {answer:?}"
+                );
+            }
+            let (cited, dropped) = match last {
+                AnswerStep::Done { cited, dropped } | AnswerStep::Error { cited, dropped, .. } => {
+                    (cited.len(), *dropped)
+                }
+                _ => (0, 0),
+            };
+            let relevant = corpus.relevant(&q);
+            let hit = if relevant.is_empty() {
+                None
+            } else {
+                let docs: Vec<String> = started
+                    .sources
+                    .iter()
+                    .map(|s| s.document_id.clone())
+                    .collect();
+                Some(corpus.rank(&docs, &relevant).is_some())
+            };
+            t.relevant += usize::from(hit == Some(true));
+            t.supplied += started.sources.len();
+            t.cited += cited;
+            t.invented += dropped as usize;
+            t.weak += usize::from(started.weak);
+            let not_covered = match last {
+                AnswerStep::Error { code, .. } => {
+                    t.errors += 1;
+                    t.no_answer += usize::from(*code == AnswerErrorCode::NoAnswer);
+                    false
+                }
+                _ => says_not_covered(&answer),
+            };
+            t.not_covered += usize::from(not_covered);
+            t.not_covered_uncited += usize::from(not_covered && cited == 0);
+            if let Some(f) = first {
+                t.firsts.push(f.as_secs_f64());
+            }
+            t.wholes.push(end_at.duration_since(start).as_secs_f64());
+            transcript.push_str(&format!(
+                "## {qid} · {}{}\n\n{text}\n\n{}\n\n",
+                if started.weak { "weak" } else { "not weak" },
+                if not_covered { " · not covered" } else { "" },
+                match last {
+                    AnswerStep::Error { code, message, .. } => {
+                        format!("error {code:?}: {message}")
+                    }
+                    _ => answer.clone(),
+                }
+            ));
+            eprintln!(
+                "{qid} first {:>6} whole {:>6.1} s · margin {} · {} sources, {cited} cited, {dropped} invented{}{} · relevant source: {} · {}",
+                first.map_or("—".into(), |f| format!("{:.1} s", f.as_secs_f64())),
+                end_at.duration_since(start).as_secs_f64(),
+                close.map_or("—".into(), |m| format!("{m:.2}")),
+                started.sources.len(),
+                if started.weak { " · weak" } else { "" },
+                if not_covered { " · not covered" } else { "" },
+                match hit {
+                    Some(true) => "yes",
+                    Some(false) => "no",
+                    None => "n/a",
+                },
+                match last {
+                    AnswerStep::Error { code, .. } => format!("error {code:?}"),
+                    _ => answer
+                        .chars()
+                        .take(80)
+                        .collect::<String>()
+                        .replace('\n', " "),
+                }
             );
         }
-        let (cited, dropped) = match last {
-            AnswerStep::Done { cited, dropped } | AnswerStep::Error { cited, dropped, .. } => {
-                (cited.len(), *dropped)
-            }
-            _ => (0, 0),
-        };
-        let relevant = corpus.relevant(&q);
-        let docs: Vec<String> = started
-            .sources
-            .iter()
-            .map(|s| s.document_id.clone())
-            .collect();
-        let hit = corpus.rank(&docs, &relevant).is_some();
-        found += usize::from(hit);
-        supplied += started.sources.len();
-        cited_total += cited;
-        dropped_total += dropped as usize;
-        weak_count += usize::from(started.weak);
-        match last {
-            AnswerStep::Error { code, .. } => {
-                errors += 1;
-                no_answer += usize::from(*code == AnswerErrorCode::NoAnswer);
-            }
-            _ if cited == 0 => {
-                silent += 1;
-                margins_silent.extend(close);
-            }
-            _ => margins_cited.extend(close),
-        }
-        transcript.push_str(&format!(
-            "## {} · {}\n\n{text}\n\n{}\n\n",
-            q["id"].as_str().unwrap(),
-            if started.weak { "weak" } else { "not weak" },
-            match last {
-                AnswerStep::Error { code, message, .. } => format!("error {code:?}: {message}"),
-                _ => answer.clone(),
-            }
-        ));
-        if let Some(f) = first {
-            firsts.push(f.as_secs_f64());
-        }
-        wholes.push(end_at.duration_since(start).as_secs_f64());
-        eprintln!(
-            "{} first {:>6} whole {:>6.1} s · margin {} · {} sources, {cited} cited, {dropped} invented{} · relevant source: {} · {}",
-            q["id"].as_str().unwrap(),
-            first.map_or("—".into(), |f| format!("{:.1} s", f.as_secs_f64())),
-            end_at.duration_since(start).as_secs_f64(),
-            close.map_or("—".into(), |m| format!("{m:.2}")),
-            started.sources.len(),
-            if started.weak { " · weak" } else { "" },
-            if hit { "yes" } else { "no" },
-            match last {
-                AnswerStep::Error { code, .. } => format!("error {code:?}"),
-                _ => answer
-                    .chars()
-                    .take(80)
-                    .collect::<String>()
-                    .replace('\n', " "),
-            }
-        );
+        tallies.push((set, t));
     }
-    let pct = |v: &mut Vec<f64>, p: f64| -> f64 {
+    let pct = |v: &[f64], p: f64| -> f64 {
+        let mut v = v.to_vec();
         if v.is_empty() {
             return f64::NAN;
         }
         v.sort_by(f64::total_cmp);
         v[((v.len() as f64 - 1.0) * p).round() as usize]
     };
-    eprintln!(
-        "Ask Atlas over {asked} vague questions: first word p50 {:.1} s / p95 {:.1} s; whole answer p50 {:.1} s / p95 {:.1} s; a relevant document among the sources {found}/{asked}; citation rate {:.2} (cited ÷ supplied, {cited_total}/{supplied}); invented citations {dropped_total} ({:.2} per answer); weak retrieval {weak_count}",
-        pct(&mut firsts, 0.5),
-        pct(&mut firsts, 0.95),
-        pct(&mut wholes, 0.5),
-        pct(&mut wholes, 0.95),
-        cited_total as f64 / supplied.max(1) as f64,
-        dropped_total as f64 / asked.max(1) as f64,
-    );
-    let median = |v: &mut Vec<f32>| -> String {
+    let spread = |v: &[f32]| -> String {
+        let mut v = v.to_vec();
         if v.is_empty() {
             return "—".into();
         }
         v.sort_by(f32::total_cmp);
-        format!("{:.2}", v[v.len() / 2])
+        format!(
+            "{:.2} / {:.2} / {:.2}",
+            v[0],
+            v[v.len() / 2],
+            v[v.len() - 1]
+        )
     };
+    for (set, t) in &tallies {
+        let total = t.asked + t.nothing_found;
+        eprintln!(
+            "Ask Atlas, {set} set, {total} questions: nothing found {}; first word p50 {:.1} s / p95 {:.1} s; whole answer p50 {:.1} s / p95 {:.1} s; a relevant document among the sources {}/{}; citation rate {:.2} (cited ÷ supplied, {}/{}); invented citations {} ({:.2} per answer); weak retrieval {}; not covered {} (citing nothing {}); errors {} (no answer {}); margin above the floor min / median / max {}",
+            t.nothing_found,
+            pct(&t.firsts, 0.5),
+            pct(&t.firsts, 0.95),
+            pct(&t.wholes, 0.5),
+            pct(&t.wholes, 0.95),
+            t.relevant,
+            if *set == "off" { 0 } else { t.asked },
+            t.cited as f64 / t.supplied.max(1) as f64,
+            t.cited,
+            t.supplied,
+            t.invented,
+            t.invented as f64 / t.asked.max(1) as f64,
+            t.weak,
+            t.not_covered,
+            t.not_covered_uncited,
+            t.errors,
+            t.no_answer,
+            spread(&t.margins),
+        );
+    }
     eprintln!(
-        "errors {errors} (no answer {no_answer}); answers citing nothing {silent}; median margin above the floor: citing {} / citing nothing {} (weak below {:.2})",
-        median(&mut margins_cited),
-        median(&mut margins_silent),
-        answers::retrieve::WEAK_MARGIN,
+        "weak retrieval is a margin below {:.2}",
+        answers::retrieve::WEAK_MARGIN
     );
     let out = std::path::Path::new(env!("CARGO_TARGET_TMPDIR")).join("eval-ask-answers.md");
     std::fs::write(&out, transcript).unwrap();

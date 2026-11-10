@@ -4,7 +4,7 @@
 //! - **Meaning pass:** the query's vector against the index, the 200
 //!   nearest chunks, kept only when their document has a file inside the
 //!   filters and their similarity clears the model's floor, grouped by
-//!   document (best chunk kept).
+//!   document (best chunk first, with up to [`ALSO`] more for Ask Atlas).
 //! - **Fusion:** reciprocal rank fusion, k = 60, over the two document
 //!   lists, in two tiers. Documents containing every word come first, fused
 //!   with the meaning list among themselves; then documents with some of
@@ -34,6 +34,9 @@ pub const NEIGHBOURS: usize = 200;
 pub const RRF_K: f64 = 60.0;
 /// Documents found by meaning alone that take part in a result.
 pub const MAX_MEANING_ONLY: usize = 20;
+/// More chunks kept per document, after its best, for Ask Atlas to choose
+/// a second passage from (a neighbour of the best one won't do).
+pub const ALSO: usize = 4;
 /// How much a name match strengthens a fused score.
 const NAME_BOOST: f64 = 1.25;
 
@@ -56,6 +59,8 @@ pub struct Near {
     pub passage: i64,
     pub span: (usize, usize),
     pub similarity: f32,
+    /// Its next-best chunks among the nearest, best first: passage and span.
+    pub also: Vec<super::ChunkAt>,
 }
 
 /// The documents nearest the query, best first.
@@ -98,19 +103,28 @@ pub(super) fn nearest(
         .map(|(k, _)| *k)
         .collect();
     let places = edb::chunk_places(conn, &ids)?;
-    let mut seen = HashSet::new();
-    let mut out = Vec::new();
+    let mut at: HashMap<String, usize> = HashMap::new();
+    let mut out: Vec<Near> = Vec::new();
     for (chunk, distance) in found {
         let Some((document, passage, start, end)) = places.get(&chunk) else {
             continue;
         };
-        if seen.insert(document.clone()) {
-            out.push(Near {
-                document: document.clone(),
-                passage: *passage,
-                span: (*start, *end),
-                similarity: 1.0 - distance,
-            });
+        match at.get(document) {
+            Some(&i) => {
+                if out[i].also.len() < ALSO {
+                    out[i].also.push((*passage, (*start, *end)));
+                }
+            }
+            None => {
+                at.insert(document.clone(), out.len());
+                out.push(Near {
+                    document: document.clone(),
+                    passage: *passage,
+                    span: (*start, *end),
+                    similarity: 1.0 - distance,
+                    also: Vec::new(),
+                });
+            }
         }
     }
     Ok(out)
@@ -237,6 +251,7 @@ mod tests {
             passage: 2,
             span: (0, 10),
             similarity: 0.9,
+            also: Vec::new(),
         }
     }
 

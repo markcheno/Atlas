@@ -1,0 +1,63 @@
+{
+  "version": 1,
+  "comment": "Questions the spike corpus has nothing on, for just eval-ask (Slice 2.6.2): Ask Atlas should find nothing, flag retrieval as weak, or say the library doesn't cover them, citing nothing. o05, o10 and o12 describe well-known works that are not in the corpus, to check that recognising a described work never becomes claiming one the library lacks. o11 is near the corpus's US mortgage rule but not covered by it. Written on 2026-11-10 from the corpus manifest, before the run that uses them.",
+  "questions": [
+    {
+      "id": "o01",
+      "kind": "off",
+      "question": "how do I keep a sourdough starter alive in a cold kitchen",
+      "relevant": []
+    },
+    { "id": "o02", "kind": "off", "question": "the rules for castling in chess", "relevant": [] },
+    { "id": "o03", "kind": "off", "question": "what causes the northern lights", "relevant": [] },
+    {
+      "id": "o04",
+      "kind": "off",
+      "question": "how to prune an apple tree in winter",
+      "relevant": []
+    },
+    {
+      "id": "o05",
+      "kind": "off",
+      "question": "a novel about a whaling captain obsessed with hunting a white whale",
+      "relevant": []
+    },
+    {
+      "id": "o06",
+      "kind": "off",
+      "question": "how vaccines train the immune system",
+      "relevant": []
+    },
+    {
+      "id": "o07",
+      "kind": "off",
+      "question": "tips for an adult beginner learning the cello",
+      "relevant": []
+    },
+    {
+      "id": "o08",
+      "kind": "off",
+      "question": "how the Romans built their aqueducts",
+      "relevant": []
+    },
+    { "id": "o09", "kind": "off", "question": "how to fix a flat bicycle tyre", "relevant": [] },
+    {
+      "id": "o10",
+      "kind": "off",
+      "question": "a detective on Baker Street who solves crimes from tiny details",
+      "relevant": []
+    },
+    {
+      "id": "o11",
+      "kind": "off",
+      "question": "fixed or variable interest for a home loan in Germany",
+      "relevant": []
+    },
+    {
+      "id": "o12",
+      "kind": "off",
+      "question": "a sonnet comparing a loved one to a summer's day",
+      "relevant": []
+    }
+  ]
+}
