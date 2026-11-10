@@ -37,8 +37,11 @@ pub const TEXT_WINDOW_CHARS: usize = 1_500;
 /// An excerpt cut shorter than this to fit the budget isn't worth sending.
 const SHORTEST: usize = 300;
 /// How far above the model's similarity floor the best meaning match must
-/// be for retrieval not to count as weak.
-pub const WEAK_MARGIN: f32 = 0.10;
+/// be for retrieval not to count as weak. Tuned by `just eval-ask` on
+/// 2026-11-10 with Qwen3-Embedding-0.6B (floor 0.25): questions the corpus
+/// covers began at 0.22 above the floor, questions it doesn't reached 0.24
+/// at most, median 0.12 (Slice 2.6.3; it was 0.10).
+pub const WEAK_MARGIN: f32 = 0.20;
 /// Fewer sources (excerpts) than this and retrieval is weak.
 pub const FEW_SOURCES: usize = 3;
 

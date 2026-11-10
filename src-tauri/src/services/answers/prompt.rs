@@ -30,7 +30,8 @@ details you give must still come from the excerpts.
 4. Cite each statement taken from an excerpt with the number of that source in square brackets, \
 like [2]. Cite only the sources that support the statement, and only numbers you were given. \
 Several sources: [1][3].
-5. Only if no excerpt is about the question, say so plainly in one sentence and cite nothing.
+5. Only if no excerpt is about the question, say so in one sentence and stop. Don't describe or \
+list what the excerpts cover instead, and cite nothing.
 6. Be concise: a few short paragraphs at most. Plain text, no headings or tables.
 7. Answer in the language of the question.";
 

@@ -754,7 +754,7 @@ the screen is Slice 2.7) and `services/providers/privacy.rs`; rationale in
   - About 24,000 characters in all, filled round-robin, at most 2,000 each.
   - Project Gutenberg's header and licence are cut out.
   - `weak`: fewer than 3 sources, or the best meaning match under the
-    floor + 0.10.
+    floor + 0.20 (tuned with Qwen3-Embedding-0.6B).
 - **Prompt** (`prompt.rs`): a fixed system message, then one user message
   of `<source id="n" title="…" location="…">` blocks and the
   `<question>`. Every `<` and `>` inside them is escaped.
