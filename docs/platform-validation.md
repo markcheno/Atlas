@@ -1501,7 +1501,8 @@ The Ask Atlas screen arrives in Slice 2.7. Until then:
 
    *First run 2026-11-10 against oMLX with `Qwen3.8-27B-MLX-4bit` and
    thinking on: 40 answers, no invented citation, five empty answers (see
-   benchmarks). The run after Slice 2.6.1 is pending.*
+   benchmarks). After Slice 2.6.1, thinking off: first word p50 14.4 s,
+   whole answer p50 23.4 s, no empty answers, 18 answers too literal.*
 2. In Settings › Privacy, turn on **Disable all external AI**. "Allow
    embedding my library through an internet service" becomes unavailable.
    Test an internet service's connection in Settings › AI Models: it says

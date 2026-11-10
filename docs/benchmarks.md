@@ -696,12 +696,10 @@ What the run shows:
   defined, the flag doesn't tell a covered question from an uncovered one.
 - **Formatting.** Six answers used Markdown emphasis (`*Title*`,
   `**FOXDEN**`) despite "plain text".
-- **Words run together.** Eight of the 35 answers' first lines have two
-  words joined (`sorrowover`, `haslittle`, `FAIRservices`). Atlas's
-  pipeline keeps every space: the citation parser's tests split text at
-  every point, and the think filter and the 50 ms joining only append. So
-  the space is most likely lost in the service's streaming. This is to be
-  confirmed against a raw stream.
+- **Words run together** (`sorrowover`, `haslittle`) in the pasted
+  output were not in the answers. The second run's whole answers have
+  every space. The joins sat where the terminal wrapped its lines, and
+  copying the wrapped text lost the space.
 
 **Slice 2.6.1** answers these findings ([ADR 0015](adr/0015-ask-atlas-answers-citations-injection.md)):
 
@@ -712,9 +710,47 @@ What the run shows:
 - weak retrieval goes by the meaning margin alone, which `just eval-ask` now
   prints for each question.
 
-*The run after Slice 2.6.1 is pending.* If answers are still slow with
-thinking off, the model is the next lever: about 17 tokens/s is this
-machine's ceiling for a 27B model.
+**The run after Slice 2.6.1** (2026-11-10, the same machine, services and
+model, thinking off; 976 s in all):
+
+| Measure | Thinking on | **Thinking off** |
+| --- | ---: | ---: |
+| First word, p50 / p95 | 88.5 s / 226.9 s | **14.4 s / 17.9 s** |
+| Whole answer, p50 / p95 | 118.9 s / 270.3 s | **23.4 s / 31.2 s** |
+| A relevant document among the sources | 39 / 40 | 39 / 40 |
+| Sources per question | 12.9 | 12.1 |
+| Citation rate (cited ÷ supplied) | 0.20 | 0.20 (95 / 484) |
+| Invented citations (removed) | 0 | 6, all in v23 |
+| Empty answers | 5 | **0** |
+| Answers saying the excerpts don't cover the question | 8 | **18** |
+| Flagged as weak retrieval | 0 | 0 |
+| Margin above the floor, min / median / max | — | 0.22 / 0.39 / 0.51 |
+
+What it shows:
+
+- **Fast enough.** The first word now waits mostly on reading the
+  excerpts, about 6,000 tokens. The answer itself takes about 9 s at
+  about 17 tokens/s. The model can stay.
+- **Too literal without thinking.** 18 answers begin "The excerpts do not
+  contain…", although the relevant document was among the sources in 17
+  of them. The vague set's questions describe a work rather than ask a
+  fact. Without reasoning, the model won't say "that is The Raven" unless
+  an excerpt says so in the question's words:
+  - v04 (the visitor repeating one word) was sent The Raven, but before
+    "Nevermore".
+  - v13 (the tutor) was sent an excerpt naming Pangloss, and still
+    refused.
+- **The citation rule half took.** No answer cites every source to say
+  they don't apply, except v12 (13 of 14). But no "not covered" answer
+  cites nothing either: each goes on to say what is close, as rule 4
+  allows, and cites that. So "answers citing nothing" (0) doesn't
+  measure "not covered"; the phrase count above does.
+- **The parser did its job.** v23's six invented numbers were removed
+  before they reached the text.
+- **The margin can't be tuned from this set.** Every question has a
+  document in the corpus, and their margins (0.22 to 0.51) overlap
+  whether the answer was found or not. The weak flag needs questions the
+  library has nothing on.
 
 CI has no model. There, the engine runs against a scripted service
 streaming canned answers (`tests/answers.rs`, P2-13 to P2-16).
