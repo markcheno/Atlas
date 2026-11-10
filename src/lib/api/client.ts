@@ -27,6 +27,7 @@ import type { DuplicateQuery } from './bindings/DuplicateQuery';
 import type { StorageUsage } from './bindings/StorageUsage';
 import type { DocumentPage } from './bindings/DocumentPage';
 import type { ExtractionOverview } from './bindings/ExtractionOverview';
+import type { EmbeddingOverview } from './bindings/EmbeddingOverview';
 import type { DocumentQuery } from './bindings/DocumentQuery';
 import type { ErrorCode } from './bindings/ErrorCode';
 import type { ErrorPayload } from './bindings/ErrorPayload';
@@ -135,6 +136,8 @@ export const atlas = {
   getInventoryStatus: () => call<InventoryOverview>('get_inventory_status'),
   startExtraction: (sourceRootId: string) => call<string>('start_extraction', { sourceRootId }),
   getExtractionStatus: () => call<ExtractionOverview>('get_extraction_status'),
+  startEmbedding: (sourceRootId: string) => call<string>('start_embedding', { sourceRootId }),
+  getEmbeddingStatus: () => call<EmbeddingOverview>('get_embedding_status'),
   searchDocuments: (query: SearchQuery) => call<SearchPage>('search_documents', { query }),
   getDocumentDetail: (fileId: string) => call<DocumentDetail>('get_document_detail', { fileId }),
   listDuplicates: (query: DuplicateQuery) => call<DuplicatePage>('list_duplicates', { query }),

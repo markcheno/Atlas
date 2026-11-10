@@ -4,6 +4,9 @@
   import type { AppStatus } from '../api/bindings/AppStatus';
   import { count, elapsedText, statusLine } from '../inventoryCopy';
   import { extractionLine } from '../extractionCopy';
+  import { meaningLine } from '../embeddingCopy';
+  import { embedding } from '../stores/embedding.svelte';
+  import { view } from '../stores/view.svelte';
   import { extraction } from '../stores/extraction.svelte';
   import { inventory } from '../stores/inventory.svelte';
 
@@ -21,6 +24,12 @@
   const readingPausable = $derived(
     reading !== null &&
       ['queued', 'running', 'paused_policy', 'failed_retryable'].includes(reading.state),
+  );
+
+  const meaning = $derived(embedding.overview?.active ?? null);
+  const meaningStatus = $derived(meaningLine(embedding.overview));
+  const meaningPausable = $derived(
+    meaning !== null && ['queued', 'running', 'paused_policy'].includes(meaning.state),
   );
 
   onMount(() => {
@@ -120,6 +129,58 @@
           </button>
         </div>
       {/if}
+    </div>
+  {/if}
+  {#if meaningStatus}
+    <div class="cataloging">
+      <span role="status" data-testid="embedding-status">{meaningStatus.text}</span>
+      <div class="controls">
+        {#if meaningStatus.action === 'retry' && meaning}
+          <button
+            type="button"
+            class="small-button"
+            aria-label="Retry indexing meaning"
+            onclick={() => embedding.resume(meaning.jobId)}
+          >
+            Retry
+          </button>
+        {:else if meaningStatus.action === 'choose_model' || meaningStatus.action === 'allow_remote'}
+          <button type="button" class="small-button" onclick={() => view.go('settings')}>
+            Open Settings
+          </button>
+        {/if}
+        {#if meaning && meaningPausable}
+          <button
+            type="button"
+            class="small-button"
+            aria-label="Pause indexing meaning"
+            onclick={() => embedding.pause(meaning.jobId)}
+          >
+            Pause
+          </button>
+        {/if}
+        {#if meaning?.state === 'paused_user'}
+          <button
+            type="button"
+            class="small-button"
+            aria-label="Resume indexing meaning"
+            onclick={() => embedding.resume(meaning.jobId)}
+          >
+            Resume
+          </button>
+        {/if}
+        {#if meaning}
+          <button
+            type="button"
+            class="small-button"
+            aria-label="Cancel indexing meaning"
+            title="Stop indexing meaning. Files already indexed stay indexed."
+            onclick={() => embedding.cancel(meaning.jobId)}
+          >
+            Cancel
+          </button>
+        {/if}
+      </div>
     </div>
   {/if}
   {#if status}

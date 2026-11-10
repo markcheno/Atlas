@@ -68,10 +68,15 @@ fn usage_is_measured_by_category() {
     let usage = storage::usage(&data(&env), local().as_ref()).unwrap();
     assert!(usage.text_bytes > 0 && usage.index_bytes > 0, "{usage:?}");
     assert!(usage.other_catalog_bytes > 0, "{usage:?}");
+    // The meaning index's tables exist (empty) from Slice 2.2 on.
     assert_eq!(
         usage.catalog_bytes,
-        usage.text_bytes + usage.index_bytes + usage.other_catalog_bytes
+        usage.text_bytes
+            + usage.index_bytes
+            + usage.meaning_catalog_bytes
+            + usage.other_catalog_bytes
     );
+    assert_eq!(usage.meaning_estimate, None, "no estimate without a model");
     let on_disk: u64 = ["", "-wal", "-shm"]
         .iter()
         .map(|s| {

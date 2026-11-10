@@ -423,10 +423,10 @@ impl EmbedProcessor {
         let changes = index.changes_since_save();
         let due = changes >= self.deps.config.save_every_changes
             || (changes > 0 && self.last_save.elapsed() >= self.deps.config.save_every);
-        if (force && changes > 0) || due {
-            if index.save(self.vectors.paths(), &self.catalog).is_ok() {
-                self.last_save = Instant::now();
-            }
+        if ((force && changes > 0) || due)
+            && index.save(self.vectors.paths(), &self.catalog).is_ok()
+        {
+            self.last_save = Instant::now();
         }
     }
 

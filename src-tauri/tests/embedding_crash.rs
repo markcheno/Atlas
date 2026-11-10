@@ -173,7 +173,7 @@ fn p2_05_kill_mid_embedding_then_finish_without_sending_anything_twice() {
         .script
         .answered()
         .into_iter()
-        .filter(|t| had.contains(&chunk::hash(t).to_vec()))
+        .filter(|t| had.contains(chunk::hash(t).as_slice()))
         .collect();
     assert!(
         sent_again.is_empty(),

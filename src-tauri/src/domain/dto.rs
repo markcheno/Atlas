@@ -576,6 +576,9 @@ pub struct EmbeddingOverview {
     pub rebuilding: bool,
     /// No embedding model is chosen.
     pub needs_model: bool,
+    /// An AI service is saved. Without one, Atlas says nothing about
+    /// meaning: it works without AI.
+    pub has_ai_service: bool,
     /// The embedding service is on the internet and embedding the library
     /// through it isn't allowed in Settings › Privacy.
     pub needs_permission: bool,

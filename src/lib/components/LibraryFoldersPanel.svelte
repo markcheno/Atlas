@@ -4,6 +4,8 @@
   import { rootTextLine } from '../extractionCopy';
   import { rootLine } from '../inventoryCopy';
   import { extraction } from '../stores/extraction.svelte';
+  import { embedding } from '../stores/embedding.svelte';
+  import { rootMeaningLine } from '../embeddingCopy';
   import { inventory } from '../stores/inventory.svelte';
   import { folderName, sources } from '../stores/sources.svelte';
   import ProblemNotice from './ProblemNotice.svelte';
@@ -64,6 +66,11 @@
                   {rootTextLine(extraction.overview, root.id)}
                 </span>
               {/if}
+              {#if rootMeaningLine(embedding.overview, root.id)}
+                <span class="muted small" data-testid="root-meaning-line">
+                  {rootMeaningLine(embedding.overview, root.id)}
+                </span>
+              {/if}
             {/if}
           </div>
           <span class="badge" data-status={root.nestedInRootId ? 'nested' : root.status}>
@@ -86,6 +93,16 @@
             >
               Read text now
             </button>
+            {#if embedding.overview?.model && !embedding.overview.needsPermission}
+              <button
+                type="button"
+                class="button quiet"
+                aria-label={`Index meaning now in ${folderName(root.displayPath)}`}
+                onclick={() => embedding.indexNow(root.id)}
+              >
+                Index meaning now
+              </button>
+            {/if}
           {/if}
           {#if removable}
             {#if confirmingId === root.id}

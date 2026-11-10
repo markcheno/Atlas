@@ -3,11 +3,14 @@
   import ViewHeading from '../lib/components/ViewHeading.svelte';
   import { homeReadingNote, SEARCH_HELP } from '../lib/searchCopy';
   import { extraction } from '../lib/stores/extraction.svelte';
+  import { embedding } from '../lib/stores/embedding.svelte';
+  import { homeMeaningNote } from '../lib/embeddingCopy';
   import { search } from '../lib/stores/search.svelte';
   import { view } from '../lib/stores/view.svelte';
 
   let text = $state('');
   const note = $derived(homeReadingNote(extraction.overview));
+  const meaningNote = $derived(homeMeaningNote(embedding.overview));
 
   function submit(event: SubmitEvent) {
     event.preventDefault();
@@ -31,6 +34,9 @@
     <p id="home-search-help" class="muted small">{SEARCH_HELP}</p>
     {#if note}
       <p class="small" data-testid="reading-note">{note}</p>
+    {/if}
+    {#if meaningNote}
+      <p class="small" data-testid="meaning-note">{meaningNote}</p>
     {/if}
   </form>
 

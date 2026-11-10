@@ -98,3 +98,11 @@ export function testedOn(iso: string): string {
     ? ''
     : d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
 }
+
+/** Before Use replaces an embedding model that has an index (Slice 2.3). */
+export const NEW_INDEX_NOTE =
+  'Atlas will build a new meaning index with this model. The current one keeps working until the new one is ready.';
+
+/** While Use is saved for an embedding model. */
+export const PREPARING_NOTE =
+  'Saving… The first time, Atlas may prepare your library for meaning search, which can take a minute.';

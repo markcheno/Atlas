@@ -164,6 +164,11 @@ pub fn overview(conn: &Connection, allow_remote: bool) -> rusqlite::Result<Embed
         model,
         rebuilding,
         needs_model: role.is_none(),
+        has_ai_service: conn.query_row(
+            "SELECT EXISTS (SELECT 1 FROM provider_profiles)",
+            [],
+            |r| r.get(0),
+        )?,
         needs_permission: !permitted(conn, allow_remote)?,
         roots,
         reading,

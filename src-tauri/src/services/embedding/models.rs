@@ -213,7 +213,7 @@ mod tests {
             let third = sync(c, "t4").unwrap().unwrap();
             let second_now = db::get_model(c, &second.id).unwrap().unwrap();
             assert_eq!(second_now.status, "failed");
-            assert_eq!(finished_with(c).unwrap(), [second.id.clone()]);
+            assert_eq!(finished_with(c).unwrap(), std::slice::from_ref(&second.id));
             assert_eq!(third.dims, 512);
 
             // Back to the ready model's role: it's active again, nothing new.

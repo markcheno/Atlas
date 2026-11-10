@@ -23,6 +23,11 @@ rebuilding: boolean,
  */
 needsModel: boolean, 
 /**
+ * An AI service is saved. Without one, Atlas says nothing about
+ * meaning: it works without AI.
+ */
+hasAiService: boolean, 
+/**
  * The embedding service is on the internet and embedding the library
  * through it isn't allowed in Settings › Privacy.
  */

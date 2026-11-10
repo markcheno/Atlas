@@ -5,7 +5,7 @@
   import { atlas, AtlasApiError, toApiError } from '../api/client';
   import type { StorageUsage } from '../api/bindings/StorageUsage';
   import { formatBytes } from '../format';
-  import { estimateText, freedText } from '../storageCopy';
+  import { estimateText, meaningEstimateText, freedText } from '../storageCopy';
   import ProblemNotice from './ProblemNotice.svelte';
 
   let usage = $state<StorageUsage | null>(null);
@@ -63,6 +63,14 @@
         <dt>Search index</dt>
         <dd>{formatBytes(usage.indexBytes)}</dd>
       </div>
+      {#if usage.meaningCatalogBytes + usage.meaningFileBytes > 0 || usage.meaningEstimate}
+        <div>
+          <dt>Meaning index</dt>
+          <dd data-testid="meaning-bytes">
+            {formatBytes(usage.meaningCatalogBytes + usage.meaningFileBytes)}
+          </dd>
+        </div>
+      {/if}
       <div>
         <dt>Rest of the catalog</dt>
         <dd>{formatBytes(usage.otherCatalogBytes)}</dd>
@@ -75,6 +83,9 @@
     <p data-testid="indexing-estimate">
       {estimateText(usage.estimate, usage.dataVolumeFreeBytes)}
     </p>
+    {#if meaningEstimateText(usage.meaningEstimate)}
+      <p data-testid="meaning-estimate">{meaningEstimateText(usage.meaningEstimate)}</p>
+    {/if}
   {:else if !error}
     <p class="muted" role="status">Measuring…</p>
   {/if}
@@ -86,7 +97,7 @@
   </div>
   <p class="muted small">
     Clean caches removes only temporary files Atlas can make again. It never removes your catalog,
-    the text Atlas has read, or your settings.
+    the text Atlas has read, the meaning index, or your settings.
   </p>
 </div>
 
