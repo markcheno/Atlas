@@ -113,6 +113,12 @@ pub(super) fn nearest(
             .iter()
             .filter(|(k, d)| 1.0 - d >= s.min_similarity && keep(*k))
             .count();
+        let exact: Vec<(u64, f32)> = s
+            .index
+            .exact_search(&vector, 3)
+            .map(|v| v.into_iter().map(|(k, d)| (k, 1.0 - d)).collect())
+            .unwrap_or_default();
+        eprintln!("e2e meaning: an exact scan's best: {exact:?}");
         eprintln!(
             "e2e meaning: query norm {:.3}, dims {}, index size {}, allowed documents {}, found {}, best similarity {best:.3}, above the floor {above}, kept {kept}, first keys {:?}",
             vector.iter().map(|x| x * x).sum::<f32>().sqrt(),
