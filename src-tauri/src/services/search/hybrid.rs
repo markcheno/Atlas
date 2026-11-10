@@ -60,7 +60,7 @@ pub struct Near {
     pub span: (usize, usize),
     pub similarity: f32,
     /// Its next-best chunks among the nearest, best first: passage and span.
-    pub also: Vec<(i64, (usize, usize))>,
+    pub also: Vec<super::ChunkAt>,
 }
 
 /// The documents nearest the query, best first.

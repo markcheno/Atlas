@@ -648,6 +648,9 @@ fn with_meaning<T>(
     Ok((out, status))
 }
 
+/// A chunk's place: its passage and character span there.
+pub type ChunkAt = (i64, (usize, usize));
+
 /// A document found for Ask Atlas (Slice 2.6): where it matched, by words
 /// and by meaning, and the file to show for it.
 #[derive(Debug, Clone)]
@@ -656,7 +659,7 @@ pub struct Found {
     /// The best passage containing the words, and the FTS expression.
     pub text: Option<(i64, String)>,
     /// The best chunks by meaning, best first: passage and character span.
-    pub meaning: Vec<(i64, (usize, usize))>,
+    pub meaning: Vec<ChunkAt>,
 }
 
 /// What Ask Atlas retrieval found, best first (public for `just eval-ask`).
@@ -693,7 +696,7 @@ pub fn retrieve(
             None => Vec::new(),
         };
         let best = near.iter().map(|n| n.similarity).reduce(f32::max);
-        let meaning: HashMap<String, Vec<(i64, (usize, usize))>> = near
+        let meaning: HashMap<String, Vec<ChunkAt>> = near
             .iter()
             .map(|n| {
                 let mut chunks = vec![(n.passage, n.span)];
