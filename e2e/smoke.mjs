@@ -94,6 +94,8 @@ const env = {
   ATLAS_INVENTORY_RATE: '150',
   // Index meaning without the job's rests (debug builds only).
   ATLAS_EMBED_UNTHROTTLED: '1',
+  // Each meaning search's sizes and similarities on stderr (debug builds).
+  ATLAS_E2E_TRACE_MEANING: '1',
 };
 
 // The scripted model service the app is pointed at in Settings (Slice 2.7).
