@@ -135,6 +135,10 @@ bench-search out="":
 bench-extraction size="30k" out="":
     pnpm bench --extraction-only --extraction-size {{ size }} {{ if out == "" { "" } else { "--out " + out } }}
 
+# The vector index alone (Phase 2): build, save, load, rebuild, recall and latency at `size` synthetic 1,024-dimension vectors (CI runs 100000)
+bench-vectors size="300000" out="":
+    pnpm bench --vectors-only --vectors-size {{ size }} {{ if out == "" { "" } else { "--out " + out } }}
+
 # Ask a question set (fixtures/README.md) against a library, read-only, e.g. `just eval my-questions.json ~/AtlasData`; `ids` maps corpus ids (spikes/extraction-bench/corpus/manifest.json)
 eval questions data_root ids="":
     cargo bench --manifest-path {{ manifest }} --locked --bench search -- --eval {{ questions }} --data-root {{ data_root }} {{ if ids == "" { "" } else { "--manifest " + ids } }}

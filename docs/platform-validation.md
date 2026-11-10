@@ -974,6 +974,47 @@ and stored only under the debug keychain service), with a scratch
 - **Wording.** A test that answered in under 100 ms read "answered in
   0 s"; it now reads "answered in under 0.1 s".
 
+## Slice 2.2
+
+Chunks, durable embeddings and the vector index
+([ADR 0013](adr/0013-embeddings-durable-index-disposable.md)). There is no
+user-visible change, so nothing is checked by hand. On every OS:
+
+- usearch's C++ builds with the app;
+- `tests/vectors.rs` (P2-04, P2-08) runs, including a library under the
+  non-ASCII path `Bibliothèque José 図書館` through both index I/O routes;
+- `tests/vectors_crash.rs` kills a saving child process eight times;
+- the bench job measures the index at 100,000 vectors.
+
+**CI on `slice-22`:** full run
+[42724704393](https://github.com/markcheno/Atlas/actions/runs/42724704393),
+all green after one rerun.
+
+- On Windows, every Rust suite passed the first time. That includes the
+  non-ASCII library path through both index I/O routes, and the crash test
+  in 73 s.
+- The first attempt failed in Vitest: "keyboard shortcuts switch views"
+  ran 5.5 s against its 5 s limit, and the theme test after it failed in
+  turn. The rerun of that job passed; this slice changed no frontend code
+  beyond the slice string. If it recurs, give that test a longer timeout.
+- The bench jobs measured the index at 100,000 vectors on all three
+  runners ([benchmarks](benchmarks.md#vector-index-slice-22)).
+- Installer sizes grew by 0.5 to 1.7 MiB ([packaging](packaging.md)).
+
+### macOS arm64, Slice 2.2 (2026-11-09)
+
+- **`just ci` passed:** 217 Rust unit tests, every integration suite (both
+  vector suites included) and 120 Vitest tests.
+- **Crash test:** two of the eight kills left a staged file in `tmp/`
+  mid-write. The other six came after the rename, leaving an unrecorded
+  newer generation. Each time the recorded generation loaded, the index
+  matched the catalog exactly, and the stray file was removed. SQLite's
+  and FTS5's integrity checks passed after every kill.
+- **Benchmarks** on the reference machine at 100,000, 300,000 and
+  1,000,000 vectors ([benchmarks](benchmarks.md#vector-index-slice-22)).
+- **Build cost:** usearch, numkong and cxx add about 8 s to a clean release
+  build (cargo `--timings`).
+
 ## Manual checklist for Windows and Linux
 
 CI runs an automated smoke test on Windows and Linux (Slice 0.8, below),

@@ -42,17 +42,18 @@ this report only when the app adopts it (ADR 0008).
 
 ## Summary
 
-### Rust crates (573, all platforms)
+### Rust crates (586, all platforms)
 
 | License expression | Count |
 | --- | --- |
-| MIT OR Apache-2.0 | 266 |
-| MIT | 131 |
+| MIT OR Apache-2.0 | 273 |
+| MIT | 132 |
 | Apache-2.0 OR MIT | 56 |
 | Zlib OR Apache-2.0 OR MIT | 18 |
 | Unicode-3.0 | 18 |
 | MIT/Apache-2.0 | 17 |
 | Unlicense OR MIT | 10 |
+| Apache-2.0 | 6 |
 | MPL-2.0 | 5 |
 | Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT | 5 |
 | Apache-2.0/MIT | 4 |
@@ -61,13 +62,13 @@ this report only when the app adopts it (ADR 0008).
 | CC0-1.0 OR MIT-0 OR Apache-2.0 | 3 |
 | Apache-2.0 OR ISC OR MIT | 3 |
 | MIT OR Apache-2.0 OR Zlib | 3 |
-| Apache-2.0 | 3 |
 | Zlib | 2 |
 | MIT OR Zlib OR Apache-2.0 | 2 |
 | BSD-3-Clause OR MIT OR Apache-2.0 | 2 |
 | MIT OR Apache-2.0 OR LGPL-2.1-or-later | 2 |
 | Unlicense/MIT | 2 |
 | (MIT OR Apache-2.0) AND Unicode-3.0 | 2 |
+| BSD-2-Clause OR Apache-2.0 OR MIT | 2 |
 | 0BSD OR MIT OR Apache-2.0 | 1 |
 | ISC AND (Apache-2.0 OR ISC) | 1 |
 | ISC AND (Apache-2.0 OR ISC) AND Apache-2.0 AND MIT AND BSD-3-Clause AND (Apache-2.0 OR ISC OR MIT) AND (Apache-2.0 OR ISC OR MIT-0) | 1 |
@@ -168,6 +169,7 @@ this report only when the app adopts it (ADR 0008).
 | cipher | 0.5.2 | MIT OR Apache-2.0 |
 | cmake | 0.1.58 | MIT OR Apache-2.0 |
 | cmov | 0.5.4 | Apache-2.0 OR MIT |
+| codespan-reporting | 0.13.1 | Apache-2.0 |
 | combine | 4.6.9 | MIT |
 | concurrent-queue | 2.5.0 | Apache-2.0 OR MIT |
 | console_error_panic_hook | 0.1.7 | Apache-2.0/MIT |
@@ -186,12 +188,17 @@ this report only when the app adopts it (ADR 0008).
 | crc32fast | 1.5.4 | MIT OR Apache-2.0 |
 | crossbeam-channel | 0.5.17 | MIT OR Apache-2.0 |
 | crossbeam-utils | 0.8.23 | MIT OR Apache-2.0 |
+| crunchy | 0.2.4 | MIT |
 | crypto-common | 0.1.7 | MIT OR Apache-2.0 |
 | crypto-common | 0.2.2 | MIT OR Apache-2.0 |
 | cssparser | 0.37.0 | MPL-2.0 |
 | cssparser-macros | 0.7.1 | MPL-2.0 |
 | ctor | 1.0.13 | Apache-2.0 OR MIT |
 | ctutils | 0.4.8 | Apache-2.0 OR MIT |
+| cxx | 1.0.205 | MIT OR Apache-2.0 |
+| cxx-build | 1.0.205 | MIT OR Apache-2.0 |
+| cxxbridge-flags | 1.0.205 | MIT OR Apache-2.0 |
+| cxxbridge-macro | 1.0.205 | MIT OR Apache-2.0 |
 | darling | 0.24.1 | MIT |
 | darling_core | 0.24.1 | MIT |
 | darling_macro | 0.24.1 | MIT |
@@ -271,6 +278,7 @@ this report only when the app adopts it (ADR 0008).
 | gtk | 0.18.2 | MIT |
 | gtk-sys | 0.18.2 | MIT |
 | gtk3-macros | 0.18.2 | MIT |
+| half | 2.7.1 | MIT OR Apache-2.0 |
 | hashbrown | 0.12.3 | MIT OR Apache-2.0 |
 | hashbrown | 0.17.1 | MIT OR Apache-2.0 |
 | hashlink | 0.12.2 | MIT OR Apache-2.0 |
@@ -340,6 +348,7 @@ this report only when the app adopts it (ADR 0008).
 | libloading | 0.7.4 | ISC |
 | libredox | 0.1.25 | MIT |
 | libsqlite3-sys | 0.39.1 | MIT |
+| link-cplusplus | 1.0.12 | MIT OR Apache-2.0 |
 | linux-raw-sys | 0.12.1 | Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT |
 | litemap | 0.8.3 | Unicode-3.0 |
 | lock_api | 0.4.14 | MIT OR Apache-2.0 |
@@ -372,6 +381,7 @@ this report only when the app adopts it (ADR 0008).
 | num-iter | 0.1.46 | MIT OR Apache-2.0 |
 | num-rational | 0.4.2 | MIT OR Apache-2.0 |
 | num-traits | 0.2.19 | MIT OR Apache-2.0 |
+| numkong | 7.8.7 | Apache-2.0 |
 | objc2 | 0.6.5 | MIT |
 | objc2-app-kit | 0.3.2 | Zlib OR Apache-2.0 OR MIT |
 | objc2-cloud-kit | 0.3.2 | Zlib OR Apache-2.0 OR MIT |
@@ -470,6 +480,7 @@ this report only when the app adopts it (ADR 0008).
 | schemars | 1.2.3 | MIT |
 | schemars_derive | 0.8.22 | MIT |
 | scopeguard | 1.2.0 | MIT OR Apache-2.0 |
+| scratch | 1.0.9 | MIT OR Apache-2.0 |
 | secret-service | 5.2.0 | MIT OR Apache-2.0 |
 | security-framework | 3.7.0 | MIT OR Apache-2.0 |
 | security-framework-sys | 2.17.0 | MIT OR Apache-2.0 |
@@ -583,6 +594,7 @@ this report only when the app adopts it (ADR 0008).
 | uom | 0.38.0 | Apache-2.0 OR MIT |
 | url | 2.5.8 | MIT OR Apache-2.0 |
 | urlpattern | 0.6.0 | MIT |
+| usearch | 2.26.6 | Apache-2.0 |
 | utf_types | 1.0.0 | Apache-2.0 OR MIT |
 | utf16string | 0.2.0 | MIT OR Apache-2.0 |
 | utf8_iter | 1.1.0 | Apache-2.0 OR MIT |
@@ -666,6 +678,8 @@ this report only when the app adopts it (ADR 0008).
 | zbus_names | 4.3.5 | MIT |
 | zbus-secret-service-keyring-store | 1.0.1 | MIT OR Apache-2.0 |
 | zcheapstr | 1.2.0 | MIT |
+| zerocopy | 0.8.63 | BSD-2-Clause OR Apache-2.0 OR MIT |
+| zerocopy-derive | 0.8.63 | BSD-2-Clause OR Apache-2.0 OR MIT |
 | zerofrom | 0.1.8 | Unicode-3.0 |
 | zerofrom-derive | 0.1.8 | Unicode-3.0 |
 | zeroize | 1.9.1 | Apache-2.0 OR MIT |

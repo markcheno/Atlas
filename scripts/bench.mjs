@@ -2,12 +2,13 @@
 // Runs the benchmark suite (phase0-spec §13, phase1-spec §13;
 // docs/benchmarks.md): generates fixtures if needed, runs `cargo bench
 // --bench inventory` for each cataloging scenario, `cargo bench --bench
-// search` on the 30k text fixture and `cargo bench --bench extraction` on
-// the same fixture, and writes JSON results plus a Markdown summary.
+// search` on the 30k text fixture, `cargo bench --bench extraction` on
+// the same fixture and `cargo bench --bench vectors` on synthetic vectors,
+// and writes JSON results plus a Markdown summary.
 //
 //   node scripts/bench.mjs [--out <dir>] [--sweep] [--search-only] [--extraction-only]
-//                          [--search-size 30k|1k] [--extraction-size 30k|1k]
-//                          [--max-p95-ms 250]
+//                          [--vectors-only] [--search-size 30k|1k] [--extraction-size 30k|1k]
+//                          [--vectors-size 100000] [--max-p95-ms 250]
 //
 // --search-size picks the search fixture: 30k (default; the P1-19 reference
 // measurement, run locally) or 1k (CI: the 30k text fixture takes over 40
@@ -19,6 +20,9 @@
 // --extraction-only just the extraction benchmark; --evidence is the Phase 1
 // close-out's run (`just ci-remote evidence`): extraction only, on the 30k
 // text fixture, unthrottled, failing unless every file is read;
+// --vectors-only runs just the vector index benchmark (Phase 2), at
+// --vectors-size vectors of 1,024 dimensions (default 100,000, as CI; the
+// reference machine also records 300,000 and 1,000,000);
 // --max-p95-ms makes it fail above that search p95 while reading (the
 // reference machine's check, P1-19). Fixtures go in <out>/fixtures and are
 // reused.
@@ -40,11 +44,16 @@ const sweep = args.includes('--sweep');
 const searchOnly = args.includes('--search-only');
 const evidence = args.includes('--evidence');
 const extractionOnly = evidence || args.includes('--extraction-only');
-if (searchOnly && extractionOnly)
-  throw new Error('--search-only and --extraction-only exclude each other');
-const runInventory = !searchOnly && !extractionOnly;
-const runSearch = !extractionOnly;
-const runExtraction = !searchOnly;
+const vectorsOnly = args.includes('--vectors-only');
+if ([searchOnly, extractionOnly, vectorsOnly].filter(Boolean).length > 1)
+  throw new Error('--search-only, --extraction-only and --vectors-only exclude each other');
+const runInventory = !searchOnly && !extractionOnly && !vectorsOnly;
+const runSearch = !extractionOnly && !vectorsOnly;
+const runExtraction = !searchOnly && !vectorsOnly;
+const runVectors = !searchOnly && !extractionOnly;
+const vectorsSize = Number(opt('vectors-size', '100000'));
+if (!Number.isInteger(vectorsSize) || vectorsSize < 100)
+  throw new Error('--vectors-size is a whole number of at least 100');
 const maxP95 = opt('max-p95-ms', null);
 const searchSize = opt('search-size', '30k');
 if (!['30k', '1k'].includes(searchSize)) throw new Error('--search-size is 30k or 1k');
@@ -131,6 +140,8 @@ execFileSync(
     'search',
     '--bench',
     'extraction',
+    '--bench',
+    'vectors',
     '--no-run',
   ],
   { stdio: 'inherit' },
@@ -233,10 +244,35 @@ if (runExtraction) {
   extractionResult = JSON.parse(fs.readFileSync(extractionFile, 'utf8'));
 }
 
+let vectorsResult = null;
+if (runVectors) {
+  console.error(`bench: ${vectorsSize} vectors`);
+  const vectorsFile = path.join(out, `bench-vectors-${vectorsSize}.json`);
+  execFileSync(
+    'cargo',
+    [
+      'bench',
+      '--manifest-path',
+      path.join(repo, 'src-tauri', 'Cargo.toml'),
+      '--locked',
+      '--bench',
+      'vectors',
+      '--',
+      '--size',
+      String(vectorsSize),
+      '--out',
+      vectorsFile,
+    ],
+    { stdio: ['ignore', 'ignore', 'inherit'] },
+  );
+  vectorsResult = JSON.parse(fs.readFileSync(vectorsFile, 'utf8'));
+}
+
 const md =
   (results.length ? summarize(results) : '') +
   (searchResult ? summarizeSearch(searchResult) : '') +
-  (extractionResult ? summarizeExtraction(extractionResult) : '');
+  (extractionResult ? summarizeExtraction(extractionResult) : '') +
+  (vectorsResult ? summarizeVectors(vectorsResult) : '');
 fs.writeFileSync(path.join(out, `bench-${process.platform}.md`), md);
 console.log(md);
 if (process.env.GITHUB_STEP_SUMMARY) fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, md);
@@ -387,5 +423,32 @@ function summarizeExtraction(r) {
       `| ${r.label} | ${k.documentsAtKill} | ${k.partialDocumentsAtKill} | ${k.workersLeftAfterKill} of ${k.workersAtKill} | ${k.resumeToCompleteSeconds} | ${k.duplicateDocuments} | ${k.pendingAfterResume} |`,
     );
   }
+  return `${lines.join('\n')}\n`;
+}
+
+function summarizeVectors(r) {
+  const mib = (b) => (b / 1048576).toFixed(1);
+  const s = (ms) => (ms / 1000).toFixed(2);
+  const lat = (l) => `${l.p50Ms} / ${l.p95Ms} / ${l.maxMs}`;
+  const pct = (x) => `${(x * 100).toFixed(1)}%`;
+  const lines = [
+    '',
+    `## Vector index: ${r.size.toLocaleString('en-US')} × ${r.dims} (${r.machine.os} ${r.machine.arch}${r.machine.ci ? ', CI runner' : ''})`,
+    '',
+    `usearch HNSW, cosine, f16, connectivity ${r.index.connectivity}, expansion ${r.index.expansionAdd} / ${r.index.expansionSearch}; ${r.threads} threads; synthetic clustered vectors; catalog pages of ${r.pageSize / 1024} KiB.`,
+    '',
+    '| Build s | Save s | Load s | Open → first answer s | Rebuild from catalog s | File MiB | File ÷ raw f32 | Index memory MiB | Catalog bytes per vector |',
+    '| ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |',
+    `| ${s(r.buildMs)} | ${s(r.saveMs)} | ${s(r.loadMs)} | ${s(r.openToFirstAnswerMs)} | ${s(r.rebuildFromCatalogMs)} | ${mib(r.fileBytes)} | ${r.fileToRawF32} | ${mib(r.indexMemoryBytes)} | ${r.catalogBytesPerVector} |`,
+    '',
+    `| Search (${r.queries} queries, one thread) | Share | Recall@10 | p50 / p95 / max ms |`,
+    '| --- | ---: | ---: | ---: |',
+    `| Unfiltered | 100% | ${r.unfiltered.recallAt10} | ${lat(r.unfiltered.latency)} |`,
+    ...r.filtered.map(
+      (f) => `| One folder | ${pct(f.share)} | ${f.recallAt10 ?? '–'} | ${lat(f.latency)} |`,
+    ),
+    '',
+    `Brute force: ${r.unfiltered.bruteForceMsPerQuery} ms per query (${r.recallQueries} recall queries).`,
+  ];
   return `${lines.join('\n')}\n`;
 }

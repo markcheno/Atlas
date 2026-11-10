@@ -450,6 +450,35 @@ Do **not** add usearch, chunking or any embedding table before Slice 2.1's gate 
 - A role is assigned only with a passing capability test of that model at most 24 hours old (ADR 0012). The capability test's budget is two minutes, since local runtimes load a model on first use.
 - oMLX's README doesn't list Qwen3-Embedding among its embedding models. On the reference machine, Atlas's capability test confirmed that oMLX serves `Qwen3-Embedding-0.6B-8bit` with 1,024 dimensions, so that recommendation entry is verified.
 
+**2026-11-09, amended during Slice 2.2** ([ADR 0013](adr/0013-embeddings-durable-index-disposable.md)):
+
+- **What the index holds.** It holds the chunks of a model's done
+  documents. `document_embeddings` gains a per-model `seq`, and a saved file
+  records `indexed_through_seq` instead of `indexed_through_chunk_id`. A
+  chunk-id watermark misses a chunk that gains a vector after the watermark
+  passed it.
+- **Chunks** have `AUTOINCREMENT` ids (no key is reused after a tombstone)
+  and character offsets.
+- **Tombstones** are sequenced (`seq`, `chunk_id`), and each model records
+  the last one it applied. A tombstone is drained only when every live
+  model's saved file has applied it: chunks are shared by every model.
+- **`embedding_models`** gains `index_generation`, `index_blake3` and
+  `tombstones_through`. Files are named `<model>-<generation>.usearch`, and
+  a file is loaded only if its BLAKE3 matches.
+- **`embeddings`** is a rowid table with a unique `(model_id, text_hash)`,
+  not `WITHOUT ROWID`. The latter took 4,294 bytes per vector instead of
+  2,534 in the benchmark.
+- **Searches continue during a save** (read lock), rather than "a save
+  under the write lock" (§7.3). At a million vectors a save takes 2.7 s.
+- **Deferred to 2.3:** compaction above 20% tombstones, the save cadence,
+  and the Run/Slow rebuild threads. **Deferred to 2.4:** `ChunkMeta` and
+  the small-scope exact path.
+- **Dependency:** `half` 2.7 for f16 BLOBs, since usearch's `f16` type
+  doesn't convert from f32.
+- **Open question for 2.3:** catalogs created before Slice 1.7 have 4 KiB
+  pages and store each 2 KB vector on its own page (4,294 bytes per
+  vector, 1.7×).
+
 ### Primary reference documentation (verify current versions at implementation time)
 
 - usearch (Rust): <https://docs.rs/usearch/latest/usearch/> and <https://github.com/unum-cloud/usearch>

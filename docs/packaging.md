@@ -37,6 +37,21 @@ Release builds of version 0.2.0 (the Phase 1 close-out) from CI run
 (Windows) measured 10.5, 7.6, 12.6 and 86.5 MiB; before PDFium (Slice 1.1
 and earlier) they were 6.8, 4.7, 8.4 and 82.7 MiB.
 
+**Slice 2.2 added the usearch vector index** (C++, compiled into the
+executable). The release bundles grew as follows:
+
+| Bundle | Before (Slice 2.1, run 42719663228) | After (Slice 2.2, run 42724704393) |
+| --- | ---: | ---: |
+| DMG | 11.7 MiB | 12.4 MiB (+0.7) |
+| Windows setup | 8.4 MiB | 8.9 MiB (+0.5) |
+| `.deb` | 13.8 MiB | 15.5 MiB (+1.7) |
+| AppImage | 87.6 MiB | 89.0 MiB (+1.4) |
+
+The Slice 0.9 spike measured +1.7 to +4.0 MiB on the stripped binary, so
+these increases are within ADR 0008's 15 MB limit. Its clean-build cost is
+about 8 s on the reference machine
+([benchmarks](benchmarks.md#vector-index-slice-22)).
+
 Locally: `just bundle-release` (release) or `just bundle` (debug) builds
 the formats for the current OS and prints their sizes.
 

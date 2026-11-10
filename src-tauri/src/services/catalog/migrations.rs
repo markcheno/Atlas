@@ -66,6 +66,11 @@ pub const MIGRATIONS: &[Migration] = &[
         name: "model_roles",
         sql: include_str!("../../../migrations/0011_model_roles.sql"),
     },
+    Migration {
+        version: 12,
+        name: "embeddings",
+        sql: include_str!("../../../migrations/0012_embeddings.sql"),
+    },
 ];
 
 /// Highest catalog schema version this build can read and write.
@@ -277,7 +282,7 @@ mod tests {
                          VALUES ('p', 'openai_compatible', 'oMLX', 'http://localhost:8000/v1', 0, 't', 't');",
                 )
                 .unwrap();
-                assert_eq!(migrate(c, "t2").unwrap(), 11);
+                assert_eq!(migrate_to(c, 11, "t2").unwrap(), 11);
                 c.execute_batch(
                     "INSERT INTO model_roles (role, provider_profile_id, model_id, dimensions, tested_at, updated_at)
                          VALUES ('embedding', 'p', 'qwen3-embedding:0.6b', 1024, 't', 't'),
@@ -306,6 +311,96 @@ mod tests {
                     .query_row("SELECT COUNT(*) FROM model_roles", [], |r| r.get(0))
                     .unwrap();
                 assert_eq!(left, 0, "removing the service clears its roles");
+            })
+            .unwrap();
+    }
+
+    #[test]
+    fn version_12_adds_chunks_and_embeddings_that_follow_their_rows() {
+        use crate::services::catalog::writer::CatalogWriter;
+
+        let dir = tempfile::tempdir().unwrap();
+        let writer = CatalogWriter::open(&dir.path().join("catalog.sqlite")).unwrap();
+        writer
+            .call(|c| {
+                assert_eq!(migrate_to(c, 11, "t").unwrap(), 11);
+                c.execute_batch(
+                    "INSERT INTO documents (id, content_hash, state, created_at, updated_at)
+                         VALUES ('d', x'01', 'done', 't', 't');
+                     INSERT INTO passages (id, document_id, ordinal, page_no, location, text)
+                         VALUES (1, 'd', 0, 1, 'Page 1', 'one'), (2, 'd', 1, 2, 'Page 2', 'two');",
+                )
+                .unwrap();
+                assert_eq!(migrate(c, "t2").unwrap(), 12);
+                let passages: i64 = c
+                    .query_row("SELECT COUNT(*) FROM passages", [], |r| r.get(0))
+                    .unwrap();
+                assert_eq!(passages, 2, "the upgrade leaves existing rows alone");
+
+                c.execute_batch(
+                    "INSERT INTO embedding_models (id, model_name, dims, quantization, chunker_version,
+                         status, created_at, updated_at)
+                         VALUES ('m', 'qwen3-embedding:0.6b', 4, 'f16', 1, 'building', 't', 't');
+                     INSERT INTO chunks (document_id, passage_id, ordinal, char_start, char_end, text_hash)
+                         VALUES ('d', 1, 0, 0, 3, x'aa'), ('d', 2, 1, 0, 3, x'bb');
+                     INSERT INTO embeddings (model_id, text_hash, vector) VALUES ('m', x'aa', x'00'), ('m', x'bb', x'00');
+                     INSERT INTO document_embeddings (document_id, model_id, seq, status, chunk_count, updated_at)
+                         VALUES ('d', 'm', 1, 'done', 2, 't');",
+                )
+                .unwrap();
+                assert!(
+                    c.execute_batch(
+                        "INSERT INTO embedding_models (id, model_name, dims, quantization, chunker_version,
+                             status, created_at, updated_at)
+                             VALUES ('x', 'm', 4, 'f32', 1, 'building', 't', 't')"
+                    )
+                    .is_err(),
+                    "f16 only"
+                );
+                assert!(
+                    c.execute_batch(
+                        "INSERT INTO chunks (document_id, passage_id, ordinal, char_start, char_end, text_hash)
+                             VALUES ('d', 1, 5, 3, 3, x'cc')"
+                    )
+                    .is_err(),
+                    "a chunk is never empty"
+                );
+
+                // Deleting a passage cascades to its chunks, and the trigger
+                // fires for cascaded rows: the index learns of the removal.
+                c.execute_batch("DELETE FROM passages WHERE id = 1").unwrap();
+                let tombs: Vec<i64> = c
+                    .prepare("SELECT chunk_id FROM vector_tombstones")
+                    .unwrap()
+                    .query_map([], |r| r.get(0))
+                    .unwrap()
+                    .map(Result::unwrap)
+                    .collect();
+                assert_eq!(tombs, [1]);
+
+                // A deleted id is never reused (AUTOINCREMENT).
+                c.execute_batch("DELETE FROM chunks WHERE id = 2").unwrap();
+                c.execute_batch(
+                    "INSERT INTO chunks (document_id, passage_id, ordinal, char_start, char_end, text_hash)
+                         VALUES ('d', 2, 0, 0, 3, x'bb')",
+                )
+                .unwrap();
+                let id: i64 = c
+                    .query_row("SELECT MAX(id) FROM chunks", [], |r| r.get(0))
+                    .unwrap();
+                assert_eq!(id, 3);
+
+                c.execute_batch("DELETE FROM embedding_models WHERE id = 'm'")
+                    .unwrap();
+                let left: (i64, i64) = c
+                    .query_row(
+                        "SELECT (SELECT COUNT(*) FROM embeddings),
+                                (SELECT COUNT(*) FROM document_embeddings)",
+                        [],
+                        |r| Ok((r.get(0)?, r.get(1)?)),
+                    )
+                    .unwrap();
+                assert_eq!(left, (0, 0), "a model's vectors go with it");
             })
             .unwrap();
     }

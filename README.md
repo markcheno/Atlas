@@ -4,7 +4,7 @@ Atlas is a local-first personal AI librarian for large private collections of
 PDFs, EPUBs, books and papers. *Collect freely. Organize minimally. Retrieve
 intelligently.*
 
-**Status: Phase 2, Slice 2.1 (model roles and capability tests); Phases 0 and 1 complete (version 0.2.0, [close-out review](docs/phase1-closeout.md)).** Atlas asks where to keep its library and
+**Status: Phase 2, Slice 2.2 (vector foundations); Phases 0 and 1 complete (version 0.2.0, [close-out review](docs/phase1-closeout.md)).** Atlas asks where to keep its library and
 which folders hold your books and papers, then catalogs every PDF and EPUB
 in them in the background, read-only. Cataloging slows on battery, pauses
 when the battery is low or the drive is nearly full, survives quitting and
@@ -40,7 +40,10 @@ model for your computer and your AI app with the steps to get it (it never
 downloads one). Each service is labelled as this computer, another
 computer, or an internet service. Atlas contacts a service only when you
 test it, and sends nothing from your library. The AI features that use
-these models arrive in the next Phase 2 slices.
+these models arrive in the next Phase 2 slices; underneath, Atlas can
+already cut text into chunks, keep their vectors in the catalog, and build
+a vector index that survives crashes and is rebuilt from the catalog when
+needed (Slice 2.2).
 
 Every push to `main`, every release tag and every pull request is built
 and tested on macOS (Apple silicon), Windows x64, and Linux x64; pushes to
@@ -91,7 +94,8 @@ with semantic search.
 | Phase 1 carry-overs: fast resume inside large folders, Windows junctions and paths over 260 characters, no text reader outliving the app, extraction benchmark, a smaller catalog | Working (Slice 1.7) |
 | Phase 1 close-out: evidence on three OSes, version 0.2.0 | Done ([review](docs/phase1-closeout.md)); Windows and Linux verified in CI, with documented gaps |
 | Choosing the chat and embedding models, with a capability test and recommendations | Working (Phase 2, Slice 2.1) |
-| Semantic search, related documents, Ask Atlas with citations | Phase 2, in progress ([spec](docs/phase2-spec.md)): Slice 2.1 of 2.8 built |
+| Chunks, embeddings in the catalog, and a crash-safe vector index (no UI yet) | Working (Phase 2, Slice 2.2) |
+| Semantic search, related documents, Ask Atlas with citations | Phase 2, in progress ([spec](docs/phase2-spec.md)): Slices 2.1–2.2 of 2.8 built |
 
 Specifications: [product](docs/product-spec.md), [Phase 0](docs/phase0-spec.md),
 [Phase 1](docs/phase1-spec.md), [Phase 2](docs/phase2-spec.md),
