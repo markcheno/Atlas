@@ -1,7 +1,8 @@
 # Packaging and installation
 
-Phase 0 builds are **development distributions**: unsigned, not notarized,
-and not production-ready (phase0-spec §14). They exist to prove that Atlas
+Atlas's builds are **development distributions**: ad-hoc signed on macOS,
+unsigned elsewhere, not notarized, and not production-ready (phase0-spec
+§14; unchanged through Phase 2). They exist to prove that Atlas
 builds, installs, and runs on each OS. Don't hand them to people who
 can't work through the security prompts described below.
 
@@ -148,7 +149,7 @@ working GTK and graphics stack.
 smoke under Xvfb). Other distributions, Wayland sessions, and ARM aren't
 tested, and Atlas makes no claim of working on every distribution.
 
-## Not done in Phase 0
+## Not done yet (Phases 0 to 2)
 
 - Code signing and notarization (Apple Developer ID, Windows Authenticode).
   Notarization must review the `disable-library-validation` entitlement

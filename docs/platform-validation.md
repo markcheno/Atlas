@@ -1245,6 +1245,88 @@ its settings out of your own. Fixture: `just fixtures <scratch>/Books 100 0
    again.
 10. Switch the system between light and dark mode: both are readable.
 
+### Release DMG smoke (Slice 2.8)
+
+The Phase 2 close-out's macOS check of the CI-built 0.3.0 DMG against
+oMLX: Phase 1 without any AI service first, then the librarian.
+
+**Setup:**
+- **Scratch `HOME`:** start Atlas from Terminal with `HOME=<scratch>`, as
+  for Slice 1.8. A release build ignores `ATLAS_CONFIG_DIR`.
+- **The key:** the oMLX key you type goes into your login keychain under
+  Atlas's release name. Step 11 removes it.
+- **Fixture:** `just fixtures <scratch>/Books 100 0 4`, plus the spike
+  corpus's books and papers in `Books/from-the-corpus/`:
+  `spikes/extraction-bench/corpus/epub/*.epub` and
+  `spikes/extraction-bench/corpus/pdf/real/*.pdf`.
+- **oMLX:** running, with `Qwen3-Embedding-0.6B-8bit` and your chat model.
+
+1. **Without AI.**
+   - Copy `Atlas.app` out of the DMG and start it. It opens on Welcome,
+     with no account or AI step.
+   - Choose a scratch library folder and add `Books`, both in native
+     dialogs. The status line ends "Text up to date".
+   - Search `"Astronomy marker 60"` (quoted): `book 000060.epub`,
+     highlighted. Open it in Preview; Show in Finder.
+   - Library › Duplicates shows the six `Introduction.pdf` copies.
+   - The status line has no meaning line, and results have no "Similar
+     meaning". Search › Ask Atlas, asking anything: "Ask Atlas needs a chat
+     model" with **Set up AI models**.
+2. **The service.**
+   - Settings › AI Models: **Look for AI services on this computer** finds
+     oMLX (or Add a service… › oMLX). Type the key and **Test**: it lists
+     your models.
+   - Before you choose a model, the Embeddings role shows a Recommendation
+     card. It names a model and the oMLX steps, and downloads nothing.
+3. **The models.**
+   - Embeddings: `Qwen3-Embedding-0.6B-8bit`, Test: "Works for embeddings ·
+     1,024 dimensions", then Use. Note which dimensions the role line
+     shows; Atlas stores this model at 512.
+   - Chat: your model, Test, Use.
+4. **Indexing meaning.**
+   - The status line goes from "Indexing meaning · n of N files" to
+     "Meaning up to date · N files".
+   - Settings › Storage shows a Meaning index category, and the estimate
+     covers it.
+   - Optional, on a laptop: unplug while it indexes. "Paused indexing
+     meaning · On battery". Plug in and it carries on.
+5. **Search and Related.**
+   - Search `a bored child on a riverbank wanders into a strange
+     underground world`: an Alice book at the top, "Similar meaning".
+   - Details shows Related: other documents with where they match, never
+     the same file's copies. More like this on a result opens it.
+6. **Ask Atlas.** Search › Ask Atlas, `which book has a tutor who insists
+   that ours is the best of all possible worlds`:
+   - Waiting, then the answer with chips; it names Candide.
+   - Sources used lists every passage, the cited ones marked.
+   - A chip opens the details panel with Cited passage; Escape returns to
+     the chip.
+   - Ask again and Stop while it streams: "Stopped. The answer so far is
+     kept."
+   - Ask `how do I fix a flat bicycle tyre`: "Atlas found little…", and a
+     one-sentence answer with no chips.
+   - With VoiceOver (⌘F5): "Atlas is answering", then the answer read
+     once. A chip reads "Source n: title, location".
+7. **Privacy.**
+   - Settings › Privacy › **Disable all external AI**: the embedding
+     opt-in goes unavailable, and oMLX (this computer) still tests and
+     answers. Turn it off.
+   - Optional, with an internet profile as the chat model: "Send excerpts
+     to an internet service?" with the real sizes. Cancel sends nothing.
+8. **A model switch.**
+   - If oMLX serves a second embedding model, choose it for Embeddings
+     and confirm **Build a new index**. The line says "Rebuilding meaning
+     index · … search uses the previous index", and step 5's search still
+     finds Alice while it builds.
+   - Afterwards the old model's index is gone from Storage.
+   - Without a second model, write "not run".
+9. **Quit.** Cmd+Q. `pgrep -fl -- --extract-worker` prints nothing. Start
+   it again: the same library, "Meaning up to date", nothing read or
+   embedded again.
+10. **Light and dark:** both readable, the answer and its chips included.
+11. **Clean up:** Settings › AI Models › Remove the oMLX service, which
+    deletes its key. Then delete the scratch folders.
+
 ### Installers (Slice 0.8)
 
 1. Download the release artifact for the OS from a green CI run.

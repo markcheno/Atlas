@@ -1,6 +1,7 @@
-# Benchmarks (Phase 0)
+# Benchmarks
 
-These are measurements, not guarantees (phase0-spec §13). They describe
+These are measurements, not guarantees (phase0-spec §13, phase1-spec §13,
+phase2-spec §13). They describe
 the computers listed with each table, on the dates given. CI runners are
 shared virtual machines with noisy neighbours; use their numbers to compare
 operating systems and spot regressions, not as absolute speeds.
