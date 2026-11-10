@@ -1481,6 +1481,8 @@ The Ask Atlas screen arrives in Slice 2.7. Until then:
    the summary line gives the times and citation rates for
    [benchmarks](benchmarks.md#ask-atlas-slice-26). It builds its own
    scratch library from the corpus; your library isn't used.
+   *Run 2026-11-10 against oMLX with `Qwen3.8-27B-MLX-4bit`: 40 answers,
+   no invented citation, five empty answers (see benchmarks).*
 2. In Settings › Privacy, turn on **Disable all external AI**. "Allow
    embedding my library through an internet service" becomes unavailable.
    Test an internet service's connection in Settings › AI Models: it says

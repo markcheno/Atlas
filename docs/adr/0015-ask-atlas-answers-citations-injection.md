@@ -161,5 +161,15 @@ chose. Three things make that risky:
 - §7.7's "an Ask does not run while the chat provider is marked
   unreachable until Retry" is not built. Every Ask is an explicit action
   that reports its own failure, and the screen's Retry asks again.
+- **The first `just eval-ask`** (2026-11-10, oMLX, a 27B thinking model):
+  - no invented citation, and a relevant document among the sources for
+    39 of 40 questions;
+  - answers taking 1.5 to 4.5 minutes, mostly thinking;
+  - five answers spent the whole 4,096 tokens thinking and came back
+    empty;
+  - the weak-retrieval flag never fired.
+
+  These are open issues for the next slice
+  ([benchmarks](../benchmarks.md#ask-atlas-slice-26)).
 - The Ask Atlas screen (Slice 2.7) builds on `AskReply`, `SourceUsed` and
   `answer-stream`. Opening a citation uses the source's file and page.
