@@ -1309,6 +1309,25 @@ and read:
 6. Add a service at a LAN address and one at an internet address: the
    cards say "Another computer" and "Internet service".
 
+### Indexing meaning (Slice 2.3)
+
+1. With Ollama running and `qwen3-embedding:0.6b` pulled, add Ollama, choose
+   it under Models › Embeddings, Test, then Use. The status bar's third
+   line reads "Indexing meaning · X of N files", and Home says Atlas is
+   still indexing meaning.
+2. Unplug the power (a laptop): "Paused indexing meaning · On battery",
+   while reading text, if any, only slows. Plug it back in: indexing
+   resumes.
+3. Quit mid-way and relaunch: indexing continues where it stopped.
+4. Stop Ollama: after about a minute of retries, "Can't index meaning · AI
+   service not reachable" with Retry. Start Ollama, press Retry: indexing
+   finishes, "Meaning up to date · N files".
+5. Settings › Storage shows "Meaning index" with its size; Clean caches
+   leaves it.
+6. Add a service at an internet address and choose it for Embeddings: the
+   line says "Indexing meaning needs your permission" until Settings ›
+   Privacy allows it.
+
 ## Known platform notes
 
 - **Linux:** WebKitGTK 4.1 is required at runtime. CI builds on Ubuntu 24.04,

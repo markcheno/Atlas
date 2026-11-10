@@ -118,3 +118,15 @@ operation (`REPLAY_COST_DIVISOR = 20`, next to the rates in
 under the limit, but they write nothing to the catalog. At 500 entries a
 second, replaying 9,000 entries costs about 0.9 s instead of 18 s (P1-20,
 ADR 0005).
+
+## Amendment: a per-kind rule (Slice 2.3, 2026-11-09)
+
+The policy is still one decision for every job kind, with one exception.
+On battery, the embedding job **pauses** (pause reason `on_battery`) where
+cataloging and text extraction slow (product spec §9: bulk embedding
+pauses on battery). The job maps the policy's Slow-on-battery decision to
+a pause itself; the battery hysteresis is shared, so all kinds see the
+same 20%/25% thresholds. The embedding job also doesn't check that library
+folders are reachable, since its text comes from the catalog
+([ADR 0014](0014-the-embedding-job.md)).
+

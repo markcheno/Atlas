@@ -56,6 +56,7 @@ commands and added the native multi-folder picker.
 | Providers | `list_provider_profiles`, `save_provider_profile`, `delete_provider_profile`, `test_provider_connection`, `detect_local_providers` | **0.7 (working)** |
 | Model roles | `test_model_capability`, `get_model_roles`, `set_model_role`, `clear_model_role`, `get_model_recommendations` | **2.1 (working)** |
 | Text reading | `get_extraction_status`, `start_extraction` (pause, resume and cancel share the job commands) | **1.3 (working)** |
+| Meaning index | `get_embedding_status`, `start_embedding` (pause, resume/retry and cancel share the job commands) | **2.3 (working)** |
 | Search | `search_documents` | **1.4 (working)** |
 | Documents | `get_document_detail` (by file ID: a file that hasn't been read has no document yet) | **1.5 (working)** |
 | Duplicates | `list_duplicates` | **1.6 (working)** |
@@ -644,8 +645,10 @@ in [ADR 0013](adr/0013-embeddings-durable-index-disposable.md).
   f16, connectivity 16, expansion 128.
   - Searches and saves share a read lock; adds and removes take the write
     lock.
-  - Saves are atomic and generation-named: staged in `tmp/`, renamed into
-    `indexes/vectors/`, hashed, then recorded in the catalog.
+  - Saves are atomic and generation-named: staged in
+    `indexes/vectors/staging/`, renamed into `indexes/vectors/`, hashed, then
+    recorded in the catalog. A file with over 20% removed slots is rebuilt
+    when opened.
   - `open_index` loads a file only if its BLAKE3 matches the catalog, then
     reconciles it: it adds documents after its `seq` and removes
     tombstones. Otherwise it rebuilds from the catalog.
@@ -657,6 +660,26 @@ in [ADR 0013](adr/0013-embeddings-durable-index-disposable.md).
 - **Measured** at a million 1,024-dimension synthetic vectors: recall@10
   0.960, p95 0.82 ms, open to first answer 1.53 s, rebuild 54 s
   ([benchmarks](benchmarks.md#vector-index-slice-22)).
+- **The embedding job** (Slice 2.3, `embedding/job.rs`; rationale in
+  [ADR 0014](adr/0014-the-embedding-job.md)):
+  - `JobKind::Embed`, one job per folder. It sends only chunks whose text
+    has no vector, through the embedding role's service
+    (`embedding/client.rs`, OpenAI-compatible or Ollama).
+  - It writes each document in one transaction, guarded by a fingerprint
+    of its text, then adds its chunks to the in-memory index held by the
+    library's `VectorRegistry` (`embedding/registry.rs`).
+  - It pauses on battery. It backs off on network, timeout, 429 and 5xx
+    errors, then fails for a retry; a refused key, a missing model or
+    changed dimensions fail it for good.
+  - A model change (`embedding/models.rs`) builds a new index while the
+    old one serves, validates it, then retires the old one.
+  - Jobs are queued when a folder's text is read, when the library opens,
+    when the role or a service changes, when the privacy setting allows
+    it, and on "Index meaning now" (`embedding/triggers.rs`).
+  - Status: `embedding/status.rs`, the `embedding-status` event.
+- **Old catalogs** (`catalog/convert.rs`): a catalog with 4 KiB pages,
+  an embedding role and no vectors is rewritten with 16 KiB pages
+  (`VACUUM INTO`, then a rename) when its library opens.
 
 ## Build, CI and measurement
 
@@ -797,4 +820,5 @@ documents, and Ask Atlas with verified citations) is specified in
 [phase2-spec.md](phase2-spec.md). Slice 2.1 built the model roles and
 capability tests ([AI service connections](#ai-service-connections));
 Slice 2.2 the chunks, durable embeddings and the vector index
-([Embeddings and the vector index](#embeddings-and-the-vector-index)).
+([Embeddings and the vector index](#embeddings-and-the-vector-index));
+Slice 2.3 the embedding job that fills them.

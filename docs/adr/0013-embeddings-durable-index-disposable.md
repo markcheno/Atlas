@@ -149,6 +149,12 @@ index) plus the chunk row.
 
 ## Consequences
 
+- *Amended 2026-11-09 (Slice 2.3):* the items below for Slice 2.3 are done
+  ([ADR 0014](0014-the-embedding-job.md)). Pre-1.7 catalogs are converted
+  to 16 KiB pages before their first embedding. Saves are staged in
+  `indexes/vectors/staging/` instead of `tmp/`, which Clean caches empties.
+  Compaction happens when a file is opened, and `apply_tombstones` keeps
+  the in-memory index current with re-reads on other threads.
 - **Catalogs created before Slice 1.7 have 4 KiB pages,** and a page holds
   only one 2 KB vector: 4,294 bytes per vector, 1.7× more. Slice 2.3
   decides between converting such a catalog to 16 KiB pages before its
