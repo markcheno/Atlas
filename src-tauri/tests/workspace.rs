@@ -52,6 +52,7 @@ fn p0_02_create_then_reopen_after_restart() {
             appearance: AppearanceSettings {
                 theme: ThemePreference::Dark,
             },
+            ..Settings::default()
         })
         .unwrap();
         status.root_id.unwrap()

@@ -135,14 +135,69 @@ pub struct BackendInfo {
     pub dims: usize,
 }
 
-/// Why an embedding request produced no vectors. Slice 2.3 adds the
-/// provider's HTTP outcomes with the provider-backed backend.
+/// Why an embedding request produced no vectors (Slice 2.3, ADR 0014).
+/// Never carries the request or answer body.
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 pub enum EmbedError {
     #[error("the backend returned {got} vectors for {sent} inputs")]
     WrongCount { sent: usize, got: usize },
     #[error("the embedding backend is unavailable")]
     Unavailable,
+    /// Nothing answered, or the connection dropped.
+    #[error("the embedding service could not be reached")]
+    Network,
+    #[error("the embedding service took too long to answer")]
+    Timeout,
+    /// 429: try again after `retry_after` when the service says.
+    #[error("the embedding service asked Atlas to slow down")]
+    RateLimited {
+        retry_after: Option<std::time::Duration>,
+    },
+    /// 5xx: the service failed; it may say when to try again.
+    #[error("the embedding service failed (HTTP {status})")]
+    Server {
+        status: u16,
+        retry_after: Option<std::time::Duration>,
+    },
+    /// 401 or 403.
+    #[error("the embedding service refused the key")]
+    Auth,
+    #[error("the embedding service doesn't have this model")]
+    ModelNotFound,
+    /// 400, 413 or 422: the service refused this input.
+    #[error("the embedding service refused the request (HTTP {status})")]
+    BadRequest { status: u16 },
+    /// An answer of the wrong shape, too large, or not JSON.
+    #[error("the embedding service answered in an unexpected way")]
+    Protocol,
+    /// The model now returns vectors of another length.
+    #[error("the model returned {got} numbers per vector, not {expected}")]
+    WrongDimensions { expected: usize, got: usize },
+    /// The request was abandoned because the job is stopping.
+    #[error("the request was cancelled")]
+    Cancelled,
+}
+
+impl EmbedError {
+    /// Worth retrying after a pause: the service may recover.
+    pub fn is_transient(&self) -> bool {
+        matches!(
+            self,
+            Self::Network
+                | Self::Timeout
+                | Self::RateLimited { .. }
+                | Self::Server { .. }
+                | Self::Unavailable
+        )
+    }
+
+    /// The wait the service asked for, if any.
+    pub fn retry_after(&self) -> Option<std::time::Duration> {
+        match self {
+            Self::RateLimited { retry_after } | Self::Server { retry_after, .. } => *retry_after,
+            _ => None,
+        }
+    }
 }
 
 /// Turns text into vectors (Slice 2.2, ADR 0013). Exists because tests and

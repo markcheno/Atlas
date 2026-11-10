@@ -7,6 +7,7 @@ use crate::domain::dto::{
 use crate::domain::traits::ModelProvider;
 use crate::error::AtlasResult;
 use crate::infrastructure::http_probe::HttpModelProvider;
+use crate::services::embedding;
 use crate::services::providers::detect;
 use crate::services::providers::profiles::{self, Prepared};
 use crate::state::AppState;
@@ -29,7 +30,14 @@ pub async fn save_provider_profile(
 ) -> AtlasResult<ProviderProfile> {
     let vault = state.vault.clone();
     state
-        .with_workspace(move |ws| profiles::save(ws.require_open()?, &vault, profile))
+        .with_workspace(move |ws| {
+            let root = ws.require_open()?;
+            let saved = profiles::save(root, &vault, profile)?;
+            // A new address may move the service (this computer, another
+            // one, the internet), which decides whether embedding may run.
+            embedding::triggers::changed(root)?;
+            Ok(saved)
+        })
         .await
 }
 
@@ -38,7 +46,12 @@ pub async fn save_provider_profile(
 pub async fn delete_provider_profile(state: State<'_, AppState>, id: String) -> AtlasResult<()> {
     let vault = state.vault.clone();
     state
-        .with_workspace(move |ws| profiles::delete(ws.require_open()?, &vault, &id))
+        .with_workspace(move |ws| {
+            let root = ws.require_open()?;
+            profiles::delete(root, &vault, &id)?;
+            // Its roles went with it.
+            embedding::triggers::changed(root)
+        })
         .await
 }
 

@@ -62,6 +62,7 @@ fn no_command_is_a_stub() {
         include_str!("../src/commands/sources.rs"),
         include_str!("../src/commands/inventory.rs"),
         include_str!("../src/commands/extraction.rs"),
+        include_str!("../src/commands/embedding.rs"),
         include_str!("../src/commands/search.rs"),
         include_str!("../src/commands/documents.rs"),
         include_str!("../src/commands/storage.rs"),

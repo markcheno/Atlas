@@ -24,11 +24,13 @@ use crate::domain::dto::{
 use crate::infrastructure::clock::now_rfc3339;
 use crate::infrastructure::native_path;
 use crate::services::catalog::writer::CatalogHandle;
+use crate::services::embedding;
 use crate::services::jobs::{
-    self, Flow, JobProcessor, JobRow, ProcessorContext, ProcessorFactory, Signal,
+    self, Flow, JobProcessor, JobRow, JobWaker, ProcessorContext, ProcessorFactory, Signal,
 };
 use crate::services::sources;
 use crate::services::system::ResourceGovernor;
+use crate::services::workspace::settings;
 
 /// Debug builds only: no duty-cycle sleep between files (benchmarks).
 pub const UNTHROTTLED_ENV: &str = "ATLAS_EXTRACT_UNTHROTTLED";
@@ -162,6 +164,9 @@ pub struct ExtractProcessor {
     data_root: PathBuf,
     deps: ExtractionDeps,
     signal: Arc<Signal>,
+    /// Wakes the other kinds' runners: the embed job, once a folder's text
+    /// is read.
+    waker: JobWaker,
     processor: Box<dyn DocumentProcessor>,
     last_emit: Option<Instant>,
     current: Option<String>,
@@ -194,6 +199,7 @@ impl ExtractProcessor {
             data_root: dunce::canonicalize(&ctx.data_root).unwrap_or(ctx.data_root),
             deps,
             signal: ctx.signal,
+            waker: ctx.waker,
             last_emit: None,
             current: None,
         }
@@ -394,13 +400,23 @@ impl ExtractProcessor {
             if files.is_empty() {
                 // Tidy the text index for search before reporting done.
                 let _ = self.catalog.call(|c| db::merge_index(c, 20));
-                self.transition(
+                if self.transition(
                     &job.id,
                     JobState::Completed,
                     &[JobState::Running],
                     None,
                     None,
-                );
+                ) {
+                    // The folder's text is read: its meaning can be indexed.
+                    let allow = settings::read(&self.data_root)
+                        .privacy
+                        .allow_remote_embedding;
+                    let root_id = job.source_root_id.clone();
+                    let _ = self.catalog.call(move |c| {
+                        embedding::triggers::queue_root(c, &root_id, allow, &now_rfc3339())
+                    });
+                    self.waker.wake();
+                }
                 return Flow::Continue;
             }
 

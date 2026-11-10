@@ -71,6 +71,11 @@ pub const MIGRATIONS: &[Migration] = &[
         name: "embeddings",
         sql: include_str!("../../../migrations/0012_embeddings.sql"),
     },
+    Migration {
+        version: 13,
+        name: "embed_jobs",
+        sql: include_str!("../../../migrations/0013_embed_jobs.sql"),
+    },
 ];
 
 /// Highest catalog schema version this build can read and write.
@@ -331,7 +336,7 @@ mod tests {
                          VALUES (1, 'd', 0, 1, 'Page 1', 'one'), (2, 'd', 1, 2, 'Page 2', 'two');",
                 )
                 .unwrap();
-                assert_eq!(migrate(c, "t2").unwrap(), 12);
+                assert_eq!(migrate_to(c, 12, "t2").unwrap(), 12);
                 let passages: i64 = c
                     .query_row("SELECT COUNT(*) FROM passages", [], |r| r.get(0))
                     .unwrap();
@@ -401,6 +406,36 @@ mod tests {
                     )
                     .unwrap();
                 assert_eq!(left, (0, 0), "a model's vectors go with it");
+            })
+            .unwrap();
+    }
+
+    #[test]
+    fn version_13_adds_the_embed_job_counters() {
+        use crate::services::catalog::writer::CatalogWriter;
+
+        let dir = tempfile::tempdir().unwrap();
+        let writer = CatalogWriter::open(&dir.path().join("catalog.sqlite")).unwrap();
+        writer
+            .call(|c| {
+                assert_eq!(migrate_to(c, 12, "t").unwrap(), 12);
+                c.execute_batch(
+                    "INSERT INTO workspace (id, name, created_at) VALUES ('w', 'W', 't');
+                     INSERT INTO source_roots (id, workspace_id, path_bytes, display_path, created_at)
+                         VALUES ('r', 'w', x'00', '/b', 't');
+                     INSERT INTO jobs (id, source_root_id, state, kind, created_at, updated_at)
+                         VALUES ('j', 'r', 'completed', 'extract', 't', 't');",
+                )
+                .unwrap();
+                assert_eq!(migrate(c, "t2").unwrap(), 13);
+                let counters: (i64, i64, i64) = c
+                    .query_row(
+                        "SELECT embedded_chunks, sent_chars, service_ms FROM jobs WHERE id = 'j'",
+                        [],
+                        |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
+                    )
+                    .unwrap();
+                assert_eq!(counters, (0, 0, 0), "existing jobs start at zero");
             })
             .unwrap();
     }

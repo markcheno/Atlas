@@ -8,6 +8,7 @@
 
 pub mod app;
 pub mod documents;
+pub mod embedding;
 pub mod extraction;
 pub mod inventory;
 pub mod library;
@@ -44,6 +45,8 @@ pub const COMMAND_NAMES: &[&str] = &[
     "get_inventory_status",
     "start_extraction",
     "get_extraction_status",
+    "start_embedding",
+    "get_embedding_status",
     "search_documents",
     "get_document_detail",
     "list_duplicates",

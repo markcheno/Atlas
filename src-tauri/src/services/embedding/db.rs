@@ -415,3 +415,194 @@ pub fn record_save(
     )?;
     tx.commit()
 }
+
+// ------------------------------------------------------------ the job (2.3)
+
+/// Attempts after which a failed document waits for a new model or a
+/// re-read instead of being tried again.
+pub const MAX_ATTEMPTS: i64 = 3;
+
+/// A document waiting to be embedded for a model in one library folder.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct WaitingDocument {
+    pub rowid: i64,
+    pub id: String,
+}
+
+/// SQL: a document (alias `d`) the model still needs: read, with no
+/// finished row, or a failed one under [`MAX_ATTEMPTS`].
+const NEEDS_EMBEDDING: &str = "d.state = 'done'
+     AND NOT EXISTS (SELECT 1 FROM document_embeddings de
+                     WHERE de.document_id = d.id AND de.model_id = :model
+                       AND (de.status IN ('done', 'empty') OR de.attempts >= 3))";
+
+/// Up to `limit` documents with an available file in `root_id` that the
+/// model still needs, after `after` (document rowid), in rowid order.
+pub fn next_documents(
+    conn: &Connection,
+    root_id: &str,
+    model_id: &str,
+    after: i64,
+    limit: usize,
+) -> rusqlite::Result<Vec<WaitingDocument>> {
+    let mut stmt = conn.prepare_cached(&format!(
+        "SELECT d.rowid, d.id FROM documents d
+         WHERE d.rowid > :after AND {NEEDS_EMBEDDING}
+           AND EXISTS (SELECT 1 FROM file_instances f
+                       WHERE f.document_id = d.id AND f.source_root_id = :root
+                         AND f.availability = 'available')
+         ORDER BY d.rowid LIMIT :limit"
+    ))?;
+    stmt.query_map(
+        rusqlite::named_params! {
+            ":after": after, ":model": model_id, ":root": root_id, ":limit": limit as i64,
+        },
+        |r| {
+            Ok(WaitingDocument {
+                rowid: r.get(0)?,
+                id: r.get(1)?,
+            })
+        },
+    )?
+    .collect()
+}
+
+/// Whether `root_id` has a document the model still needs.
+pub fn has_waiting(conn: &Connection, root_id: &str, model_id: &str) -> rusqlite::Result<bool> {
+    Ok(!next_documents(conn, root_id, model_id, 0, 1)?.is_empty())
+}
+
+/// What a document's text looked like when the job read it: its update
+/// time and its passages' ids. A re-read in between changes it (ADR 0014).
+pub fn fingerprint(conn: &Connection, document_id: &str) -> rusqlite::Result<String> {
+    conn.query_row(
+        "SELECT d.updated_at || '|' ||
+                COALESCE((SELECT GROUP_CONCAT(p.id) FROM
+                            (SELECT id FROM passages WHERE document_id = d.id ORDER BY ordinal) p),
+                         '')
+         FROM documents d WHERE d.id = ?1",
+        [document_id],
+        |r| r.get(0),
+    )
+    .optional()
+    .map(Option::unwrap_or_default)
+}
+
+/// Records that a document couldn't be embedded for the model, inside the
+/// caller's transaction: one more attempt, a new seq.
+pub fn mark_failed(
+    tx: &Transaction<'_>,
+    document_id: &str,
+    model_id: &str,
+    reason: &str,
+    now: &str,
+) -> rusqlite::Result<()> {
+    tx.execute(
+        "INSERT INTO document_embeddings (document_id, model_id, seq, status, reason, chunk_count,
+             attempts, updated_at)
+         VALUES (?1, ?2, (SELECT COALESCE(MAX(seq), 0) + 1 FROM document_embeddings
+                          WHERE model_id = ?2),
+                 'failed', ?3, 0, 1, ?4)
+         ON CONFLICT (document_id, model_id) DO UPDATE SET
+             seq = excluded.seq, status = 'failed', reason = excluded.reason,
+             chunk_count = 0, attempts = document_embeddings.attempts + 1,
+             updated_at = excluded.updated_at",
+        params![document_id, model_id, reason, now],
+    )?;
+    Ok(())
+}
+
+/// Queues an embed job for `root_id` if the model has documents waiting
+/// there and the folder has no active embed job. Returns whether it did.
+pub fn enqueue_if_waiting(
+    conn: &Connection,
+    root_id: &str,
+    model_id: &str,
+    now: &str,
+) -> rusqlite::Result<bool> {
+    use crate::domain::dto::JobKind;
+    use crate::services::jobs::db::{active_for_root, insert_job};
+    if !has_waiting(conn, root_id, model_id)?
+        || active_for_root(conn, root_id, JobKind::Embed)?.is_some()
+    {
+        return Ok(false);
+    }
+    insert_job(
+        conn,
+        &uuid::Uuid::new_v4().to_string(),
+        root_id,
+        JobKind::Embed,
+        now,
+    )?;
+    Ok(true)
+}
+
+/// Adds to an embed job's counters.
+pub fn add_counters(
+    conn: &Connection,
+    job_id: &str,
+    chunks: u64,
+    chars: u64,
+    service_ms: u64,
+) -> rusqlite::Result<()> {
+    conn.execute(
+        "UPDATE jobs SET embedded_chunks = embedded_chunks + ?2, sent_chars = sent_chars + ?3,
+             service_ms = service_ms + ?4 WHERE id = ?1",
+        params![job_id, chunks as i64, chars as i64, service_ms as i64],
+    )?;
+    Ok(())
+}
+
+/// The documents the model has finished with (embedded, empty or failed
+/// for good): a model's coverage, for comparing an old and a new one.
+pub fn covered_documents(conn: &Connection, model_id: &str) -> rusqlite::Result<u64> {
+    conn.query_row(
+        "SELECT COUNT(*) FROM document_embeddings
+         WHERE model_id = ?1 AND (status IN ('done', 'empty') OR attempts >= 3)",
+        [model_id],
+        |r| r.get::<_, i64>(0).map(|n| n as u64),
+    )
+}
+
+/// Up to `limit` random (chunk id, vector) pairs of the model's done
+/// documents: a validation sample.
+pub fn sample_vectors(
+    conn: &Connection,
+    model_id: &str,
+    dims: usize,
+    limit: usize,
+) -> rusqlite::Result<Vec<(u64, Vec<f32>)>> {
+    let mut stmt = conn.prepare_cached(
+        "SELECT c.id, e.vector FROM document_embeddings d
+         JOIN chunks c ON c.document_id = d.document_id
+         JOIN embeddings e ON e.model_id = d.model_id AND e.text_hash = c.text_hash
+         WHERE d.model_id = ?1 AND d.status = 'done'
+         ORDER BY random() LIMIT ?2",
+    )?;
+    let rows = stmt.query_map(params![model_id, limit as i64], |r| {
+        Ok((r.get::<_, i64>(0)? as u64, r.get::<_, Vec<u8>>(1)?))
+    })?;
+    decode(rows, dims)
+}
+
+/// Deletes up to `limit` of a retired or failed model's rows (embeddings,
+/// then document states). Returns how many went; 0 means none are left.
+pub fn delete_model_rows(
+    conn: &Connection,
+    model_id: &str,
+    limit: usize,
+) -> rusqlite::Result<usize> {
+    let n = conn.execute(
+        "DELETE FROM embeddings WHERE id IN
+             (SELECT id FROM embeddings WHERE model_id = ?1 LIMIT ?2)",
+        params![model_id, limit as i64],
+    )?;
+    if n > 0 {
+        return Ok(n);
+    }
+    conn.execute(
+        "DELETE FROM document_embeddings WHERE rowid IN
+             (SELECT rowid FROM document_embeddings WHERE model_id = ?1 LIMIT ?2)",
+        params![model_id, limit as i64],
+    )
+}

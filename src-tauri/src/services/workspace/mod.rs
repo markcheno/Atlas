@@ -35,7 +35,7 @@ use crate::infrastructure::fsutil::{clear_dir, sync_dir};
 use crate::infrastructure::native_path;
 use crate::services::catalog::reader::CatalogReader;
 use crate::services::catalog::{self, CatalogWriter};
-use crate::services::embedding::registry::VectorRegistry;
+use crate::services::embedding::{self, registry::VectorRegistry};
 use crate::services::extraction;
 use crate::services::inventory::{self, InventoryDeps};
 use crate::services::jobs::{self, JobRunners, ProcessorFactory};
@@ -82,6 +82,10 @@ impl OpenRoot {
     /// The library's vector indexes (Slice 2.3).
     pub fn vectors(&self) -> &Arc<VectorRegistry> {
         &self.vectors
+    }
+    /// The library's preferences as last saved.
+    pub fn settings(&self) -> &Settings {
+        &self.settings
     }
     /// Read-only connections for UI queries.
     pub fn reader(&self) -> &CatalogReader {
@@ -267,7 +271,12 @@ impl Workspace {
             return Err(AtlasError::NoDataRoot);
         };
         settings::write(&root.path, &new)?;
+        let privacy_changed = root.settings.privacy != new.privacy;
         root.settings = new.clone();
+        if privacy_changed {
+            // Allowing an internet service lets embedding start (Slice 2.3).
+            embedding::triggers::changed(root)?;
+        }
         Ok(new)
     }
 
@@ -348,13 +357,17 @@ impl Workspace {
         // Interrupted jobs become queued; a user's pause is kept. Folders
         // never scanned are queued once.
         let now = now_rfc3339();
+        let allow_remote = settings::read(path).privacy.allow_remote_embedding;
         catalog
             .call(move |c| {
                 jobs::db::requeue_interrupted(c, &now)?;
                 inventory::db::queue_never_scanned(c, &now)?;
                 // Files still waiting for their text, including ones read
                 // by an older extractor (phase1-spec §7.1).
-                extraction::db::queue_pending(c, &now)
+                extraction::db::queue_pending(c, &now)?;
+                // Text waiting for its meaning (Slice 2.3).
+                embedding::models::sync(c, &now)?;
+                embedding::triggers::queue_waiting(c, allow_remote, &now)
             })?
             .map_err(AtlasError::db("recover interrupted cataloging"))?;
         // Rows cataloged before search keys existed (Slice 0.5).

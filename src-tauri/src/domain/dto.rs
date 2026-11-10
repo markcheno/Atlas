@@ -500,6 +500,90 @@ pub struct ExtractionOverview {
     pub scanning: bool,
 }
 
+// ------------------------------------------------------------- embedding
+
+/// Files with text and where they stand for the active embedding model
+/// (phase2-spec §5.2). Counts are files: copies count separately, as in
+/// the reading counts. Files without text are never waiting for meaning.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct EmbeddingCounts {
+    pub indexed: u32,
+    pub waiting: u32,
+    /// Files whose text the model refused, after every attempt.
+    pub failed: u32,
+    pub total: u32,
+}
+
+/// One embed job (one library folder).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct EmbeddingStatus {
+    pub job_id: RecordId,
+    pub source_root_id: RecordId,
+    pub source_root_display_path: String,
+    pub state: JobState,
+    pub pause_reason: Option<PauseReason>,
+    pub throttle_reason: Option<ThrottleReason>,
+    /// A fixed code: `provider_unreachable`, `provider_auth`,
+    /// `model_not_found`, `model_changed`, `address_rejected`.
+    pub last_error: Option<String>,
+    /// Chunks sent to the service, their characters, and the time spent
+    /// waiting for it, by this job.
+    #[ts(type = "number")]
+    pub embedded_chunks: u64,
+    #[ts(type = "number")]
+    pub sent_chars: u64,
+    #[ts(type = "number")]
+    pub service_ms: u64,
+}
+
+/// The model the job fills.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct EmbeddingModelInfo {
+    pub name: String,
+    pub dims: u32,
+    /// The service's label and place, when it still exists.
+    pub profile_label: Option<String>,
+    pub location: Option<ProviderLocation>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct RootEmbeddingSummary {
+    pub source_root_id: RecordId,
+    pub counts: EmbeddingCounts,
+    pub active_job_id: Option<RecordId>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct EmbeddingOverview {
+    /// The job to show: running, then policy-paused, then paused by the
+    /// user, then retrying, then queued.
+    pub active: Option<EmbeddingStatus>,
+    pub queued_jobs: u32,
+    pub counts: EmbeddingCounts,
+    /// `None` until an embedding model is chosen.
+    pub model: Option<EmbeddingModelInfo>,
+    /// A new model is being filled while the previous one serves search.
+    pub rebuilding: bool,
+    /// No embedding model is chosen.
+    pub needs_model: bool,
+    /// The embedding service is on the internet and embedding the library
+    /// through it isn't allowed in Settings › Privacy.
+    pub needs_permission: bool,
+    pub roots: Vec<RootEmbeddingSummary>,
+    /// Text is still being read, so totals may grow.
+    pub reading: bool,
+}
+
 // ------------------------------------------------------------- documents
 
 /// Where a document's displayed title came from (phase1-spec P1-18).
@@ -1212,4 +1296,16 @@ pub struct AppearanceSettings {
 #[ts(export)]
 pub struct Settings {
     pub appearance: AppearanceSettings,
+    pub privacy: PrivacySettings,
+}
+
+/// Settings › Privacy (phase2-spec §5.7). Slice 2.3 has one choice; the
+/// disclosure and "Disable all external AI" arrive in Slice 2.6.
+#[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase", default)]
+#[ts(export)]
+pub struct PrivacySettings {
+    /// Embedding the library through an internet service (off by default).
+    /// Services on this computer or another one need no permission.
+    pub allow_remote_embedding: bool,
 }

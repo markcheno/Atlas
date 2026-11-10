@@ -78,7 +78,13 @@ pub enum RebuildReason {
     LoadFailed,
     WrongDimensions,
     TooFarBehind,
+    /// More than [`COMPACT_ABOVE`] of the file's slots hold removed vectors.
+    Compaction,
 }
+
+/// The share of removed vectors in a saved file above which opening it
+/// rebuilds into a fresh one (phase2-spec §7.3).
+pub const COMPACT_ABOVE: f64 = 0.2;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Opened {
@@ -257,6 +263,25 @@ impl VectorIndex {
     }
     pub fn memory_usage(&self) -> usize {
         self.read().index.memory_usage()
+    }
+
+    /// Removes the chunks deleted since the last tombstone this index
+    /// applied (a re-read on another thread deletes chunks). Returns how
+    /// many it removed.
+    pub fn apply_tombstones(&self, conn: &Connection) -> AtlasResult<usize> {
+        let through = self.read().tombstones_through;
+        let tombstones = db::tombstones_after(conn, through)
+            .map_err(AtlasError::db("read the meaning index rows"))?;
+        let Some((last, _)) = tombstones.last() else {
+            return Ok(0);
+        };
+        let keys: Vec<u64> = tombstones.iter().map(|(_, k)| *k).collect();
+        let removed = self
+            .remove(&keys)
+            .map_err(AtlasError::io("update the meaning index"))?;
+        let mut inner = self.write();
+        inner.tombstones_through = inner.tombstones_through.max(*last);
+        Ok(removed)
     }
 
     /// Records that the index now holds every document up to `seq`.
@@ -498,6 +523,12 @@ fn load_saved(paths: &VectorPaths, model: &EmbeddingModel) -> Result<VectorIndex
         Err(_) => return Err(RebuildReason::LoadFailed),
         Ok(h) if h != expected => return Err(RebuildReason::HashMismatch),
         Ok(_) => {}
+    }
+    if let Some(p) = path_for_native_io(&file)
+        && let Ok(head) = Index::metadata(p)
+        && head.count_deleted as f64 > COMPACT_ABOVE * head.count_present.max(1) as f64
+    {
+        return Err(RebuildReason::Compaction);
     }
     let index = read_index(&file, model.dims).map_err(|_| RebuildReason::LoadFailed)?;
     if index.dimensions() != model.dims {
