@@ -1096,7 +1096,7 @@ reference machine twice:
 
 Both passed: hybrid hit@5 0.950 on the vague set (text only 0.875), and
 Phase 1's set 40/40 ([benchmarks](benchmarks.md#meaning-search-slice-24)).
-P2-18 ran locally on the 30k text fixture (below the benchmarks table).
+P2-18 ran locally on the 30k text fixture: hybrid search p95 228 ms while embedding 733,668 chunks, under the 250 ms target.
 
 ## Manual checklist for Windows and Linux
 

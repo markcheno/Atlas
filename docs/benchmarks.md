@@ -598,6 +598,19 @@ is no separate exact-search path for small scopes.
 | Fixture | Machine | Documents | Chunks | Chunks/s | Bytes per vector | File ÷ raw | Save | Hybrid p50 / p95 / max |
 | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | --- |
 | 1k text | M5 Pro | 1,001 | 24,606 | 408 | 2,528 | 0.536 | 98 ms | 60 / 85 / 101 ms |
-<!-- p2-18-30k -->
+| 30k text | M5 Pro | 30,001 | 733,668 | 178 | 2,597 | 0.536 | 1,864 ms | 145 / **228** / 813 ms |
+
+**P2-18 holds:** hybrid search p95 is 228 ms while the embedding job fills
+the 30k text fixture, under the 250 ms target.
+
+- **The run:** the job embedded 733,668 chunks in 69 minutes, slower as
+  the index grew and with searches every 200 ms. The catalog grew 60.6 MiB
+  per 1,000 documents, and the index file reached 1.5 GB (1,024 dimensions;
+  Qwen3-Embedding is now stored at 512, half that).
+- **The slowest search (813 ms)** coincided with the job holding the index
+  for its adds. Searches wait for adds and removes, not for saves
+  (ADR 0013).
+- **The fake answers at once,** so the job's pace here is Atlas's own work.
+  With oMLX the service sets it (about 72 chunks/s, Slice 2.3).
 
 <!-- results:end -->
