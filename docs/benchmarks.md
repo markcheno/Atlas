@@ -648,7 +648,73 @@ It asserts only that no invented citation reaches the answer (spec §13's
 citation and dropped-citation rates).
 
 <!-- ask-eval -->
-*Pending the owner's run against oMLX.*
+**The owner's run** (2026-11-10, release build, the reference machine):
+
+- **Services:** oMLX for both. Embedding through `Qwen3-Embedding-0.6B-8bit`
+  (the corpus took 35.1 s). Answers through `Qwen3.8-27B-MLX-4bit`, a
+  thinking model, with Atlas's defaults: at most 4,096 tokens, temperature
+  0.2, thinking hidden.
+- **The run:** 40 questions, one after another, 5,572 s in all.
+
+| Measure | Result |
+| --- | ---: |
+| First word, p50 / p95 | 88.5 s / 226.9 s |
+| Whole answer, p50 / p95 | 118.9 s / 270.3 s |
+| Questions with a relevant document among the sources | 39 / 40 |
+| Sources per question | 12.9 on average (5 to 15) |
+| Citation rate (cited ÷ supplied) | 0.20 (101 / 514) |
+| Invented citations | **0** |
+| Flagged as weak retrieval | 0 |
+| Answers with no text at all | **5** (v04, v13, v19, v29, v35) |
+| Answers saying the excerpts don't cover the question | 8 |
+
+What the run shows:
+
+- **Retrieval is good; citations are honest.** A relevant document was
+  among the sources for 39 questions. The model never cited a number it
+  wasn't given, so the parser had nothing to remove.
+- **The time is mostly thinking.** The first word waits until the model
+  stops reasoning. A source-heavy prompt of about 6,000 tokens plus up to
+  4,096 tokens of thinking, at about 15 tokens/s, gives the 1.5 to 4.5
+  minutes measured. That is too slow for the screen.
+- **Five answers came back empty.** Each took 264 to 271 s, about 4,096
+  tokens at that rate: the model spent the whole allowance thinking and
+  never wrote an answer. The engine reported these as `done` with no text,
+  which the screen must not show as an answer. (v34 nearly did the same:
+  246 s thinking, 15 s writing.)
+- **"Not covered" answers cite everything.** When the model says the
+  excerpts don't answer, it sometimes cites every source (v09 11 of 11,
+  v12 14 of 14, v15 11 of 13). That inflates the citation rate and is
+  wrong on screen.
+- **The right document, the wrong passage.** Eight answers said the
+  excerpts don't cover the question although the relevant document was
+  there. For example, Candide was sent, but not its earthquake. For the
+  道德經 the excerpt sent was the Project Gutenberg licence text.
+- **The weak-retrieval flag never fired.** With 8 documents giving 10 to 15
+  sources, "fewer than 3" can't happen. Every question here also has some
+  document with every word, or a meaning match above the margin. As
+  defined, the flag doesn't tell a covered question from an uncovered one.
+- **Formatting.** Six answers used Markdown emphasis (`*Title*`,
+  `**FOXDEN**`) despite "plain text".
+- **Words run together.** Eight of the 35 answers' first lines have two
+  words joined (`sorrowover`, `haslittle`, `FAIRservices`). Atlas's
+  pipeline keeps every space: the citation parser's tests split text at
+  every point, and the think filter and the 50 ms joining only append. So
+  the space is most likely lost in the service's streaming. This is to be
+  confirmed against a raw stream.
+
+**Slice 2.6.1** answers these findings ([ADR 0015](adr/0015-ask-atlas-answers-citations-injection.md)):
+
+- thinking is asked to be off;
+- an answer with no text is the error `no_answer`;
+- a "not covered" answer cites nothing;
+- Project Gutenberg's header and licence are cut from excerpts;
+- weak retrieval goes by the meaning margin alone, which `just eval-ask` now
+  prints for each question.
+
+*The run after Slice 2.6.1 is pending.* If answers are still slow with
+thinking off, the model is the next lever: about 17 tokens/s is this
+machine's ceiling for a 27B model.
 
 CI has no model. There, the engine runs against a scripted service
 streaming canned answers (`tests/answers.rs`, P2-13 to P2-16).

@@ -749,14 +749,20 @@ the screen is Slice 2.7) and `services/providers/privacy.rs`; rationale in
 - **Retrieve** (`retrieve.rs`, `search::retrieve`): hybrid search's best 8
   documents. Excerpts come from the best meaning chunk with its neighbours,
   and from the text around the first word match. About 24,000 characters
-  in all, filled round-robin, at most 3,000 each.
+  in all, filled round-robin, at most 3,000 each. Project Gutenberg's
+  header and licence are cut out.
+  - `weak`: fewer than 3 sources, or the best meaning match under the
+    floor + 0.10.
 - **Prompt** (`prompt.rs`): a fixed system message, then one user message
   of `<source id="n" title="…" location="…">` blocks and the
   `<question>`. Every `<` and `>` inside them is escaped.
 - **Stream** (`stream.rs`): OpenAI-compatible SSE or Ollama NDJSON from the
   chat role's service. 120 s to the first piece, 60 s of silence, 1 MiB of
-  answer. Thinking is dropped and reported once. Stop or a new question
-  aborts the request.
+  answer. Thinking is asked to be off: Ollama's `think: false`, and
+  `chat_template_kwargs.enable_thinking: false` for a service that isn't
+  on the internet. Thinking that comes anyway is dropped and reported
+  once. An answer with no text ends in `error` `no_answer`. Stop or a new
+  question aborts the request.
 - **Cite** (`cite.rs`): `[n]` is checked as it streams. Fragments are held
   until they resolve, invented numbers are removed and counted, and
   `citation` events mark first uses.

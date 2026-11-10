@@ -29,8 +29,8 @@ use std::time::{Duration, Instant};
 use rusqlite::{Connection, OptionalExtension};
 
 use crate::domain::dto::{
-    AnswerEvent, AnswerStep, AskQuery, AskReply, AskStarted, DisclosureNeeded, PrivacySettings,
-    ProviderLocation, SearchQuery,
+    AnswerErrorCode, AnswerEvent, AnswerStep, AskQuery, AskReply, AskStarted, DisclosureNeeded,
+    PrivacySettings, ProviderLocation, SearchQuery,
 };
 use crate::error::{AtlasError, AtlasResult};
 use crate::services::catalog::reader::CatalogReader;
@@ -173,6 +173,7 @@ pub fn ask(deps: &AskDeps<'_>, query: &AskQuery) -> AtlasResult<AskReply> {
         base: endpoint.base,
         key,
         model: role.model,
+        nearby: location != ProviderLocation::Internet,
     };
     let answer_id = uuid::Uuid::new_v4().to_string();
     let weak = retrieve::weak(
@@ -245,7 +246,7 @@ fn answer(
             }
         }
         Piece::Text(t) => {
-            any_text = true;
+            any_text |= !t.trim().is_empty();
             let outs = cite.feed(&t);
             flush(&mut held, outs, false);
         }
@@ -253,6 +254,20 @@ fn answer(
     });
     match ended {
         Ended::Stopped => emit(AnswerStep::Stopped),
+        // A thinking model can spend its whole allowance reasoning: that
+        // is no answer, not an empty one.
+        Ended::Finished if !any_text => emit(AnswerStep::Error {
+            code: AnswerErrorCode::NoAnswer,
+            message: if said_thinking {
+                "The model spent its whole allowance thinking and wrote no answer."
+            } else {
+                "The model finished without writing an answer."
+            }
+            .to_owned(),
+            partial: false,
+            cited: Vec::new(),
+            dropped: 0,
+        }),
         Ended::Finished => {
             let outs = cite.finish();
             flush(&mut held, outs, true);

@@ -599,6 +599,26 @@ Do **not** add usearch, chunking or any embedding table before Slice 2.1's gate 
   in `tests/semantic_eval.rs` beside the P2-17 gate, sharing its corpus
   setup.
 
+**2026-11-10, amended during Slice 2.6.1** (after the first `just
+eval-ask`; [ADR 0015](adr/0015-ask-atlas-answers-citations-injection.md),
+[benchmarks](benchmarks.md#ask-atlas-slice-26)):
+
+- **Thinking is turned off** (product-owner decision, reversing "hidden"
+  as the default). Ollama gets `think: false`. A service not on the
+  internet gets `chat_template_kwargs.enable_thinking: false`. Thinking
+  that comes anyway is still hidden.
+- **`no_answer`**, a new `error` code: the service finished with no answer
+  text (a thinking model out of tokens).
+- **Citations:** cite only the sources that support a statement, and
+  nothing when saying the excerpts don't cover the question.
+- **Excerpts leave out Project Gutenberg's header and licence.**
+- **Weak retrieval** goes by the meaning margin alone when meaning search
+  ran. A document with every word counts only without it.
+- **`just eval-ask`** needs fewer variables: the chat model uses the
+  embedding service and key unless told otherwise. It prints each
+  question's margin and the empty and uncited answers, and writes the
+  whole answers to `target/tmp/eval-ask-answers.md`.
+
 ### Primary reference documentation (verify current versions at implementation time)
 
 - usearch (Rust): <https://docs.rs/usearch/latest/usearch/> and <https://github.com/unum-cloud/usearch>
