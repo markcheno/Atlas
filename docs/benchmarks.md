@@ -600,6 +600,22 @@ is no separate exact-search path for small scopes.
 | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | --- |
 | 1k text | M5 Pro | 1,001 | 24,606 | 408 | 2,528 | 0.536 | 98 ms | 60 / 85 / 101 ms |
 | 30k text | M5 Pro | 30,001 | 733,668 | 178 | 2,597 | 0.536 | 1,864 ms | 145 / **228** / 813 ms |
+| 1k text | macOS runner | 1,001 | 24,606 | 142 | 2,567 | 0.536 | 181 ms | 148 / 218 / 282 ms |
+| 1k text | Windows runner | 1,001 | 24,606 | 282 | 2,609 | 0.536 | 415 ms | 54 / 65 / 82 ms |
+| 1k text | Linux runner | 1,001 | 24,606 | 365 | 2,564 | 0.536 | 102 ms | 58 / 88 / 100 ms |
+
+The runners' rows are from CI run
+[42909699433](https://github.com/markcheno/Atlas/actions/runs/42909699433)
+(Slice 2.8, the bench job). They also measured:
+
+| Runner | Catalog growth per 1,000 documents | Status events per second | Related p95 (cold) |
+| --- | ---: | ---: | ---: |
+| macOS | 60.2 MiB | 2.7 | 5.9 ms |
+| Windows | 61.2 MiB | 1.9 | 3.4 ms |
+| Linux | 60.1 MiB | 3.4 | 4.2 ms |
+
+The status line's event rate stays at a few a second, as the job's
+coalescing intends.
 
 **P2-18 holds:** hybrid search p95 is 228 ms while the embedding job fills
 the 30k text fixture, under the 250 ms target.
