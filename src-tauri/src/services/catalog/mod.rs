@@ -6,6 +6,7 @@
 //! 0.5, read-only query connections in 0.6.
 
 pub mod codec;
+pub mod convert;
 pub mod migrations;
 pub mod reader;
 pub mod repository;

@@ -156,6 +156,38 @@ impl Workspace {
         self.state = State::NotConfigured;
     }
 
+    /// Closes the open library and opens it again, for example to convert
+    /// its catalog's pages (Slice 2.3). Problems become the reported status,
+    /// as at startup.
+    pub fn reopen(&mut self) -> DataRootStatus {
+        let State::Open(root) = &self.state else {
+            return self.status();
+        };
+        let (path, display, root_id) = (
+            root.path.clone(),
+            root.display.clone(),
+            root.manifest.root_id.clone(),
+        );
+        // Dropping the root stops its jobs and closes the catalog.
+        self.state = State::NotConfigured;
+        self.state = match self.open_existing(&path) {
+            Ok(root) => State::Open(Box::new(root)),
+            Err(err) => State::Unavailable {
+                state: state_for(&err),
+                display,
+                root_id: Some(root_id),
+                problem: err.payload(),
+            },
+        };
+        self.status()
+    }
+
+    /// Whether the open library's catalog would be converted on reopening.
+    pub fn wants_page_conversion(&self) -> bool {
+        self.open_root()
+            .is_some_and(|root| catalog::convert::wanted(&root.path.join(CATALOG)))
+    }
+
     /// Reopens the remembered root, if any. Never fails: problems become
     /// the reported status so the UI can offer recovery.
     pub fn startup(&mut self) {
@@ -336,6 +368,16 @@ impl Workspace {
             return Err(AtlasError::DataRootInvalid {
                 reason: "its catalog is missing",
             });
+        }
+        // A catalog with 4 KiB pages gets 16 KiB ones before its first
+        // embedding (Slice 2.3), while nothing else has it open. Without
+        // room for the copy it stays as it is.
+        if catalog::convert::wanted(&catalog_path) {
+            let needed = catalog::convert::size(&catalog_path) / 5 * 6;
+            let room = self.volumes.inspect(path).map(|v| v.free_bytes);
+            if room.is_ok_and(|free| free.is_some_and(|f| f >= needed)) {
+                catalog::convert::to_large_pages(&catalog_path, &path.join(TMP))?;
+            }
         }
         let (catalog, version) = catalog::open(&catalog_path, now_rfc3339())?;
 

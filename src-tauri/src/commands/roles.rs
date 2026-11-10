@@ -81,6 +81,13 @@ pub async fn set_model_role(
             let root = ws.require_open()?;
             let roles = roles::set(root, role, &profile_id, &model_id, &result)?;
             embedding::triggers::changed(root)?;
+            // A first embedding model in a catalog with 4 KiB pages: reopen
+            // the library, which converts it before anything is embedded
+            // (the UI says it is preparing while this command runs).
+            if role == AiRole::Embedding && ws.wants_page_conversion() {
+                ws.reopen();
+                ws.require_open()?;
+            }
             Ok(roles)
         })
         .await
