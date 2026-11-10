@@ -563,6 +563,42 @@ Do **not** add usearch, chunking or any embedding table before Slice 2.1's gate 
 - **`limit` is optional** in `get_related_documents`: 10 by default, at
   most 20.
 
+**2026-11-10, amended during Slice 2.6** ([ADR 0015](adr/0015-ask-atlas-answers-citations-injection.md)):
+
+- **Thinking is hidden** (product-owner decision). Reasoning fields and a
+  leading inline `<think>` block are dropped, and one `thinking` event
+  lets the screen say "Thinking…" (§5.5, §7.6).
+- **Nothing found, no request** (product-owner decision). Without
+  excerpts the model isn't asked, and `ask_atlas` returns
+  `nothing_found`.
+- **Excerpts:** the best 8 documents give up to two excerpts each (the
+  meaning chunk with its neighbours in the same passage, and the text
+  around the first word match). They fill a 24,000-character budget
+  round-robin, at most 3,000 each. Each excerpt is one numbered source
+  (§7.6 said "chunks plus neighbours").
+- **Weak retrieval:** fewer than 3 sources, or no document with every word
+  and the best meaning match under the floor + 0.10. §7.6's "best fused
+  score is low" has no scale with reciprocal rank fusion.
+- **Ollama gets `num_ctx` 12,288**, and answers are capped at 4,096
+  tokens with temperature 0.2. A stream gets 120 s to its first piece and
+  60 s of silence; the spec's single "idle 60 s" would cut off a model
+  still loading.
+- **No separate privacy commands** (§9): the choices are fields of
+  `Settings` (`disableExternalAi`, `acknowledged`), saved with
+  `update_settings`. Only `acknowledge_disclosure` is its own command, so
+  the address agreed to is recorded in Rust. An agreement is per profile
+  *and address*.
+- **"Disable all external AI" also blocks connection and model tests** to
+  an internet service (`external_ai_disabled`), since it says *all*.
+- **`ask_atlas` takes `AskQuery {question, sourceRootId, fileType}`**, and
+  `answer-stream` steps carry `{answerId, step}`. `error` steps carry the
+  citations so far, and only fixed sentences, never the service's text.
+- **Not built:** §7.7's "an Ask does not run while the chat provider is
+  marked unreachable until Retry". Each Ask reports its own failure.
+- **`just eval-ask`** (owner-run) measures §13's Ask Atlas numbers. It is
+  in `tests/semantic_eval.rs` beside the P2-17 gate, sharing its corpus
+  setup.
+
 ### Primary reference documentation (verify current versions at implementation time)
 
 - usearch (Rust): <https://docs.rs/usearch/latest/usearch/> and <https://github.com/unum-cloud/usearch>

@@ -83,6 +83,12 @@ pub enum ErrorCode {
     InsecureHttpNotAcknowledged,
     /// The system keychain refused to store or remove a key.
     SecretStoreFailed,
+    /// "Disable all external AI" is on and the service is on the internet.
+    ExternalAiDisabled,
+    /// Ask Atlas needs a chat model chosen in Settings › AI Models.
+    ChatModelNeeded,
+    /// The question is empty or too long.
+    InvalidQuestion,
     IoError,
     DatabaseError,
     Internal,
@@ -193,6 +199,12 @@ pub enum AtlasError {
     InsecureHttpNotAcknowledged,
     #[error("The system keychain couldn't store or remove the key.")]
     SecretStoreFailed,
+    #[error("All external AI is turned off.")]
+    ExternalAiDisabled,
+    #[error("Ask Atlas needs a chat model.")]
+    ChatModelNeeded,
+    #[error("Ask a question of up to {max} characters.")]
+    InvalidQuestion { max: usize },
     #[error("Atlas could not {context} ({kind}).", kind = source.kind())]
     Io {
         context: &'static str,
@@ -272,6 +284,9 @@ impl AtlasError {
             Self::OpenFailed => ErrorCode::OpenFailed,
             Self::ProfileNotFound => ErrorCode::ProfileNotFound,
             Self::ModelNotTested => ErrorCode::ModelNotTested,
+            Self::ExternalAiDisabled => ErrorCode::ExternalAiDisabled,
+            Self::ChatModelNeeded => ErrorCode::ChatModelNeeded,
+            Self::InvalidQuestion { .. } => ErrorCode::InvalidQuestion,
             Self::InvalidUrl => ErrorCode::InvalidUrl,
             Self::UrlHasCredentials => ErrorCode::UrlHasCredentials,
             Self::InsecureHttpNotAcknowledged => ErrorCode::InsecureHttpNotAcknowledged,
@@ -349,6 +364,11 @@ impl AtlasError {
                 "Use https://, or confirm that you trust the network between this computer and the service."
             }
             Self::SecretStoreFailed => "Try again, or check your system keychain settings.",
+            Self::ExternalAiDisabled => {
+                "Turn off Disable all external AI in Settings › Privacy, or choose a service on this computer."
+            }
+            Self::ChatModelNeeded => "Choose a chat model in Settings › AI Models.",
+            Self::InvalidQuestion { .. } => "Type a question, then choose Ask.",
             Self::Io { .. } | Self::Database { .. } => {
                 "Try again. If this keeps happening, check the drive for problems."
             }

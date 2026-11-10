@@ -24,7 +24,8 @@ pub async fn get_embedding_status(state: State<'_, AppState>) -> AtlasResult<Emb
     state
         .with_workspace(|ws| {
             let root = ws.require_open()?;
-            let allow = root.settings().privacy.allow_remote_embedding;
+            let allow =
+                crate::services::providers::privacy::remote_embedding(&root.settings().privacy);
             root.reader()
                 .read(move |c| status::overview(c, allow))?
                 .map_err(AtlasError::db("read the meaning index status"))

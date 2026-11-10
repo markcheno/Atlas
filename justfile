@@ -143,6 +143,10 @@ bench-embedding size="30k" out="":
 eval-semantic:
     cargo test --manifest-path {{ manifest }} --locked --release --test semantic_eval -- --ignored --nocapture p2_17_the_vague_set_against_a_real_model
 
+# Ask Atlas against real models, run by its owner (Slice 2.6): set the ATLAS_EVAL_EMBED_* variables as for eval-semantic, plus ATLAS_EVAL_CHAT_URL (e.g. http://localhost:8000/v1) and ATLAS_EVAL_CHAT_MODEL, and ATLAS_EVAL_CHAT_KEY or ATLAS_EVAL_CHAT_KIND (ollama) if needed
+eval-ask:
+    cargo test --manifest-path {{ manifest }} --locked --release --test semantic_eval -- --ignored --nocapture ask_atlas_against_real_models
+
 # The vector index alone (Phase 2): build, save, load, rebuild, recall and latency at `size` synthetic 1,024-dimension vectors (CI runs 100000)
 bench-vectors size="300000" out="":
     pnpm bench --vectors-only --vectors-size {{ size }} {{ if out == "" { "" } else { "--out " + out } }}

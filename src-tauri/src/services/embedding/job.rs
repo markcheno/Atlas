@@ -282,9 +282,9 @@ impl EmbedProcessor {
     }
 
     fn allow_remote(&self) -> bool {
-        settings::read(&self.data_root)
-            .privacy
-            .allow_remote_embedding
+        crate::services::providers::privacy::remote_embedding(
+            &settings::read(&self.data_root).privacy,
+        )
     }
 
     /// A read-only connection of the job's own, for passages and vectors.

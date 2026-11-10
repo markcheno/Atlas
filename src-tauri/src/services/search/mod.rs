@@ -591,18 +591,29 @@ fn hybrid_page(
     m: &MeaningContext<'_>,
     q: &SearchQuery,
 ) -> rusqlite::Result<(SearchPage, SemanticStatus)> {
+    with_meaning(c, m, &q.text, |semantic| search_with(c, q, semantic))
+}
+
+/// Runs `run` with meaning search when an embedding model, its index and
+/// its service are there, else without; and says which.
+fn with_meaning<T>(
+    c: &Connection,
+    m: &MeaningContext<'_>,
+    text: &str,
+    run: impl FnOnce(Option<hybrid::Semantic<'_>>) -> rusqlite::Result<T>,
+) -> rusqlite::Result<(T, SemanticStatus)> {
     let target = match m.embedder.target(c, m.vault, m.allow_remote) {
         Ok(t) => t,
-        Err(NoTarget::Off) => return Ok((search(c, q)?, SemanticStatus::Off)),
+        Err(NoTarget::Off) => return Ok((run(None)?, SemanticStatus::Off)),
         Err(NoTarget::Unavailable(reason)) => {
-            return Ok((search(c, q)?, SemanticStatus::Unavailable { reason }));
+            return Ok((run(None)?, SemanticStatus::Unavailable { reason }));
         }
     };
     let Some(index) = m.vectors.loaded(&target.model.id) else {
         m.vectors
             .open_in_background(m.catalog, &target.model.id, BACKGROUND_OPEN_THREADS);
         return Ok((
-            search(c, q)?,
+            run(None)?,
             SemanticStatus::Unavailable {
                 reason: SemanticUnavailable::Loading,
             },
@@ -611,10 +622,10 @@ fn hybrid_page(
     let ready = SemanticStatus::Ready {
         coverage_percent: coverage(c, &target.model.id)?,
     };
-    if query::build(&q.text).is_none() {
-        return Ok((search(c, q)?, ready));
+    if query::build(text).is_none() {
+        return Ok((run(None)?, ready));
     }
-    let pending = m.embedder.start(&target, &q.text);
+    let pending = m.embedder.start(&target, text);
     let failure: std::cell::Cell<Option<SemanticUnavailable>> = std::cell::Cell::new(None);
     let mut map = m.vectors.chunk_map();
     let semantic = hybrid::Semantic {
@@ -629,12 +640,91 @@ fn hybrid_page(
         chunk_map: &mut map,
         min_similarity: target.profile.min_similarity,
     };
-    let page = search_with(c, q, Some(semantic))?;
+    let out = run(Some(semantic))?;
     let status = match failure.get() {
         Some(reason) => SemanticStatus::Unavailable { reason },
         None => ready,
     };
-    Ok((page, status))
+    Ok((out, status))
+}
+
+/// A document found for Ask Atlas (Slice 2.6): where it matched, by words
+/// and by meaning, and the file to show for it.
+#[derive(Debug, Clone)]
+pub(crate) struct Found {
+    pub hit: SearchHit,
+    /// The best passage containing the words, and the FTS expression.
+    pub text: Option<(i64, String)>,
+    /// The best chunk by meaning: passage and character span.
+    pub meaning: Option<(i64, (usize, usize))>,
+}
+
+/// What Ask Atlas retrieval found, best first.
+pub(crate) struct Retrieval {
+    pub found: Vec<Found>,
+    pub semantic: SemanticStatus,
+    /// The best meaning similarity among all documents, if any.
+    pub best_similarity: Option<f32>,
+    /// The serving model's similarity floor, when meaning search ran.
+    pub min_similarity: Option<f32>,
+}
+
+/// The `limit` best documents for a question, as hybrid search ranks them,
+/// with both their text and meaning matches. Name-only matches have no
+/// passage to quote and are left out.
+pub(crate) fn retrieve(
+    c: &Connection,
+    m: &MeaningContext<'_>,
+    q: &SearchQuery,
+    limit: usize,
+) -> rusqlite::Result<Retrieval> {
+    let floor = std::cell::Cell::new(None);
+    let ((found, best), semantic) = with_meaning(c, m, &q.text, |semantic| {
+        let Some(built) = query::build(&q.text) else {
+            return Ok((Vec::new(), None));
+        };
+        let f = filters(q);
+        let ranked = rank_text(c, &built, &f, limit as u32)?;
+        let near = match semantic {
+            Some(s) => {
+                floor.set(Some(s.min_similarity));
+                hybrid::nearest(c, s, &f)?
+            }
+            None => Vec::new(),
+        };
+        let best = near.iter().map(|n| n.similarity).reduce(f32::max);
+        let meaning: HashMap<String, (i64, (usize, usize))> = near
+            .iter()
+            .map(|n| (n.document.clone(), (n.passage, n.span)))
+            .collect();
+        let mut found = Vec::new();
+        for e in hybrid::fuse(ranked.entries, ranked.names_only, near) {
+            if found.len() >= limit {
+                break;
+            }
+            let Some(document) = e.document.clone() else {
+                continue;
+            };
+            let text = match (e.passage, &e.expr) {
+                (Some(p), Some(expr)) => Some((p, expr.clone())),
+                _ => None,
+            };
+            let meaning = meaning.get(&document).copied();
+            if text.is_none() && meaning.is_none() {
+                continue;
+            }
+            if let Some(hit) = hit(c, &e, &f, &[])? {
+                found.push(Found { hit, text, meaning });
+            }
+        }
+        Ok((found, best))
+    })?;
+    Ok(Retrieval {
+        found,
+        semantic,
+        best_similarity: best,
+        min_similarity: floor.get(),
+    })
 }
 
 /// The share of documents with text that the model has finished with.

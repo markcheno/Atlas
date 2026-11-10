@@ -408,9 +408,9 @@ impl ExtractProcessor {
                     None,
                 ) {
                     // The folder's text is read: its meaning can be indexed.
-                    let allow = settings::read(&self.data_root)
-                        .privacy
-                        .allow_remote_embedding;
+                    let allow = crate::services::providers::privacy::remote_embedding(
+                        &settings::read(&self.data_root).privacy,
+                    );
                     let root_id = job.source_root_id.clone();
                     let _ = self.catalog.call(move |c| {
                         embedding::triggers::queue_root(c, &root_id, allow, &now_rfc3339())

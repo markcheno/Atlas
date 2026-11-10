@@ -46,6 +46,10 @@ pub const EXTRACTION_EVENT: &str = "extraction-status";
 /// change; Slice 2.3).
 pub const EMBEDDING_EVENT: &str = "embedding-status";
 
+/// Tauri event carrying an `AnswerEvent`: one step of the Ask Atlas
+/// answer in progress (Slice 2.6).
+pub const ANSWER_EVENT: &str = "answer-stream";
+
 /// Debug builds only: redirects the locator (and the suggested data root)
 /// so tests and smoke runs never touch the real per-user configuration.
 pub const CONFIG_DIR_OVERRIDE_ENV: &str = "ATLAS_CONFIG_DIR";
@@ -205,6 +209,9 @@ pub fn run() {
             commands::roles::set_model_role,
             commands::roles::clear_model_role,
             commands::roles::get_model_recommendations,
+            commands::answers::ask_atlas,
+            commands::answers::cancel_answer,
+            commands::answers::acknowledge_disclosure,
         ])
         .build(tauri::generate_context!())
         .expect("error while building Atlas")

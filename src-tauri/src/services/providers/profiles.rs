@@ -2,11 +2,12 @@
 
 use rusqlite::{Connection, OptionalExtension, Row, params};
 
+use super::privacy::{self, Use};
 use super::secrets::{Secret, SecretVault, account_for};
 use super::url_policy::{self, Endpoint, UrlProblem};
 use crate::domain::dto::{
-    ConnectionOutcome, ConnectionResult, ConnectionTestTarget, CredentialStorage, ProviderKind,
-    ProviderProfile, ProviderProfileInput,
+    ConnectionOutcome, ConnectionResult, ConnectionTestTarget, CredentialStorage, PrivacySettings,
+    ProviderKind, ProviderProfile, ProviderProfileInput,
 };
 use crate::error::{AtlasError, AtlasResult};
 use crate::infrastructure::clock::now_rfc3339;
@@ -193,6 +194,9 @@ pub fn delete(root: &OpenRoot, vault: &SecretVault, id: &str) -> AtlasResult<()>
     Ok(())
 }
 
+/// Why a request to an internet service wasn't sent.
+pub const EXTERNAL_AI_OFF: &str = "All external AI is turned off in Settings › Privacy.";
+
 /// What a test should contact, or why it must not.
 pub enum Prepared {
     Ready {
@@ -205,6 +209,17 @@ pub enum Prepared {
 }
 
 impl Prepared {
+    /// Whether "Disable all external AI" stops this test: a ready
+    /// internet service while the switch is on (ADR 0015).
+    pub fn disabled_by(&self, privacy: &PrivacySettings) -> bool {
+        match self {
+            Prepared::Ready { endpoint, .. } => {
+                !privacy::allows(privacy, url_policy::location_of(&endpoint.base), Use::Test)
+            }
+            Prepared::Blocked(_) => false,
+        }
+    }
+
     /// A refused connection test, for [`Prepared::Blocked`].
     pub fn blocked_connection(message: &str) -> ConnectionResult {
         ConnectionResult {

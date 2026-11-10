@@ -23,7 +23,7 @@ pub async fn search_documents(
                 root.root_status_handle(),
                 std::sync::Arc::clone(root.vectors()),
                 root.catalog().handle(),
-                root.settings().privacy.allow_remote_embedding,
+                crate::services::providers::privacy::remote_embedding(&root.settings().privacy),
             ))
         })
         .await?;

@@ -5,6 +5,7 @@
 //! sends one fixed request; nothing from the library.
 
 pub mod detect;
+pub mod privacy;
 pub mod profiles;
 pub mod recommend;
 pub mod roles;

@@ -601,3 +601,243 @@ fn p2_17_the_vague_set_against_a_real_model() {
     );
     assert!(totals[1] > totals[0], "meaning alone must beat text alone");
 }
+
+/// Ask Atlas against real models (Slice 2.6, phase2-spec §13), run by its
+/// owner with `just eval-ask`: the corpus embedded as above, then every
+/// vague question asked through the chat model. Reports, per question and
+/// in all, the time to the first word and to the whole answer, the
+/// sources sent, cited and invented, and whether a relevant document was
+/// among the sources. Asserts only that no invented citation survives.
+/// Set the `ATLAS_EVAL_EMBED_*` variables as for `eval-semantic`, plus
+/// `ATLAS_EVAL_CHAT_URL`, `ATLAS_EVAL_CHAT_MODEL`, and optionally
+/// `ATLAS_EVAL_CHAT_KEY` and `ATLAS_EVAL_CHAT_KIND`.
+#[test]
+#[ignore = "needs real embedding and chat models: just eval-ask"]
+fn ask_atlas_against_real_models() {
+    use atlas_lib::domain::dto::{AnswerEvent, AnswerStep, AskQuery, AskReply};
+    use atlas_lib::services::answers::stream::ChatLimits;
+    use atlas_lib::services::answers::{self, AnswerEvents, AskDeps};
+    use atlas_lib::services::embedding::job::http_backends;
+    use atlas_lib::services::providers::{privacy, url_policy};
+    use std::sync::Mutex;
+
+    let var = |k: &str| std::env::var(k).ok().filter(|v| !v.is_empty());
+    let (Some(base), Some(model)) = (var("ATLAS_EVAL_EMBED_URL"), var("ATLAS_EVAL_EMBED_MODEL"))
+    else {
+        panic!("set ATLAS_EVAL_EMBED_URL and ATLAS_EVAL_EMBED_MODEL");
+    };
+    let (Some(chat_base), Some(chat_model)) =
+        (var("ATLAS_EVAL_CHAT_URL"), var("ATLAS_EVAL_CHAT_MODEL"))
+    else {
+        panic!("set ATLAS_EVAL_CHAT_URL and ATLAS_EVAL_CHAT_MODEL");
+    };
+    let kind_text = var("ATLAS_EVAL_EMBED_KIND").unwrap_or_else(|| "openai_compatible".into());
+    let chat_kind = var("ATLAS_EVAL_CHAT_KIND").unwrap_or_else(|| "openai_compatible".into());
+    let dims: i64 = var("ATLAS_EVAL_EMBED_DIMS").map_or(1024, |d| d.parse().unwrap());
+    let base = base.trim_end_matches('/').to_owned();
+    let chat_base = chat_base.trim_end_matches('/').to_owned();
+
+    let mut config = fast_embedding();
+    config.unthrottled = true;
+    let h = EmbedHarness::new(config).over_http(ProbeConfig::embedding());
+    let vault = Arc::clone(&h.deps.vault);
+    let corpus = Corpus::embedded(
+        h,
+        &kind_text,
+        &base,
+        &model,
+        dims,
+        var("ATLAS_EVAL_EMBED_KEY").as_deref(),
+    );
+    let root = corpus.root();
+    let chat_key = var("ATLAS_EVAL_CHAT_KEY");
+    if let Some(key) = &chat_key {
+        vault.put(&account_for("chat"), Secret::new(key.clone()));
+    }
+    let storage = if chat_key.is_some() {
+        "'session_only'"
+    } else {
+        "NULL"
+    };
+    let (kind, url, name) = (chat_kind.clone(), chat_base.clone(), chat_model.clone());
+    root.catalog()
+        .call(move |c| {
+            c.execute(
+                &format!(
+                    "INSERT INTO provider_profiles (id, kind, label, base_url,
+                         insecure_http_acknowledged, credential_storage, created_at, updated_at)
+                     VALUES ('chat', ?1, 'Evaluation chat', ?2, 1, {storage}, 't', 't')"
+                ),
+                rusqlite::params![kind, url],
+            )
+            .unwrap();
+            c.execute(
+                "INSERT INTO model_roles (role, provider_profile_id, model_id, dimensions,
+                     tested_at, updated_at)
+                 VALUES ('chat', 'chat', ?1, NULL, 't', 't')",
+                [&name],
+            )
+            .unwrap();
+        })
+        .unwrap();
+
+    let embedder = Arc::new(QueryEmbedder::new(http_backends(ProbeConfig::embedding())));
+    let log: Arc<Mutex<Vec<(Instant, AnswerEvent)>>> = Arc::default();
+    let sink = Arc::clone(&log);
+    let events: AnswerEvents =
+        Arc::new(move |e: &AnswerEvent| sink.lock().unwrap().push((Instant::now(), e.clone())));
+    let privacy_settings = root.settings().privacy.clone();
+    let ask = |question: &str| {
+        answers::ask(
+            &AskDeps {
+                reader: root.reader(),
+                meaning: MeaningContext {
+                    vectors: root.vectors(),
+                    catalog: &root.catalog().handle(),
+                    embedder: &embedder,
+                    vault: &vault,
+                    allow_remote: privacy::remote_embedding(&privacy_settings),
+                },
+                vault: &vault,
+                privacy: &privacy_settings,
+                locate: url_policy::location_of,
+                limits: ChatLimits::default(),
+                events: Arc::clone(&events),
+                answers: root.answers(),
+            },
+            &AskQuery {
+                question: question.into(),
+                source_root_id: None,
+                file_type: None,
+            },
+        )
+        .unwrap()
+    };
+    // The first query embedding loads the model; don't time it.
+    let _ = corpus.root().reader().read(|c| {
+        embedder
+            .target(c, &vault, true)
+            .map(|t| embedder.start(&t, "warm up"))
+    });
+    std::thread::sleep(Duration::from_secs(5));
+    eprintln!("chat model {chat_model} ({chat_kind}) at {chat_base}");
+
+    let (mut firsts, mut wholes) = (Vec::new(), Vec::new());
+    let (mut supplied, mut cited_total, mut dropped_total, mut found, mut asked) = (0, 0, 0, 0, 0);
+    let mut weak_count = 0;
+    for q in questions("questions-vague.json") {
+        let text = q["question"].as_str().unwrap();
+        let start = Instant::now();
+        let started = match ask(text) {
+            AskReply::Started(s) => s,
+            AskReply::NothingFound { .. } => {
+                eprintln!("{} nothing found", q["id"].as_str().unwrap());
+                continue;
+            }
+            AskReply::NeedsDisclosure(_) => {
+                panic!("the evaluation doesn't send to an internet service")
+            }
+        };
+        asked += 1;
+        let id = started.answer_id.clone();
+        let steps = |log: &Mutex<Vec<(Instant, AnswerEvent)>>| -> Vec<(Instant, AnswerStep)> {
+            log.lock()
+                .unwrap()
+                .iter()
+                .filter(|(_, e)| e.answer_id == id)
+                .map(|(t, e)| (*t, e.step.clone()))
+                .collect()
+        };
+        let ended = |s: &AnswerStep| {
+            matches!(
+                s,
+                AnswerStep::Done { .. } | AnswerStep::Stopped | AnswerStep::Error { .. }
+            )
+        };
+        assert!(
+            wait_until(Duration::from_secs(600), || steps(&log)
+                .iter()
+                .any(|(_, s)| ended(s))),
+            "no answer within ten minutes"
+        );
+        let steps = steps(&log);
+        let first = steps
+            .iter()
+            .find(|(_, s)| matches!(s, AnswerStep::Delta { .. }))
+            .map(|(t, _)| t.duration_since(start));
+        let (end_at, last) = steps.last().unwrap();
+        let answer: String = steps
+            .iter()
+            .filter_map(|(_, s)| match s {
+                AnswerStep::Delta { text } => Some(text.as_str()),
+                _ => None,
+            })
+            .collect();
+        // No invented citation survives.
+        for n in answer
+            .split('[')
+            .skip(1)
+            .filter_map(|rest| rest.split(']').next()?.parse::<u32>().ok())
+        {
+            assert!(
+                (1..=started.sources.len() as u32).contains(&n),
+                "[{n}] in {answer:?}"
+            );
+        }
+        let (cited, dropped) = match last {
+            AnswerStep::Done { cited, dropped } | AnswerStep::Error { cited, dropped, .. } => {
+                (cited.len(), *dropped)
+            }
+            _ => (0, 0),
+        };
+        let relevant = corpus.relevant(&q);
+        let docs: Vec<String> = started
+            .sources
+            .iter()
+            .map(|s| s.document_id.clone())
+            .collect();
+        let hit = corpus.rank(&docs, &relevant).is_some();
+        found += usize::from(hit);
+        supplied += started.sources.len();
+        cited_total += cited;
+        dropped_total += dropped as usize;
+        weak_count += usize::from(started.weak);
+        if let Some(f) = first {
+            firsts.push(f.as_secs_f64());
+        }
+        wholes.push(end_at.duration_since(start).as_secs_f64());
+        eprintln!(
+            "{} first {:>6} whole {:>6.1} s · {} sources, {cited} cited, {dropped} invented{} · relevant source: {} · {}",
+            q["id"].as_str().unwrap(),
+            first.map_or("—".into(), |f| format!("{:.1} s", f.as_secs_f64())),
+            end_at.duration_since(start).as_secs_f64(),
+            started.sources.len(),
+            if started.weak { " · weak" } else { "" },
+            if hit { "yes" } else { "no" },
+            match last {
+                AnswerStep::Error { code, .. } => format!("error {code:?}"),
+                _ => answer
+                    .chars()
+                    .take(80)
+                    .collect::<String>()
+                    .replace('\n', " "),
+            }
+        );
+    }
+    let pct = |v: &mut Vec<f64>, p: f64| -> f64 {
+        if v.is_empty() {
+            return f64::NAN;
+        }
+        v.sort_by(f64::total_cmp);
+        v[((v.len() as f64 - 1.0) * p).round() as usize]
+    };
+    eprintln!(
+        "Ask Atlas over {asked} vague questions: first word p50 {:.1} s / p95 {:.1} s; whole answer p50 {:.1} s / p95 {:.1} s; a relevant document among the sources {found}/{asked}; citation rate {:.2} (cited ÷ supplied, {cited_total}/{supplied}); invented citations {dropped_total} ({:.2} per answer); weak retrieval {weak_count}",
+        pct(&mut firsts, 0.5),
+        pct(&mut firsts, 0.95),
+        pct(&mut wholes, 0.5),
+        pct(&mut wholes, 0.95),
+        cited_total as f64 / supplied.max(1) as f64,
+        dropped_total as f64 / asked.max(1) as f64,
+    );
+}

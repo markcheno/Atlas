@@ -3,6 +3,7 @@
 //! commands call them today, and a future versioned HTTP API can wrap the
 //! same functions.
 
+pub mod answers;
 pub mod catalog;
 pub mod documents;
 pub mod embedding;

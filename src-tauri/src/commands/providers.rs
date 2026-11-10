@@ -1,15 +1,16 @@
 use tauri::State;
 
 use crate::domain::dto::{
-    ConnectionResult, ConnectionTestTarget, LocalProviderSuggestion, ProviderProfile,
-    ProviderProfileInput,
+    ConnectionOutcome, ConnectionResult, ConnectionTestTarget, LocalProviderSuggestion,
+    ProviderProfile, ProviderProfileInput,
 };
 use crate::domain::traits::ModelProvider;
 use crate::error::AtlasResult;
+use crate::infrastructure::clock::now_rfc3339;
 use crate::infrastructure::http_probe::HttpModelProvider;
 use crate::services::embedding;
 use crate::services::providers::detect;
-use crate::services::providers::profiles::{self, Prepared};
+use crate::services::providers::profiles::{self, EXTERNAL_AI_OFF, Prepared};
 use crate::state::AppState;
 
 #[tauri::command]
@@ -63,9 +64,23 @@ pub async fn test_provider_connection(
     target: ConnectionTestTarget,
 ) -> AtlasResult<ConnectionResult> {
     let vault = state.vault.clone();
-    let prepared = state
-        .with_workspace(move |ws| profiles::resolve(ws.require_open()?, &vault, &target))
+    let (prepared, disabled) = state
+        .with_workspace(move |ws| {
+            let root = ws.require_open()?;
+            let prepared = profiles::resolve(root, &vault, &target)?;
+            let disabled = prepared.disabled_by(&root.settings().privacy);
+            Ok((prepared, disabled))
+        })
         .await?;
+    if disabled {
+        return Ok(ConnectionResult {
+            outcome: ConnectionOutcome::ExternalAiDisabled,
+            model_ids: Vec::new(),
+            message: EXTERNAL_AI_OFF.to_owned(),
+            server_version: None,
+            tested_at: now_rfc3339(),
+        });
+    }
     Ok(match prepared {
         Prepared::Blocked(message) => Prepared::blocked_connection(message),
         Prepared::Ready {

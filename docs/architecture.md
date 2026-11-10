@@ -61,6 +61,8 @@ commands and added the native multi-folder picker.
 | Documents | `get_document_detail` (by file ID: a file that hasn't been read has no document yet) | **1.5 (working)** |
 | Duplicates | `list_duplicates` | **1.6 (working)** |
 | Storage | `get_storage_usage`, `clean_caches` | **1.6 (working)** |
+| Related documents | `get_related_documents` | **2.5 (working)** |
+| Ask Atlas | `ask_atlas`, `cancel_answer`, `acknowledge_disclosure` (the privacy choices are part of `update_settings`); the `answer-stream` event | **2.6 (working)** |
 
 `get_app_status` returns only facts about the running process, including a
 feature list that marks exactly which capabilities this build provides.
@@ -134,6 +136,11 @@ the first adapter lands.
 - A strict Content Security Policy in `tauri.conf.json` allows only bundled
   scripts and IPC connections.
 - Source files are never opened through string-built shell commands.
+- Model requests leave only from Rust, to the resolved profile's own
+  address, with its key as a header, through no redirect or proxy. Document
+  text, questions and model output are data: the chat model has no tools,
+  and excerpts sit in escaped, delimited blocks
+  ([Ask Atlas](#ask-atlas)).
 
 ## Frontend
 
@@ -723,6 +730,57 @@ rationale in the related-documents amendment to
 - **Measured:** p95 2.0 ms at 1,000 documents and 3.1 ms at 30,000
   ([benchmarks](benchmarks.md#related-documents-slice-25)).
 
+## Ask Atlas
+
+Implemented in `src-tauri/src/services/answers/` (Slice 2.6, the engine;
+the screen is Slice 2.7) and `services/providers/privacy.rs`; rationale in
+[ADR 0015](adr/0015-ask-atlas-answers-citations-injection.md).
+
+- **`ask_atlas({question, sourceRootId?, fileType?})`** returns an
+  `AskReply`:
+  - `started`: an answer id, the numbered `sources` (Sources used: exactly
+    what is sent), `weak`, and the meaning-search status; `answer-stream`
+    events follow;
+  - `nothing_found`: the model wasn't asked;
+  - `needs_disclosure`: an internet service not agreed to yet, with the
+    number of excerpts and bytes; nothing was sent.
+  - Errors: `chat_model_needed`, `external_ai_disabled`, `invalid_question`
+    (1–2,000 characters).
+- **Retrieve** (`retrieve.rs`, `search::retrieve`): hybrid search's best 8
+  documents. Excerpts come from the best meaning chunk with its neighbours,
+  and from the text around the first word match. About 24,000 characters
+  in all, filled round-robin, at most 3,000 each.
+- **Prompt** (`prompt.rs`): a fixed system message, then one user message
+  of `<source id="n" title="…" location="…">` blocks and the
+  `<question>`. Every `<` and `>` inside them is escaped.
+- **Stream** (`stream.rs`): OpenAI-compatible SSE or Ollama NDJSON from the
+  chat role's service. 120 s to the first piece, 60 s of silence, 1 MiB of
+  answer. Thinking is dropped and reported once. Stop or a new question
+  aborts the request.
+- **Cite** (`cite.rs`): `[n]` is checked as it streams. Fragments are held
+  until they resolve, invented numbers are removed and counted, and
+  `citation` events mark first uses.
+- **`answer-stream`**: `{answerId, step}`, where `step` is `thinking`,
+  `delta` (at most every 50 ms), `citation`, `done {cited, dropped}`,
+  `stopped`, or `error {code, message, partial, cited, dropped}`.
+  `cancel_answer(answerId)` stops one.
+- **One answer per library** (`AnswerRegistry`, the first field of
+  `OpenRoot`, so it stops first when the library closes). Nothing is
+  persisted.
+- **Privacy** (`config/settings.json`):
+  - `allowRemoteEmbedding`, `disableExternalAi`, and the `acknowledged`
+    internet services (profile, address, label, time).
+  - `privacy::allows` decides for every request to an internet service:
+    Disable all external AI refuses everything (Ask, embedding, query
+    embedding, connection and model tests: `external_ai_disabled`);
+    embedding needs the opt-in; Ask needs the agreement, which a changed
+    address asks for again.
+  - Services on this computer or another one are never restricted.
+  - The Privacy panel (`PrivacyPanel.svelte`) has both checkboxes and the
+    agreed services, each with Forget.
+- **Measured** with `just eval-ask` against real models, run by the owner
+  ([benchmarks](benchmarks.md#ask-atlas-slice-26)).
+
 ## Build, CI and measurement
 
 - **PDFium** (Slice 1.2) is pinned in `tools.lock.json` (bblanchon/pdfium-binaries
@@ -864,4 +922,5 @@ capability tests ([AI service connections](#ai-service-connections));
 Slice 2.2 the chunks, durable embeddings and the vector index
 ([Embeddings and the vector index](#embeddings-and-the-vector-index));
 Slice 2.3 the embedding job that fills them; Slice 2.4 hybrid
-[search](#search); Slice 2.5 [related documents](#related-documents).
+[search](#search); Slice 2.5 [related documents](#related-documents);
+Slice 2.6 the [Ask Atlas](#ask-atlas) engine and the privacy choices.
