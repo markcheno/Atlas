@@ -24,6 +24,7 @@ fn backend(base: &str, kind: ProviderKind, config: ProbeConfig) -> ProviderEmbed
         key: Some(Secret::new("sk-test-embed-key")),
         model: "test-embed".into(),
         dims: DIMS,
+        keep: DIMS,
         config,
         stop: Arc::new(|| false),
     }
@@ -218,4 +219,17 @@ fn p2_20_a_redirect_is_not_followed_and_the_key_stays_home() {
     // Errors never carry the key or the text.
     let shown = format!("{:?} {}", EmbedError::Auth, EmbedError::Protocol);
     assert!(!shown.contains("sk-test") && !shown.contains("secret text"));
+}
+
+#[test]
+fn a_model_cut_short_keeps_its_first_numbers_at_unit_length() {
+    let server = MockServer::start(vec![(
+        "POST /v1/embeddings",
+        json(200, r#"{"data": [{"index": 0, "embedding": [3.0, 4.0, 12.0, 0.5]}]}"#),
+    )]);
+    let mut b = backend(&server.url("/v1"), ProviderKind::OpenaiCompatible, ProbeConfig::embedding());
+    b.keep = 2;
+    let v = b.embed(&["x"]).unwrap();
+    assert_eq!(v, [vec![0.6, 0.8]]);
+    assert_eq!(b.describe().dims, 2);
 }

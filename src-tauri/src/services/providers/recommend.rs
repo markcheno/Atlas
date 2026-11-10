@@ -42,6 +42,10 @@ pub struct CatalogModel {
     /// meaning match (calibrated with the evaluation set, Slice 2.4).
     #[serde(default, rename = "minSimilarity")]
     pub min_similarity: Option<f32>,
+    /// Embedding models that may be cut short (Matryoshka): the number of
+    /// dimensions Atlas keeps, decided by the evaluation (Slice 2.4).
+    #[serde(default, rename = "storedDimensions")]
+    pub stored_dimensions: Option<usize>,
 }
 
 /// How search treats queries for an embedding model.
@@ -49,6 +53,8 @@ pub struct CatalogModel {
 pub struct QueryProfile {
     pub prefix: Option<String>,
     pub min_similarity: f32,
+    /// How many of the model's dimensions Atlas keeps, if fewer than all.
+    pub stored_dimensions: Option<usize>,
 }
 
 /// The floor for embedding models the catalog doesn't know.
@@ -66,10 +72,12 @@ pub fn query_profile(model_name: &str) -> QueryProfile {
         .map(|m| QueryProfile {
             prefix: m.query_prefix.clone(),
             min_similarity: m.min_similarity.unwrap_or(DEFAULT_MIN_SIMILARITY),
+            stored_dimensions: m.stored_dimensions,
         })
         .unwrap_or(QueryProfile {
             prefix: None,
             min_similarity: DEFAULT_MIN_SIMILARITY,
+            stored_dimensions: None,
         })
 }
 
@@ -185,8 +193,13 @@ mod tests {
             );
             assert!(p.prefix.unwrap().ends_with("\nQuery: "));
         }
+        assert_eq!(
+            query_profile("Qwen3-Embedding-0.6B-8bit").stored_dimensions,
+            Some(512)
+        );
         let other = query_profile("nomic-embed-text");
         assert_eq!(other.prefix, None);
+        assert_eq!(other.stored_dimensions, None);
         assert_eq!(other.min_similarity, DEFAULT_MIN_SIMILARITY);
     }
     use crate::domain::dto::{AiRuntime, OsKind, PowerSource, PressureLevel, ThermalLevel};

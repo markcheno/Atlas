@@ -13,7 +13,7 @@ use std::time::Duration;
 
 use reqwest::StatusCode;
 
-use super::vector::normalize;
+use super::vector::{normalize, truncate_normalize};
 use crate::domain::dto::{ConnectionOutcome, ProviderKind};
 use crate::domain::traits::{BackendInfo, EmbedError, EmbeddingBackend};
 use crate::infrastructure::http_probe::{
@@ -34,7 +34,11 @@ pub struct ProviderEmbeddingBackend {
     pub base: String,
     pub key: Option<Secret>,
     pub model: String,
+    /// The vector length the service returns.
     pub dims: usize,
+    /// How many of them Atlas keeps (Matryoshka truncation, Slice 2.4);
+    /// equal to `dims` to keep all.
+    pub keep: usize,
     pub config: ProbeConfig,
     pub stop: StopCheck,
 }
@@ -135,13 +139,20 @@ impl EmbeddingBackend for ProviderEmbeddingBackend {
             return Ok(Vec::new());
         }
         let reply = self.request(inputs)?;
-        interpret(self.kind, reply, inputs.len(), self.dims)
+        let vectors = interpret(self.kind, reply, inputs.len(), self.dims)?;
+        if self.keep >= self.dims {
+            return Ok(vectors);
+        }
+        vectors
+            .into_iter()
+            .map(|v| truncate_normalize(&v, self.keep).ok_or(EmbedError::Protocol))
+            .collect()
     }
 
     fn describe(&self) -> BackendInfo {
         BackendInfo {
             model: self.model.clone(),
-            dims: self.dims,
+            dims: self.keep.min(self.dims),
         }
     }
 }

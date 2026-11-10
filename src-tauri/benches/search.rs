@@ -554,7 +554,18 @@ fn meaning_for(
         base: base.trim_end_matches('/').to_owned(),
         key: key.map(Secret::new),
         model: model.model_name.clone(),
-        dims: model.dims,
+        // The service returns the role's tested length; the index keeps
+        // the model row's (fewer when the model is cut short).
+        dims: conn
+            .query_row(
+                "SELECT dimensions FROM model_roles WHERE role = 'embedding' AND model_id = ?1",
+                [&model.model_name],
+                |r| r.get::<_, Option<i64>>(0),
+            )
+            .ok()
+            .flatten()
+            .map_or(model.dims, |d| (d as usize).max(model.dims)),
+        keep: model.dims,
         config: ProbeConfig::embedding(),
         stop: Arc::new(|| false),
     };

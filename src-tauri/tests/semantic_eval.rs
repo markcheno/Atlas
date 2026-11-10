@@ -23,6 +23,7 @@ use std::time::{Duration, Instant};
 use atlas_lib::domain::dto::{ProviderKind, SearchQuery, SemanticStatus};
 use atlas_lib::domain::traits::EmbeddingBackend;
 use atlas_lib::infrastructure::http_probe::ProbeConfig;
+use atlas_lib::services::embedding::chunk;
 use atlas_lib::services::embedding::chunk_map::ChunkMap;
 use atlas_lib::services::embedding::client::ProviderEmbeddingBackend;
 use atlas_lib::services::embedding::db as edb;
@@ -341,36 +342,81 @@ fn p2_17_the_vague_set_against_a_real_model() {
         .unwrap()
         .unwrap()
         .unwrap();
-    let full = root.vectors().loaded(&serving.id).unwrap();
+    let stored = root.vectors().loaded(&serving.id).unwrap();
     let profile = query_profile(&model);
-    eprintln!(
-        "model {model} ({kind_text}), {dims} dimensions, {} chunks; query prefix {:?}; similarity floor {}",
-        full.len(),
-        profile.prefix,
-        profile.min_similarity
-    );
-
-    // The same vectors at 512 dimensions, in memory.
-    let short = VectorIndex::new("eval-512", 512).unwrap();
-    let all = root
-        .reader()
-        .read(|c| edb::vectors_after(c, &serving.id, dims, 0, usize::MAX >> 1))
-        .unwrap()
-        .unwrap();
-    let truncated: Vec<(u64, Vec<f32>)> = all
-        .iter()
-        .filter_map(|(k, v)| truncate_normalize(v, 512).map(|t| (*k, t)))
-        .collect();
-    short.add_batch(&truncated, 4).unwrap();
-
     let backend = ProviderEmbeddingBackend {
         kind,
         base,
         key: key.map(Secret::new),
         model: model.clone(),
         dims,
+        keep: dims,
         config: ProbeConfig::embedding(),
         stop: Arc::new(|| false),
+    };
+    eprintln!(
+        "model {model} ({kind_text}): the service returns {dims} dimensions, Atlas stores {}; {} chunks; query prefix {:?}; similarity floor {}",
+        serving.dims,
+        stored.len(),
+        profile.prefix,
+        profile.min_similarity
+    );
+
+    // The comparison: the index at the model's full length and at 512.
+    // Whichever Atlas stores is its own index; the other is built here by
+    // embedding every chunk again.
+    let chunk_texts: Vec<(u64, String)> = root
+        .reader()
+        .read(|c| {
+            let mut stmt = c.prepare(
+                "SELECT c.id, p.text, c.char_start, c.char_end FROM chunks c
+                 JOIN passages p ON p.id = c.passage_id ORDER BY c.id",
+            )?;
+            let rows = stmt
+                .query_map([], |r| {
+                    Ok((
+                        r.get::<_, i64>(0)? as u64,
+                        r.get::<_, String>(1)?,
+                        r.get::<_, i64>(2)? as usize,
+                        r.get::<_, i64>(3)? as usize,
+                    ))
+                })?
+                .collect::<rusqlite::Result<Vec<_>>>()?;
+            Ok::<_, rusqlite::Error>(
+                rows.into_iter()
+                    .filter_map(|(id, text, a, b)| {
+                        chunk::slice(&text, chunk::Span { start: a, end: b })
+                            .map(|t| (id, t.to_owned()))
+                    })
+                    .collect::<Vec<_>>(),
+            )
+        })
+        .unwrap()
+        .unwrap();
+    let build = |want: usize| -> VectorIndex {
+        let index = VectorIndex::new("eval", want).unwrap();
+        for batch in chunk_texts.chunks(16) {
+            let texts: Vec<&str> = batch.iter().map(|(_, t)| t.as_str()).collect();
+            let vectors = backend.embed(&texts).unwrap();
+            let items: Vec<(u64, Vec<f32>)> = batch
+                .iter()
+                .zip(vectors)
+                .filter_map(|((k, _), v)| truncate_normalize(&v, want).map(|t| (*k, t)))
+                .collect();
+            index.add_batch(&items, 4).unwrap();
+        }
+        index
+    };
+    let started = Instant::now();
+    let built = build(if serving.dims < dims { dims } else { 512 });
+    eprintln!(
+        "built the comparison index in {:.1} s",
+        started.elapsed().as_secs_f64()
+    );
+    let (full, short): (&VectorIndex, &VectorIndex) = if serving.dims < dims {
+        (&built, &stored)
+    } else {
+        (&stored, &built)
     };
     let mut table = Vec::new();
     let mut sims: Vec<(f32, bool)> = Vec::new();
@@ -398,7 +444,7 @@ fn p2_17_the_vague_set_against_a_real_model() {
         let text_rank = corpus.rank(&text_docs, &relevant);
 
         let mut ranks = Vec::new();
-        for (index, v) in [(&*full, &vector), (&short, &short_vector)] {
+        for (index, v) in [(full, &vector), (short, &short_vector)] {
             let mut map = ChunkMap::default();
             let unfloored = Semantic {
                 vector: Box::new({
@@ -512,10 +558,12 @@ fn p2_17_the_vague_set_against_a_real_model() {
         let text = q["question"].as_str().unwrap();
         let input = format!("{}{text}", profile.prefix.as_deref().unwrap_or(""));
         let vector = backend.embed(&[input.as_str()]).unwrap().remove(0);
+        // As Atlas searches: its own index, at the length it stores.
+        let vector = truncate_normalize(&vector, serving.dims).unwrap();
         let mut map = ChunkMap::default();
         let semantic = Semantic {
             vector: Box::new(move || Some(vector)),
-            index: &full,
+            index: &stored,
             chunk_map: &mut map,
             min_similarity: profile.min_similarity,
         };

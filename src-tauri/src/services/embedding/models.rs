@@ -11,6 +11,7 @@ use rusqlite::{Connection, OptionalExtension, params};
 
 use super::chunk::CHUNKER_VERSION;
 use super::db::{self, EmbeddingModel};
+use crate::services::providers::recommend::query_profile;
 
 /// The embedding role, as a model row would describe it.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -87,9 +88,14 @@ pub fn predecessor(conn: &Connection, id: &str) -> rusqlite::Result<Option<Embed
 /// (`failed`). With no role, nothing changes: existing vectors stay.
 /// Returns the active model.
 pub fn sync(conn: &Connection, now: &str) -> rusqlite::Result<Option<EmbeddingModel>> {
-    let Some(role) = role(conn)? else {
+    let Some(mut role) = role(conn)? else {
         return active(conn);
     };
+    // A model the catalog says may be cut short is stored at fewer
+    // dimensions (Slice 2.4); the row and its matching use that length.
+    if let Some(keep) = query_profile(&role.model_name).stored_dimensions {
+        role.dims = role.dims.min(keep);
+    }
     let matching: Option<String> = conn
         .query_row(
             "SELECT id FROM embedding_models
@@ -229,4 +235,17 @@ mod tests {
             assert_eq!(sync(c, "t6").unwrap().unwrap().id, first.id);
         });
     }
+
+    #[test]
+    fn a_model_the_catalog_cuts_short_is_stored_at_fewer_dimensions() {
+        with_catalog(|c| {
+            set_role(c, "p", "Qwen3-Embedding-0.6B-8bit", 1024);
+            let m = sync(c, "t").unwrap().unwrap();
+            assert_eq!(m.dims, 512, "Qwen3-Embedding is kept at 512 (Slice 2.4)");
+            assert_eq!(sync(c, "t").unwrap().unwrap().id, m.id, "and still matched");
+            set_role(c, "p", "some-other-embedder", 768);
+            assert_eq!(sync(c, "t2").unwrap().unwrap().dims, 768, "others keep their length");
+        });
+    }
 }
+

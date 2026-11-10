@@ -133,6 +133,7 @@ impl QueryEmbedder {
                 key: secret,
                 model: model.model_name.clone(),
                 dims: model.dims,
+                native_dims: native_dims(conn, model),
             },
             Ok(Prepared::Blocked(_)) => {
                 return Err(NoTarget::Unavailable(SemanticUnavailable::NotPermitted));
@@ -234,5 +235,20 @@ impl PendingQuery {
             EmbedError::Timeout => SemanticUnavailable::Timeout,
             _ => SemanticUnavailable::Failed,
         })
+    }
+}
+
+/// The vector length the service returns for `model`: the role's tested
+/// dimensions when the role names the same service and model (Atlas may
+/// keep fewer), else the row's own.
+fn native_dims(conn: &Connection, model: &EmbeddingModel) -> usize {
+    match models::role(conn) {
+        Ok(Some(role))
+            if Some(role.profile_id.as_str()) == model.provider_profile_id.as_deref()
+                && role.model_name == model.model_name =>
+        {
+            role.dims.max(model.dims)
+        }
+        _ => model.dims,
     }
 }
