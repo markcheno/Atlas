@@ -2,7 +2,8 @@
   // The document detail panel (phase1-spec §5.3): what Atlas knows about a
   // file and the document read from it, its text status in plain words,
   // and the other places the same content is (Also at). Escape or Close
-  // returns focus to whatever opened it.
+  // returns focus to whatever opened it. Related documents (Slice 2.5) can
+  // be shown in the panel in turn, with Back to the one before.
   import type { FileInstance } from '../api/bindings/FileInstance';
   import { reasonText } from '../extractionCopy';
   import { TITLE_SOURCE_NOTE } from '../searchCopy';
@@ -14,6 +15,7 @@
   import OriginalActions from './OriginalActions.svelte';
   import OriginalNotice from './OriginalNotice.svelte';
   import ProblemNotice from './ProblemNotice.svelte';
+  import RelatedList from './RelatedList.svelte';
   import TextBadge from './TextBadge.svelte';
 
   let panel = $state<HTMLElement>();
@@ -21,6 +23,7 @@
 
   const d = $derived(details.detail);
   const heading = $derived(d ? d.title : 'Details');
+  const previous = $derived(details.history.at(-1));
 
   function rootName(file: FileInstance): string {
     const root = sources.roots.find((r) => r.id === file.sourceRootId);
@@ -91,6 +94,12 @@
         Close
       </button>
     </header>
+
+    {#if previous}
+      <button type="button" class="button quiet back" onclick={() => void details.back()}>
+        Back to {previous.title}
+      </button>
+    {/if}
 
     {#if details.error}
       <ProblemNotice
@@ -172,6 +181,8 @@
           </ul>
         </section>
       {/if}
+
+      <RelatedList documentId={d.documentId} />
     {:else}
       <p class="muted" role="status">Loading details…</p>
     {/if}
@@ -219,6 +230,13 @@
   h3 {
     margin: 0 0 var(--space-2);
     font-size: 15px;
+  }
+
+  .back {
+    align-self: start;
+    margin-top: calc(-1 * var(--space-2));
+    overflow-wrap: anywhere;
+    text-align: start;
   }
 
   .file-name {

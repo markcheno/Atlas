@@ -23,7 +23,10 @@ export const fromFile = (f: FileInstance): Original => ({
   sizeBytes: f.sizeBytes,
 });
 
-export const fromHit = (h: SearchHit): Original => ({
+/** A search result or a related document. */
+export const fromHit = (
+  h: Pick<SearchHit, 'fileInstanceId' | 'displayName' | 'availability'>,
+): Original => ({
   id: h.fileInstanceId,
   displayName: h.displayName,
   availability: h.availability,

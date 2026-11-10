@@ -1,7 +1,7 @@
 use tauri::State;
 
-use crate::domain::dto::{DocumentDetail, DuplicatePage, DuplicateQuery};
-use crate::error::AtlasResult;
+use crate::domain::dto::{DocumentDetail, DuplicatePage, DuplicateQuery, RelatedPage};
+use crate::error::{AtlasError, AtlasResult};
 use crate::services::documents;
 use crate::state::AppState;
 
@@ -32,4 +32,40 @@ pub async fn list_duplicates(
             documents::duplicates::list(root.reader(), root.root_status(), &query)
         })
         .await
+}
+
+/// The documents closest in meaning to one document (Slice 2.5), best
+/// first: never the document itself, its copies or a document with the
+/// same text. Only stored vectors are compared: nothing is sent to an AI
+/// service. The workspace is held only to take the library's handles.
+#[tauri::command]
+pub async fn get_related_documents(
+    state: State<'_, AppState>,
+    document_id: String,
+    limit: Option<u32>,
+) -> AtlasResult<RelatedPage> {
+    let handles = state
+        .with_workspace(|ws| {
+            let root = ws.require_open()?;
+            Ok((
+                root.reader_handle(),
+                root.root_status_handle(),
+                std::sync::Arc::clone(root.vectors()),
+                root.catalog().handle(),
+            ))
+        })
+        .await?;
+    tauri::async_runtime::spawn_blocking(move || {
+        let (reader, roots, vectors, catalog) = handles;
+        documents::related::run(
+            &reader,
+            &roots,
+            &vectors,
+            &catalog,
+            &document_id,
+            limit.unwrap_or(documents::related::DEFAULT_LIMIT),
+        )
+    })
+    .await
+    .map_err(|_| AtlasError::Internal("a background task failed"))?
 }

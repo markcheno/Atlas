@@ -4,6 +4,7 @@
 
 pub mod embedding;
 pub mod http;
+pub mod meaning;
 pub mod vectors;
 
 use std::fs;

@@ -15,6 +15,7 @@ use super::chunk_map::ChunkMap;
 use super::index::{OpenReport, VectorIndex, VectorPaths, open_index};
 use crate::error::AtlasResult;
 use crate::services::catalog::writer::CatalogHandle;
+use crate::services::documents::related::RelatedCache;
 
 type Slot = Arc<Mutex<Option<Arc<VectorIndex>>>>;
 
@@ -23,6 +24,8 @@ pub struct VectorRegistry {
     slots: Mutex<HashMap<String, Slot>>,
     /// Chunk id → document, for search's filters (shared by every model).
     chunk_map: Mutex<ChunkMap>,
+    /// Related documents' candidates, by document (Slice 2.5).
+    related: Mutex<RelatedCache>,
 }
 
 impl VectorRegistry {
@@ -35,6 +38,7 @@ impl VectorRegistry {
             paths,
             slots: Mutex::new(HashMap::new()),
             chunk_map: Mutex::new(ChunkMap::default()),
+            related: Mutex::new(RelatedCache::default()),
         }
     }
 
@@ -105,10 +109,16 @@ impl VectorRegistry {
             .lock()
             .unwrap_or_else(|p| p.into_inner())
             .remove(model_id);
+        self.related_cache().forget(model_id);
     }
 
     /// The chunk → document map, topped up to the catalog's latest chunk.
     pub fn chunk_map(&self) -> MutexGuard<'_, ChunkMap> {
         self.chunk_map.lock().unwrap_or_else(|p| p.into_inner())
+    }
+
+    /// Related documents' cache (Slice 2.5).
+    pub fn related_cache(&self) -> MutexGuard<'_, RelatedCache> {
+        self.related.lock().unwrap_or_else(|p| p.into_inner())
     }
 }

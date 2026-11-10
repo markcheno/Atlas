@@ -881,6 +881,59 @@ pub struct SearchPage {
     pub semantic: SemanticStatus,
 }
 
+// ---------------------------------------------------------------- related
+
+/// Whether a document's related documents could be found (Slice 2.5).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize, TS)]
+#[serde(rename_all = "snake_case")]
+#[ts(export)]
+pub enum RelatedStatus {
+    /// No embedding model is set up: the panel shows nothing.
+    #[default]
+    Off,
+    /// Found (the list may be empty: nothing is close enough).
+    Ready,
+    /// The document hasn't been indexed for meaning yet (or failed).
+    NotIndexed,
+    /// The document has no text to compare.
+    NoText,
+    /// The meaning index is being opened; ask again shortly.
+    Loading,
+    /// The index couldn't be searched.
+    Failed,
+}
+
+/// A document related by meaning to the one in the panel.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct RelatedHit {
+    pub document_id: RecordId,
+    /// An available file of it.
+    pub file_instance_id: RecordId,
+    pub title: String,
+    pub title_source: TitleSource,
+    pub display_name: String,
+    pub display_path: String,
+    pub file_type: FileType,
+    pub source_root_id: RecordId,
+    pub availability: Availability,
+    pub storage: FileStorage,
+    /// Where the best matching passage is: "Page 12", "Chapter 3, part 2".
+    pub location: Option<String>,
+    pub page_no: Option<u32>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct RelatedPage {
+    pub status: RelatedStatus,
+    /// Best first; never the document itself, its copies or a document
+    /// with the same text.
+    pub hits: Vec<RelatedHit>,
+}
+
 /// Machine-readable pause reasons; display text is chosen by the UI.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
 #[serde(rename_all = "snake_case")]

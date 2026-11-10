@@ -1098,6 +1098,21 @@ Both passed: hybrid hit@5 0.950 on the vague set (text only 0.875), and
 Phase 1's set 40/40 ([benchmarks](benchmarks.md#meaning-search-slice-24)).
 P2-18 ran locally on the 30k text fixture: hybrid search p95 228 ms while embedding 733,668 chunks, under the 250 ms target.
 
+## Slice 2.5
+
+Related documents ([ADR 0013 amendment](adr/0013-embeddings-durable-index-disposable.md#amendment-related-documents-phase-2-slice-25-2026-11-10)).
+On every OS:
+
+- `tests/related.rs` (P2-12, with the fake backend);
+- the Vitest cases for the Related section and More like this;
+- related latency in the bench job's embedding benchmark at 1k.
+
+**CI on `slice-25`:** full run
+[42837639498](https://github.com/markcheno/Atlas/actions/runs/42837639498),
+all green. Related at 1k on the CI runners, p50 / p95 (cold), ten related
+per document: macOS arm64 3.3 / 3.8 ms, Linux x64 4.1 / 4.5 ms, Windows
+x64 6.8 / 8.1 ms.
+
 ## Manual checklist for Windows and Linux
 
 CI runs an automated smoke test on Windows and Linux (Slice 0.8, below),
@@ -1421,6 +1436,23 @@ and read:
 2. Stop the AI service and search again: the same text results, with
    "Showing text matches only: the AI service isn't reachable."
 3. Search for nonsense ("zqxjv plorbix"): nothing is found.
+
+### Related documents (Slice 2.5)
+
+1. With the library indexed for meaning, open a book's Details. Related
+   lists up to ten other documents, each with "Related by meaning:" and a
+   page or chapter. The book's own copies are never among them; they are
+   under Also at.
+2. Choose Details on a related document. The panel shows it, with "Back
+   to ‹the first book›". Back returns, and Close returns focus to where
+   you opened the panel.
+3. Search for something, then choose More like this on a result. The
+   panel opens with focus on Related.
+4. Stop the AI service and open Details again. Related still shows: it
+   uses only what Atlas has stored.
+5. Open a file Atlas hasn't indexed yet, or a scanned PDF without text.
+   Related says "Not indexed for meaning yet" or "Atlas found no text in
+   this file to compare".
 
 ## Known platform notes
 

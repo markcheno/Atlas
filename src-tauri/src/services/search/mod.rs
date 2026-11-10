@@ -470,10 +470,40 @@ pub fn meaning_ranking(
         .collect())
 }
 
-/// The source folders of a page's hits, for marking unreachable ones.
-fn hit_roots(c: &Connection, page: &SearchPage) -> rusqlite::Result<Vec<(String, Vec<u8>)>> {
+/// A document found by meaning, as a result: an available file of it
+/// (available copies first), its title and the chunk's location. `None`
+/// when no file of it is available (related documents, Slice 2.5).
+pub(crate) fn meaning_hit(
+    conn: &Connection,
+    document: &str,
+    passage: i64,
+    span: (usize, usize),
+) -> rusqlite::Result<Option<SearchHit>> {
+    let f = Filters {
+        sql: " AND f.availability = 'available'".to_owned(),
+        params: Vec::new(),
+        narrowed: false,
+    };
+    let e = Entry {
+        document: Some(document.to_owned()),
+        instance: None,
+        passage: Some(passage),
+        score: 0.0,
+        why: MatchReason::Semantic,
+        all_words: true,
+        expr: None,
+        span: Some(span),
+    };
+    hit(conn, &e, &f, &[])
+}
+
+/// The source folders of hits, for marking unreachable ones.
+pub(crate) fn hit_roots(
+    c: &Connection,
+    hits: &[SearchHit],
+) -> rusqlite::Result<Vec<(String, Vec<u8>)>> {
     let mut paths: Vec<(String, Vec<u8>)> = Vec::new();
-    for hit in &page.hits {
+    for hit in hits {
         if paths.iter().any(|(id, _)| *id == hit.source_root_id) {
             continue;
         }
@@ -487,9 +517,13 @@ fn hit_roots(c: &Connection, page: &SearchPage) -> rusqlite::Result<Vec<(String,
     Ok(paths)
 }
 
-fn mark_unreachable(page: &mut SearchPage, roots: &RootStatusCache, paths: &[(String, Vec<u8>)]) {
+pub(crate) fn mark_unreachable(
+    hits: &mut [SearchHit],
+    roots: &RootStatusCache,
+    paths: &[(String, Vec<u8>)],
+) {
     let statuses = roots.statuses(paths);
-    for hit in &mut page.hits {
+    for hit in hits {
         let reachable = statuses
             .get(&hit.source_root_id)
             .is_none_or(|s| *s == SourceRootStatus::Available);
@@ -509,11 +543,11 @@ pub fn run(
     let (mut page, root_paths) = reader
         .read(|c| {
             let page = search(c, q)?;
-            let paths = hit_roots(c, &page)?;
+            let paths = hit_roots(c, &page.hits)?;
             Ok::<_, rusqlite::Error>((page, paths))
         })?
         .map_err(AtlasError::db("search"))?;
-    mark_unreachable(&mut page, roots, &root_paths);
+    mark_unreachable(&mut page.hits, roots, &root_paths);
     Ok(page)
 }
 
@@ -544,11 +578,11 @@ pub fn run_hybrid(
             let (page, status) = hybrid_page(c, m, q)?;
             let mut page = page;
             page.semantic = status;
-            let paths = hit_roots(c, &page)?;
+            let paths = hit_roots(c, &page.hits)?;
             Ok::<_, rusqlite::Error>((page, paths))
         })?
         .map_err(AtlasError::db("search"))?;
-    mark_unreachable(&mut page, roots, &root_paths);
+    mark_unreachable(&mut page.hits, roots, &root_paths);
     Ok(page)
 }
 

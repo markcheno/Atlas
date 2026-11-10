@@ -12,6 +12,8 @@
 //! waits `--query-delay-ms` as a local service would. The fake backend
 //! itself answers at once, so the job's pace measures Atlas's own work
 //! (chunking, hashing, writes, index adds), not a model's.
+//! After the job, related documents are timed for up to 200 documents,
+//! cold and then from the cache (Slice 2.5).
 //! Measurements only, unless `--max-p95-ms` is given.
 
 use std::fs;
@@ -27,6 +29,7 @@ use atlas_lib::domain::traits::{BackendInfo, EmbedError, EmbeddingBackend};
 use atlas_lib::infrastructure::local_source::LocalFsSource;
 use atlas_lib::infrastructure::system_probe::{OsResourceMonitor, SimulatedMonitor, Simulation};
 use atlas_lib::infrastructure::volume::OsVolumeInspector;
+use atlas_lib::services::documents::related;
 use atlas_lib::services::embedding::fake::HashedBagOfWordsBackend;
 use atlas_lib::services::embedding::job::{
     self as embedding_job, BackendFactory, EmbedConfig, EmbedDeps,
@@ -46,6 +49,8 @@ use atlas_lib::services::workspace::{Workspace, WorkspaceConfig};
 use atlas_lib::services::{inventory, sources};
 
 const DEADLINE: Duration = Duration::from_secs(3 * 60 * 60);
+/// Documents whose related documents are timed.
+const RELATED_ASKS: usize = 200;
 const MIX: [&str; 10] = [
     "orbital",
     "\"quiet harbour lights\"",
@@ -342,6 +347,49 @@ fn main() {
     let save = index.save(root.vectors().paths(), root.catalog()).unwrap();
     let raw = vectors as f64 * a.dims as f64 * 4.0;
     let searched = times.len();
+
+    // Related documents (Slice 2.5): up to RELATED_ASKS documents spread
+    // over the library, each asked twice: cold, then from the cache.
+    let asked: Vec<String> = root
+        .reader()
+        .read(|c| {
+            let mut stmt = c
+                .prepare(
+                    "SELECT document_id FROM document_embeddings WHERE status = 'done'
+                     ORDER BY seq",
+                )
+                .unwrap();
+            let all: Vec<String> = stmt
+                .query_map([], |r| r.get(0))
+                .unwrap()
+                .map(Result::unwrap)
+                .collect();
+            let step = (all.len() / RELATED_ASKS).max(1);
+            all.into_iter().step_by(step).take(RELATED_ASKS).collect()
+        })
+        .unwrap();
+    let (mut cold, mut warm, mut found) = (Vec::new(), Vec::new(), 0usize);
+    for pass in 0..2 {
+        for doc in &asked {
+            let t = Instant::now();
+            let page = related::run(
+                root.reader(),
+                root.root_status(),
+                root.vectors(),
+                &catalog_handle,
+                doc,
+                related::DEFAULT_LIMIT,
+            )
+            .unwrap();
+            if pass == 0 {
+                cold.push(t.elapsed());
+                found += page.hits.len();
+            } else {
+                warm.push(t.elapsed());
+            }
+        }
+    }
+    let related_found = found as f64 / asked.len().max(1) as f64;
     let catalog_after = file_bytes(&catalog);
     let result = json!({
         "bench": "embedding",
@@ -369,6 +417,11 @@ fn main() {
         "indexFileToRawF32": (save.bytes as f64 / raw.max(1.0) * 1000.0).round() / 1000.0,
         "saveMs": save.ms,
         "hybridWhileEmbedding": percentiles(times),
+        "related": {
+            "cold": percentiles(cold),
+            "warm": percentiles(warm),
+            "meanHits": (related_found * 10.0).round() / 10.0,
+        },
         "meaningReadyShare": (f64::from(ready) / searched.max(1) as f64 * 100.0).round() / 100.0,
         "eventsPerSecond": (events.load(Ordering::Relaxed) as f64 / embed_secs * 10.0).round() / 10.0,
     });
