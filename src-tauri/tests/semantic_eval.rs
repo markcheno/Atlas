@@ -200,24 +200,24 @@ impl Corpus {
             .collect()
     }
 
-    /// The 1-based rank of the first relevant document among `docs`.
+    /// The 1-based rank of the first relevant document among `docs`. Paths
+    /// are compared as paths, so Windows separators don't matter.
     fn rank(&self, docs: &[String], relevant: &[PathBuf]) -> Option<usize> {
         docs.iter()
             .position(|doc| {
-                relevant.iter().any(|r| {
-                    self.root()
-                        .reader()
-                        .read(|c| {
-                            c.query_row(
-                                "SELECT EXISTS (SELECT 1 FROM file_instances
-                                 WHERE document_id = ?1 AND display_path = ?2)",
-                                rusqlite::params![doc, r.to_string_lossy()],
-                                |row| row.get::<_, bool>(0),
-                            )
-                        })
-                        .unwrap()
-                        .unwrap()
-                })
+                let paths: Vec<String> = self
+                    .root()
+                    .reader()
+                    .read(|c| {
+                        c.prepare("SELECT display_path FROM file_instances WHERE document_id = ?1")?
+                            .query_map([doc], |r| r.get::<_, String>(0))?
+                            .collect::<rusqlite::Result<Vec<_>>>()
+                    })
+                    .unwrap()
+                    .unwrap();
+                paths
+                    .iter()
+                    .any(|p| relevant.iter().any(|r| Path::new(p) == r.as_path()))
             })
             .map(|r| r + 1)
     }
@@ -585,7 +585,8 @@ fn p2_17_the_vague_set_against_a_real_model() {
         }
     }
     eprintln!(
-        "Phase 1's set through hybrid@{dims}: {whole}/{} {missed:?}",
+        "Phase 1's set through hybrid at the stored {} dimensions: {whole}/{} {missed:?}",
+        serving.dims,
         exact.len()
     );
     assert!(

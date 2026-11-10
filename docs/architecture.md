@@ -596,8 +596,20 @@ Slice 1.6, in `src-tauri/src/services/documents/` and `services/storage/`.
 
 ## Search
 
-Implemented in `src-tauri/src/services/search/` (Slice 1.4); rationale in
-[ADR 0010](adr/0010-full-text-search.md).
+Implemented in `src-tauri/src/services/search/` (Slice 1.4; meaning search
+Slice 2.4); rationale in [ADR 0010](adr/0010-full-text-search.md) and its
+hybrid-search amendment.
+
+- **Hybrid search** (`search/hybrid.rs`, `search::run_hybrid`, Slice 2.4):
+  - The query is embedded (`embedding/query.rs`: the serving model, its
+    prefix, a 256-entry cache, a 1.5 s wait) while the text pass runs.
+  - The 200 nearest chunks are filtered through `embedding/chunk_map.rs`
+    and kept above the model's similarity floor.
+  - Reciprocal rank fusion (k = 60) runs in two tiers: every-word matches
+    first.
+  - Reasons `semantic` and `text_semantic`; `SearchPage.semantic` says
+    whether meaning search took part.
+  - The search command runs off the workspace lock.
 
 - **Index** (migration 0009). An external-content FTS5 table over
   `passages`, `unicode61 remove_diacritics 2`, `detail='full'`, kept in step

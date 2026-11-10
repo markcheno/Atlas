@@ -225,9 +225,16 @@ fn p2_20_a_redirect_is_not_followed_and_the_key_stays_home() {
 fn a_model_cut_short_keeps_its_first_numbers_at_unit_length() {
     let server = MockServer::start(vec![(
         "POST /v1/embeddings",
-        json(200, r#"{"data": [{"index": 0, "embedding": [3.0, 4.0, 12.0, 0.5]}]}"#),
+        json(
+            200,
+            r#"{"data": [{"index": 0, "embedding": [3.0, 4.0, 12.0, 0.5]}]}"#,
+        ),
     )]);
-    let mut b = backend(&server.url("/v1"), ProviderKind::OpenaiCompatible, ProbeConfig::embedding());
+    let mut b = backend(
+        &server.url("/v1"),
+        ProviderKind::OpenaiCompatible,
+        ProbeConfig::embedding(),
+    );
     b.keep = 2;
     let v = b.embed(&["x"]).unwrap();
     assert_eq!(v, [vec![0.6, 0.8]]);

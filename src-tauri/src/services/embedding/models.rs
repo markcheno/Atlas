@@ -244,8 +244,11 @@ mod tests {
             assert_eq!(m.dims, 512, "Qwen3-Embedding is kept at 512 (Slice 2.4)");
             assert_eq!(sync(c, "t").unwrap().unwrap().id, m.id, "and still matched");
             set_role(c, "p", "some-other-embedder", 768);
-            assert_eq!(sync(c, "t2").unwrap().unwrap().dims, 768, "others keep their length");
+            assert_eq!(
+                sync(c, "t2").unwrap().unwrap().dims,
+                768,
+                "others keep their length"
+            );
         });
     }
 }
-
