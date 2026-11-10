@@ -631,3 +631,71 @@ fn queued_jobs_are_never_made_without_a_model() {
     assert!(lib.overview().needs_model);
     let _ = fs::metadata(lib.env.base.join("AtlasData"));
 }
+
+#[test]
+fn p2_19_the_meaning_index_is_counted_estimated_and_kept_by_clean_caches() {
+    use atlas_lib::services::storage;
+    let lib = Lib::new();
+    lib.read_books(6, 0);
+    let path = lib.env.base.join("AtlasData");
+    let volumes = common::local();
+    let before = storage::usage(&path, volumes.as_ref()).unwrap();
+    assert_eq!(before.meaning_estimate, None, "no estimate without a model");
+
+    // On battery the job waits, so the estimate covers everything.
+    lib.h.ex.inv.monitor.set(|s| {
+        s.power = PowerSource::Battery;
+        s.battery_percent = Some(60.0);
+    });
+    lib.set_role("http://localhost:9/v1", DIMS);
+    let waiting = storage::usage(&path, volumes.as_ref()).unwrap();
+    let e = waiting
+        .meaning_estimate
+        .expect("an estimate once a model is chosen");
+    assert!(e.remaining_files > 0 && e.low_bytes > 0 && e.high_bytes > e.low_bytes);
+
+    lib.h.ex.inv.monitor.set(|s| s.power = PowerSource::Ac);
+    lib.wait_idle();
+    let model = lib.active_model();
+    lib.wait_ready(&model);
+    let after = storage::usage(&path, volumes.as_ref()).unwrap();
+    assert_eq!(after.meaning_estimate.unwrap().remaining_files, 0);
+    let c = lib.catalog();
+    let rows: i64 = c
+        .query_row(
+            "SELECT SUM(pgsize) FROM dbstat WHERE aggregate = TRUE AND
+                 (name IN ('chunks', 'embeddings', 'document_embeddings', 'vector_tombstones',
+                           'embedding_models')
+                  OR name LIKE 'chunks\\_%' ESCAPE '\\'
+                  OR name LIKE 'document\\_embeddings\\_%' ESCAPE '\\'
+                  OR name LIKE 'sqlite\\_autoindex\\_embeddings\\_%' ESCAPE '\\'
+                  OR name LIKE 'sqlite\\_autoindex\\_document\\_embeddings\\_%' ESCAPE '\\'
+                  OR name LIKE 'sqlite\\_autoindex\\_chunks\\_%' ESCAPE '\\'
+                  OR name LIKE 'sqlite\\_autoindex\\_embedding\\_models\\_%' ESCAPE '\\')",
+            [],
+            |r| r.get(0),
+        )
+        .unwrap();
+    assert_eq!(
+        after.meaning_catalog_bytes as i64, rows,
+        "the category is the dbstat sum"
+    );
+    let file = file_of(&lib, &model);
+    assert!(file.exists());
+    assert_eq!(after.meaning_file_bytes, fs::metadata(&file).unwrap().len());
+    assert_eq!(
+        after.catalog_bytes,
+        after.text_bytes
+            + after.index_bytes
+            + after.meaning_catalog_bytes
+            + after.other_catalog_bytes
+    );
+
+    let vectors = count(&c, "SELECT COUNT(*) FROM embeddings");
+    storage::clean_caches(&path).unwrap();
+    assert!(file.exists(), "Clean caches keeps the index");
+    assert_eq!(
+        count(&lib.catalog(), "SELECT COUNT(*) FROM embeddings"),
+        vectors
+    );
+}

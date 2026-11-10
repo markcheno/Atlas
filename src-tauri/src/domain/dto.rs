@@ -624,7 +624,29 @@ pub struct StorageUsage {
     #[ts(type = "number | null")]
     pub data_volume_free_bytes: Option<u64>,
     pub estimate: IndexingEstimate,
+    /// The meaning index (Slice 2.3): its rows in the catalog (chunks,
+    /// vectors, their state), part of `catalog_bytes`.
+    #[ts(type = "number")]
+    pub meaning_catalog_bytes: u64,
+    /// The index files under `indexes/vectors/`.
+    #[ts(type = "number")]
+    pub meaning_file_bytes: u64,
+    /// What indexing the meaning of the files still waiting will add;
+    /// `None` until an embedding model is chosen.
+    pub meaning_estimate: Option<MeaningEstimate>,
     pub measured_at: String,
+}
+
+/// A range, as the text estimate's (phase2-spec §5.6).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct MeaningEstimate {
+    pub remaining_files: u32,
+    #[ts(type = "number")]
+    pub low_bytes: u64,
+    #[ts(type = "number")]
+    pub high_bytes: u64,
 }
 
 /// How much the text still to be read will need (phase1-spec §8): always a

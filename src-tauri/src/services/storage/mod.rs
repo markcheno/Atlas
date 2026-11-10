@@ -1,7 +1,8 @@
 //! Storage accounting and cache cleaning (Settings › Storage, phase1-spec
-//! §5.5, §8). Sizes come from the files and from SQLite's `dbstat`, on a
-//! connection of their own so measuring never holds the workspace or a
-//! pooled reader. Clean caches removes only `cache/` and `tmp/` contents.
+//! §5.5, §8; the meaning index, phase2-spec §5.6). Sizes come from the
+//! files and from SQLite's `dbstat`, on a connection of their own so
+//! measuring never holds the workspace or a pooled reader. Clean caches
+//! removes only `cache/` and `tmp/` contents, never the meaning index.
 
 use std::fs;
 use std::io;
@@ -9,11 +10,13 @@ use std::path::{Path, PathBuf};
 
 use rusqlite::Connection;
 
-use crate::domain::dto::{IndexingEstimate, StorageUsage};
+use crate::domain::dto::{IndexingEstimate, MeaningEstimate, StorageUsage};
 use crate::domain::traits::VolumeInspector;
 use crate::error::{AtlasError, AtlasResult};
 use crate::infrastructure::clock::now_rfc3339;
 use crate::services::catalog::reader;
+use crate::services::embedding::index::VECTORS_DIR;
+use crate::services::embedding::models;
 use crate::services::extraction::db::EFFECTIVE_STATE_SQL;
 use crate::services::workspace::layout::{CATALOG, DIRECTORIES, TMP};
 
@@ -67,11 +70,58 @@ struct Measured {
     index: u64,
     done: u32,
     pending: u32,
+    meaning: u64,
+    /// Characters and files still waiting for the active model's meaning,
+    /// and its dimensions; `None` without a model.
+    waiting: Option<(u64, u32, usize)>,
+}
+
+/// The catalog tables and indexes that make up the meaning index.
+fn is_meaning(name: &str) -> bool {
+    const TABLES: &[&str] = &[
+        "chunks",
+        "embeddings",
+        "document_embeddings",
+        "vector_tombstones",
+        "embedding_models",
+    ];
+    TABLES.contains(&name)
+        || name.starts_with("chunks_")
+        || name.starts_with("document_embeddings_")
+        || TABLES
+            .iter()
+            .any(|t| name.starts_with(&format!("sqlite_autoindex_{t}_")))
+}
+
+/// Characters of text per chunk: the 1,200-character chunk less its
+/// 150-character overlap (Slice 2.2).
+const CHARS_PER_CHUNK: f64 = 1_050.0;
+/// The meaning estimate's range: ±25%.
+const MEANING_SPREAD: f64 = 0.25;
+
+/// What one chunk adds at `dims` dimensions: the f16 vector and its rows
+/// in the catalog (2,529 bytes at 1,024 with 16 KiB pages, Slice 2.2), and
+/// its share of the index file (0.536 of the raw f32 vector).
+fn bytes_per_chunk(dims: usize) -> f64 {
+    let catalog = dims as f64 * 2.0 + 481.0;
+    let file = dims as f64 * 4.0 * 0.536;
+    catalog + file
+}
+
+/// What indexing `chars` characters of text in `files` files will add.
+pub fn meaning_estimate(chars: u64, files: u32, dims: usize) -> MeaningEstimate {
+    let expected = (chars as f64 / CHARS_PER_CHUNK).ceil() * bytes_per_chunk(dims);
+    MeaningEstimate {
+        remaining_files: files,
+        low_bytes: (expected * (1.0 - MEANING_SPREAD)) as u64,
+        high_bytes: (expected * (1.0 + MEANING_SPREAD)) as u64,
+    }
 }
 
 fn measure_catalog(conn: &Connection) -> rusqlite::Result<Measured> {
     let mut text = 0u64;
     let mut index = 0u64;
+    let mut meaning = 0u64;
     let mut stmt = conn.prepare("SELECT name, pgsize FROM dbstat WHERE aggregate = TRUE")?;
     for row in stmt.query_map([], |r| Ok((r.get::<_, String>(0)?, r.get::<_, i64>(1)?)))? {
         let (name, size) = row?;
@@ -80,6 +130,8 @@ fn measure_catalog(conn: &Connection) -> rusqlite::Result<Measured> {
             text += size;
         } else if name.starts_with("passages_fts") {
             index += size;
+        } else if is_meaning(&name) {
+            meaning += size;
         }
     }
     let done: u32 = conn.query_row(
@@ -95,11 +147,33 @@ fn measure_catalog(conn: &Connection) -> rusqlite::Result<Measured> {
         [],
         |r| r.get(0),
     )?;
+    let waiting = match (models::role(conn)?, models::active(conn)?) {
+        (Some(_), Some(model)) => {
+            let (chars, files): (i64, i64) = conn.query_row(
+                "SELECT COALESCE(SUM(d.char_count), 0),
+                        (SELECT COUNT(*) FROM file_instances f
+                         WHERE f.availability = 'available' AND f.document_id IN
+                             (SELECT d2.id FROM documents d2 WHERE d2.state = 'done'
+                              AND NOT EXISTS (SELECT 1 FROM document_embeddings de
+                                  WHERE de.document_id = d2.id AND de.model_id = ?1)))
+                 FROM documents d
+                 WHERE d.state = 'done'
+                   AND NOT EXISTS (SELECT 1 FROM document_embeddings de
+                                   WHERE de.document_id = d.id AND de.model_id = ?1)",
+                [&model.id],
+                |r| Ok((r.get(0)?, r.get(1)?)),
+            )?;
+            Some((chars.max(0) as u64, files.max(0) as u32, model.dims))
+        }
+        _ => None,
+    };
     Ok(Measured {
         text,
         index,
         done,
         pending,
+        meaning,
+        waiting,
     })
 }
 
@@ -134,10 +208,15 @@ pub fn usage(root: &Path, volumes: &dyn VolumeInspector) -> AtlasResult<StorageU
         catalog_bytes: catalog,
         text_bytes: m.text,
         index_bytes: m.index,
-        other_catalog_bytes: catalog.saturating_sub(m.text + m.index),
+        other_catalog_bytes: catalog.saturating_sub(m.text + m.index + m.meaning),
         cache_bytes: CACHE_DIRS.iter().map(|d| tree_bytes(&root.join(d))).sum(),
         data_volume_free_bytes: volumes.inspect(root).ok().and_then(|v| v.free_bytes),
         estimate: estimate(m.text + m.index, m.done, m.pending),
+        meaning_catalog_bytes: m.meaning,
+        meaning_file_bytes: tree_bytes(&root.join(VECTORS_DIR)),
+        meaning_estimate: m
+            .waiting
+            .map(|(chars, files, dims)| meaning_estimate(chars, files, dims)),
         measured_at: now_rfc3339(),
     })
 }
@@ -181,6 +260,26 @@ fn clear_counted(dir: &Path, keep: &[PathBuf]) -> io::Result<u64> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_meaning_estimate_scales_with_text_and_dimensions() {
+        // 30,000 files of 20 KiB of text at 1,024 dimensions: about 0.6
+        // million chunks, about 2.8 GB with the index file.
+        let e = meaning_estimate(30_000 * 20_480, 30_000, 1024);
+        assert_eq!(e.remaining_files, 30_000);
+        let mid = (e.low_bytes + e.high_bytes) / 2;
+        assert!((2_500_000_000..3_200_000_000).contains(&mid), "{mid}");
+        assert!(e.high_bytes > e.low_bytes);
+        let half = meaning_estimate(30_000 * 20_480, 30_000, 512);
+        assert!(
+            half.high_bytes < e.high_bytes * 6 / 10,
+            "512 dimensions take about half"
+        );
+        assert_eq!(meaning_estimate(0, 0, 1024).high_bytes, 0);
+        assert!(is_meaning("embeddings") && is_meaning("sqlite_autoindex_embeddings_1"));
+        assert!(is_meaning("document_embeddings_by_seq") && is_meaning("chunks_by_passage"));
+        assert!(!is_meaning("passages") && !is_meaning("documents"));
+    }
 
     #[test]
     fn the_estimate_is_a_range_only_after_enough_samples() {
