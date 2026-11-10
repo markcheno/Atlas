@@ -729,6 +729,9 @@ impl EmbedProcessor {
                         let one = backend.embed(&texts[i..=i]);
                         waited += t.elapsed();
                         match one {
+                            Ok(v) if v.iter().any(|x| x.len() != model.dims) => {
+                                return Step::Terminal("model_changed");
+                            }
                             Ok(mut v) if v.len() == 1 => singles.push(Some(v.remove(0))),
                             Ok(_)
                             | Err(EmbedError::BadRequest { .. } | EmbedError::WrongCount { .. }) => {
@@ -754,6 +757,11 @@ impl EmbedProcessor {
                     continue;
                 }
                 Err(e) => return self.classify(e),
+                // Whatever the backend, every vector must have the model's
+                // length: a different one means the model changed.
+                Ok(v) if v.iter().any(|x| x.len() != model.dims) => {
+                    return Step::Terminal("model_changed");
+                }
                 Ok(v) => v,
             };
             for (i, v) in range.zip(answer) {
