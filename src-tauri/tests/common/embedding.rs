@@ -30,6 +30,9 @@ pub struct Script {
     pub delay: Duration,
     /// Every text that got a vector, in order.
     pub answered: Vec<String>,
+    /// A text embedded as if it were another (a query "meaning" a passage
+    /// it shares no words with).
+    pub alias: std::collections::HashMap<String, String>,
     /// Calls made, answered or not.
     pub calls: usize,
 }
@@ -78,7 +81,10 @@ impl EmbeddingBackend for Backend {
         let dims = s.wrong_dims.unwrap_or(self.dims);
         let fake = HashedBagOfWordsBackend::new(dims);
         s.answered.extend(inputs.iter().map(|t| (*t).to_owned()));
-        Ok(inputs.iter().map(|t| fake.vector(t)).collect())
+        Ok(inputs
+            .iter()
+            .map(|t| fake.vector(s.alias.get(*t).map_or(t, String::as_str)))
+            .collect())
     }
 
     fn describe(&self) -> BackendInfo {
@@ -139,6 +145,18 @@ impl EmbedHarness {
             script,
             events,
         }
+    }
+
+    /// The scripted backend, for search's query embedder.
+    pub fn query_backends(&self) -> atlas_lib::services::embedding::job::BackendFactory {
+        let script = self.script.clone();
+        Arc::new(move |s, _stop| {
+            Box::new(Backend {
+                script: script.clone(),
+                dims: s.dims,
+                model: s.model.clone(),
+            })
+        })
     }
 
     /// The real HTTP backend instead of the scripted one.

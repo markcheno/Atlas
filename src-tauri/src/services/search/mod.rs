@@ -456,6 +456,20 @@ pub fn search_with(
     Ok(page)
 }
 
+/// The documents meaning search alone finds for `q`, best first (the
+/// evaluation's "meaning only" column; Slice 2.4).
+pub fn meaning_ranking(
+    conn: &Connection,
+    q: &SearchQuery,
+    semantic: hybrid::Semantic<'_>,
+) -> rusqlite::Result<Vec<String>> {
+    let f = filters(q);
+    Ok(hybrid::nearest(conn, semantic, &f)?
+        .into_iter()
+        .map(|n| n.document)
+        .collect())
+}
+
 /// The source folders of a page's hits, for marking unreachable ones.
 fn hit_roots(c: &Connection, page: &SearchPage) -> rusqlite::Result<Vec<(String, Vec<u8>)>> {
     let mut paths: Vec<(String, Vec<u8>)> = Vec::new();

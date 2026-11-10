@@ -6,7 +6,12 @@
 //!   filters and their similarity clears the model's floor, grouped by
 //!   document (best chunk kept).
 //! - **Fusion:** reciprocal rank fusion, k = 60, over the two document
-//!   lists; a name match still strengthens a result (×1.25). At most
+//!   lists, in two tiers. Documents containing every word come first, fused
+//!   with the meaning list among themselves; then documents with some of
+//!   the words and those found by meaning alone, fused. A document with
+//!   every word is the strongest evidence a search has: fused with partial
+//!   matches, it fell behind them on Phase 1's question set (Slice 2.4). A
+//!   name match still strengthens a result (×1.25). At most
 //!   [`MAX_MEANING_ONLY`] documents found by meaning alone take part, so a
 //!   query that matches nothing still finds next to nothing.
 //! - **Without a meaning list** (meaning search off, failed, or finding
@@ -115,9 +120,9 @@ fn rrf(rank: usize) -> f64 {
     1.0 / (RRF_K + rank as f64 + 1.0)
 }
 
-/// Fuses Phase 1's ranked text matches with the meaning list. With an
-/// empty meaning list, Phase 1's order exactly: text matches, then name
-/// matches.
+/// Fuses Phase 1's ranked text matches with the meaning list, in two
+/// tiers: documents with every word, then the rest. With an empty meaning
+/// list, Phase 1's order exactly: text matches, then name matches.
 pub(super) fn fuse(text: Vec<Entry>, mut names_only: Vec<Entry>, near: Vec<Near>) -> Vec<Entry> {
     if near.is_empty() {
         let mut out = text;
@@ -131,8 +136,15 @@ pub(super) fn fuse(text: Vec<Entry>, mut names_only: Vec<Entry>, near: Vec<Near>
         .collect();
     let in_text: HashSet<String> = text.iter().filter_map(|e| e.document.clone()).collect();
 
-    // (fused score, text rank, meaning rank, entry)
-    let mut scored: Vec<(f64, usize, usize, Entry)> = Vec::new();
+    struct Scored {
+        /// 0: every word matched; 1: some words, or meaning alone.
+        tier: u8,
+        score: f64,
+        text_rank: usize,
+        meaning_rank: usize,
+        entry: Entry,
+    }
+    let mut scored: Vec<Scored> = Vec::new();
     for (t, mut e) in text.into_iter().enumerate() {
         let m = e
             .document
@@ -142,11 +154,18 @@ pub(super) fn fuse(text: Vec<Entry>, mut names_only: Vec<Entry>, near: Vec<Near>
         if e.why == MatchReason::Both {
             score *= NAME_BOOST;
         }
+        let tier = u8::from(!e.all_words);
         if m.is_some() {
             e.why = MatchReason::TextSemantic;
             e.all_words = true;
         }
-        scored.push((score, t, m.unwrap_or(usize::MAX), e));
+        scored.push(Scored {
+            tier,
+            score,
+            text_rank: t,
+            meaning_rank: m.unwrap_or(usize::MAX),
+            entry: e,
+        });
     }
     let mut taken = 0;
     for (m, n) in near.iter().enumerate() {
@@ -166,11 +185,12 @@ pub(super) fn fuse(text: Vec<Entry>, mut names_only: Vec<Entry>, near: Vec<Near>
             names_only.remove(i);
             score *= NAME_BOOST;
         }
-        scored.push((
+        scored.push(Scored {
+            tier: 1,
             score,
-            usize::MAX,
-            m,
-            Entry {
+            text_rank: usize::MAX,
+            meaning_rank: m,
+            entry: Entry {
                 document: Some(n.document.clone()),
                 instance: None,
                 passage: Some(n.passage),
@@ -180,10 +200,16 @@ pub(super) fn fuse(text: Vec<Entry>, mut names_only: Vec<Entry>, near: Vec<Near>
                 expr: None,
                 span: Some(n.span),
             },
-        ));
+        });
     }
-    scored.sort_by(|a, b| b.0.total_cmp(&a.0).then(a.1.cmp(&b.1)).then(a.2.cmp(&b.2)));
-    let mut out: Vec<Entry> = scored.into_iter().map(|(_, _, _, e)| e).collect();
+    scored.sort_by(|a, b| {
+        a.tier
+            .cmp(&b.tier)
+            .then(b.score.total_cmp(&a.score))
+            .then(a.text_rank.cmp(&b.text_rank))
+            .then(a.meaning_rank.cmp(&b.meaning_rank))
+    });
+    let mut out: Vec<Entry> = scored.into_iter().map(|s| s.entry).collect();
     out.extend(names_only);
     out
 }

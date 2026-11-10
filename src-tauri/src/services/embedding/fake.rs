@@ -1,7 +1,8 @@
 //! A deterministic embedding backend for tests, benchmarks and the smoke
-//! test (phase2-spec §3, §11): each lowercase word is hashed into a signed
-//! bucket, and the sum is scaled to unit length. Texts that share words are
-//! near each other; no model or network is involved.
+//! test (phase2-spec §3, §11): each lowercase word other than the common
+//! ones is hashed into a signed bucket, and the sum is scaled to unit
+//! length. Texts that share words are near each other; no model or
+//! network is involved.
 
 use std::sync::atomic::{AtomicUsize, Ordering};
 
@@ -37,9 +38,11 @@ impl HashedBagOfWordsBackend {
 
     pub fn vector(&self, text: &str) -> Vec<f32> {
         let mut v = vec![0f32; self.dims];
+        // Common words carry no meaning (as for a real model, and as the
+        // any-words search form drops them).
         for word in text
             .split(|c: char| !c.is_alphanumeric())
-            .filter(|w| !w.is_empty())
+            .filter(|w| !w.is_empty() && !crate::services::search::query::is_common_word(w))
         {
             let h = blake3::hash(word.to_lowercase().as_bytes());
             let b = h.as_bytes();

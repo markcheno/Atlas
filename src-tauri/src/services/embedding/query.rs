@@ -46,9 +46,12 @@ pub enum NoTarget {
     Unavailable(SemanticUnavailable),
 }
 
+/// Per model: queries in the order they were added, and their vectors.
+type Cache = Mutex<HashMap<String, (VecDeque<String>, HashMap<String, Vec<f32>>)>>;
+
 pub struct QueryEmbedder {
     backends: BackendFactory,
-    cache: Mutex<HashMap<String, (VecDeque<String>, HashMap<String, Vec<f32>>)>>,
+    cache: Cache,
     services: Mutex<HashMap<String, (Instant, Arc<ResolvedService>)>>,
 }
 
@@ -149,12 +152,7 @@ impl QueryEmbedder {
         cache.get(model).and_then(|(_, m)| m.get(text).cloned())
     }
 
-    fn remember(
-        cache: &Mutex<HashMap<String, (VecDeque<String>, HashMap<String, Vec<f32>>)>>,
-        model: &str,
-        text: &str,
-        v: Vec<f32>,
-    ) {
+    fn remember(cache: &Cache, model: &str, text: &str, v: Vec<f32>) {
         let mut cache = cache.lock().unwrap_or_else(|p| p.into_inner());
         let (order, map) = cache.entry(model.to_owned()).or_default();
         if map.insert(text.to_owned(), v).is_none() {
