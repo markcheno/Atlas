@@ -540,6 +540,29 @@ Do **not** add usearch, chunking or any embedding table before Slice 2.1's gate 
   the role's, which may be building), and checks permission against its
   service.
 
+**2026-11-10, amended during Slice 2.5** ([ADR 0013 amendment](adr/0013-embeddings-durable-index-disposable.md#amendment-related-documents-phase-2-slice-25-2026-11-10)):
+
+- **Same-text documents are not related** (§5.4, §7.5, the product owner's
+  decision). Identical copies are one document already. A document whose
+  distinct chunk texts are 95% the same as this one's (a re-saved PDF, a
+  repackaged EPUB) is left out too.
+- **The similarity floor applies** (§7.5): chunks under the model's floor
+  (0.25) are dropped, so an unrelated library shows "Nothing else in your
+  library is close in meaning" rather than ten weak matches.
+- **k widens to 200** when the 60 nearest chunks leave fewer than ten
+  documents (§7.5), as when one long book crowds them.
+- **More statuses** than "not indexed" (§5.4): `no_text` (nothing to
+  compare), `loading` (the index is opening; the panel asks again) and
+  `failed`. `off` shows nothing, as specified.
+- **The cache key adds the index's size** to (document, model,
+  generation), so adds between saves count. It holds candidates, not
+  files: availability is checked on every request.
+- **The panel** (product owner's decisions): Related is always open, below
+  Also at. Details on a related document shows it in the same panel with
+  "Back to ‹title›". More like this moves focus to Related.
+- **`limit` is optional** in `get_related_documents`: 10 by default, at
+  most 20.
+
 ### Primary reference documentation (verify current versions at implementation time)
 
 - usearch (Rust): <https://docs.rs/usearch/latest/usearch/> and <https://github.com/unum-cloud/usearch>

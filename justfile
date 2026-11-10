@@ -135,7 +135,7 @@ bench-search out="":
 bench-extraction size="30k" out="":
     pnpm bench --extraction-only --extraction-size {{ size }} {{ if out == "" { "" } else { "--out " + out } }}
 
-# The embedding job and hybrid search while it runs (Phase 2, P2-18): `size` is 30k (the reference measurement, with a 250 ms p95 bar) or 1k (CI)
+# The embedding job, hybrid search while it runs (Phase 2, P2-18) and related documents after it (Slice 2.5): `size` is 30k (the reference measurement, with a 250 ms p95 bar) or 1k (CI)
 bench-embedding size="30k" out="":
     pnpm bench --embedding-only --embedding-size {{ size }} {{ if size == "30k" { "--max-p95-ms 250" } else { "" } }} {{ if out == "" { "" } else { "--out " + out } }}
 

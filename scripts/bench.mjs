@@ -512,5 +512,16 @@ function summarizeEmbedding(r) {
     '| ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |',
     `| ${r.documents} | ${r.chunks} | ${r.embedSeconds} | ${r.chunksPerSecond} | ${mib(r.catalogGrowthPer1000Documents)} | ${r.catalogBytesPerVector} | ${mib(r.indexFileBytes)} | ${r.indexFileToRawF32} | ${r.saveMs} | ${h ? `${h.p50Ms} / ${h.p95Ms} / ${h.maxMs}` : '–'} | ${Math.round(r.meaningReadyShare * 100)}% | ${r.eventsPerSecond} |`,
   ];
+  const rel = r.related;
+  if (rel) {
+    lines.push(
+      '',
+      `Related documents after the job, for ${rel.cold.count} documents spread over the library (Slice 2.5).`,
+      '',
+      '| Related p50 / p95 / max ms (cold) | p95 ms (cached) | Related per document |',
+      '| ---: | ---: | ---: |',
+      `| ${rel.cold.p50Ms} / ${rel.cold.p95Ms} / ${rel.cold.maxMs} | ${rel.warm.p95Ms} | ${rel.meanHits} |`,
+    );
+  }
   return `${lines.join('\n')}\n`;
 }

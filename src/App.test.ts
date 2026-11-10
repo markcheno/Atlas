@@ -2288,3 +2288,154 @@ describe('indexing meaning', () => {
     ).toBeInTheDocument();
   });
 });
+
+describe('related documents', () => {
+  beforeEach(() => {
+    resetAll();
+    libraryStore.reset();
+  });
+
+  const row = tauri.fileInstance({
+    id: 'f1',
+    displayName: 'harmonic.pdf',
+    documentId: 'doc-1',
+    extraction: { state: 'done', reason: null },
+  });
+  const withModel = tauri.embeddingOverview({ needsModel: false, hasAiService: true });
+  const near = tauri.relatedHit();
+  const far = tauri.relatedHit({
+    documentId: 'doc-3',
+    fileInstanceId: 'file-3',
+    title: 'Gear Trains',
+    displayName: 'gears.epub',
+    fileType: 'epub',
+    location: null,
+    availability: 'missing',
+  });
+
+  async function openDetails(related: unknown) {
+    tauri.setHandler('list_source_roots', () => [tauri.sourceRoot()]);
+    tauri.setHandler('get_inventory_status', () => tauri.overview({ catalogedFiles: 1 }));
+    tauri.setHandler('get_embedding_status', () => withModel);
+    tauri.setHandler('list_documents', () => tauri.documentPage({ items: [row], matchedSoFar: 1 }));
+    tauri.setHandler('get_document_detail', (args) =>
+      args?.fileId === 'file-2'
+        ? tauri.documentDetail({
+            file: tauri.fileInstance({ id: 'file-2', documentId: 'doc-2' }),
+            documentId: 'doc-2',
+            title: 'Strain Wave Gearing',
+          })
+        : tauri.documentDetail({ file: row }),
+    );
+    tauri.setHandler('get_related_documents', () => related);
+    const user = await launchOpen();
+    await user.click(screen.getByRole('button', { name: 'Library' }));
+    await screen.findByRole('table');
+    await user.click(screen.getByRole('button', { name: 'Details for harmonic.pdf' }));
+    return { user, d: await screen.findByRole('dialog') };
+  }
+
+  const relatedRegion = async (d: HTMLElement) =>
+    within(await within(d).findByRole('region', { name: 'Related' }));
+
+  it('lists documents close in meaning with where they match and their actions', async () => {
+    const { user, d } = await openDetails(
+      tauri.relatedPage({ status: 'ready', hits: [near, far] }),
+    );
+    const related = await relatedRegion(d);
+    expect(tauri.invoke).toHaveBeenCalledWith('get_related_documents', {
+      documentId: 'doc-1',
+      limit: 10,
+    });
+    const items = related.getAllByTestId('related-hit');
+    expect(items).toHaveLength(2);
+    expect(items[0]).toHaveTextContent('Strain Wave Gearing');
+    expect(items[0]).toHaveTextContent('PDF · Books');
+    expect(items[0]).toHaveTextContent('Related by meaning: Page 40');
+    expect(within(items[1]).getByText('Related by meaning')).toBeInTheDocument();
+    expect(within(items[1]).getByText('Missing')).toBeInTheDocument();
+    expect(related.getByRole('button', { name: 'Open gears.epub' })).toBeDisabled();
+    await user.click(related.getByRole('button', { name: 'Open strain-wave.pdf' }));
+    expect(tauri.invoke).toHaveBeenCalledWith('open_original', {
+      fileId: 'file-2',
+      allowDownload: false,
+    });
+  });
+
+  it('shows a related document in the panel, with Back, and Close returns focus', async () => {
+    const { user, d } = await openDetails(tauri.relatedPage({ status: 'ready', hits: [near] }));
+    const related = await relatedRegion(d);
+    await user.click(related.getByRole('button', { name: 'Details for Strain Wave Gearing' }));
+    await waitFor(() => expect(d).toHaveAccessibleName('Strain Wave Gearing'));
+    expect(tauri.invoke).toHaveBeenCalledWith('get_document_detail', { fileId: 'file-2' });
+    await user.click(within(d).getByRole('button', { name: 'Back to Harmonic Drives' }));
+    await waitFor(() => expect(d).toHaveAccessibleName('Harmonic Drives'));
+    expect(within(d).queryByRole('button', { name: /^Back to/ })).toBeNull();
+    await user.click(within(d).getByRole('button', { name: 'Close details' }));
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(screen.getByRole('button', { name: 'Details for harmonic.pdf' })).toHaveFocus();
+  });
+
+  it.each([
+    ['not_indexed', 'Not indexed for meaning yet.'],
+    ['no_text', 'Atlas found no text in this file to compare.'],
+    ['loading', 'Finding related documents…'],
+    ['failed', "Atlas couldn't find related documents right now."],
+    ['ready', 'Nothing else in your library is close in meaning.'],
+  ] as const)('says why there is no list: %s', async (status, text) => {
+    const { d } = await openDetails(tauri.relatedPage({ status }));
+    expect(await within(d).findByText(text)).toBeInTheDocument();
+  });
+
+  it('shows nothing without an embedding model', async () => {
+    const { d } = await openDetails(tauri.relatedPage({ status: 'off' }));
+    await waitFor(() =>
+      expect(tauri.invoke).toHaveBeenCalledWith('get_related_documents', expect.anything()),
+    );
+    expect(within(d).queryByRole('region', { name: 'Related' })).toBeNull();
+  });
+
+  it('asks again when the meaning index moves on', async () => {
+    let answer = tauri.relatedPage({ status: 'not_indexed' });
+    const { d } = await openDetails(answer);
+    tauri.setHandler('get_related_documents', () => answer);
+    expect(await within(d).findByText('Not indexed for meaning yet.')).toBeInTheDocument();
+    answer = tauri.relatedPage({ status: 'ready', hits: [near] });
+    events.emit('embedding-status', withModel);
+    expect(await within(d).findByText('Strain Wave Gearing')).toBeInTheDocument();
+  });
+
+  it('opens Related from a search result with More like this', async () => {
+    tauri.setHandler('list_source_roots', () => [tauri.sourceRoot()]);
+    tauri.setHandler('get_embedding_status', () => withModel);
+    tauri.setHandler('search_documents', () =>
+      tauri.searchPage({
+        hits: [tauri.searchHit({ fileInstanceId: 'f1', why: 'semantic' })],
+        matchedDocuments: 1,
+        semantic: { state: 'ready', coveragePercent: 100 },
+      }),
+    );
+    tauri.setHandler('get_document_detail', () => tauri.documentDetail({ file: row }));
+    tauri.setHandler('get_related_documents', () =>
+      tauri.relatedPage({ status: 'ready', hits: [near] }),
+    );
+    const user = await launchOpen();
+    await user.type(screen.getByLabelText('Search your library'), 'gears{Enter}');
+    const hit = within(await screen.findByTestId('search-hit'));
+    await user.click(hit.getByRole('button', { name: 'More like this: harmonic.pdf' }));
+    const d = await screen.findByRole('dialog');
+    const heading = await within(d).findByRole('heading', { name: 'Related' });
+    await waitFor(() => expect(heading).toHaveFocus());
+  });
+
+  it('offers More like this only when meaning search is set up', async () => {
+    tauri.setHandler('list_source_roots', () => [tauri.sourceRoot()]);
+    tauri.setHandler('search_documents', () =>
+      tauri.searchPage({ hits: [tauri.searchHit()], matchedDocuments: 1 }),
+    );
+    const user = await launchOpen();
+    await user.type(screen.getByLabelText('Search your library'), 'gears{Enter}');
+    const hit = within(await screen.findByTestId('search-hit'));
+    expect(hit.queryByRole('button', { name: /More like this/ })).toBeNull();
+  });
+});

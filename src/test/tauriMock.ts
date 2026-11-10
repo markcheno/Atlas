@@ -37,6 +37,8 @@ import type { SearchHit } from '../lib/api/bindings/SearchHit';
 import type { SearchPage } from '../lib/api/bindings/SearchPage';
 import type { Settings } from '../lib/api/bindings/Settings';
 import type { SourceRoot } from '../lib/api/bindings/SourceRoot';
+import type { RelatedHit } from '../lib/api/bindings/RelatedHit';
+import type { RelatedPage } from '../lib/api/bindings/RelatedPage';
 import type { StorageUsage } from '../lib/api/bindings/StorageUsage';
 
 export const DEFAULT_ROOT = '/Users/test/Library/Application Support/com.altazlabs.atlas/Library';
@@ -46,7 +48,7 @@ export const fakeStatus: AppStatus = {
   os: 'macos',
   arch: 'aarch64',
   buildProfile: 'debug',
-  slice: '2.4',
+  slice: '2.5',
   features: [],
 };
 
@@ -316,6 +318,28 @@ export function documentDetail(overrides: Partial<DocumentDetail> = {}): Documen
   };
 }
 
+export function relatedHit(overrides: Partial<RelatedHit> = {}): RelatedHit {
+  return {
+    documentId: 'doc-2',
+    fileInstanceId: 'file-2',
+    title: 'Strain Wave Gearing',
+    titleSource: 'metadata',
+    displayName: 'strain-wave.pdf',
+    displayPath: '/Users/test/Books/strain-wave.pdf',
+    fileType: 'pdf',
+    sourceRootId: 'root-books',
+    availability: 'available',
+    storage: 'local',
+    location: 'Page 40',
+    pageNo: 40,
+    ...overrides,
+  };
+}
+
+export function relatedPage(overrides: Partial<RelatedPage> = {}): RelatedPage {
+  return { status: 'off', hits: [], ...overrides };
+}
+
 export function storageUsage(overrides: Partial<StorageUsage> = {}): StorageUsage {
   return {
     catalogBytes: 1_400_000_000,
@@ -544,6 +568,7 @@ function defaults(): Record<string, Handler> {
     list_documents: () => documentPage(),
     search_documents: () => searchPage(),
     list_duplicates: () => duplicatePage(),
+    get_related_documents: () => relatedPage(),
     get_storage_usage: () => storageUsage(),
     clean_caches: () => ({ freedBytes: 0, usage: storageUsage() }),
     get_document_detail: (args) =>

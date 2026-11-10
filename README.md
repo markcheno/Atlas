@@ -4,7 +4,7 @@ Atlas is a local-first personal AI librarian for large private collections of
 PDFs, EPUBs, books and papers. *Collect freely. Organize minimally. Retrieve
 intelligently.*
 
-**Status: Phase 2, Slice 2.4 (hybrid search); Phases 0 and 1 complete (version 0.2.0, [close-out review](docs/phase1-closeout.md)).** Atlas asks where to keep its library and
+**Status: Phase 2, Slice 2.5 (related documents); Phases 0 and 1 complete (version 0.2.0, [close-out review](docs/phase1-closeout.md)).** Atlas asks where to keep its library and
 which folders hold your books and papers, then catalogs every PDF and EPUB
 in them in the background, read-only. Cataloging slows on battery, pauses
 when the battery is low or the drive is nearly full, survives quitting and
@@ -49,7 +49,10 @@ crashes. A status line shows its progress, Settings › Storage shows the
 space it takes, and an internet service is used only if you allow it in
 Settings › Privacy. Search then uses meaning as well as words: a question
 in your own words finds the book it describes even when the book never
-uses those words, marked "Similar meaning".
+uses those words, marked "Similar meaning". A document's details list the
+other documents in your library closest to it in meaning (never its own
+copies), and More like this on a result opens them; this compares only
+what Atlas has stored, so it works while the AI service is down.
 
 Every push to `main`, every release tag and every pull request is built
 and tested on macOS (Apple silicon), Windows x64, and Linux x64; pushes to
@@ -103,7 +106,8 @@ with semantic search.
 | Chunks, embeddings in the catalog, and a crash-safe vector index | Working (Phase 2, Slice 2.2) |
 | Indexing meaning in the background: status, battery pause, backoff, model change, Storage, privacy opt-in | Working (Phase 2, Slice 2.3) |
 | Search by meaning as well as words: "Similar meaning" results, fused with text matches; Phase 1's results whenever meaning search can't run | Working (Phase 2, Slice 2.4) |
-| Related documents, Ask Atlas with citations | Phase 2, in progress ([spec](docs/phase2-spec.md)): Slices 2.1–2.4 of 2.8 built |
+| Related documents in the details panel, and More like this on a result | Working (Phase 2, Slice 2.5) |
+| Ask Atlas with citations | Phase 2, in progress ([spec](docs/phase2-spec.md)): Slices 2.1–2.5 of 2.8 built |
 
 Specifications: [product](docs/product-spec.md), [Phase 0](docs/phase0-spec.md),
 [Phase 1](docs/phase1-spec.md), [Phase 2](docs/phase2-spec.md),

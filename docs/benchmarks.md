@@ -613,4 +613,24 @@ the 30k text fixture, under the 250 ms target.
 - **The fake answers at once,** so the job's pace here is Atlas's own work.
   With oMLX the service sets it (about 72 chunks/s, Slice 2.3).
 
+## Related documents (Slice 2.5)
+
+`benches/embedding.rs`, after the job has finished: related documents for
+200 documents spread over the library, each asked twice, first cold and
+then from the cache. Ten related documents are asked for. The fake
+backend's vectors are spread more evenly than a real model's, so every
+document finds ten.
+
+| Fixture | Machine | Documents | Related p50 / p95 / max (cold) | p95 (cached) | Related per document |
+| --- | --- | ---: | --- | ---: | ---: |
+| 1k text | M5 Pro | 1,001 | 1.8 / 2.0 / 2.5 ms | 1.9 ms | 10 |
+| 30k text | M5 Pro | 30,001 | 2.8 / 3.1 / 3.4 ms | 2.9 ms | 10 |
+
+- **Well under the spec's estimate** of about 5 ms at 1,000 documents,
+  and still about 3 ms at 30,000 (733,668 vectors).
+- **The cache saves little.** Averaging 64 vectors and one index search
+  are cheap. Most of the time goes to looking up each related document's
+  file, which is done afresh every time so a missing file drops out at
+  once.
+
 <!-- results:end -->

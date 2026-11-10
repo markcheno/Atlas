@@ -50,6 +50,7 @@ pub const COMMAND_NAMES: &[&str] = &[
     "search_documents",
     "get_document_detail",
     "list_duplicates",
+    "get_related_documents",
     "get_storage_usage",
     "clean_caches",
     "list_documents",

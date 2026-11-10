@@ -192,3 +192,57 @@ backend keeps the first 512 numbers, normalised again. This halves the
 f16 vectors and the index file. A library indexed at 1,024 builds a new
 512 index while the old one serves (ADR 0014's model change).
 
+
+## Amendment: related documents (Phase 2, Slice 2.5, 2026-11-10)
+
+Related documents (phase2-spec §7.5) are the first reader of the stored
+vectors that sends nothing to a model. They compare only what the catalog
+and the index already hold (`services/documents/related.rs`).
+
+**The document's vector** is the mean of up to 64 of its chunk vectors,
+read from `embeddings` (not from the index), re-normalised:
+
+- all of them for a document of 64 chunks or fewer;
+- otherwise the first 32, where a book says most about itself, and 32 more
+  spread evenly over the rest.
+
+**The search:**
+
+- The 60 nearest chunks, with `filtered_search` leaving out the document's
+  own chunks through the chunk → document map, so they can't take the
+  places.
+- Chunks under the model's similarity floor are dropped (0.25, as search),
+  and the rest grouped by document, keeping the best chunk.
+- When that leaves fewer than ten documents, one search at 200. One long
+  book's chunks can otherwise crowd the 60 nearest; the spec's k = 60 is
+  widened only then.
+
+**Never related:**
+
+- **The document itself and its copies.** Copies are found by content
+  hash, so they are the same document.
+- **Documents with the same text in other bytes:** a re-saved PDF, or a
+  repackaged EPUB. A candidate is left out when 95% of the larger
+  document's distinct chunk texts are in both. A chapter published on its
+  own, or a book containing it, stays related.
+- **Documents with no available file.**
+
+**Statuses, never errors.** `RelatedPage.status` reports:
+
+- `off`: no embedding role, and the panel shows nothing;
+- `not_indexed`: no done row for the serving model;
+- `no_text`: the document's row is `empty`;
+- `loading`: the index is opening in the background, and the panel asks
+  again;
+- `failed`: the index couldn't be searched;
+- `ready`: the list was found, possibly empty.
+
+**The cache:**
+
+- It holds the candidates of 64 documents, keyed by model, index
+  generation and index size. A save changes the generation; an add changes
+  the size.
+- Files are looked up afresh each time, so a file gone missing drops out
+  at once.
+- Measured, the cache saves little: at 1,000 documents a cold answer takes
+  1.8 ms p50, and looking up the ten files is most of it.

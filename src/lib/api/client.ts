@@ -13,6 +13,7 @@ import type { AiRole } from './bindings/AiRole';
 import type { CapabilityResult } from './bindings/CapabilityResult';
 import type { ModelRoles } from './bindings/ModelRoles';
 import type { Recommendations } from './bindings/Recommendations';
+import type { RelatedPage } from './bindings/RelatedPage';
 import type { AppStatus } from './bindings/AppStatus';
 import type { ConnectionResult } from './bindings/ConnectionResult';
 import type { ConnectionTestTarget } from './bindings/ConnectionTestTarget';
@@ -141,6 +142,8 @@ export const atlas = {
   searchDocuments: (query: SearchQuery) => call<SearchPage>('search_documents', { query }),
   getDocumentDetail: (fileId: string) => call<DocumentDetail>('get_document_detail', { fileId }),
   listDuplicates: (query: DuplicateQuery) => call<DuplicatePage>('list_duplicates', { query }),
+  getRelatedDocuments: (documentId: string, limit = 10) =>
+    call<RelatedPage>('get_related_documents', { documentId, limit }),
   getStorageUsage: () => call<StorageUsage>('get_storage_usage'),
   cleanCaches: () => call<CleanCachesResult>('clean_caches'),
 

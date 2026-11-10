@@ -189,6 +189,7 @@ pub fn run() {
             commands::search::search_documents,
             commands::documents::get_document_detail,
             commands::documents::list_duplicates,
+            commands::documents::get_related_documents,
             commands::storage::get_storage_usage,
             commands::storage::clean_caches,
             commands::library::list_documents,

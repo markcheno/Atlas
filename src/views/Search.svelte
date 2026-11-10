@@ -1,7 +1,8 @@
 <script lang="ts">
   // Full-text search (phase1-spec §5.2): results grouped by document, a
   // highlighted snippet built from typed spans (never markup), why each one
-  // matched, and Open, Reveal and Details on every result.
+  // matched, and Open, Reveal and Details on every result; More like this
+  // when meaning search is set up (Slice 2.5).
   import { untrack } from 'svelte';
   import type { SearchHit } from '../lib/api/bindings/SearchHit';
   import OriginalActions from '../lib/components/OriginalActions.svelte';
@@ -176,6 +177,17 @@
               >
                 Details
               </button>
+              {#if hit.documentId && page.semantic.state !== 'off'}
+                <button
+                  type="button"
+                  class="row-button"
+                  aria-label={`More like this: ${hit.displayName}`}
+                  onclick={(e) =>
+                    details.open(hit.fileInstanceId, e.currentTarget, { focusRelated: true })}
+                >
+                  More like this
+                </button>
+              {/if}
               <OriginalActions item={fromHit(hit)} />
             </div>
             {#if originals.hasNotice(hit.fileInstanceId)}

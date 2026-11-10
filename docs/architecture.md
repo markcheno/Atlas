@@ -163,7 +163,8 @@ Main views: Home, Search, Library and Settings (`NAV_VIEWS` in
   name or a result's Details: title, authors, language, pages (chapters for
   EPUBs), type, size, modified, folder, path, text status with its reason,
   and Also at with each copy's status and its own Open and Reveal. Escape or
-  Close returns focus to what opened it; Tab stays inside.
+  Close returns focus to what opened it; Tab stays inside. Since Slice 2.5,
+  [Related](#related-documents) follows Also at.
 - **Titles** (Slice 1.6). Results, the panel and duplicate groups show the
   title the core chose ([Metadata, duplicates and storage](#metadata-duplicates-and-storage)),
   with "Title from the first page" or "Title from the file name" when it
@@ -693,6 +694,35 @@ in [ADR 0013](adr/0013-embeddings-durable-index-disposable.md).
   an embedding role and no vectors is rewritten with 16 KiB pages
   (`VACUUM INTO`, then a rename) when its library opens.
 
+## Related documents
+
+Implemented in `src-tauri/src/services/documents/related.rs` (Slice 2.5);
+rationale in the related-documents amendment to
+[ADR 0013](adr/0013-embeddings-durable-index-disposable.md).
+
+- **`get_related_documents(documentId, limit)`** returns a `RelatedPage`:
+  a status and up to ten `RelatedHit`s, each a document with an available
+  file and the location of its best matching chunk. It takes the library's
+  handles under the workspace lock and runs off it, as search does.
+- **How:** the mean of up to 64 of the document's stored chunk vectors,
+  re-normalised, is searched against the index. The document's own chunks
+  are filtered out inside the index, and chunks under the model's floor
+  are dropped. The rest are grouped by document, widening from 60 to 200
+  neighbours when fewer than ten documents are left.
+- **Never related:** the document itself (its copies are the same
+  document), documents sharing 95% of their distinct chunk texts with it
+  (the same text in other bytes), and documents with no available file.
+- **Nothing is sent to a model:** it works while the AI service is down.
+- **Cache:** 64 documents' candidates in the library's `VectorRegistry`,
+  keyed by model, index generation and size; files are looked up afresh.
+- **Frontend:** `RelatedList.svelte` in the document panel.
+  - Details shows a related document in the same panel, with "Back to
+    ‹title›" (`details.show`, `details.back`).
+  - More like this on a search result opens the panel and moves focus to
+    Related.
+- **Measured:** p95 2.0 ms at 1,000 documents and 3.1 ms at 30,000
+  ([benchmarks](benchmarks.md#related-documents-slice-25)).
+
 ## Build, CI and measurement
 
 - **PDFium** (Slice 1.2) is pinned in `tools.lock.json` (bblanchon/pdfium-binaries
@@ -833,4 +863,5 @@ documents, and Ask Atlas with verified citations) is specified in
 capability tests ([AI service connections](#ai-service-connections));
 Slice 2.2 the chunks, durable embeddings and the vector index
 ([Embeddings and the vector index](#embeddings-and-the-vector-index));
-Slice 2.3 the embedding job that fills them.
+Slice 2.3 the embedding job that fills them; Slice 2.4 hybrid
+[search](#search); Slice 2.5 [related documents](#related-documents).

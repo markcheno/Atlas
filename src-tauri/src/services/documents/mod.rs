@@ -4,6 +4,7 @@
 
 pub mod duplicates;
 pub mod metadata;
+pub mod related;
 
 use rusqlite::{Connection, OptionalExtension};
 
