@@ -32,7 +32,7 @@ use crate::infrastructure::clock::now_rfc3339;
 use crate::infrastructure::fsutil::atomic_replace_with;
 use crate::services::catalog::reader;
 use crate::services::catalog::writer::CatalogHandle;
-use crate::services::workspace::layout::{CATALOG, TMP};
+use crate::services::workspace::layout::CATALOG;
 
 pub const CONNECTIVITY: usize = 16;
 pub const EXPANSION_ADD: usize = 128;
@@ -41,6 +41,8 @@ pub const EXPANSION_SEARCH: usize = 128;
 pub const BATCH: usize = 10_000;
 const RESERVE_STEP: usize = 10_000;
 pub const VECTORS_DIR: &str = "indexes/vectors";
+/// Where saves are staged before their rename, inside [`VECTORS_DIR`].
+pub const STAGING_DIR: &str = "staging";
 
 /// Where a library keeps the catalog, the index files and staged writes.
 #[derive(Debug, Clone)]
@@ -55,7 +57,9 @@ impl VectorPaths {
         Self {
             catalog: root.join(CATALOG),
             vectors: root.join(VECTORS_DIR),
-            tmp: root.join(TMP),
+            // Not the library's tmp/, which Clean caches empties while a
+            // save may be staging (Slice 2.3). Emptied when the library opens.
+            tmp: root.join(VECTORS_DIR).join(STAGING_DIR),
         }
     }
 

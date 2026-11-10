@@ -35,6 +35,7 @@ use crate::infrastructure::fsutil::{clear_dir, sync_dir};
 use crate::infrastructure::native_path;
 use crate::services::catalog::reader::CatalogReader;
 use crate::services::catalog::{self, CatalogWriter};
+use crate::services::embedding::registry::VectorRegistry;
 use crate::services::extraction;
 use crate::services::inventory::{self, InventoryDeps};
 use crate::services::jobs::{self, JobRunners, ProcessorFactory};
@@ -56,6 +57,8 @@ pub struct WorkspaceConfig {
 /// writer close, then the lock is released.
 pub struct OpenRoot {
     jobs: JobRunners,
+    /// The vector indexes, after the runners (which save them as they stop).
+    vectors: Arc<VectorRegistry>,
     reader: CatalogReader,
     root_status: RootStatusCache,
     catalog: CatalogWriter,
@@ -75,6 +78,10 @@ impl OpenRoot {
     }
     pub fn catalog(&self) -> &CatalogWriter {
         &self.catalog
+    }
+    /// The library's vector indexes (Slice 2.3).
+    pub fn vectors(&self) -> &Arc<VectorRegistry> {
+        &self.vectors
     }
     /// Read-only connections for UI queries.
     pub fn reader(&self) -> &CatalogReader {
@@ -353,8 +360,10 @@ impl Workspace {
         // Rows cataloged before search keys existed (Slice 0.5).
         library::backfill_keys(&catalog)?;
 
+        let vectors = Arc::new(VectorRegistry::new(path));
         Ok(OpenRoot {
-            jobs: self.start_jobs(&catalog, path)?,
+            jobs: self.start_jobs(&catalog, path, &vectors)?,
+            vectors,
             reader: CatalogReader::open(&catalog_path)?,
             root_status: RootStatusCache::default(),
             catalog,
@@ -366,8 +375,13 @@ impl Workspace {
         })
     }
 
-    fn start_jobs(&self, catalog: &CatalogWriter, path: &Path) -> AtlasResult<JobRunners> {
-        JobRunners::start(&catalog.handle(), path, &self.processors)
+    fn start_jobs(
+        &self,
+        catalog: &CatalogWriter,
+        path: &Path,
+        vectors: &Arc<VectorRegistry>,
+    ) -> AtlasResult<JobRunners> {
+        JobRunners::start(&catalog.handle(), path, &self.processors, vectors)
     }
 
     /// Creates a root, or finishes a previously interrupted creation.
@@ -408,8 +422,10 @@ impl Workspace {
         fs::remove_file(&marker).map_err(AtlasError::io("finish creating the library"))?;
         let _ = sync_dir(path);
 
+        let vectors = Arc::new(VectorRegistry::new(path));
         Ok(OpenRoot {
-            jobs: self.start_jobs(&catalog, path)?,
+            jobs: self.start_jobs(&catalog, path, &vectors)?,
+            vectors,
             reader: CatalogReader::open(&path.join(CATALOG))?,
             root_status: RootStatusCache::default(),
             catalog,

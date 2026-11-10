@@ -403,6 +403,8 @@ pub enum JobKind {
     Scan,
     /// Text extraction from cataloged files (Phase 1, Slice 1.3).
     Extract,
+    /// Embedding extracted text for meaning search (Phase 2, Slice 2.3).
+    Embed,
 }
 
 // ------------------------------------------------------------ extraction
@@ -739,6 +741,9 @@ pub enum PauseReason {
     SourceRootMissing,
     MemoryPressure,
     ThermalPressure,
+    /// Embedding only: bulk embedding pauses on battery, where text
+    /// extraction slows (product spec §9, Slice 2.3).
+    OnBattery,
 }
 
 /// Progress of one scan session. Counts only: Atlas never shows a total or

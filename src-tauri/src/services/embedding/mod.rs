@@ -14,4 +14,5 @@ pub mod chunk;
 pub mod db;
 pub mod fake;
 pub mod index;
+pub mod registry;
 pub mod vector;

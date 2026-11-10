@@ -81,12 +81,14 @@ pub fn pause(root: &OpenRoot, job_id: &str) -> AtlasResult<()> {
     )
 }
 
+/// Resumes a job the user paused, or retries one that failed in a way
+/// worth retrying ("Retry" on a status line, Slice 2.3).
 pub fn resume(root: &OpenRoot, job_id: &str) -> AtlasResult<()> {
     change(
         root,
         job_id,
         JobState::Queued,
-        &[JobState::PausedUser],
+        &[JobState::PausedUser, JobState::FailedRetryable],
         AtlasError::JobNotResumable,
     )
 }

@@ -1,6 +1,6 @@
 //! Saved provider profiles in the catalog; keys in the [`SecretVault`].
 
-use rusqlite::{OptionalExtension, Row, params};
+use rusqlite::{Connection, OptionalExtension, Row, params};
 
 use super::secrets::{Secret, SecretVault, account_for};
 use super::url_policy::{self, Endpoint, UrlProblem};
@@ -67,15 +67,17 @@ fn to_dto(p: StoredProfile, vault: &SecretVault) -> ProviderProfile {
 fn load(root: &OpenRoot, id: &str) -> AtlasResult<Option<StoredProfile>> {
     let id = id.to_owned();
     root.reader()
-        .read(move |c| {
-            c.query_row(
-                &format!("SELECT {COLUMNS} FROM provider_profiles WHERE id = ?1"),
-                [id],
-                from_row,
-            )
-            .optional()
-        })?
+        .read(move |c| load_with(c, &id))?
         .map_err(AtlasError::db("read AI services"))
+}
+
+fn load_with(conn: &Connection, id: &str) -> rusqlite::Result<Option<StoredProfile>> {
+    conn.query_row(
+        &format!("SELECT {COLUMNS} FROM provider_profiles WHERE id = ?1"),
+        [id],
+        from_row,
+    )
+    .optional()
 }
 
 pub fn list(root: &OpenRoot, vault: &SecretVault) -> AtlasResult<Vec<ProviderProfile>> {
@@ -225,6 +227,31 @@ fn blocked(problem: UrlProblem) -> Prepared {
     })
 }
 
+/// Resolves a saved profile on any catalog connection (a background job
+/// has no open-root handle): its endpoint under ADR 0007's rules and its
+/// key. `ProfileNotFound` if the profile is gone.
+pub fn resolve_saved(
+    conn: &Connection,
+    vault: &SecretVault,
+    profile_id: &str,
+) -> AtlasResult<Prepared> {
+    let p = load_with(conn, profile_id)
+        .map_err(AtlasError::db("read AI services"))?
+        .ok_or(AtlasError::ProfileNotFound)?;
+    Ok(prepare_saved(&p, vault))
+}
+
+fn prepare_saved(p: &StoredProfile, vault: &SecretVault) -> Prepared {
+    match url_policy::check(&p.base_url, p.insecure_http_acknowledged) {
+        Ok(endpoint) => Prepared::Ready {
+            kind: p.kind,
+            endpoint,
+            key: vault.get(&account_for(&p.id), p.storage),
+        },
+        Err(problem) => blocked(problem),
+    }
+}
+
 /// Resolves a saved or candidate profile to an endpoint and key without
 /// any network I/O, for connection and capability tests alike.
 pub fn resolve(
@@ -235,16 +262,7 @@ pub fn resolve(
     match target {
         ConnectionTestTarget::SavedProfile { profile_id } => {
             let p = load(root, profile_id)?.ok_or(AtlasError::ProfileNotFound)?;
-            Ok(
-                match url_policy::check(&p.base_url, p.insecure_http_acknowledged) {
-                    Ok(endpoint) => Prepared::Ready {
-                        kind: p.kind,
-                        endpoint,
-                        key: vault.get(&account_for(&p.id), p.storage),
-                    },
-                    Err(problem) => blocked(problem),
-                },
-            )
+            Ok(prepare_saved(&p, vault))
         }
         ConnectionTestTarget::Candidate { profile } => {
             let endpoint =
