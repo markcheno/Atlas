@@ -1107,7 +1107,11 @@ On every OS:
 - the Vitest cases for the Related section and More like this;
 - related latency in the bench job's embedding benchmark at 1k.
 
-<!-- slice-25-ci -->
+**CI on `slice-25`:** full run
+[42837639498](https://github.com/markcheno/Atlas/actions/runs/42837639498),
+all green. Related at 1k on the CI runners, p50 / p95 (cold), ten related
+per document: macOS arm64 3.3 / 3.8 ms, Linux x64 4.1 / 4.5 ms, Windows
+x64 6.8 / 8.1 ms.
 
 ## Manual checklist for Windows and Linux
 
