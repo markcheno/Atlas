@@ -1267,15 +1267,39 @@ its settings out of your own. Fixture: `just fixtures <scratch>/Books 100 0
 The Phase 2 close-out's macOS check of the CI-built 0.3.0 DMG against
 oMLX: Phase 1 without any AI service first, then the librarian.
 
-**Setup:**
-- **Scratch `HOME`:** start Atlas from Terminal with `HOME=<scratch>`, as
-  for Slice 1.8. A release build ignores `ATLAS_CONFIG_DIR`.
+**Setup**, run from the repository. Everything goes in `~/atlas-smoke`:
+
+```sh
+# Scratch folders: a home for Atlas's settings, and an empty folder for
+# its library. A release build ignores ATLAS_CONFIG_DIR.
+mkdir -p ~/atlas-smoke/home ~/atlas-smoke/Library
+
+# A generated library: 100 files with about 4 KB of text each, including
+# the six Introduction.pdf copies.
+just fixtures ~/atlas-smoke/Books 100 0 4
+
+# The spike corpus's books and papers, for the meaning and Ask steps.
+mkdir -p ~/atlas-smoke/Books/from-the-corpus
+cp spikes/extraction-bench/corpus/epub/*.epub \
+   spikes/extraction-bench/corpus/pdf/real/*.pdf \
+   ~/atlas-smoke/Books/from-the-corpus/
+
+# The app, copied out of the mounted DMG.
+cp -R /Volumes/Atlas/Atlas.app ~/atlas-smoke/
+
+# Start it with the scratch home, outside your shell's environment (mise
+# and similar shell hooks warn when HOME changes).
+env -i HOME="$HOME/atlas-smoke/home" PATH=/usr/bin:/bin \
+  "$HOME/atlas-smoke/Atlas.app/Contents/MacOS/atlas"
+```
+
+- **`/Volumes/Atlas`:** use the name the DMG mounts under.
+- **The window:** keep the Terminal window open while you test.
+- **Choices in the app:** in step 1, choose `~/atlas-smoke/Library` for the
+  library and add `~/atlas-smoke/Books` as its folder.
 - **The key:** the oMLX key you type goes into your login keychain under
-  Atlas's release name. Step 11 removes it.
-- **Fixture:** `just fixtures <scratch>/Books 100 0 4`, plus the spike
-  corpus's books and papers in `Books/from-the-corpus/`:
-  `spikes/extraction-bench/corpus/epub/*.epub` and
-  `spikes/extraction-bench/corpus/pdf/real/*.pdf`.
+  Atlas's release name. If it isn't saved or remembered with the scratch
+  `HOME`, note it.
 - **oMLX:** running, with `Qwen3-Embedding-0.6B-8bit` and your chat model.
 
 1. **Without AI.**
@@ -1342,7 +1366,7 @@ oMLX: Phase 1 without any AI service first, then the librarian.
    embedded again.
 10. **Light and dark:** both readable, the answer and its chips included.
 11. **Clean up:** Settings › AI Models › Remove the oMLX service, which
-    deletes its key. Then delete the scratch folders.
+    deletes its key. Then `rm -rf ~/atlas-smoke`.
 
 ### Installers (Slice 0.8)
 
