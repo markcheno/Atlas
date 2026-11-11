@@ -23,6 +23,7 @@ use rusqlite::{Connection, OptionalExtension};
 
 use crate::domain::dto::SourceUsed;
 use crate::services::embedding::chunk::{self, Span};
+use crate::services::providers::recommend::DEFAULT_WEAK_MARGIN;
 use crate::services::search::Found;
 
 /// Documents an answer draws on.
@@ -36,12 +37,6 @@ pub const EXCERPT_CHARS: usize = 2_000;
 pub const TEXT_WINDOW_CHARS: usize = 1_500;
 /// An excerpt cut shorter than this to fit the budget isn't worth sending.
 const SHORTEST: usize = 300;
-/// How far above the model's similarity floor the best meaning match must
-/// be for retrieval not to count as weak. Tuned by `just eval-ask` on
-/// 2026-11-10 with Qwen3-Embedding-0.6B (floor 0.25): questions the corpus
-/// covers began at 0.22 above the floor, questions it doesn't reached 0.24
-/// at most, median 0.12 (Slice 2.6.3; it was 0.10).
-pub const WEAK_MARGIN: f32 = 0.20;
 /// Fewer sources (excerpts) than this and retrieval is weak.
 pub const FEW_SOURCES: usize = 3;
 
@@ -140,7 +135,12 @@ pub(crate) fn excerpts(conn: &Connection, found: &[Found]) -> rusqlite::Result<V
 
 /// Whether Atlas found little (phase2-spec §7.6): fewer than
 /// [`FEW_SOURCES`] excerpts, or, when meaning search ran, no meaning match
-/// [`WEAK_MARGIN`] above the model's floor. Without meaning search: no
+/// the model's weak margin above its floor. The margin is the model's own,
+/// from the recommendation catalog (Slice 3.1): 0.20 for
+/// Qwen3-Embedding-0.6B, tuned by `just eval-ask` on 2026-11-10 (covered
+/// questions began at 0.22 above the floor, uncovered ones reached 0.24 at
+/// most), and the default for models the catalog doesn't know
+/// ([`DEFAULT_WEAK_MARGIN`]). Without meaning search: no
 /// document with every word. (A long book has every word of most
 /// questions, so with meaning search that says little; `just eval-ask`,
 /// 2026-11-10.)
@@ -149,12 +149,16 @@ pub(crate) fn weak(
     sources: usize,
     best_similarity: Option<f32>,
     min_similarity: Option<f32>,
+    weak_margin: Option<f32>,
 ) -> bool {
     if sources < FEW_SOURCES {
         return true;
     }
     match min_similarity {
-        Some(floor) => best_similarity.is_none_or(|best| best < floor + WEAK_MARGIN),
+        Some(floor) => {
+            let margin = weak_margin.unwrap_or(DEFAULT_WEAK_MARGIN);
+            best_similarity.is_none_or(|best| best < floor + margin)
+        }
         None => !found.iter().any(|f| f.hit.all_words && f.text.is_some()),
     }
 }
@@ -305,6 +309,19 @@ fn at_words(text: &str, cut_start: bool, cut_end: bool) -> &str {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// P3-02: the same best match is weak under one model's margin and not
+    /// under another's; without a margin, the default applies.
+    #[test]
+    fn p3_02_weak_retrieval_uses_the_models_margin() {
+        let (best, floor) = (Some(0.40), Some(0.25));
+        assert!(!weak(&[], 5, best, floor, Some(0.10)));
+        assert!(weak(&[], 5, best, floor, Some(0.20)));
+        assert!(weak(&[], 5, best, floor, None), "the default is 0.20");
+        assert!(!weak(&[], 5, Some(0.46), floor, None));
+        // Too few sources is weak whatever the margin.
+        assert!(weak(&[], 2, Some(0.90), floor, Some(0.0)));
+    }
 
     #[test]
     fn cuts_fall_between_words() {

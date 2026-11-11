@@ -191,9 +191,12 @@ fn an_older_reader_is_replaced_while_the_text_stays_searchable() {
     assert_eq!(
         count(
             &c,
-            "SELECT COUNT(*) FROM documents WHERE extractor_version <> 2"
+            "SELECT COUNT(*) FROM documents d WHERE extractor_version <> CASE
+                 (SELECT f.file_type FROM file_instances f WHERE f.document_id = d.id LIMIT 1)
+                 WHEN 'epub' THEN 3 ELSE 2 END"
         ),
-        0
+        0,
+        "PDFs at reader version 2, EPUBs at 3"
     );
     let title: String = c
         .query_row(
@@ -283,4 +286,158 @@ fn a_refresh_that_keeps_crashing_keeps_the_old_text() {
     )
     .unwrap();
     assert_eq!(d.file.extraction.state, ExtractionState::Done);
+}
+
+fn corpus() -> PathBuf {
+    Path::new(env!("CARGO_MANIFEST_DIR")).join("../spikes/extraction-bench/corpus")
+}
+
+/// Whether `text` holds Project Gutenberg's markers or licence. (A note
+/// the publisher put inside the book, after START, such as The Raven's
+/// "This ebook was one of Project Gutenberg's early files", is the book's.)
+fn has_boilerplate(text: &str) -> bool {
+    let t = text.to_lowercase();
+    [
+        "start of the project gutenberg",
+        "end of the project gutenberg",
+        "project gutenberg license",
+        "literary archive foundation",
+    ]
+    .iter()
+    .any(|m| t.contains(m))
+}
+
+/// The passages of the documents whose file name starts with `stem`.
+fn texts(c: &Connection, stem: &str) -> Vec<String> {
+    c.prepare(
+        "SELECT p.text FROM passages p
+         WHERE p.document_id IN (SELECT document_id FROM file_instances WHERE display_name LIKE ?1)
+         ORDER BY p.ordinal",
+    )
+    .unwrap()
+    .query_map([format!("{stem}%")], |r| r.get(0))
+    .unwrap()
+    .map(Result::unwrap)
+    .collect()
+}
+
+/// P3-03: Project Gutenberg's header and licence are left out when an EPUB
+/// is read (reader version 3), and counted. A book read by version 2 is read
+/// again only if its text mentions Project Gutenberg, staying searchable
+/// meanwhile; other EPUBs move to version 3 without being read.
+#[test]
+fn p3_03_gutenberg_boilerplate_is_left_out_and_only_those_books_are_read_again() {
+    let env = Env::new();
+    let books = env.base.join("Books");
+    fixture(&books);
+    for name in ["pg11.epub", "pg1065.epub"] {
+        fs::copy(corpus().join("epub").join(name), books.join(name)).unwrap();
+    }
+
+    // Read by the current readers.
+    let h = ExtractionHarness::new(fast_extraction(), worker());
+    let mut ws = env.workspace_with_extraction(&h);
+    ws.choose(&env.base.join("AtlasData")).unwrap();
+    let root = ws.require_open().unwrap();
+    let added = sources::add(root, &books).unwrap();
+    inventory::control::enqueue(root, &added.id).unwrap();
+    assert!(
+        wait_until(LONG, || settled(&ws)),
+        "first read never settled"
+    );
+    drop(ws);
+
+    let c = Connection::open(catalog(&env)).unwrap();
+    for stem in ["pg11", "pg1065"] {
+        let all = texts(&c, stem).join("\n");
+        assert!(!all.is_empty(), "{stem} has text");
+        assert!(!has_boilerplate(&all), "{stem}: no header or licence left");
+    }
+    assert!(
+        texts(&c, "pg11")[0].contains("Wonderland"),
+        "Alice starts at its title page, after the header"
+    );
+    let marked = count(
+        &c,
+        "SELECT COUNT(*) FROM documents d WHERE d.boilerplate_chars > 0",
+    );
+    assert_eq!(
+        marked, 2,
+        "both Project Gutenberg books counted what was cut"
+    );
+    assert_eq!(
+        count(
+            &c,
+            "SELECT COUNT(*) FROM documents d WHERE d.boilerplate_chars > 0 AND d.id IN
+                 (SELECT document_id FROM file_instances WHERE display_name LIKE 'book %')"
+        ),
+        0,
+        "the generated books have nothing cut"
+    );
+    let epubs = count(
+        &c,
+        "SELECT COUNT(DISTINCT document_id) FROM file_instances WHERE file_type = 'epub'",
+    );
+    assert!(epubs > 2, "generated EPUBs as well");
+
+    // As reader version 2 left them: every EPUB at 2, the two books with
+    // their licence still in their text.
+    c.execute_batch(
+        "UPDATE documents SET extractor_version = 2, boilerplate_chars = 0
+         WHERE id IN (SELECT document_id FROM file_instances WHERE file_type = 'epub');
+         INSERT INTO passages (document_id, ordinal, page_no, location, text)
+         SELECT d.id, (SELECT MAX(ordinal) + 1 FROM passages WHERE document_id = d.id), NULL,
+                'Chapter 99, part 1',
+                '*** END OF THE PROJECT GUTENBERG EBOOK *** Updated editions will replace the previous one. The Project Gutenberg License applies.'
+         FROM documents d WHERE d.id IN
+             (SELECT document_id FROM file_instances WHERE display_name LIKE 'pg%');",
+    )
+    .unwrap();
+    drop(c);
+
+    // Opened without a reader: only the two are due, the others move to 3,
+    // and the books are still found.
+    let h = ExtractionHarness::new(fast_extraction(), worker());
+    let mut ws = env.workspace_with_inventory(h.inv.deps.clone());
+    ws.startup();
+    let root = ws.require_open().unwrap();
+    let c = Connection::open(catalog(&env)).unwrap();
+    assert_eq!(
+        count(&c, "SELECT COUNT(*) FROM documents WHERE refresh = 1"),
+        2,
+        "only the Project Gutenberg books are read again"
+    );
+    assert_eq!(
+        count(
+            &c,
+            "SELECT COUNT(*) FROM documents d WHERE refresh = 0 AND extractor_version = 3
+               AND d.id IN (SELECT document_id FROM file_instances WHERE file_type = 'epub')"
+        ),
+        epubs - 2,
+        "the other EPUBs move to version 3 without being read"
+    );
+    let found = search::run(root.reader(), root.root_status(), &query("Wonderland")).unwrap();
+    assert!(!found.hits.is_empty(), "still searchable while due");
+    drop(ws);
+
+    // Opened with a reader: exactly those two are read, and the licence goes.
+    let h = ExtractionHarness::new(fast_extraction(), worker());
+    let mut ws = env.workspace_with_extraction(&h);
+    ws.startup();
+    assert!(wait_until(LONG, || settled(&ws)), "refresh never settled");
+    assert_eq!(WorkerStats::get(&h.deps.stats.extracts), 2);
+    for stem in ["pg11", "pg1065"] {
+        assert!(!has_boilerplate(&texts(&c, stem).join("\n")), "{stem}");
+    }
+    assert_eq!(
+        count(
+            &c,
+            "SELECT COUNT(*) FROM documents WHERE boilerplate_chars > 0"
+        ),
+        2
+    );
+    assert_eq!(
+        count(&c, "SELECT COUNT(*) FROM documents WHERE refresh = 1"),
+        0
+    );
 }

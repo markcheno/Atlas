@@ -4,7 +4,7 @@ Atlas is a local-first personal AI librarian for large private collections of
 PDFs, EPUBs, books and papers. *Collect freely. Organize minimally. Retrieve
 intelligently.*
 
-**Status: Phase 2 complete (version 0.3.0, [close-out review](docs/phase2-closeout.md)); Phases 0 and 1 complete ([Phase 1 review](docs/phase1-closeout.md)).** Atlas asks where to keep its library and
+**Status: Phase 3, Slice 3.1 (the carry-overs); Phase 2 complete (version 0.3.0, [close-out review](docs/phase2-closeout.md)); Phases 0 and 1 complete ([Phase 1 review](docs/phase1-closeout.md)).** Atlas asks where to keep its library and
 which folders hold your books and papers, then catalogs every PDF and EPUB
 in them in the background, read-only. Cataloging slows on battery, pauses
 when the battery is low or the drive is nearly full, survives quitting and
@@ -116,7 +116,8 @@ with semantic search.
 | Ask Atlas engine: answers from your library through your chat model, citations checked as they stream, prompt-injection bounds; Settings › Privacy: Disable all external AI, agreed services | Working (Phase 2, Slice 2.6; the screen is Slice 2.7) |
 | Ask Atlas screen: Search's Find sources \| Ask Atlas switch, the streamed answer with citation chips that open the passage, Sources used, Stop, the disclosure for internet services | Working (Phase 2, Slice 2.7) |
 | Phase 2 close-out: evidence on three OSes, version 0.3.0 | Done ([review](docs/phase2-closeout.md)); Windows and Linux verified in CI with a scripted model service, with documented gaps |
-| Phase 3, the knowledge workspace: research trails, bookmarks and saved findings, interests and projects, a PDF page view, Markdown and JSON export | Specified, not started ([spec](docs/phase3-spec.md)) |
+| Phase 3 carry-overs: downloaded iCloud files read at the next rescan, a weak-retrieval margin per embedding model, Project Gutenberg headers and licences left out when a book is read | Working (Phase 3, Slice 3.1) |
+| Phase 3, the knowledge workspace: research trails, bookmarks and saved findings, interests and projects, a PDF page view, Markdown and JSON export | Phase 3, in progress ([spec](docs/phase3-spec.md)): Slice 3.1 of 3.9 built |
 
 Specifications: [product](docs/product-spec.md), [Phase 0](docs/phase0-spec.md),
 [Phase 1](docs/phase1-spec.md), [Phase 2](docs/phase2-spec.md),

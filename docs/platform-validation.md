@@ -1248,6 +1248,27 @@ merge): full run
 [42943519172](https://github.com/markcheno/Atlas/actions/runs/42943519172),
 all green on three OSes. The smoke passed every step on Windows and Linux.
 
+## Slice 3.1
+
+The Phase 3 carry-overs ([spec](phase3-spec.md) §7.6). On every OS:
+- **P3-01** (`tests/extraction.rs`): a file skipped while only in the
+  cloud, then stored locally with the same size and time, is read at the
+  next rescan, as is one evicted between the scan and the read. One still
+  in the cloud is never opened.
+- **P3-02** (unit tests): the weak margin from the model's profile; the
+  default for others.
+- **P3-03** (`tests/refresh.rs` and `engine/gutenberg.rs`): the corpus's
+  Project Gutenberg EPUBs without their header and licence, and only those
+  books read again on upgrading from reader version 2.
+
+**CI on `slice-31`:** full run
+[42951386736](https://github.com/markcheno/Atlas/actions/runs/42951386736),
+all green on three OSes, smoke included. The product owner re-ran
+`just eval-semantic` and `just eval-ask`
+([benchmarks](benchmarks.md#meaning-search-slice-24)): hybrid hit@5 at 512
+is 0.900, from 0.950; the licences had been giving two questions text
+matches.
+
 ## Manual checklist for Windows and Linux
 
 CI runs an automated smoke test on Windows and Linux (Slice 0.8, below),

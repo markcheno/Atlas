@@ -67,6 +67,9 @@ chose. Three things make that risky:
     Qwen3-Embedding-0.6B (floor 0.25), covered questions began at 0.22
     above the floor. Uncovered ones reached 0.24 at most, median 0.12.
     Another embedding model may need its own margin.
+  - **The margin is the model's** (Slice 3.1): `weakMargin` in the
+    recommendation catalog, carried by its query profile. 0.20 is the
+    default for models the catalog doesn't know.
 
 ### The prompt
 

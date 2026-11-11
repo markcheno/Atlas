@@ -61,3 +61,25 @@ change.
   now start from the marked documents (the partial index
   `documents_refresh`) and find each one's files by document;
   `extraction::db` tests their query plans.
+
+## Amendment: EPUB reader version 3 (Phase 3, Slice 3.1, 2026-11-10)
+
+- **What changed:** the EPUB reader leaves out Project Gutenberg's header
+  (before the `*** START OF THE PROJECT GUTENBERG EBOOK … ***` line) and
+  licence (from the `*** END OF …` line on), across spine items, and
+  records how much in `documents.boilerplate_chars` (migration 0014).
+  - Items before a START are held back, at most 3 items or 64 KiB, so an
+    unmarked book reads exactly as before.
+  - Publisher notes after START stay: they are part of the book as its
+    publisher marked it.
+- **Only books that need it are read again.** At library open, a done EPUB
+  already at version 2 is read again only if the full-text index finds
+  "project gutenberg" in its passages. Every other EPUB moves to version 3
+  without a read, as PDFs with a usable title moved to version 2.
+- **Only changed text is embedded again:** the re-read replaces passages in
+  one transaction, and the embedding job reuses vectors by chunk-text hash
+  (ADR 0013).
+- Measured on the spike corpus: its stored passages went from over 500
+  (P1-04's floor) to 484 once the five Gutenberg EPUBs lost their
+  licences.
+

@@ -46,6 +46,11 @@ pub struct CatalogModel {
     /// dimensions Atlas keeps, decided by the evaluation (Slice 2.4).
     #[serde(default, rename = "storedDimensions")]
     pub stored_dimensions: Option<usize>,
+    /// Embedding models: how far above `min_similarity` the best meaning
+    /// match must be for Ask Atlas's retrieval not to count as weak
+    /// (Slice 3.1; tuned for Qwen3-Embedding-0.6B in Slice 2.6.3).
+    #[serde(default, rename = "weakMargin")]
+    pub weak_margin: Option<f32>,
 }
 
 /// How search treats queries for an embedding model.
@@ -55,10 +60,16 @@ pub struct QueryProfile {
     pub min_similarity: f32,
     /// How many of the model's dimensions Atlas keeps, if fewer than all.
     pub stored_dimensions: Option<usize>,
+    /// How far above `min_similarity` the best match must be for Ask
+    /// Atlas's retrieval not to count as weak.
+    pub weak_margin: f32,
 }
 
 /// The floor for embedding models the catalog doesn't know.
 pub const DEFAULT_MIN_SIMILARITY: f32 = 0.25;
+/// The weak margin for embedding models the catalog doesn't give one
+/// (Qwen3-Embedding-0.6B's, Slice 2.6.3).
+pub const DEFAULT_WEAK_MARGIN: f32 = 0.20;
 
 /// The query profile for `model_name`, from the bundled catalog when the
 /// name matches one of its embedding models (as installed copies match).
@@ -73,11 +84,13 @@ pub fn query_profile(model_name: &str) -> QueryProfile {
             prefix: m.query_prefix.clone(),
             min_similarity: m.min_similarity.unwrap_or(DEFAULT_MIN_SIMILARITY),
             stored_dimensions: m.stored_dimensions,
+            weak_margin: m.weak_margin.unwrap_or(DEFAULT_WEAK_MARGIN),
         })
         .unwrap_or(QueryProfile {
             prefix: None,
             min_similarity: DEFAULT_MIN_SIMILARITY,
             stored_dimensions: None,
+            weak_margin: DEFAULT_WEAK_MARGIN,
         })
 }
 
@@ -201,6 +214,30 @@ mod tests {
         assert_eq!(other.prefix, None);
         assert_eq!(other.stored_dimensions, None);
         assert_eq!(other.min_similarity, DEFAULT_MIN_SIMILARITY);
+    }
+
+    /// P3-02: the weak margin is the model's, from the catalog; a model the
+    /// catalog doesn't know gets the default.
+    #[test]
+    fn p3_02_the_weak_margin_comes_from_the_model() {
+        for name in ["Qwen3-Embedding-0.6B-8bit", "qwen3-embedding:4b"] {
+            assert_eq!(query_profile(name).weak_margin, 0.20, "{name}");
+        }
+        assert_eq!(
+            query_profile("nomic-embed-text").weak_margin,
+            DEFAULT_WEAK_MARGIN
+        );
+        // Every embedding entry of the catalog gives its own.
+        for m in bundled()
+            .models
+            .iter()
+            .filter(|m| m.role == AiRole::Embedding)
+        {
+            let margin = m
+                .weak_margin
+                .unwrap_or_else(|| panic!("{} has no weakMargin", m.id));
+            assert!((0.0..0.5).contains(&margin), "{}: {margin}", m.id);
+        }
     }
     use crate::domain::dto::{AiRuntime, OsKind, PowerSource, PressureLevel, ThermalLevel};
 

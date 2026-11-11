@@ -111,6 +111,7 @@ impl Lib {
                     authors: Vec::new(),
                     language: None,
                     truncated: 0,
+                    boilerplate_chars: 0,
                 };
                 let hash = blake3::hash(&content);
                 assert!(

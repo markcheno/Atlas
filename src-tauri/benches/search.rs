@@ -461,6 +461,7 @@ fn eval(questions: &Path, data_root: &Path, manifest: Option<&Path>, semantic: b
                         index,
                         chunk_map: &mut map,
                         min_similarity: profile.min_similarity,
+                        weak_margin: profile.weak_margin,
                     }),
                 )
             }

@@ -12,6 +12,7 @@ use std::io::{Read, Seek, SeekFrom};
 use zip::ZipArchive;
 
 use super::garble::Readability;
+use super::gutenberg::Cutter;
 use super::{Budget, EPUB_PIECE_CHARS, Failure, Outcome, Piece, Sink, Summary};
 
 /// Any single entry, uncompressed.
@@ -196,18 +197,14 @@ pub fn extract(mut file: File, sink: &mut Sink<'_>) -> Result<Summary, Failure> 
 
     let mut budget = Budget::default();
     let mut readability = Readability::default();
+    let mut cutter = Cutter::default();
     let mut ordinal = 0u32;
     let mut chapters = 0u32;
-    for (n, item) in epub.reader().enumerate() {
-        let item = item.map_err(|_| malformed("chapter_unreadable"))?;
-        chapters += 1;
-        let text = chapter_text(item.content().as_bytes())?;
-        readability.add_page(&text);
-        budget.add(&text)?;
-        for (m, text) in split_pieces(&text, EPUB_PIECE_CHARS)
-            .into_iter()
-            .enumerate()
-        {
+    // Sends one spine item's kept text as pieces. Locations keep the spine
+    // index, so "Chapter 3" is still the third spine item.
+    let mut emit = |n: usize, text: &str, budget: &mut Budget| -> Result<(), Failure> {
+        budget.add(text)?;
+        for (m, text) in split_pieces(text, EPUB_PIECE_CHARS).into_iter().enumerate() {
             let piece = Piece {
                 ordinal,
                 page_no: None,
@@ -219,6 +216,20 @@ pub fn extract(mut file: File, sink: &mut Sink<'_>) -> Result<Summary, Failure> 
             }
             ordinal += 1;
         }
+        Ok(())
+    };
+    for (n, item) in epub.reader().enumerate() {
+        let item = item.map_err(|_| malformed("chapter_unreadable"))?;
+        chapters += 1;
+        let text = chapter_text(item.content().as_bytes())?;
+        // Readability judges the whole text, as before the cut.
+        readability.add_page(&text);
+        for (n, kept) in cutter.feed(n, text) {
+            emit(n, &kept, &mut budget)?;
+        }
+    }
+    for (n, kept) in cutter.finish() {
+        emit(n, &kept, &mut budget)?;
     }
     if readability.needs_ocr(true) {
         return Err(Failure::new(Outcome::NeedsOcr, "unreadable_text"));
@@ -231,6 +242,7 @@ pub fn extract(mut file: File, sink: &mut Sink<'_>) -> Result<Summary, Failure> 
         authors,
         language,
         truncated: 0,
+        boilerplate_chars: cutter.dropped(),
     })
 }
 

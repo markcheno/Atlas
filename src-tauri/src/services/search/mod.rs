@@ -639,6 +639,7 @@ fn with_meaning<T>(
         index: &index,
         chunk_map: &mut map,
         min_similarity: target.profile.min_similarity,
+        weak_margin: target.profile.weak_margin,
     };
     let out = run(Some(semantic))?;
     let status = match failure.get() {
@@ -670,6 +671,8 @@ pub struct Retrieval {
     pub best_similarity: Option<f32>,
     /// The serving model's similarity floor, when meaning search ran.
     pub min_similarity: Option<f32>,
+    /// The serving model's weak margin, when meaning search ran.
+    pub weak_margin: Option<f32>,
 }
 
 /// The `limit` best documents for a question, as hybrid search ranks them,
@@ -690,7 +693,7 @@ pub fn retrieve(
         let ranked = rank_text(c, &built, &f, limit as u32)?;
         let near = match semantic {
             Some(s) => {
-                floor.set(Some(s.min_similarity));
+                floor.set(Some((s.min_similarity, s.weak_margin)));
                 hybrid::nearest(c, s, &f)?
             }
             None => Vec::new(),
@@ -730,7 +733,8 @@ pub fn retrieve(
         found,
         semantic,
         best_similarity: best,
-        min_similarity: floor.get(),
+        min_similarity: floor.get().map(|(f, _)| f),
+        weak_margin: floor.get().map(|(_, w)| w),
     })
 }
 

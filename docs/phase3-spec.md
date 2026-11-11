@@ -634,6 +634,25 @@ Do **not** create `knowledge.sqlite`, add a Trails view or record anything befor
   - **Uncited sources of a recorded answer kept as anchors without their excerpts**, to keep a question near 4 KB.
 - **Carried from the Phase 2 close-out and still deferred:** the unexplained miss of an index's first vector on the Linux runner (worked around by the exact search of small indexes); the single Windows failure of a `related` test; the 30k fixture embedded through oMLX overnight (not run); signing and notarization.
 
+**2026-11-10, amended during Slice 3.1:**
+
+- **Only marked EPUBs are read again.** A done EPUB already at reader
+  version 2 is re-read only if the full-text index finds "project
+  gutenberg" in it; every other EPUB moves to version 3 without a read.
+  §7.6 implied every EPUB would be read again.
+- **Notes inside the book stay.** Text after START that mentions Project
+  Gutenberg, such as The Raven's "This ebook was one of Project Gutenberg's
+  early files", is the book's: only the header before START and everything
+  from END are cut.
+- **The hold before START** is bounded at 3 spine items or 64 KiB. Past
+  that, nothing is cut.
+- **A downloaded file is read at the next Rescan** of its folder (Settings ›
+  Library folders), not by itself: Atlas has no filesystem watcher. The
+  file's detail now says so.
+- **P3-03's embedding check** (only changed chunks embedded again) rests on
+  the existing `vectors::p2_04_unchanged_text_is_never_sent_again_and_changed_text_is_requeued`,
+  rather than a new test.
+
 ### Primary reference documentation (verify current versions at implementation time)
 
 - pdfium-render (rendering and text search): <https://docs.rs/pdfium-render/0.9.5/pdfium_render/>
