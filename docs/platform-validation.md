@@ -1283,7 +1283,18 @@ Vitest covers the Trails screen:
 - a reload on a new step;
 - Home's recent trails.
 
-**CI on `slice-34`:** full run pending.
+**CI on `slice-34`:** full run
+[43100874125](https://github.com/markcheno/Atlas/actions/runs/43100874125),
+all green on three OSes, smoke included, in 14 minutes.
+
+An earlier full run
+([43093081623](https://github.com/markcheno/Atlas/actions/runs/43093081623))
+passed every check and test on all three, then hit a GitHub Actions
+outage. Finalizing the macOS and Windows build artifacts failed five times
+(an HTML error page in place of JSON), which skipped the Windows smoke. The
+run then stayed "in progress" for 56 minutes and could be neither cancelled
+nor re-run. A third run failed to start while GitHub reported a major
+Actions outage.
 
 ## Slice 3.3
 
