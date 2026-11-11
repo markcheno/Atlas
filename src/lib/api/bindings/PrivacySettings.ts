@@ -19,4 +19,13 @@ disableExternalAi: boolean,
  * Internet services the user agreed to send Ask Atlas excerpts to,
  * after seeing what is sent. Per profile and address.
  */
-acknowledged: Array<Acknowledgement>, };
+acknowledged: Array<Acknowledgement>, 
+/**
+ * "Record my trails" (Slice 3.3; on by default). Off, nothing is
+ * recorded and nothing else changes.
+ */
+recordTrails: boolean, 
+/**
+ * "Remove unpinned trails after 90 days" (Slice 3.3; on by default).
+ */
+expireTrails: boolean, };

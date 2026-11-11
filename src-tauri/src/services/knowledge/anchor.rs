@@ -33,6 +33,9 @@ pub enum Place {
     Ordinal(u32),
     /// A PDF page: its first passage.
     Page(u32),
+    /// A passage by its catalog row id, as search and retrieval know it.
+    /// Used only while building: the anchor keeps its ordinal.
+    Passage(i64),
 }
 
 pub fn to_hex(bytes: &[u8]) -> String {
@@ -102,12 +105,17 @@ pub fn build(conn: &Connection, file_id: &str, place: Place) -> AtlasResult<Opti
         Place::Ordinal(n) => (
             "SELECT ordinal, page_no, location, text FROM passages
              WHERE document_id = ?1 AND ordinal = ?2",
-            n,
+            i64::from(n),
         ),
         Place::Page(p) => (
             "SELECT ordinal, page_no, location, text FROM passages
              WHERE document_id = ?1 AND page_no = ?2 ORDER BY ordinal LIMIT 1",
-            p,
+            i64::from(p),
+        ),
+        Place::Passage(id) => (
+            "SELECT ordinal, page_no, location, text FROM passages
+             WHERE document_id = ?1 AND id = ?2",
+            id,
         ),
     };
     let passage: Option<(u32, Option<u32>, Option<String>, String)> = conn

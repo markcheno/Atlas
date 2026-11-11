@@ -297,6 +297,8 @@ fn hit(
         why: e.why,
         all_words: e.all_words,
         other_locations: copies.saturating_sub(1),
+        // The passage the snippet came from, if it came from one.
+        passage: e.passage.filter(|_| e.expr.is_some() || e.span.is_some()),
     }))
 }
 

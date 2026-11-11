@@ -1,8 +1,9 @@
 //! Slice 3.2: kills (phase3-spec §12).
 //!
-//! - P3-05: a kill during a trail-step write, a bookmark write and a
-//!   collection change leaves whole rows only; `integrity_check` passes;
-//!   the catalog is unaffected.
+//! - P3-05: a kill during a trail-step write (raw, and through the
+//!   recorder since Slice 3.3), a bookmark write and a collection change
+//!   leaves whole rows only; `integrity_check` passes; the catalog is
+//!   unaffected.
 //! - P3-06 (the kill): a kill during snapshots leaves no partial snapshot,
 //!   and the next open empties the staging folder.
 //!
@@ -13,7 +14,9 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::time::{Duration, Instant};
 
-use atlas_lib::domain::dto::{DataRootState, KnowledgeState};
+use atlas_lib::domain::dto::{
+    DataRootState, KnowledgeState, SearchIntent, SearchPage, SearchQuery, SemanticStatus,
+};
 use atlas_lib::services::knowledge::{SNAPSHOT_STAGING_DIR, SNAPSHOTS_DIR, snapshot};
 use atlas_lib::services::workspace::layout::{CATALOG, KNOWLEDGE};
 use atlas_lib::services::workspace::{Workspace, WorkspaceConfig};
@@ -108,16 +111,24 @@ fn p3_05_a_kill_during_writes_leaves_whole_rows() {
         assert_sound(base, &root);
         let c = Connection::open(&store).unwrap();
         let q = |sql: &str| -> i64 { c.query_row(sql, [], |r| r.get(0)).unwrap() };
-        // Each trail went in with its three steps, or not at all.
+        // Each trail went in with its steps, or not at all: the raw ones
+        // with three, the recorder's with its count kept in step.
         assert_eq!(
             q("SELECT count(*) FROM trails t
                WHERE t.step_count != (SELECT count(*) FROM trail_steps s WHERE s.trail_id = t.id)"),
             0
         );
         assert_eq!(
-            q("SELECT count(*) FROM trail_steps s
-               WHERE NOT EXISTS (SELECT 1 FROM step_documents d WHERE d.step_id = s.id)"),
+            q(
+                "SELECT count(*) FROM trail_steps s JOIN trails t ON t.id = s.trail_id
+               WHERE t.started_at = 't'
+                 AND NOT EXISTS (SELECT 1 FROM step_documents d WHERE d.step_id = s.id)"
+            ),
             0
+        );
+        assert!(
+            q("SELECT count(*) FROM trail_steps WHERE kind = 'search' AND at != 't'") > 0,
+            "the recorder wrote steps too"
         );
         assert_eq!(q("SELECT count(*) FROM bookmarks WHERE note IS NULL"), 0);
         // Each collection with its one item.
@@ -138,6 +149,31 @@ fn p3_05_a_kill_during_writes_leaves_whole_rows() {
     }
 }
 
+fn query(words: &str) -> SearchQuery {
+    SearchQuery {
+        text: words.into(),
+        source_root_id: None,
+        file_type: None,
+        include_missing: false,
+        page: 0,
+        page_size: 20,
+    }
+}
+
+fn empty_page() -> SearchPage {
+    SearchPage {
+        hits: Vec::new(),
+        page: 0,
+        page_size: 20,
+        matched_documents: 0,
+        capped: false,
+        reading_text: false,
+        text_read_files: 0,
+        total_files: 0,
+        semantic: SemanticStatus::Off,
+    }
+}
+
 /// Child half: trails with steps, bookmarks and collections, until killed.
 #[test]
 #[ignore = "run only as the child of p3_05_a_kill_during_writes_leaves_whole_rows"]
@@ -152,6 +188,13 @@ fn p3_05_child_process() {
     let mut n = 0u64;
     while Instant::now() < until {
         let id = format!("{run}-{n}");
+        // A step through the recorder: the trail, its step, its counts
+        // and the session in one transaction.
+        ws.require_open().unwrap().recorder().search(
+            &query(&format!("search {id}")),
+            SearchIntent::Submit,
+            &empty_page(),
+        );
         let note = "a note ".repeat(200);
         store
             .call(move |c| {

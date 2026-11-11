@@ -25,12 +25,15 @@
     meaningNote,
     meaningPending,
   } from '../lib/searchCopy';
+  import { FROM_RESULT } from '../lib/openVia';
+  import { NEW_TRAIL, NEW_TRAIL_DONE } from '../lib/trailCopy';
   import { details } from '../lib/stores/details.svelte';
   import { embedding } from '../lib/stores/embedding.svelte';
   import { extraction } from '../lib/stores/extraction.svelte';
   import { fromHit, originals } from '../lib/stores/originals.svelte';
   import { search, SEARCH_PAGE_SIZE, type SearchMode } from '../lib/stores/search.svelte';
   import { folderName, sources } from '../lib/stores/sources.svelte';
+  import { trails } from '../lib/stores/trails.svelte';
 
   const scannableRoots = $derived(sources.roots.filter((r) => !r.nestedInRootId));
   const page = $derived(search.result);
@@ -78,29 +81,44 @@
 <div class="view">
   <ViewHeading>Search</ViewHeading>
 
-  <fieldset class="mode">
-    <legend class="visually-hidden">Search mode</legend>
-    <label>
-      <input
-        type="radio"
-        name="search-mode"
-        value="find"
-        checked={!asking}
-        onchange={() => setMode('find')}
-      />
-      Find sources
-    </label>
-    <label>
-      <input
-        type="radio"
-        name="search-mode"
-        value="ask"
-        checked={asking}
-        onchange={() => setMode('ask')}
-      />
-      Ask Atlas
-    </label>
-  </fieldset>
+  <div class="mode-row">
+    <fieldset class="mode">
+      <legend class="visually-hidden">Search mode</legend>
+      <label>
+        <input
+          type="radio"
+          name="search-mode"
+          value="find"
+          checked={!asking}
+          onchange={() => setMode('find')}
+        />
+        Find sources
+      </label>
+      <label>
+        <input
+          type="radio"
+          name="search-mode"
+          value="ask"
+          checked={asking}
+          onchange={() => setMode('ask')}
+        />
+        Ask Atlas
+      </label>
+    </fieldset>
+    {#if trails.status && trails.status.state !== 'unavailable'}
+      <button
+        type="button"
+        class="button quiet"
+        disabled={trails.status.state === 'paused'}
+        onclick={() => void trails.startTrail()}
+      >
+        {NEW_TRAIL}
+      </button>
+      <span role="status" class="muted small" data-testid="new-trail-status">
+        {trails.starting ? NEW_TRAIL_DONE : ''}
+      </span>
+    {/if}
+  </div>
 
   {#if asking}
     <AskForm />
@@ -213,7 +231,8 @@
                 type="button"
                 class="row-button"
                 aria-label={`Details for ${hit.displayName}`}
-                onclick={(e) => details.open(hit.fileInstanceId, e.currentTarget)}
+                onclick={(e) =>
+                  details.open(hit.fileInstanceId, e.currentTarget, { via: FROM_RESULT })}
               >
                 Details
               </button>
@@ -223,15 +242,18 @@
                   class="row-button"
                   aria-label={`More like this: ${hit.displayName}`}
                   onclick={(e) =>
-                    details.open(hit.fileInstanceId, e.currentTarget, { focusRelated: true })}
+                    details.open(hit.fileInstanceId, e.currentTarget, {
+                      focusRelated: true,
+                      via: FROM_RESULT,
+                    })}
                 >
                   More like this
                 </button>
               {/if}
-              <OriginalActions item={fromHit(hit)} />
+              <OriginalActions item={fromHit(hit, FROM_RESULT)} />
             </div>
             {#if originals.hasNotice(hit.fileInstanceId)}
-              <OriginalNotice item={fromHit(hit)} />
+              <OriginalNotice item={fromHit(hit, FROM_RESULT)} />
             {/if}
           </li>
         {/each}
@@ -283,6 +305,13 @@
   .box {
     display: grid;
     gap: var(--space-2);
+  }
+
+  .mode-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-3);
   }
 
   .mode {

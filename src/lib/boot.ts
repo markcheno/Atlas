@@ -15,6 +15,7 @@ import { library } from './stores/library.svelte';
 import { search } from './stores/search.svelte';
 import { sources } from './stores/sources.svelte';
 import { theme } from './stores/theme.svelte';
+import { trails } from './stores/trails.svelte';
 import { view } from './stores/view.svelte';
 import { workspace } from './stores/workspace.svelte';
 
@@ -30,6 +31,7 @@ export async function applyStatus(status: DataRootStatus, opts: { justChosen?: b
   answer.reset();
   duplicates.reset();
   details.reset();
+  trails.reset();
   if (!appInfo.status) void appInfo.load();
   if (status.state === 'open') {
     await Promise.all([
@@ -42,6 +44,8 @@ export async function applyStatus(status: DataRootStatus, opts: { justChosen?: b
       embedding.refresh(),
       embedding.subscribe(),
       answer.subscribe(),
+      trails.refresh(),
+      trails.subscribe(),
     ]);
     view.go(opts.justChosen && sources.roots.length === 0 ? 'library-folders' : 'home');
   } else if (status.state === 'not_configured') {

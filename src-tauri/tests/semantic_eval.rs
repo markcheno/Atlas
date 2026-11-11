@@ -1001,6 +1001,7 @@ fn ask_atlas_against_real_models() {
                 limits: ChatLimits::default(),
                 events: Arc::clone(&events),
                 answers: root.answers(),
+                recorder: None,
             },
             &AskQuery {
                 question: question.into(),

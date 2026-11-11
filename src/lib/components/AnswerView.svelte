@@ -22,6 +22,7 @@
   } from '../answerCopy';
   import { paragraphs } from '../answerText';
   import { answer } from '../stores/answer.svelte';
+  import { fromCitation } from '../openVia';
   import { details } from '../stores/details.svelte';
   import { view } from '../stores/view.svelte';
   import DisclosureDialog from './DisclosureDialog.svelte';
@@ -56,7 +57,10 @@
   );
 
   function openSource(s: SourceUsed, trigger: HTMLElement) {
-    void details.open(s.fileInstanceId, trigger, { cited: s });
+    void details.open(s.fileInstanceId, trigger, {
+      cited: s,
+      via: fromCitation(answer.answerId, s.n),
+    });
   }
 
   async function goToSettings(section: string) {

@@ -63,6 +63,8 @@ commands and added the native multi-folder picker.
 | Storage | `get_storage_usage`, `clean_caches` | **1.6 (working)** |
 | Related documents | `get_related_documents` | **2.5 (working)** |
 | Ask Atlas | `ask_atlas`, `cancel_answer`, `acknowledge_disclosure` (the privacy choices are part of `update_settings`); the `answer-stream` event | **2.6 (working)** |
+| Knowledge store | `get_knowledge_status` | **3.2 (working)** |
+| Trails | `record_open`, `get_recording_status`, `dismiss_trail_note`, `list_trails`, `get_trail`, `start_trail`, `continue_trail`, `rename_trail`, `pin_trail`, `delete_trail`, `delete_trail_step`, `add_trail_note`, `delete_all_trails`; `search_documents` gains `intent`; the `trail-changed` event (recording and expiry are part of `update_settings`) | **3.3 (working)** |
 
 `get_app_status` returns only facts about the running process, including a
 feature list that marks exactly which capabilities this build provides.
@@ -789,8 +791,9 @@ Rationale in [ADR 0015](adr/0015-ask-atlas-answers-citations-injection.md).
   `stopped`, or `error {code, message, partial, cited, dropped}`.
   `cancel_answer(answerId)` stops one.
 - **One answer per library** (`AnswerRegistry`, the first field of
-  `OpenRoot`, so it stops first when the library closes). Nothing is
-  persisted.
+  `OpenRoot`, so it stops first when the library closes). It is kept only
+  as a step of the user's trail, while recording is on
+  ([Recording trails](#recording-trails), ADR 0017).
 - **Privacy** (`config/settings.json`):
   - `allowRemoteEmbedding`, `disableExternalAi`, and the `acknowledged`
     internet services (profile, address, label, time).
@@ -882,6 +885,62 @@ in [ADR 0016](adr/0016-the-knowledge-store.md); schema in
   4. Open Atlas.
 
   The snapshot is a complete store. Anything saved after it is replaced.
+
+## Recording trails
+
+Implemented in `src-tauri/src/services/knowledge/{record,trails,meta}.rs`
+and `src-tauri/src/commands/trails.rs` (Slice 3.3). Rationale, and the
+privacy rules, in [ADR 0017](adr/0017-trails-and-privacy.md).
+
+- **The `Recorder`** (`OpenRoot.recorder`, one per library) writes steps
+  from Rust's own state. The renderer sends only ids, an intent, and how a
+  source was reached.
+  - **Searches:** `search_documents(query, intent)` hands every page to
+    `Recorder::search`. Only `intent: submit` records; the default is
+    `refresh`. The same words and filters as the last step update it.
+  - **Questions:** `ask` takes an `AskRecord` when the answer starts
+    (anchors, filters, model, where its service is). The answer thread
+    returns an `AnswerOutcome` (the delivered text, how it ended, cited,
+    dropped) and records after its last event. Nothing found is recorded
+    in `ask`.
+  - **Opens:** `record_open(fileId, via, action, place?)`. The anchor is
+    built from the catalog, at the passage the user saw (the last page's
+    and the last answer's passages are kept in memory). From the Library
+    it records nothing. Consecutive opens of a document the same way merge.
+  - **A failure** never fails the search or the answer: it sets
+    `RecordingStatus.failed` until a step is saved again.
+- **Steps** (`trails.rs`): `append` is one transaction. It applies the
+  session rule, merges or inserts the step with its `step_documents`,
+  recounts the trail, refreshes its folded `search_text`, and keeps the
+  session going. Payloads are `StepPayload` JSON at `v: 1`.
+- **Sessions:** `meta.current_trail` and `meta.current_trail_until` (the
+  last step plus 30 minutes). `start_trail` clears them; `continue_trail`
+  sets them.
+- **Settings** (`config/settings.json`): `privacy.recordTrails` and
+  `privacy.expireTrails`, both on by default, are shared with the recorder
+  and the store's hourly thread through `TrailSettings`, updated by
+  `update_settings`.
+- **Expiry:** at open (after the snapshot check) and hourly, at most daily
+  (`meta.last_expiry_at`). It removes unpinned trails in no collection
+  whose last step is over 90 days old.
+- **`trail-changed`** carries a `RecordingStatus` (recording, paused or
+  unavailable; the current trail and its step count; Home's one-time note;
+  `failed`) after each step and each change. `Workspace::with_trail_events`
+  wires it, as the job events are wired.
+- **The renderer:**
+  - `search.svelte.ts` sends `submit` only from `submit()`.
+  - `details.open`, `details.show` and the Open and Show actions take a
+    `via` and call `record_open` after success (`openVia.ts`). The Library
+    and the duplicates list pass none.
+  - `trails.svelte.ts` holds the status and does the toggle, New trail,
+    dismissing Home's note, and Delete all trails.
+  - The status bar shows "Trail: recording" or "Trail: paused" as a toggle
+    button, and "Atlas couldn't save this step" after a failure. Search has
+    **New trail** beside the mode switch. Settings › Privacy has a Research
+    trails part (`TrailPrivacy.svelte`).
+- **Reading trails:** `list_trails` (paged, newest activity first,
+  filtered on `search_text`) and `get_trail` (steps oldest first, every
+  anchor resolved now) are in place. The Trails screen is Slice 3.4.
 
 ## Build, CI and measurement
 
@@ -1040,5 +1099,6 @@ Phase 3 (the knowledge workspace: research trails, bookmarks and saved
 findings, interests and projects, a PDF page view, export) is specified in
 [phase3-spec.md](phase3-spec.md). Slice 3.1 built the carry-overs
 (iCloud re-reads, the per-model weak margin, Project Gutenberg boilerplate
-left out), 3.1.1 the fusion change, and 3.2 the
-[knowledge store](#knowledge-store).
+left out), 3.1.1 the fusion change, 3.2 the
+[knowledge store](#knowledge-store), and 3.3
+[recording trails](#recording-trails).

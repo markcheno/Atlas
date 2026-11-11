@@ -3,7 +3,8 @@
   // service and when. Embedding through an internet service is off until
   // allowed; "Disable all external AI" stops every request to one; Ask
   // Atlas's agreements, per service, can be forgotten. Services on this
-  // computer or another one need no permission.
+  // computer or another one need no permission. Research trails (Slice
+  // 3.3) have their own part.
   import { onMount } from 'svelte';
   import { atlas, type AtlasApiError } from '../api/client';
   import type { PrivacySettings } from '../api/bindings/PrivacySettings';
@@ -19,6 +20,7 @@
   import { embedding } from '../stores/embedding.svelte';
   import { settings } from '../stores/settings.svelte';
   import ProblemNotice from './ProblemNotice.svelte';
+  import TrailPrivacy from './TrailPrivacy.svelte';
 
   let textBytes = $state<number | null>(null);
   let saving = $state(false);
@@ -127,6 +129,8 @@
       </ul>
     </section>
   {/if}
+
+  <TrailPrivacy />
 
   {#if error}
     <ProblemNotice

@@ -40,7 +40,7 @@ use crate::services::embedding::{self, registry::VectorRegistry};
 use crate::services::extraction;
 use crate::services::inventory::{self, InventoryDeps};
 use crate::services::jobs::{self, JobRunners, ProcessorFactory};
-use crate::services::knowledge::KnowledgeStore;
+use crate::services::knowledge::{KnowledgeStore, Recorder, TrailEvents, TrailSettings};
 use crate::services::library::{self, RootStatusCache};
 use crate::services::system::low_space_threshold;
 use layout::{CATALOG, DIRECTORIES, INIT_MARKER, TMP};
@@ -58,8 +58,11 @@ pub struct WorkspaceConfig {
 /// declaration order: the job runners stop first, then the readers and the
 /// writer close, then the lock is released.
 pub struct OpenRoot {
-    /// The answer in progress (Slice 2.6), ended first.
+    /// The answer in progress (Slice 2.6), ended first, so an answer
+    /// stopped by closing is still recorded.
     answers: Arc<AnswerRegistry>,
+    /// Records trails into the knowledge store (Slice 3.3).
+    recorder: Arc<Recorder>,
     jobs: JobRunners,
     /// The vector indexes, after the runners (which save them as they stop).
     vectors: Arc<VectorRegistry>,
@@ -95,6 +98,10 @@ impl OpenRoot {
     /// The library's answer in progress (Slice 2.6).
     pub fn answers(&self) -> &Arc<AnswerRegistry> {
         &self.answers
+    }
+    /// Records and changes trails (Slice 3.3, ADR 0017).
+    pub fn recorder(&self) -> &Arc<Recorder> {
+        &self.recorder
     }
     /// The library's vector indexes (Slice 2.3).
     pub fn vectors(&self) -> &Arc<VectorRegistry> {
@@ -142,6 +149,8 @@ pub struct Workspace {
     volumes: Arc<dyn VolumeInspector>,
     /// Where "now" comes from for the knowledge store (Slice 3.2).
     clock: Arc<dyn Clock>,
+    /// Where the recording status goes (`trail-changed`, Slice 3.3).
+    trail_events: Option<TrailEvents>,
     /// One processor per job kind, started for every root this workspace
     /// opens (ADR 0009).
     processors: BTreeMap<JobKind, ProcessorFactory>,
@@ -154,6 +163,7 @@ impl Workspace {
             config,
             volumes,
             clock: Arc::new(SystemClock),
+            trail_events: None,
             processors: BTreeMap::new(),
             state: State::NotConfigured,
         }
@@ -168,6 +178,13 @@ impl Workspace {
     /// Uses `clock` for every root this workspace opens (tests).
     pub fn with_clock(mut self, clock: Arc<dyn Clock>) -> Self {
         self.clock = clock;
+        self
+    }
+
+    /// Sends the recording status of every root this workspace opens to
+    /// `events` (Slice 3.3).
+    pub fn with_trail_events(mut self, events: TrailEvents) -> Self {
+        self.trail_events = Some(events);
         self
     }
 
@@ -339,6 +356,9 @@ impl Workspace {
         let privacy_changed = root.settings.privacy != new.privacy;
         root.settings = new.clone();
         if privacy_changed {
+            // Recording and expiry take effect at once (Slice 3.3).
+            root.knowledge.trail_settings().set(&new.privacy);
+            root.recorder.emit();
             // Allowing an internet service lets embedding start (Slice 2.3).
             embedding::triggers::changed(root)?;
         }
@@ -449,30 +469,48 @@ impl Workspace {
         // Rows cataloged before search keys existed (Slice 0.5).
         library::backfill_keys(&catalog)?;
 
-        let knowledge = self.open_knowledge(path);
+        let settings = settings::read(path);
+        let knowledge = self.open_knowledge(path, &settings);
         let vectors = Arc::new(VectorRegistry::new(path));
+        let reader = Arc::new(CatalogReader::open(&catalog_path)?);
         Ok(OpenRoot {
             answers: Arc::default(),
+            recorder: self.recorder(&knowledge, &reader),
             jobs: self.start_jobs(&catalog, path, &vectors)?,
             vectors,
-            reader: Arc::new(CatalogReader::open(&catalog_path)?),
+            reader,
             root_status: Arc::default(),
             knowledge,
             catalog,
             _lock: lock,
             path: path.to_path_buf(),
             display,
-            settings: settings::read(path),
+            settings,
             manifest,
         })
     }
 
-    /// Opens the knowledge store and takes a snapshot if one is due. A
-    /// store that can't be used reports why; the library opens anyway.
-    fn open_knowledge(&self, path: &Path) -> KnowledgeStore {
-        let store = KnowledgeStore::open(path, Arc::clone(&self.clock), Arc::clone(&self.volumes));
+    /// Opens the knowledge store, takes a snapshot if one is due, then
+    /// removes expired trails. A store that can't be used reports why; the
+    /// library opens anyway.
+    fn open_knowledge(&self, path: &Path, settings: &Settings) -> KnowledgeStore {
+        let store = KnowledgeStore::open(
+            path,
+            Arc::clone(&self.clock),
+            Arc::clone(&self.volumes),
+            Arc::new(TrailSettings::new(&settings.privacy)),
+        );
         store.snapshot_if_due();
+        store.expire_if_due();
         store
+    }
+
+    fn recorder(&self, knowledge: &KnowledgeStore, reader: &Arc<CatalogReader>) -> Arc<Recorder> {
+        Arc::new(Recorder::new(
+            knowledge.shared(),
+            Arc::clone(reader),
+            self.trail_events.clone(),
+        ))
     }
 
     fn start_jobs(
@@ -522,20 +560,23 @@ impl Workspace {
         fs::remove_file(&marker).map_err(AtlasError::io("finish creating the library"))?;
         let _ = sync_dir(path);
 
-        let knowledge = self.open_knowledge(path);
+        let settings = settings::read(path);
+        let knowledge = self.open_knowledge(path, &settings);
         let vectors = Arc::new(VectorRegistry::new(path));
+        let reader = Arc::new(CatalogReader::open(&path.join(CATALOG))?);
         Ok(OpenRoot {
             answers: Arc::default(),
+            recorder: self.recorder(&knowledge, &reader),
             jobs: self.start_jobs(&catalog, path, &vectors)?,
             vectors,
-            reader: Arc::new(CatalogReader::open(&path.join(CATALOG))?),
+            reader,
             root_status: Arc::default(),
             knowledge,
             catalog,
             _lock: lock,
             path: path.to_path_buf(),
             display,
-            settings: settings::read(path),
+            settings,
             manifest,
         })
     }

@@ -121,12 +121,12 @@
       {/if}
 
       <div class="actions">
-        <OriginalActions item={fromFile(file)} />
+        <OriginalActions item={fromFile(file, details.via ?? undefined)} />
         {#if file.availability !== 'available' || file.storage === 'cloud_only'}
           <span class="badge" data-status={file.availability}>{statusLabel(file)}</span>
         {/if}
       </div>
-      <OriginalNotice item={fromFile(file)} />
+      <OriginalNotice item={fromFile(file, details.via ?? undefined)} />
 
       {#if details.cited}
         {@const cited = details.cited}
@@ -188,9 +188,9 @@
                 </div>
                 <div class="actions">
                   <span class="badge" data-status={copy.availability}>{statusLabel(copy)}</span>
-                  <OriginalActions item={fromFile(copy)} />
+                  <OriginalActions item={fromFile(copy, details.via ?? undefined)} />
                 </div>
-                <OriginalNotice item={fromFile(copy)} />
+                <OriginalNotice item={fromFile(copy, details.via ?? undefined)} />
               </li>
             {/each}
           </ul>

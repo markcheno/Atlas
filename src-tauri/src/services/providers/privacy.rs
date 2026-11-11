@@ -67,6 +67,7 @@ mod tests {
             allow_remote_embedding: remote,
             disable_external_ai: disabled,
             acknowledged: Vec::new(),
+            ..PrivacySettings::default()
         }
     }
 

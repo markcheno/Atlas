@@ -20,7 +20,9 @@ use crate::state::AppState;
 /// id whose `answer-stream` events follow; or that the library has
 /// nothing on it; or, for an internet service not agreed to yet, what
 /// would be sent (nothing is). Only the passages found are sent, to the
-/// chat role's service, after this explicit action.
+/// chat role's service, after this explicit action. While recording is
+/// on, the question and its answer become a step of the user's trail
+/// when the answer ends (Slice 3.3).
 #[tauri::command]
 pub async fn ask_atlas(
     app: AppHandle,
@@ -36,6 +38,7 @@ pub async fn ask_atlas(
                 root.catalog().handle(),
                 root.settings().privacy.clone(),
                 Arc::clone(root.answers()),
+                Arc::clone(root.recorder()),
             ))
         })
         .await?;
@@ -44,7 +47,7 @@ pub async fn ask_atlas(
         let _ = app.emit(crate::ANSWER_EVENT, event);
     });
     tauri::async_runtime::spawn_blocking(move || {
-        let (reader, vectors, catalog, privacy_settings, registry) = handles;
+        let (reader, vectors, catalog, privacy_settings, registry, recorder) = handles;
         answers::ask(
             &AskDeps {
                 reader: &reader,
@@ -61,6 +64,7 @@ pub async fn ask_atlas(
                 limits: ChatLimits::default(),
                 events,
                 answers: &registry,
+                recorder: Some(&recorder),
             },
             &query,
         )

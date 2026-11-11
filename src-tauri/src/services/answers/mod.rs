@@ -13,8 +13,10 @@
 //!    as it arrives ([`cite`]); `answer-stream` events carry it.
 //!
 //! One answer at a time per library: a new question, Stop, or the library
-//! closing ends the one before. Nothing is persisted: no table, no file;
-//! the log records sizes and timings at most.
+//! closing ends the one before. An answer is kept only as a step of the
+//! user's trail, in the knowledge store, while recording is on (Slice 3.3,
+//! ADR 0017, amending ADR 0015): never in the catalog, never in a file of
+//! its own. Atlas keeps no log.
 
 pub mod cite;
 pub mod prompt;
@@ -29,11 +31,13 @@ use std::time::{Duration, Instant};
 use rusqlite::{Connection, OptionalExtension};
 
 use crate::domain::dto::{
-    AnswerErrorCode, AnswerEvent, AnswerStep, AskQuery, AskReply, AskStarted, DisclosureNeeded,
-    PrivacySettings, ProviderLocation, SearchQuery,
+    AnswerErrorCode, AnswerEvent, AnswerStep, AskEnding, AskQuery, AskReply, AskStarted,
+    DisclosureNeeded, PrivacySettings, ProviderLocation, SearchQuery,
 };
 use crate::error::{AtlasError, AtlasResult};
 use crate::services::catalog::reader::CatalogReader;
+use crate::services::knowledge::Recorder;
+use crate::services::knowledge::record::{AnswerOutcome, AskStart};
 use crate::services::providers::privacy::{self, Use};
 use crate::services::providers::profiles::{self, Prepared};
 use crate::services::providers::secrets::SecretVault;
@@ -65,6 +69,9 @@ pub struct AskDeps<'a> {
     pub limits: ChatLimits,
     pub events: AnswerEvents,
     pub answers: &'a Arc<AnswerRegistry>,
+    /// Records the question into the user's trail (Slice 3.3); `None`
+    /// records nothing.
+    pub recorder: Option<&'a Arc<Recorder>>,
 }
 
 /// The chat role's service, as stored.
@@ -139,12 +146,15 @@ pub fn ask(deps: &AskDeps<'_>, query: &AskQuery) -> AtlasResult<AskReply> {
         return Err(AtlasError::InvalidUrl);
     };
 
+    let location = (deps.locate)(&role.base_url);
     if sources.is_empty() {
+        if let Some(recorder) = deps.recorder {
+            recorder.nothing_found(query, retrieval.semantic, &role.model, location);
+        }
         return Ok(AskReply::NothingFound {
             semantic: retrieval.semantic,
         });
     }
-    let location = (deps.locate)(&role.base_url);
     if location == ProviderLocation::Internet
         && !privacy::acknowledged(deps.privacy, &role.profile_id, &role.base_url)
     {
@@ -168,6 +178,7 @@ pub fn ask(deps: &AskDeps<'_>, query: &AskQuery) -> AtlasResult<AskReply> {
         })
         .collect();
     let messages = prompt::messages(&blocks, &question);
+    let model = role.model.clone();
     let target = ChatTarget {
         kind,
         base: endpoint.base,
@@ -184,9 +195,28 @@ pub fn ask(deps: &AskDeps<'_>, query: &AskQuery) -> AtlasResult<AskReply> {
         retrieval.weak_margin,
     );
     let count = sources.len() as u32;
+    // What the trail step will need, taken now: the thread has only the
+    // prompt.
+    let record = deps.recorder.and_then(|recorder| {
+        recorder
+            .ask_started(AskStart {
+                answer_id: &answer_id,
+                query,
+                sources: &sources,
+                weak,
+                semantic: retrieval.semantic,
+                model: &model,
+                location,
+            })
+            .map(|record| (Arc::clone(recorder), record))
+    });
     let (events, limits, id) = (Arc::clone(&deps.events), deps.limits, answer_id.clone());
     deps.answers.start(answer_id.clone(), move |stop| {
-        answer(&id, &target, limits, &messages, count, &events, &stop);
+        let outcome = answer(&id, &target, limits, &messages, count, &events, &stop);
+        // After the last event, so the answer never waits on the store.
+        if let Some((recorder, record)) = record {
+            recorder.ask(record, outcome);
+        }
     });
     Ok(AskReply::Started(AskStarted {
         answer_id,
@@ -197,6 +227,7 @@ pub fn ask(deps: &AskDeps<'_>, query: &AskQuery) -> AtlasResult<AskReply> {
 }
 
 /// Streams one answer, checking its citations, and reports each step.
+/// Returns the answer as delivered, for the trail.
 fn answer(
     id: &str,
     target: &ChatTarget,
@@ -205,7 +236,7 @@ fn answer(
     sources: u32,
     events: &AnswerEvents,
     stop: &AtomicBool,
-) {
+) -> AnswerOutcome {
     let emit = |step: AnswerStep| {
         events(&AnswerEvent {
             answer_id: id.to_owned(),
@@ -214,13 +245,18 @@ fn answer(
     };
     let mut cite = Citations::new(sources);
     let mut held = String::new();
+    // Everything sent to the screen: the text, its `[n]` markers in it.
+    let mut delivered = String::new();
     let mut said_thinking = false;
     let mut any_text = false;
     let mut last = Instant::now();
     let mut flush = |held: &mut String, outs: Vec<Out>, now: bool| {
         for out in outs {
             match out {
-                Out::Text(t) => held.push_str(&t),
+                Out::Text(t) => {
+                    delivered.push_str(&t);
+                    held.push_str(&t);
+                }
                 Out::Cited(n) => {
                     if !held.is_empty() {
                         emit(AnswerStep::Delta {
@@ -253,22 +289,30 @@ fn answer(
         }
         Piece::Quiet => flush(&mut held, Vec::new(), false),
     });
-    match ended {
-        Ended::Stopped => emit(AnswerStep::Stopped),
+    let ending = match ended {
+        Ended::Stopped => {
+            emit(AnswerStep::Stopped);
+            AskEnding::Stopped
+        }
         // A thinking model can spend its whole allowance reasoning: that
         // is no answer, not an empty one.
-        Ended::Finished if !any_text => emit(AnswerStep::Error {
-            code: AnswerErrorCode::NoAnswer,
-            message: if said_thinking {
-                "The model spent its whole allowance thinking and wrote no answer."
-            } else {
-                "The model finished without writing an answer."
+        Ended::Finished if !any_text => {
+            emit(AnswerStep::Error {
+                code: AnswerErrorCode::NoAnswer,
+                message: if said_thinking {
+                    "The model spent its whole allowance thinking and wrote no answer."
+                } else {
+                    "The model finished without writing an answer."
+                }
+                .to_owned(),
+                partial: false,
+                cited: Vec::new(),
+                dropped: 0,
+            });
+            AskEnding::Failed {
+                code: AnswerErrorCode::NoAnswer,
             }
-            .to_owned(),
-            partial: false,
-            cited: Vec::new(),
-            dropped: 0,
-        }),
+        }
         Ended::Finished => {
             let outs = cite.finish();
             flush(&mut held, outs, true);
@@ -276,6 +320,7 @@ fn answer(
                 cited: cite.cited().to_vec(),
                 dropped: cite.dropped(),
             });
+            AskEnding::Done
         }
         Ended::Failed { code, message } => {
             let outs = cite.finish();
@@ -287,7 +332,14 @@ fn answer(
                 cited: cite.cited().to_vec(),
                 dropped: cite.dropped(),
             });
+            AskEnding::Failed { code }
         }
+    };
+    AnswerOutcome {
+        text: delivered,
+        ending,
+        cited: cite.cited().to_vec(),
+        dropped: cite.dropped(),
     }
 }
 

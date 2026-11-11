@@ -17,7 +17,9 @@ use std::sync::{Arc, Mutex};
 
 use tauri::{Emitter, Manager};
 
-use domain::dto::{EmbeddingOverview, ExtractionOverview, InventoryOverview, JobKind};
+use domain::dto::{
+    EmbeddingOverview, ExtractionOverview, InventoryOverview, JobKind, RecordingStatus,
+};
 use infrastructure::http_probe::ProbeConfig;
 use infrastructure::keychain::LazyKeychain;
 use infrastructure::local_source::LocalFsSource;
@@ -49,6 +51,10 @@ pub const EMBEDDING_EVENT: &str = "embedding-status";
 /// Tauri event carrying an `AnswerEvent`: one step of the Ask Atlas
 /// answer in progress (Slice 2.6).
 pub const ANSWER_EVENT: &str = "answer-stream";
+
+/// Tauri event carrying a `RecordingStatus` after each trail step and
+/// every change to recording (Slice 3.3).
+pub const TRAIL_EVENT: &str = "trail-changed";
 
 /// Debug builds only: redirects the locator (and the suggested data root)
 /// so tests and smoke runs never touch the real per-user configuration.
@@ -139,7 +145,11 @@ pub fn run() {
                 config: EmbedConfig::from_env(),
                 backends: embedding_job::http_backends(ProbeConfig::embedding()),
             };
+            let trail_emitter = app.handle().clone();
             let mut workspace = Workspace::new(config, volumes)
+                .with_trail_events(Arc::new(move |status: &RecordingStatus| {
+                    let _ = trail_emitter.emit(TRAIL_EVENT, status);
+                }))
                 .with_inventory(deps)
                 .with_job_processor(JobKind::Extract, extraction_job::factory(extraction))
                 .with_job_processor(JobKind::Embed, embedding_job::factory(embedding));
@@ -213,6 +223,19 @@ pub fn run() {
             commands::answers::cancel_answer,
             commands::answers::acknowledge_disclosure,
             commands::knowledge::get_knowledge_status,
+            commands::trails::record_open,
+            commands::trails::get_recording_status,
+            commands::trails::dismiss_trail_note,
+            commands::trails::list_trails,
+            commands::trails::get_trail,
+            commands::trails::start_trail,
+            commands::trails::continue_trail,
+            commands::trails::rename_trail,
+            commands::trails::pin_trail,
+            commands::trails::delete_trail,
+            commands::trails::delete_trail_step,
+            commands::trails::add_trail_note,
+            commands::trails::delete_all_trails,
         ])
         .build(tauri::generate_context!())
         .expect("error while building Atlas")

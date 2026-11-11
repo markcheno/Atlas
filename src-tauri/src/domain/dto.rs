@@ -868,6 +868,11 @@ pub struct SearchHit {
     pub all_words: bool,
     /// Other cataloged copies of the same content.
     pub other_locations: u32,
+    /// The passage shown, for a trail step's anchor (Slice 3.3). A
+    /// catalog row id: never sent, never stored.
+    #[serde(skip)]
+    #[ts(skip)]
+    pub passage: Option<i64>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
@@ -977,6 +982,11 @@ pub struct SourceUsed {
     pub page_no: Option<u32>,
     /// The excerpt exactly as sent, as plain text.
     pub excerpt: String,
+    /// The passage shown, for a trail step's anchor (Slice 3.3). A
+    /// catalog row id: never sent, never stored.
+    #[serde(skip)]
+    #[ts(skip)]
+    pub passage: Option<i64>,
 }
 
 /// An answer that started streaming; `answer-stream` events follow.
@@ -1567,7 +1577,7 @@ pub struct Settings {
 
 /// Settings › Privacy (phase2-spec §5.7, ADR 0015). Services on this
 /// computer or another one are never affected by these choices.
-#[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize, TS)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase", default)]
 #[ts(export)]
 pub struct PrivacySettings {
@@ -1579,6 +1589,23 @@ pub struct PrivacySettings {
     /// Internet services the user agreed to send Ask Atlas excerpts to,
     /// after seeing what is sent. Per profile and address.
     pub acknowledged: Vec<Acknowledgement>,
+    /// "Record my trails" (Slice 3.3; on by default). Off, nothing is
+    /// recorded and nothing else changes.
+    pub record_trails: bool,
+    /// "Remove unpinned trails after 90 days" (Slice 3.3; on by default).
+    pub expire_trails: bool,
+}
+
+impl Default for PrivacySettings {
+    fn default() -> Self {
+        Self {
+            allow_remote_embedding: false,
+            disable_external_ai: false,
+            acknowledged: Vec::new(),
+            record_trails: true,
+            expire_trails: true,
+        }
+    }
 }
 
 /// One agreement to the Ask Atlas disclosure (phase2-spec §5.7).
@@ -1706,4 +1733,276 @@ pub struct ResolvedAnchor {
     /// Whether the saved excerpt was found; false means the saved place
     /// is used as it is.
     pub excerpt_found: bool,
+}
+
+// ---------------------------------------------------- trails (Phase 3, 3.3)
+
+/// Why `search_documents` ran (phase3-spec §7.1). Only a submit is a trail
+/// step; paging, a live refresh and a filter change are refreshes.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize, TS)]
+#[serde(rename_all = "snake_case")]
+#[ts(export)]
+pub enum SearchIntent {
+    Submit,
+    #[default]
+    Refresh,
+}
+
+/// How the user reached a source they opened, as the renderer says it.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+#[ts(export)]
+pub enum OpenVia {
+    /// A search result.
+    Result,
+    /// Source `n` of the answer `answerId`.
+    Citation {
+        #[serde(rename = "answerId")]
+        #[ts(rename = "answerId")]
+        answer_id: String,
+        n: u32,
+    },
+    Related,
+    Suggestion,
+    Bookmark,
+    Trail,
+    /// The Library view: never a step.
+    Library,
+}
+
+/// How a recorded source was reached: [`OpenVia`] without the ids.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "snake_case")]
+#[ts(export)]
+pub enum Reached {
+    Result,
+    Citation,
+    Related,
+    Suggestion,
+    Bookmark,
+    Trail,
+}
+
+/// What the user did with a source.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "snake_case")]
+#[ts(export)]
+pub enum OpenAction {
+    /// The details panel.
+    Details,
+    /// The page view (Slice 3.7).
+    Page,
+    Open,
+    Reveal,
+}
+
+/// Where in the document a source was opened, when the renderer knows.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase", default)]
+#[ts(export)]
+pub struct OpenPlace {
+    pub page_no: Option<u32>,
+}
+
+/// A step's filters as they were.
+#[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase", default)]
+#[ts(export)]
+pub struct StepFilters {
+    pub source_root_id: Option<RecordId>,
+    /// The folder's name then.
+    pub folder_name: Option<String>,
+    pub file_type: Option<FileType>,
+}
+
+/// One of a search step's top results.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct StepResult {
+    pub anchor: Anchor,
+    pub why: MatchReason,
+}
+
+/// A submitted search.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct SearchStep {
+    /// The payload's version.
+    pub v: u32,
+    pub words: String,
+    pub filters: StepFilters,
+    /// How many documents matched then.
+    pub matched: u32,
+    /// The top five then.
+    pub results: Vec<StepResult>,
+    pub semantic: SemanticStatus,
+}
+
+/// How a recorded question ended.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+#[ts(export)]
+pub enum AskEnding {
+    Done,
+    Stopped,
+    Failed {
+        code: AnswerErrorCode,
+    },
+    /// Nothing in the library to answer from; the model wasn't asked.
+    NothingFound,
+}
+
+/// A source sent with a question: cited ones keep their excerpt as sent,
+/// the others are anchors without one (phase3-spec §7.1).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct StepSource {
+    pub n: u32,
+    pub cited: bool,
+    pub anchor: Anchor,
+}
+
+/// A question and its answer as delivered.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct AskStep {
+    pub v: u32,
+    pub question: String,
+    pub filters: StepFilters,
+    /// The answer's text as the screen received it, with its checked
+    /// `[n]` markers. Untrusted model output: shown as text.
+    pub answer: String,
+    pub ending: AskEnding,
+    pub cited: Vec<u32>,
+    pub dropped: u32,
+    pub weak: bool,
+    pub semantic: SemanticStatus,
+    /// The chat model, and where its service was.
+    pub model: Option<String>,
+    pub location: Option<ProviderLocation>,
+    pub sources: Vec<StepSource>,
+}
+
+/// A source the user opened.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct OpenStep {
+    pub v: u32,
+    pub anchor: Anchor,
+    pub via: Reached,
+    /// In order, each once: the details panel, then Open, is one step.
+    pub actions: Vec<OpenAction>,
+}
+
+/// A note the user added to the trail.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct NoteStep {
+    pub v: u32,
+    pub text: String,
+}
+
+/// A trail step's content, stored as JSON (`trail_steps.payload`).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+#[ts(export)]
+pub enum StepPayload {
+    Search(SearchStep),
+    Ask(AskStep),
+    Open(OpenStep),
+    Note(NoteStep),
+}
+
+/// A trail in a list.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct TrailSummary {
+    pub id: String,
+    /// The user's title, if they gave one.
+    pub title: Option<String>,
+    /// What to show: the title, else the first question or search.
+    pub label: String,
+    pub pinned: bool,
+    pub step_count: u32,
+    pub started_at: String,
+    pub last_step_at: String,
+}
+
+/// A page of trails, newest activity first.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct TrailQuery {
+    /// Matched against titles, questions and searches, folded.
+    #[serde(default)]
+    pub filter: String,
+    pub page: u32,
+    pub page_size: u32,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct TrailPage {
+    pub trails: Vec<TrailSummary>,
+    pub page: u32,
+    pub page_size: u32,
+    pub total: u32,
+}
+
+/// A step with its anchors resolved against the catalog now.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct TrailStep {
+    pub id: String,
+    pub seq: u32,
+    pub at: String,
+    /// The user's note on this step.
+    pub note: Option<String>,
+    pub payload: StepPayload,
+    /// One per anchor in the payload, in order: a search's results, a
+    /// question's sources, an open's anchor.
+    pub anchors: Vec<ResolvedAnchor>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct TrailDetail {
+    pub trail: TrailSummary,
+    /// Oldest first.
+    pub steps: Vec<TrailStep>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "snake_case")]
+#[ts(export)]
+pub enum RecordingState {
+    Recording,
+    Paused,
+    /// The knowledge store can't be used (Settings › Storage says why).
+    Unavailable,
+}
+
+/// The status bar's trail indicator; `trail-changed` carries it.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct RecordingStatus {
+    pub state: RecordingState,
+    /// The trail the next step joins, if it is still current.
+    pub current_trail_id: Option<String>,
+    pub step_count: u32,
+    /// Home's one-time note, after the first step, until dismissed.
+    pub first_step_note: bool,
+    /// The last step couldn't be saved; cleared by the next one that is.
+    pub failed: bool,
 }

@@ -13,7 +13,7 @@ use tauri::async_runtime::block_on;
 fn app_status_reports_only_true_facts() {
     let status = block_on(commands::app::get_app_status()).unwrap();
     assert_eq!(status.app_version, env!("CARGO_PKG_VERSION"));
-    assert_eq!(status.slice, "3.2");
+    assert_eq!(status.slice, "3.3");
     assert_eq!(status.arch, std::env::consts::ARCH);
     if cfg!(target_os = "macos") {
         assert_eq!(status.os, OsKind::Macos);
@@ -45,7 +45,8 @@ fn app_status_reports_only_true_facts() {
             "related_documents",
             "ask_atlas_engine",
             "ask_atlas_screen",
-            "knowledge_store"
+            "knowledge_store",
+            "trail_recording"
         ]
     );
     assert!(
@@ -77,6 +78,7 @@ fn no_command_is_a_stub() {
         include_str!("../src/commands/roles.rs"),
         include_str!("../src/commands/answers.rs"),
         include_str!("../src/commands/knowledge.rs"),
+        include_str!("../src/commands/trails.rs"),
     ];
     for source in sources {
         assert!(!source.contains("not_implemented("));

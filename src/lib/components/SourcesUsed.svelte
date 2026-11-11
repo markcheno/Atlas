@@ -3,6 +3,8 @@
   // numbered as it cites them, cited or not, each as the exact text sent.
   import type { SourceUsed } from '../api/bindings/SourceUsed';
   import { sourceName, sourcesHeading } from '../answerCopy';
+  import { fromCitation } from '../openVia';
+  import { answer } from '../stores/answer.svelte';
   import { details } from '../stores/details.svelte';
 
   let { sources, cited }: { sources: SourceUsed[]; cited: number[] } = $props();
@@ -22,7 +24,11 @@
             type="button"
             class="row-button"
             aria-label={`Details for ${sourceName(s)}`}
-            onclick={(e) => details.open(s.fileInstanceId, e.currentTarget, { cited: s })}
+            onclick={(e) =>
+              details.open(s.fileInstanceId, e.currentTarget, {
+                cited: s,
+                via: fromCitation(answer.answerId, s.n),
+              })}
           >
             Details
           </button>
