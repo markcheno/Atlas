@@ -26,6 +26,8 @@
   import AddTo from './AddTo.svelte';
   import { BOOKMARK_PASSAGE, BOOKMARKS_HERE } from '../savedCopy';
   import { saved } from '../stores/saved.svelte';
+  import { pageView } from '../stores/pageView.svelte';
+  import { SHOW_PAGE } from '../readerCopy';
   import { placeText } from '../trailCopy';
 
   let panel = $state<HTMLElement>();
@@ -172,6 +174,29 @@
           </p>
           <p class="cited-text">{cited.excerpt}</p>
           <p class="muted small">{details.citedNote ?? FROM_LAST_QUESTION}</p>
+          {#if cited.fileType === 'pdf' && cited.pageNo && details.fileId}
+            {@const fileId = details.fileId}
+            {@const pageNo = cited.pageNo}
+            <div class="actions">
+              <button
+                type="button"
+                class="button"
+                onclick={(e) =>
+                  void pageView.show(
+                    {
+                      fileId,
+                      pageNo,
+                      find: cited.excerpt,
+                      title: d.title,
+                      via: details.via ?? undefined,
+                    },
+                    e.currentTarget,
+                  )}
+              >
+                {SHOW_PAGE}
+              </button>
+            </div>
+          {/if}
           {#if details.saveAs}
             {@const key =
               details.saveAs.kind === 'step'

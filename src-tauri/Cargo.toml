@@ -23,6 +23,10 @@ half = "2.7.1"
 html2text = "=0.17.4"
 keyring-core = "1.0.1"
 pdfium-render = { version = "=0.9.5", default-features = false, features = ["pdfium_8125"] }
+# The page view (Slice 3.7): PNG encoding in the worker, and the image
+# as base64 over IPC. Both were already in Cargo.lock through tauri and reqwest.
+png = "=0.18.1"
+base64 = "=0.23.1"
 rbook = "=0.7.12"
 reqwest = { version = "0.13.5", default-features = false, features = ["rustls", "json"] }
 rusqlite = { version = "0.41.1", features = ["bundled"] }
@@ -92,6 +96,11 @@ harness = false
 [[bench]]
 # Phase 2 embedding job and hybrid search while it runs: `just bench-embedding`.
 name = "embedding"
+harness = false
+
+[[bench]]
+# Phase 3 page view: rendering PDF pages in the reader's worker: `just bench-reader`.
+name = "reader"
 harness = false
 
 [dev-dependencies]

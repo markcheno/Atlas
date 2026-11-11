@@ -115,6 +115,20 @@ pub fn open(
     }
 }
 
+/// The path to read a cataloged file from, after Open's checks: the folder
+/// is reachable, the path is a regular file inside it, and a file only in
+/// the cloud needs `allow_download` (the page view, Slice 3.7).
+pub fn path_for(root: &OpenRoot, file_id: &str, allow_download: bool) -> AtlasResult<PathBuf> {
+    let (source_root, rel) = lookup(root, file_id)?;
+    match resolve(&source_root, &rel)? {
+        Resolved::Placeholder { .. } => Err(AtlasError::FileCloudPlaceholder),
+        Resolved::File {
+            cloud_only: true, ..
+        } if !allow_download => Err(AtlasError::FileCloudOnly),
+        Resolved::File { path, .. } => Ok(path),
+    }
+}
+
 /// Shows a cataloged file selected in the OS file manager. Never downloads.
 pub fn reveal(root: &OpenRoot, opener: &dyn SourceOpener, file_id: &str) -> AtlasResult<()> {
     let (source_root, rel) = lookup(root, file_id)?;

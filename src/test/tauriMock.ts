@@ -58,6 +58,7 @@ import type { Collection } from '../lib/api/bindings/Collection';
 import type { CollectionDetail } from '../lib/api/bindings/CollectionDetail';
 import type { CollectionInput } from '../lib/api/bindings/CollectionInput';
 import type { Suggestion } from '../lib/api/bindings/Suggestion';
+import type { PageImage } from '../lib/api/bindings/PageImage';
 
 export const DEFAULT_ROOT = '/Users/test/Library/Application Support/com.altazlabs.atlas/Library';
 
@@ -66,7 +67,7 @@ export const fakeStatus: AppStatus = {
   os: 'macos',
   arch: 'aarch64',
   buildProfile: 'debug',
-  slice: '3.6',
+  slice: '3.7',
   features: [],
 };
 
@@ -656,6 +657,21 @@ export function suggestion(overrides: Partial<Suggestion> = {}): Suggestion {
   };
 }
 
+export function pageImage(overrides: Partial<PageImage> = {}): PageImage {
+  return {
+    pageNo: 12,
+    pageCount: 340,
+    width: 1200,
+    height: 1553,
+    png: 'iVBORw0KGgo=',
+    rects: [{ x: 141, y: 120, width: 600, height: 18 }],
+    found: true,
+    text: 'A flexible spline meshes with a rigid circular spline to reach high reduction.',
+    fromCache: false,
+    ...overrides,
+  };
+}
+
 export function duplicateGroup(overrides: Partial<DuplicateGroup> = {}): DuplicateGroup {
   return {
     documentId: 'doc-1',
@@ -963,6 +979,12 @@ function defaults(): Record<string, Handler> {
     get_collection_membership: () => ({ collectionIds: [] }),
     get_suggestions: () => [],
     dismiss_suggestion: () => null,
+    // The page view (Slice 3.7).
+    render_page: (args) => {
+      const pageNo = Number(args?.pageNo);
+      const found = Boolean(args?.find) && pageNo === 12;
+      return pageImage({ pageNo, found, ...(found ? {} : { rects: [] }) });
+    },
     delete_all_trails: () => 0,
   };
 }

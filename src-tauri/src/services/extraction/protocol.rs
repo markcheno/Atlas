@@ -25,6 +25,28 @@ pub enum Request {
     Hash { path: String },
     /// Answered by `page` frames, then `done` or `failed`.
     Extract { path: String, kind: FileType },
+    /// A PDF page as a PNG `width` pixels wide (Slice 3.7, protocol 2),
+    /// with the rectangles of `find` on it. Answered by `rendered` or
+    /// `renderFailed`.
+    Render {
+        path: String,
+        /// 1-based.
+        page: u32,
+        width: u32,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        find: Option<String>,
+    },
+}
+
+/// Where found text is on a rendered page, in the image's whole pixels
+/// from its top left.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RenderRect {
+    pub x: u32,
+    pub y: u32,
+    pub width: u32,
+    pub height: u32,
 }
 
 /// Encodes a path for a request.
@@ -100,6 +122,21 @@ pub enum Frame {
     /// No usable text. Any pages already sent are discarded by the app.
     Failed {
         outcome: Outcome,
+        reason: String,
+    },
+    /// A rendered page: the PNG as base64, and where `find` was on it.
+    Rendered {
+        page: u32,
+        page_count: u32,
+        width: u32,
+        height: u32,
+        png: String,
+        rects: Vec<RenderRect>,
+        found: bool,
+    },
+    /// The page couldn't be rendered: `page_out_of_range`, `encrypted`,
+    /// `malformed`, `too_large`, `cloud_only`, `bad_path`.
+    RenderFailed {
         reason: String,
     },
 }

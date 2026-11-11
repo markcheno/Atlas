@@ -105,6 +105,10 @@ pub enum ErrorCode {
     CollectionNotFound,
     /// A goal or Finished for an interest, or an empty name (Slice 3.6).
     InvalidCollection,
+    /// The page view couldn't show the page (Slice 3.7).
+    RenderFailed,
+    /// A page number or width out of range (Slice 3.7).
+    InvalidRender,
     Internal,
 }
 
@@ -244,6 +248,11 @@ pub enum AtlasError {
     CollectionNotFound,
     #[error("{0}")]
     InvalidCollection(&'static str),
+    /// The reason is a fixed code: `page_out_of_range`, `malformed`, …
+    #[error("Atlas couldn't show this page.")]
+    RenderFailed(&'static str),
+    #[error("Atlas can't show a page that size.")]
+    InvalidRender,
     #[error("Atlas hit an internal error: {0}.")]
     Internal(&'static str),
 }
@@ -326,6 +335,8 @@ impl AtlasError {
             Self::SaveSourceGone => ErrorCode::SaveSourceGone,
             Self::CollectionNotFound => ErrorCode::CollectionNotFound,
             Self::InvalidCollection(_) => ErrorCode::InvalidCollection,
+            Self::RenderFailed(_) => ErrorCode::RenderFailed,
+            Self::InvalidRender => ErrorCode::InvalidRender,
             Self::Internal(_) => ErrorCode::Internal,
         }
     }
@@ -415,6 +426,8 @@ impl AtlasError {
                 "It may have been deleted. Go back to your interests and projects."
             }
             Self::InvalidCollection(_) => "Change it, then try again.",
+            Self::RenderFailed(_) => "Open the file in its default app instead.",
+            Self::InvalidRender => "Choose a page in the document.",
         })
     }
 

@@ -1248,6 +1248,52 @@ merge): full run
 [42943519172](https://github.com/markcheno/Atlas/actions/runs/42943519172),
 all green on three OSes. The smoke passed every step on Windows and Linux.
 
+## Slice 3.7
+
+The PDF page view, against the real reader worker. On every OS:
+- **P3-19** (`tests/reader.rs`, a library of generated PDFs plus corpus
+  files):
+  - page 1 with its marker phrase is a PNG of the width asked for, 2
+    pages long, outlined near where the generator writes the first line
+    (72 pt in, the top fifth), every rectangle inside the image, and its
+    text below holding the marker;
+  - text that isn't on the page, and text that is nowhere, give the image
+    without an outline;
+  - the scanned corpus page is an image with nothing found;
+  - the last page plus one is `render_failed` (`page_out_of_range`), and
+    one worker served every page.
+- **P3-20:**
+  - each of the corpus's malformed PDFs renders (PDFium repairs some) or
+    is refused, and the next good page renders;
+  - a width over 2,000 and page 0 are `invalid_render`, refused before the
+    worker is asked;
+  - a worker that hangs is killed within its 5 s test inactivity limit,
+    and one that grows past its memory cap is killed; the next page renders
+    in a new worker each time;
+  - an extraction job on another folder, running throughout, reads every
+    file;
+  - the main process has no PDFium module loaded (macOS through dyld,
+    Linux through `/proc/self/maps`; skipped on Windows);
+  - the worker is killed when idle past its configured time.
+- **P3-21:**
+  - a second request comes from the cache, with no new render;
+  - a moved and rescanned file reuses its pages by content;
+  - a file only in the cloud is refused with `file_cloud_only` unless its
+    page is already cached, and renders once allowed;
+  - over the cap, the least recently used pages go first;
+  - Clean caches empties `cache/previews`.
+
+Vitest covers the page view on a cited passage:
+- the image and its outline, the page's text, Previous and Next, the page
+  field and its bounds, Fit width and Actual size;
+- Bookmark this page, Escape and focus returning, and the open recorded
+  with action `page`;
+- the not-found note, the couldn't-show notice with Open in the default
+  app, and Download and show for a cloud-only file;
+- Show the page on a PDF result and a PDF bookmark, and never on an EPUB.
+
+**CI on `slice-37`:** full run pending.
+
 ## Slice 3.6
 
 Interests, projects and rediscovery. On every OS:

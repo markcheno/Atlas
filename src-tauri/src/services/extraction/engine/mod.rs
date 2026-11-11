@@ -9,6 +9,7 @@ pub mod garble;
 pub mod gutenberg;
 pub mod hash;
 pub mod pdf;
+pub mod render;
 pub mod sniff;
 pub mod title;
 

@@ -240,6 +240,7 @@ name = "atlas"
 version = "0.3.0"
 dependencies = [
  "apple-native-keyring-store",
+ "base64 0.23.1",
  "blake3",
  "dunce",
  "half",
@@ -249,6 +250,7 @@ dependencies = [
  "objc2-foundation",
  "pdfium-render",
  "plist",
+ "png",
  "rbook",
  "reqwest",
  "rusqlite",

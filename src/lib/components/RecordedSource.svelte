@@ -12,6 +12,8 @@
   import { anchorNote, placeText, recordedSourceName } from '../trailCopy';
   import OriginalActions from './OriginalActions.svelte';
   import SaveAction from './SaveAction.svelte';
+  import { pageView } from '../stores/pageView.svelte';
+  import { SHOW_PAGE } from '../readerCopy';
 
   let {
     anchor,
@@ -73,6 +75,21 @@
         >
           Details
         </button>
+        {#if anchor.fileType === 'pdf' && (resolved?.pageNo ?? anchor.pageNo)}
+          {@const pageNo = (resolved?.pageNo ?? anchor.pageNo) as number}
+          <button
+            type="button"
+            class="row-button"
+            aria-label={`${SHOW_PAGE}: ${name}`}
+            onclick={(e) =>
+              void pageView.show(
+                { fileId, pageNo, find: anchor.excerpt ?? null, title: anchor.title, via },
+                e.currentTarget,
+              )}
+          >
+            {SHOW_PAGE}
+          </button>
+        {/if}
         {#if opens}
           <OriginalActions
             item={{ id: fileId, displayName: anchor.title, availability: 'available', via }}

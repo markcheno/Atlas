@@ -17,7 +17,7 @@ use super::engine::hash::{HashError, Hashed};
 use super::engine::{Outcome, Piece, Summary};
 use super::lifetime;
 use super::locate::Unavailable;
-use super::protocol::{Frame, Request, encode_path};
+use super::protocol::{Frame, RenderRect, Request, encode_path};
 use crate::domain::dto::FileType;
 
 /// How to start the worker. The app uses its own executable; tests and
@@ -95,6 +95,10 @@ pub struct WorkerStats {
     pub hashes: AtomicU64,
     pub extracts: AtomicU64,
     pub kills: AtomicU64,
+    /// Pages rendered for the page view (Slice 3.7).
+    pub renders: AtomicU64,
+    /// The worker's largest resident size seen while polling, in bytes.
+    pub peak_rss_bytes: AtomicU64,
 }
 
 impl WorkerStats {
@@ -134,6 +138,19 @@ pub enum Extraction {
         outcome: Outcome,
         reason: String,
     },
+}
+
+/// A page the worker rendered (Slice 3.7): the PNG's bytes, and where the
+/// passage asked for is on it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RenderedPage {
+    pub page: u32,
+    pub page_count: u32,
+    pub width: u32,
+    pub height: u32,
+    pub png: Vec<u8>,
+    pub rects: Vec<RenderRect>,
+    pub found: bool,
 }
 
 /// Text extraction as the extraction job sees it (phase1-spec §9). The
@@ -288,7 +305,9 @@ impl Supervisor {
                 self.kill();
                 return Err(WorkerError::Crashed(Crash::Timeout));
             }
-            if self.rss(pid) > self.config.rss_cap_bytes {
+            let rss = self.rss(pid);
+            self.stats.peak_rss_bytes.fetch_max(rss, Ordering::SeqCst);
+            if rss > self.config.rss_cap_bytes {
                 self.kill();
                 return Err(WorkerError::Crashed(Crash::Memory));
             }
@@ -306,6 +325,70 @@ impl Supervisor {
             return Err(WorkerError::Crashed(Crash::Exited));
         }
         Ok(())
+    }
+}
+
+impl Supervisor {
+    /// Renders page `page` (1-based) of the PDF at `path`, `width` pixels
+    /// wide, finding `find` on it (Slice 3.7). The inner error is the
+    /// worker's fixed reason (`page_out_of_range`, `encrypted`, …).
+    pub fn render(
+        &mut self,
+        path: &Path,
+        page: u32,
+        width: u32,
+        find: Option<&str>,
+    ) -> Result<Result<RenderedPage, String>, WorkerError> {
+        use base64::prelude::{BASE64_STANDARD, Engine as _};
+        self.send(&Request::Render {
+            path: encode_path(path),
+            page,
+            width,
+            find: find.map(str::to_owned),
+        })?;
+        self.stats.renders.fetch_add(1, Ordering::SeqCst);
+        let frame = self.next_frame(self.config.inactivity)?;
+        // A render is often done before the first memory poll: one sample
+        // after it, so the peak is still seen.
+        if let Some(pid) = self.running.as_ref().map(|r| r.pid) {
+            let rss = self.rss(pid);
+            self.stats.peak_rss_bytes.fetch_max(rss, Ordering::SeqCst);
+        }
+        match frame {
+            Frame::Rendered {
+                page,
+                page_count,
+                width,
+                height,
+                png,
+                rects,
+                found,
+            } => match BASE64_STANDARD.decode(png) {
+                Ok(png) => Ok(Ok(RenderedPage {
+                    page,
+                    page_count,
+                    width,
+                    height,
+                    png,
+                    rects,
+                    found,
+                })),
+                Err(_) => {
+                    self.kill();
+                    Err(WorkerError::Crashed(Crash::Protocol))
+                }
+            },
+            Frame::RenderFailed { reason } => Ok(Err(reason)),
+            _ => {
+                self.kill();
+                Err(WorkerError::Crashed(Crash::Protocol))
+            }
+        }
+    }
+
+    /// Whether a worker is running now.
+    pub fn is_running(&self) -> bool {
+        self.running.is_some()
     }
 }
 

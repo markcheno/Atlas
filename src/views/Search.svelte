@@ -35,6 +35,8 @@
   import { search, SEARCH_PAGE_SIZE, type SearchMode } from '../lib/stores/search.svelte';
   import { folderName, sources } from '../lib/stores/sources.svelte';
   import { trails } from '../lib/stores/trails.svelte';
+  import { pageView } from '../lib/stores/pageView.svelte';
+  import { SHOW_PAGE } from '../lib/readerCopy';
 
   const scannableRoots = $derived(sources.roots.filter((r) => !r.nestedInRootId));
   const page = $derived(search.result);
@@ -256,6 +258,27 @@
                 </button>
               {/if}
               <OriginalActions item={fromHit(hit, FROM_RESULT)} />
+              {#if hit.documentId && hit.fileType === 'pdf' && hit.pageNo}
+                {@const pageNo = hit.pageNo}
+                <button
+                  type="button"
+                  class="row-button"
+                  aria-label={`${SHOW_PAGE}: ${hit.displayName}, page ${pageNo}`}
+                  onclick={(e) =>
+                    void pageView.show(
+                      {
+                        fileId: hit.fileInstanceId,
+                        pageNo,
+                        find: hit.snippet.map((s) => s.text).join(''),
+                        title: hit.title,
+                        via: FROM_RESULT,
+                      },
+                      e.currentTarget,
+                    )}
+                >
+                  {SHOW_PAGE}
+                </button>
+              {/if}
               {#if hit.documentId}
                 <SaveAction
                   target={{ kind: 'file', fileId: hit.fileInstanceId, place: { kind: 'result' } }}

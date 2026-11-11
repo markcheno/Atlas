@@ -16,6 +16,7 @@ pub mod inventory;
 pub mod knowledge;
 pub mod library;
 pub mod providers;
+pub mod reader;
 pub mod roles;
 pub mod saved;
 pub mod search;
@@ -102,4 +103,5 @@ pub const COMMAND_NAMES: &[&str] = &[
     "get_collection_membership",
     "get_suggestions",
     "dismiss_suggestion",
+    "render_page",
 ];

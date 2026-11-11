@@ -2315,3 +2315,36 @@ pub struct Suggestion {
     /// The collection it came from; empty for recent trails.
     pub seed_id: String,
 }
+
+// --------------------------------------------- the page view (Slice 3.7)
+
+/// Where the passage is on a rendered page, in the image's pixels.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct PageRect {
+    pub x: u32,
+    pub y: u32,
+    pub width: u32,
+    pub height: u32,
+}
+
+/// A PDF page for the page view (phase3-spec §5.5, §7.5).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct PageImage {
+    /// 1-based.
+    pub page_no: u32,
+    pub page_count: u32,
+    pub width: u32,
+    pub height: u32,
+    /// The PNG, base64, shown through a `data:` URL.
+    pub png: String,
+    /// Where the passage looked for is; empty when it wasn't found.
+    pub rects: Vec<PageRect>,
+    pub found: bool,
+    /// The page's text as Atlas read it, for reading aloud and copying.
+    pub text: String,
+    pub from_cache: bool,
+}
