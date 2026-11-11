@@ -25,8 +25,9 @@ runs:
       if: runner.os == 'Linux' && inputs.app == 'true'
       shell: bash
       # The runner's own mirror (azure.archive.ubuntu.com) has gone
-      # unresolvable for hours at a time. The first try is bounded so a dead
-      # mirror costs minutes, not the job's hour; the second uses Ubuntu's.
+      # unresolvable for hours at a time. A healthy install takes about two
+      # minutes; the first try is bounded so a dead mirror costs five, and
+      # the second uses Ubuntu's. Both fit the jobs' timeouts (ci.yml).
       run: |
         apt_install() {
           sudo timeout "$1" apt-get -o Acquire::Retries=3 -o Acquire::http::Timeout=30 update &&
@@ -34,12 +35,12 @@ runs:
             libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev libxdo-dev \
             libssl-dev patchelf file ${{ inputs.linux-extra-packages }}
         }
-        if ! apt_install 900; then
+        if ! apt_install 300; then
           echo "::warning::The runner's Ubuntu mirror failed; trying archive.ubuntu.com"
           for f in /etc/apt/sources.list /etc/apt/sources.list.d/*.sources; do
             [ -f "$f" ] && sudo sed -i 's#mirror+file:/etc/apt/apt-mirrors.txt#http://archive.ubuntu.com/ubuntu/#g' "$f"
           done
-          apt_install 1800
+          apt_install 600
         fi
 
     - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1

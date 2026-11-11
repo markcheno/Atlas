@@ -903,7 +903,7 @@ in [ADR 0016](adr/0016-the-knowledge-store.md); schema in
 
   | Tier | When | What runs | Wall time |
   | --- | --- | --- | --- |
-  | full | Pushes to `main`, tags, pull requests, manual runs (`just ci-remote`) | Every job below on macOS arm64, Windows x64 and Linux x64 | 7–9 min warm; 10 min with cold caches |
+  | full | Pushes to `main`, tags, pull requests, manual runs (`just ci-remote`) | Every job below on macOS arm64, Windows x64 and Linux x64; benchmarks only on pushes | About 12 min warm before merging (the Windows test job); 16–21 min on `main` with benchmarks |
   | quick | Pushes to `slice-*` branches, `just ci-remote quick` | Linux only: Rust format, clippy and tests, bindings, lint, typecheck, frontend tests | 2.5 min warm; 5 min with a cold cache (3.5 min of it compiling) |
   | docs | Branch pushes that change only `*.md`, `docs/` or `spikes/` | ESLint and Prettier (which checks Markdown) | 35 s |
   | evidence | `just ci-remote evidence` only | `evidence`: the 30k text fixture read unthrottled on all three OSes, failing unless every file ends "Text ready" (`bench.mjs --evidence`, phase1-spec §1.3); its own concurrency group | up to 3 h |
@@ -915,7 +915,9 @@ in [ADR 0016](adr/0016-the-knowledge-store.md); schema in
     and requires `hello`; on macOS it first runs
     `codesign --verify --deep --strict` on the `.app`.
   - `bench`: the benchmark suite, whose tables become the job summary.
-    Numbers never fail the build.
+    Numbers never fail the build. It runs only on pushes (`main` and tags),
+    not on a slice's run before merging: at 11–20 min it was the slowest
+    job (Slice 3.2).
   - `package`: unsigned release bundles, except on pull requests. The worker
     must say hello from the signed release `.app`, the unpacked `.deb`, the
     AppImage, and a silent per-user NSIS install.
@@ -923,7 +925,12 @@ in [ADR 0016](adr/0016-the-knowledge-store.md); schema in
   The quick tier shares the full Linux job's Rust cache (`rust-shared-key`
   in the setup action), so a new slice branch starts warm from `main`'s.
   Slice work runs quick on every push and full before merging, and `main`
-  and tags always run full. Every job uploads its artifacts. See
+  and tags always run full. Every job uploads its artifacts. Timeouts are
+  kept close to the real times, so a stalled runner fails within about
+  half an hour: checks and tests 30 min, benchmarks 30, release bundles
+  20, quick 45. The setup action bounds the Linux package install to 5
+  minutes, then retries from `archive.ubuntu.com` for up to 10 (the runner
+  mirror failed for hours in Slice 3.2). See
   [packaging](packaging.md).
 - **Smoke test** (`e2e/smoke.mjs`). A dependency-free W3C WebDriver client
   drives the debug build through `tauri-driver`. The flow covers

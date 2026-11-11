@@ -1293,7 +1293,10 @@ passed every macOS and Windows job. Its Linux jobs failed three times in
 setup, before any build: the runners' own Ubuntu mirror,
 `azure.archive.ubuntu.com`, couldn't be resolved, and `apt-get` retried for
 the job's hour. The shared setup action now bounds that first install to
-15 minutes, then switches to `archive.ubuntu.com` and tries again.
+5 minutes, then switches to `archive.ubuntu.com` and tries again (10
+minutes). To shorten the wait before each merge, benchmarks now run only on
+pushes to `main` and tags, and the jobs' timeouts are tighter: checks and
+tests 30 minutes (was 75), benchmarks 30 (60), release bundles 20 (60).
 
 Locally, one full `just ci` run failed `p2_12_related_documents…`
 (`tests/related.rs:96`, the near document's related list missing the

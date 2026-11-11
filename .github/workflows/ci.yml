@@ -1,9 +1,11 @@
 name: CI
 
 # Three tiers (docs/architecture.md, "CI tiers"); the plan job picks one:
-#   full:  every OS. Checks, tests, debug bundles, smoke tests, benchmarks,
-#          release bundles. Pushes to main, tags, pull requests, and manual
-#          runs (`just ci-remote`).
+#   full:  every OS. Checks, tests, debug bundles, smoke tests, release
+#          bundles. Pushes to main, tags, pull requests, and manual runs
+#          (`just ci-remote`). Benchmarks run only on pushes (main and
+#          tags): they are the slowest job and never fail the build, so a
+#          slice's run before merging doesn't wait for them.
 #   quick: Linux checks and tests only. Pushes to slice-* branches, and
 #          manual runs with scope=quick (`just ci-remote quick`).
 #   docs:  lint only (Prettier checks Markdown). Branch pushes that change
@@ -150,7 +152,7 @@ jobs:
             os: ubuntu-24.04
             bundles: appimage,deb
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 75
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
@@ -235,7 +237,7 @@ jobs:
   bench:
     name: Benchmarks ${{ matrix.name }}
     needs: plan
-    if: needs.plan.outputs.scope == 'full'
+    if: needs.plan.outputs.scope == 'full' && github.event_name == 'push'
     strategy:
       fail-fast: false
       matrix:
@@ -244,7 +246,7 @@ jobs:
           - { name: Windows x64, os: windows-latest }
           - { name: Linux x64, os: ubuntu-24.04 }
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 60
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: ./.github/actions/setup
@@ -319,7 +321,7 @@ jobs:
           - { name: Windows x64, os: windows-latest, bundles: nsis }
           - { name: Linux x64, os: ubuntu-24.04, bundles: 'appimage,deb' }
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 60
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: ./.github/actions/setup
