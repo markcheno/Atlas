@@ -52,7 +52,7 @@ Windows and Linux.
 | 3 | Related documents for every document with text; never its own copies | ✅ | ✅ | ✅ | P2-12 on every OS; DMG smoke step 5 |
 | 4 | Citations resolve to supplied passages and open the document there; invented ones dropped and said | ◐ | ◐ | ◐ | P2-13, P2-14 on every OS; smoke "ask Atlas answers with a citation that opens the source"; DMG smoke step 6. A citation opens the document's panel at the **passage**, not the page: a product-owner decision (Slice 2.7), since the OS apps can't be told a page on all three systems |
 | 5 | A model change builds a new index while the old serves; a kill leaves no partial state | ✅ | ✅ | ✅ | P2-08 (real kills during a save), P2-05 (kill mid-job), P2-09, P2-16 (nothing persisted); DMG smoke step 8 |
-| 6 | Search p95 under about 250 ms on the 30k text fixture while embedding | ✅ | ◐ | ◐ | P2-18 on the reference machine: 228 ms ([benchmarks](benchmarks.md#meaning-search-slice-24)). The runners report the 1k fixture: p95 218 ms on macOS, 65 ms on Windows, 88 ms on Linux (CI run 42909699433), and the 10k text fixture in the evidence run: 272 ms on Windows, 143 ms on Linux <!-- pending: macOS evidence --> |
+| 6 | Search p95 under about 250 ms on the 30k text fixture while embedding | ✅ | ◐ | ◐ | P2-18 on the reference machine: 228 ms ([benchmarks](benchmarks.md#meaning-search-slice-24)). The runners report the 1k fixture: p95 218 ms on macOS, 65 ms on Windows, 88 ms on Linux (CI run 42909699433), and the 10k text fixture in the evidence run: 254 ms on macOS, 272 ms on Windows, 143 ms on Linux ([evidence](benchmarks.md#phase-2-summary-slice-28)) |
 | 7 | No model contacted without an action; disclosure before an internet service; keys stay in the keychain | ✅ | ✅ | ✅ | P2-01 (no library text in a test), P2-15, P2-20; ADR 0015's privacy gate. The OS keychains on Windows and Linux are unverified (below) |
 | 8 | Tests, smoke, benchmarks with vectors in the hundreds of thousands, packaging with the vector engine, licence evidence on three OSes | ✅ | ✅ | ✅ | [platform-validation.md](platform-validation.md), [benchmarks.md](benchmarks.md) (100k vectors on every runner; 300k and 1M on the reference machine), [packaging.md](packaging.md), [dependency-licenses.md](dependency-licenses.md) |
 
@@ -96,12 +96,10 @@ Tests are in `src-tauri/tests/`.
 
 ## Benchmarks (§13)
 
-<!-- pending: eval-embed, evidence and runner 1k numbers -->
-
 | Requirement | Status |
 | --- | --- |
 | The index alone: build, save, reload, rebuild, recall@10, filtered p95, memory; 100k on CI, 300k and 1M locally | ✅ [benchmarks](benchmarks.md#vector-index-slice-22): every runner at 100k, the M5 Pro at 300k and 1M (recall@10 0.960 at 1M on synthetic vectors). Memory is measured on the M5 Pro only |
-| Embedding through the scripted backend: chunks/s, catalog growth, index ÷ raw, save time, hybrid p95 while embedding, event rate | ✅ M5 Pro at 1k and 30k (P2-18: p95 228 ms; 60.6 MiB per 1,000 documents; 0.536× raw). Every runner at 1k: 142–365 chunks/s, 2,564–2,609 bytes per vector, 0.536× raw, p95 65–218 ms, 1.9–3.4 status events a second ([benchmarks](benchmarks.md#meaning-search-slice-24)); 10k on every runner in the evidence run <!-- pending --> |
+| Embedding through the scripted backend: chunks/s, catalog growth, index ÷ raw, save time, hybrid p95 while embedding, event rate | ✅ M5 Pro at 1k and 30k (P2-18: p95 228 ms; 60.6 MiB per 1,000 documents; 0.536× raw). Every runner at 1k: 142–365 chunks/s, 2,564–2,609 bytes per vector, 0.536× raw, p95 65–218 ms, 1.9–3.4 status events a second ([benchmarks](benchmarks.md#meaning-search-slice-24)); 10k on every runner in the evidence run: 73–204 chunks/s, 2,594–2,600 bytes per vector, p95 143–272 ms |
 | Against oMLX: embeddings/s and tokens/s at 1,024 and 512; recall@10 on real vectors | ✅ `just eval-embed`: 48.4 chunks/s, 12,134 tokens/s (the service's own count), the same at 512 since Atlas truncates; recall@10 0.9933 at 1,024 and 0.9979 at 512 ([benchmarks](benchmarks.md#meaning-search-slice-24)) |
 | Quality: P2-17 at 1,024 and 512; the share of vague questions only meaning answers | ✅ 0.925 / 0.950 hybrid at 1,024 / 512 (Slice 2.4); 3 of 40 (8%) found only with meaning: text alone 35, hybrid 38 (`just eval-embed`) |
 | Ask Atlas: time to first token and to the whole answer; citation and dropped-citation rates | ✅ Qwen3.8-27B on oMLX, thinking off: first word p50 15.6 s, whole answer 25.7 s; citation rate 0.20; 3 invented citations in 40 answers, all removed ([benchmarks](benchmarks.md#ask-atlas-slice-26)) |
@@ -113,7 +111,7 @@ Tests are in `src-tauri/tests/`.
 | --- | --- |
 | usearch compiled in on three OSes; stripped-binary and clean-build deltas | ◐ release bundles on every OS. usearch alone added +0.5 to +1.7 MiB to the bundles (Slice 2.2); all of Phase 2 added +0.9 to +2.5 MiB, and +3.5 MB (macOS) and +7.1 MB (Linux) to the executables, which are not stripped ([packaging](packaging.md)). The clean-build cost is measured on the M5 Pro only (+8 s) |
 | Licences: usearch, numkong, cxx and their build crates; GPL/AGPL flagged | ✅ [dependency-licenses.md](dependency-licenses.md) regenerated in Slice 2.8 with no changes: 586 crates, 7 MPL-2.0 entries flagged for review, no GPL or AGPL |
-| CI: the new tests with the scripted backend; bench adds vectors at 100k and embedding at 1k; evidence adds the embedding run | ✅ every full run; the evidence run embeds 10k files (product-owner decision: 30k took 69 minutes on the reference machine) <!-- pending: run id --> |
+| CI: the new tests with the scripted backend; bench adds vectors at 100k and embedding at 1k; evidence adds the embedding run | ✅ every full run; the evidence run [42909721037](https://github.com/markcheno/Atlas/actions/runs/42909721037) read the 30k text fixture to the last file and embedded 10k files on every OS (product-owner decision: 30k took 69 minutes on the reference machine) |
 | Smoke with `e2e/fake-ai.mjs`: set up the model, index meaning, a vague question, Ask with a citation that opens | ✅ Windows and Linux (Slice 2.7) |
 | Release evidence: the DMG smoke on macOS against oMLX | <!-- pending: DMG smoke --> |
 | Starts without Python, Docker, a database server, Ollama or an LLM; without AI it is Phase 1 plus Settings | ✅ P2-11; the smoke's Phase 1 steps run before any service is added; DMG smoke step 1 |

@@ -1197,6 +1197,23 @@ included.
 `models::serving` found no model just after the test library was indexed.
 It passed before and after; the cause isn't known.
 
+## Slice 2.8
+
+The Phase 2 close-out ([review](phase2-closeout.md)).
+
+**Evidence run**
+[42909721037](https://github.com/markcheno/Atlas/actions/runs/42909721037)
+(`just ci-remote evidence`). The macOS job's first attempt couldn't reach
+crates.io; its rerun passed.
+
+| Runner | 30k text read | Files ready | 10k embedded (scripted) | Chunks/s | Hybrid p95 while embedding | Bytes per vector |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| macOS | 393 s | 32,006 of 32,006 | 3,362 s | 73 | 254 ms | 2,600 |
+| Windows | 1,080 s | 32,006 of 32,006 | 2,418 s | 102 | 272 ms | 2,594 |
+| Linux | 397 s | 32,006 of 32,006 | 1,208 s | 204 | 143 ms | 2,599 |
+
+<!-- ci-2.8 -->
+
 ## Manual checklist for Windows and Linux
 
 CI runs an automated smoke test on Windows and Linux (Slice 0.8, below),

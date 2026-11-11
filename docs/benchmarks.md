@@ -449,6 +449,40 @@ Duplicates' first page takes 33 ms at p95 over 2,001 groups, and Settings
 › Storage 122 ms. Cataloging is unchanged since Phase 0: 483 files/s at
 the policy rate on 30k, browse p95 under 37 ms while scanning.
 
+## Phase 2 summary (Slice 2.8)
+
+Phase 2's measures against phase2-spec §13's provisional targets.
+- **The reference machine** is the M5 Pro, with oMLX for the real model.
+- **The runners** are CI's evidence run
+  [42909721037](https://github.com/markcheno/Atlas/actions/runs/42909721037)
+  (the 10k text fixture embedded with the scripted backend; the 30k text
+  fixture read) and the full run
+  [42909699433](https://github.com/markcheno/Atlas/actions/runs/42909699433)
+  (100k vectors, the 1k text fixture).
+- **The details** are in the sections that follow.
+
+| Measure | M5 Pro | macOS runner | Windows runner | Linux runner | Target |
+| --- | --- | --- | --- | --- | --- |
+| Hybrid search p95 while embedding | **228 ms** (30k) | 254 ms (10k), 218 ms (1k) | 272 ms (10k), 65 ms (1k) | 143 ms (10k), 88 ms (1k) | under about 250 ms on the reference machine at 30k |
+| Recall@10 of the index | 0.960 at 1M (synthetic); **0.998** at 512, 0.993 at 1,024 (real vectors) | 0.993 at 100k | 0.991 at 100k | 0.992 at 100k | ≥ 0.95 on real vectors |
+| Catalog bytes per vector (1,024 dimensions) | 2,597 (30k) | 2,600 (10k) | 2,594 (10k) | 2,599 (10k) | at most 2.5 KB: about 1% over |
+| Index file ÷ raw vectors | 0.536 | 0.536 | 0.536 | 0.536 | at most 0.6 |
+| Embedding with the scripted backend | 178 chunks/s (30k) | 73 chunks/s (10k) | 102 chunks/s (10k) | 204 chunks/s (10k) | — |
+| Status events a second while embedding | – | 2.6 (10k) | 2.3 (10k) | 2.9 (10k) | a few, coalesced |
+| The 30k text fixture read (Phase 1's gate, again) | 343 s at Run | 393 s | 1,080 s | 397 s | every file: 32,006 of 32,006 on every runner |
+| Embedding through oMLX (Qwen3-Embedding-0.6B) | 48.4 chunks/s, 12,134 tokens/s | — | — | — | the 30k fixture overnight: projected at 2.5–5 hours, not run |
+| Vague set, hybrid hit@5 (P2-17) | 0.950 at 512 | — | — | — | ≥ 0.80 |
+| Ask Atlas, first word and whole answer p50 (Qwen3.8-27B) | 15.6 s / 25.7 s | — | — | — | — |
+
+- **The hybrid p95 target is the reference machine's** (§1.6): 228 ms at
+  30k.
+  - The runners report it at 10k, as the spec allows.
+  - Windows (272 ms) and macOS (254 ms) are just over 250 ms there, on
+    shared four-core and three-core VMs.
+  - Linux is at 143 ms.
+- **Storage is about 1% over 2.5 KB per vector at 1,024 dimensions.** At
+  the stored 512 for Qwen3-Embedding it is about half that.
+
 ## Vector index (Slice 2.2)
 
 The index alone (`benches/vectors.rs`, `just bench-vectors <size>`):
