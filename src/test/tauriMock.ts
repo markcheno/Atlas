@@ -54,6 +54,10 @@ import type { TrailSummary } from '../lib/api/bindings/TrailSummary';
 import type { Bookmark } from '../lib/api/bindings/Bookmark';
 import type { Finding } from '../lib/api/bindings/Finding';
 import type { SavedPage } from '../lib/api/bindings/SavedPage';
+import type { Collection } from '../lib/api/bindings/Collection';
+import type { CollectionDetail } from '../lib/api/bindings/CollectionDetail';
+import type { CollectionInput } from '../lib/api/bindings/CollectionInput';
+import type { Suggestion } from '../lib/api/bindings/Suggestion';
 
 export const DEFAULT_ROOT = '/Users/test/Library/Application Support/com.altazlabs.atlas/Library';
 
@@ -62,7 +66,7 @@ export const fakeStatus: AppStatus = {
   os: 'macos',
   arch: 'aarch64',
   buildProfile: 'debug',
-  slice: '3.5',
+  slice: '3.6',
   features: [],
 };
 
@@ -606,6 +610,52 @@ export function savedPage(overrides: Partial<SavedPage> = {}): SavedPage {
   return { items: [], page: 0, pageSize: 25, total: 0, ...overrides };
 }
 
+export function collection(overrides: Partial<Collection> = {}): Collection {
+  return {
+    id: 'c-1',
+    kind: 'interest',
+    name: 'Mechanisms',
+    description: 'Gears and drives',
+    goal: null,
+    status: 'active',
+    counts: { trails: 1, bookmarks: 1, findings: 1, documents: 1 },
+    createdAt: '2026-11-09T10:00:00Z',
+    updatedAt: '2026-11-10T10:00:00Z',
+    ...overrides,
+  };
+}
+
+export function collectionDetail(overrides: Partial<CollectionDetail> = {}): CollectionDetail {
+  return {
+    collection: collection(),
+    trails: [trailSummary()],
+    bookmarks: [bookmark()],
+    findings: [finding()],
+    documents: [
+      {
+        documentId: 'doc-2',
+        title: 'Strain Wave Gearing',
+        resolved: resolved({ fileInstanceId: 'file-2' }),
+      },
+      {
+        documentId: 'doc-9',
+        title: null,
+        resolved: resolved({ state: 'unknown', documentId: null, fileInstanceId: null }),
+      },
+    ],
+    ...overrides,
+  };
+}
+
+export function suggestion(overrides: Partial<Suggestion> = {}): Suggestion {
+  return {
+    hit: searchHit({ fileInstanceId: 'file-7', documentId: 'doc-7', title: 'Cycloidal Drives' }),
+    reason: { seed: 'interest', name: 'Mechanisms' },
+    seedId: 'c-1',
+    ...overrides,
+  };
+}
+
 export function duplicateGroup(overrides: Partial<DuplicateGroup> = {}): DuplicateGroup {
   return {
     documentId: 'doc-1',
@@ -893,6 +943,26 @@ function defaults(): Record<string, Handler> {
     }),
     delete_saved: () => null,
     list_saved: () => savedPage(),
+    // Interests and projects (Slice 3.6): none unless a test says so.
+    list_collections: () => [],
+    get_collection: () => collectionDetail(),
+    save_collection: (args) => {
+      const input = args?.input as CollectionInput;
+      return collection({
+        id: input.id ?? 'c-new',
+        kind: input.kind,
+        name: input.name,
+        description: input.description,
+        goal: input.goal,
+        status: input.status ?? 'active',
+      });
+    },
+    delete_collection: () => null,
+    add_to_collection: () => collection(),
+    remove_from_collection: () => collection(),
+    get_collection_membership: () => ({ collectionIds: [] }),
+    get_suggestions: () => [],
+    dismiss_suggestion: () => null,
     delete_all_trails: () => 0,
   };
 }

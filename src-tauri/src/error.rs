@@ -101,6 +101,10 @@ pub enum ErrorCode {
     /// What was to be saved is no longer there: an answer replaced by a
     /// newer one, a deleted step (Slice 3.5).
     SaveSourceGone,
+    /// An interest or project that is no longer there (Slice 3.6).
+    CollectionNotFound,
+    /// A goal or Finished for an interest, or an empty name (Slice 3.6).
+    InvalidCollection,
     Internal,
 }
 
@@ -236,6 +240,10 @@ pub enum AtlasError {
     TextTooLong { what: &'static str, max: usize },
     #[error("Atlas can't find that any more.")]
     SaveSourceGone,
+    #[error("That interest or project is no longer there.")]
+    CollectionNotFound,
+    #[error("{0}")]
+    InvalidCollection(&'static str),
     #[error("Atlas hit an internal error: {0}.")]
     Internal(&'static str),
 }
@@ -316,6 +324,8 @@ impl AtlasError {
             Self::TrailNotFound => ErrorCode::TrailNotFound,
             Self::TextTooLong { .. } => ErrorCode::TextTooLong,
             Self::SaveSourceGone => ErrorCode::SaveSourceGone,
+            Self::CollectionNotFound => ErrorCode::CollectionNotFound,
+            Self::InvalidCollection(_) => ErrorCode::InvalidCollection,
             Self::Internal(_) => ErrorCode::Internal,
         }
     }
@@ -401,6 +411,10 @@ impl AtlasError {
             Self::TrailNotFound => "It may have been deleted. Go back to your trails.",
             Self::TextTooLong { .. } => "Shorten it, then try again.",
             Self::SaveSourceGone => "Search or ask again, then save it.",
+            Self::CollectionNotFound => {
+                "It may have been deleted. Go back to your interests and projects."
+            }
+            Self::InvalidCollection(_) => "Change it, then try again.",
         })
     }
 

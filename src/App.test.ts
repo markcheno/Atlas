@@ -3547,6 +3547,7 @@ describe('bookmarks and saved findings', () => {
     expect(tabs.getAllByRole('radio').map((r) => r.closest('label')?.textContent?.trim())).toEqual([
       'Trails',
       'Saved',
+      'Interests and projects',
     ]);
     await user.click(tabs.getByRole('radio', { name: 'Saved' }));
     expect(
@@ -3647,5 +3648,279 @@ describe('bookmarks and saved findings', () => {
     ).toBeInTheDocument();
     await user.click(confirm.getByRole('button', { name: 'Delete' }));
     expect(calls('delete_saved').at(-1)).toEqual({ kind: 'finding', id: 'f-1' });
+  });
+});
+
+describe('interests, projects and suggestions', () => {
+  beforeEach(() => {
+    resetAll();
+    libraryStore.reset();
+  });
+
+  const nav = () => within(screen.getByRole('navigation', { name: 'Main' }));
+  const calls = (command: string) =>
+    tauri.invoke.mock.calls.filter(([c]) => c === command).map(([, a]) => a);
+
+  async function openTab() {
+    const user = await launchOpen();
+    await user.click(nav().getByRole('button', { name: 'Trails' }));
+    await user.click(screen.getByRole('radio', { name: 'Interests and projects' }));
+    return user;
+  }
+
+  it('says what interests and projects are before there is one, and creates one', async () => {
+    const user = await openTab();
+    expect(
+      await screen.findByText(
+        'Group trails, bookmarks, findings and documents under an interest or a project. Nothing needs one.',
+      ),
+    ).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'New interest…' }));
+    expect(screen.queryByLabelText('Goal (optional)')).toBeNull();
+    await user.click(screen.getByRole('button', { name: 'Cancel' }));
+    await user.click(screen.getByRole('button', { name: 'New project…' }));
+    await user.type(screen.getByLabelText('Name of the new project'), 'Thesis');
+    await user.type(screen.getByLabelText('Goal (optional)'), 'A chapter on drives');
+    await user.click(screen.getByRole('button', { name: 'Create' }));
+    expect(calls('save_collection').at(-1)).toEqual({
+      input: {
+        id: null,
+        kind: 'project',
+        name: 'Thesis',
+        description: null,
+        goal: 'A chapter on drives',
+        status: null,
+      },
+    });
+    expect(tauri.invoke).toHaveBeenCalledWith('get_collection', { id: 'c-new' });
+  });
+
+  it('lists active, finished and archived ones, each opening its page', async () => {
+    tauri.setHandler('list_collections', () => [
+      tauri.collection(),
+      tauri.collection({ id: 'c-2', kind: 'project', name: 'Thesis', status: 'finished' }),
+      tauri.collection({ id: 'c-3', name: 'Old', status: 'archived' }),
+    ]);
+    const user = await openTab();
+    for (const name of ['Active', 'Finished', 'Archived']) {
+      expect(await screen.findByRole('heading', { name })).toBeVisible();
+    }
+    expect(screen.getAllByTestId('collection-row')).toHaveLength(3);
+    expect(screen.getAllByTestId('collection-row')[0]).toHaveTextContent(
+      'Interest · 1 trail · 1 finding · 1 bookmark · 1 document',
+    );
+    await user.click(screen.getByRole('button', { name: 'Mechanisms' }));
+    expect(await screen.findByRole('heading', { level: 2, name: 'Mechanisms' })).toBeVisible();
+  });
+
+  it('shows a collection’s page, takes items out, and changes or deletes it', async () => {
+    tauri.setHandler('list_collections', () => [tauri.collection()]);
+    const user = await openTab();
+    await user.click(await screen.findByRole('button', { name: 'Mechanisms' }));
+    await screen.findByRole('heading', { level: 2, name: 'Mechanisms' });
+    expect(screen.getByText('Gears and drives')).toBeVisible();
+    expect(screen.getAllByTestId('collection-trail')).toHaveLength(1);
+    expect(screen.getAllByTestId('collection-finding')).toHaveLength(1);
+    expect(screen.getAllByTestId('collection-bookmark')).toHaveLength(1);
+    const docs = screen.getAllByTestId('collection-document');
+    expect(
+      within(docs[0]).getByRole('button', { name: 'Details for Strain Wave Gearing' }),
+    ).toBeVisible();
+    expect(docs[1]).toHaveTextContent("Atlas hasn't read this document yet.");
+
+    // Take a document out: only the link goes.
+    await user.click(within(docs[0]).getByRole('button', { name: 'Remove from this interest' }));
+    expect(calls('remove_from_collection').at(-1)).toEqual({
+      collectionId: 'c-1',
+      item: { kind: 'document', fileId: null, documentId: 'doc-2' },
+    });
+
+    // An interest has no Mark as finished; it can be archived and edited.
+    expect(screen.queryByRole('button', { name: 'Mark as finished' })).toBeNull();
+    await user.click(screen.getByRole('button', { name: 'Archive' }));
+    expect(calls('save_collection').at(-1)).toMatchObject({
+      input: { id: 'c-1', status: 'archived' },
+    });
+    await user.click(screen.getByRole('button', { name: 'Edit' }));
+    const field = screen.getByLabelText('Name');
+    await user.clear(field);
+    await user.type(field, 'Machines');
+    expect(screen.queryByLabelText('Goal')).toBeNull();
+    await user.click(screen.getByRole('button', { name: 'Save' }));
+    expect(calls('save_collection').at(-1)).toMatchObject({
+      input: { id: 'c-1', name: 'Machines', goal: null },
+    });
+
+    // Delete, after a confirmation that keeps what it held.
+    await user.click(screen.getByRole('button', { name: 'Delete…' }));
+    const confirm = within(screen.getByRole('group', { name: 'Confirm deleting this collection' }));
+    expect(
+      confirm.getByText(
+        'Delete the interest “Mechanisms”? Its trails, bookmarks and findings are kept.',
+      ),
+    ).toBeInTheDocument();
+    await user.click(confirm.getByRole('button', { name: 'Delete' }));
+    expect(calls('delete_collection').at(-1)).toEqual({ id: 'c-1' });
+    expect(await screen.findByRole('button', { name: 'New interest…' })).toBeVisible();
+  });
+
+  it('marks a project as finished', async () => {
+    tauri.setHandler('list_collections', () => [
+      tauri.collection({ kind: 'project', name: 'Thesis', goal: 'A chapter' }),
+    ]);
+    tauri.setHandler('get_collection', () =>
+      tauri.collectionDetail({
+        collection: tauri.collection({ kind: 'project', name: 'Thesis', goal: 'A chapter' }),
+      }),
+    );
+    const user = await openTab();
+    await user.click(await screen.findByRole('button', { name: 'Thesis' }));
+    expect(await screen.findByText('A chapter')).toBeVisible();
+    await user.click(screen.getByRole('button', { name: 'Mark as finished' }));
+    expect(calls('save_collection').at(-1)).toMatchObject({
+      input: { status: 'finished', goal: 'A chapter' },
+    });
+  });
+
+  it('adds a trail, a saved item and a document to interests from Add to…', async () => {
+    tauri.setHandler('list_collections', () => [
+      tauri.collection(),
+      tauri.collection({ id: 'c-2', kind: 'project', name: 'Thesis' }),
+      tauri.collection({ id: 'c-3', name: 'Old', status: 'archived' }),
+    ]);
+    tauri.setHandler('get_collection_membership', (args) =>
+      (args?.item as { kind: string }).kind === 'trail'
+        ? { collectionIds: ['c-1'] }
+        : { collectionIds: [] },
+    );
+    tauri.setHandler('list_trails', () => ({
+      trails: [tauri.trailSummary()],
+      page: 0,
+      pageSize: 25,
+      total: 1,
+    }));
+    const user = await launchOpen();
+    await user.click(nav().getByRole('button', { name: 'Trails' }));
+    await user.click(await screen.findByRole('button', { name: 'harmonic drives' }));
+    await user.click(await screen.findByRole('button', { name: 'Add to… harmonic drives' }));
+    const menu = within(
+      await screen.findByRole('group', { name: 'Add harmonic drives to an interest or project' }),
+    );
+    // Active ones only, each saying whether the trail is in it.
+    expect(menu.getByRole('button', { name: /Mechanisms/ })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    );
+    expect(menu.getByRole('button', { name: /Thesis/ })).toHaveAttribute('aria-pressed', 'false');
+    expect(menu.queryByRole('button', { name: /Old/ })).toBeNull();
+    await user.click(menu.getByRole('button', { name: /Thesis/ }));
+    expect(calls('add_to_collection').at(-1)).toEqual({
+      collectionId: 'c-2',
+      item: { kind: 'trail', id: 'trail-1' },
+    });
+    await user.click(menu.getByRole('button', { name: /Mechanisms/ }));
+    expect(calls('remove_from_collection').at(-1)).toEqual({
+      collectionId: 'c-1',
+      item: { kind: 'trail', id: 'trail-1' },
+    });
+    // A new interest, created and added at once.
+    await user.click(menu.getByRole('button', { name: 'New interest…' }));
+    await user.type(menu.getByLabelText('Name of the new interest'), 'Gears');
+    await user.click(menu.getByRole('button', { name: 'Create and add' }));
+    await waitFor(() =>
+      expect(calls('add_to_collection').at(-1)).toEqual({
+        collectionId: 'c-new',
+        item: { kind: 'trail', id: 'trail-1' },
+      }),
+    );
+
+    // A saved bookmark.
+    tauri.setHandler('list_saved', () =>
+      tauri.savedPage({ items: [{ item: 'bookmark', ...tauri.bookmark() }], total: 1 }),
+    );
+    await user.click(screen.getByRole('radio', { name: 'Saved' }));
+    await user.click(await screen.findByRole('button', { name: 'Add to… Harmonic Drives' }));
+    await user.click(
+      within(await screen.findByRole('group', { name: /^Add Harmonic Drives to/ })).getByRole(
+        'button',
+        { name: /Mechanisms/ },
+      ),
+    );
+    expect(calls('add_to_collection').at(-1)).toEqual({
+      collectionId: 'c-1',
+      item: { kind: 'bookmark', id: 'bm-1' },
+    });
+
+    // A document, from its details.
+    await user.click(
+      within(screen.getByTestId('saved-item')).getByRole('button', { name: /^Details for/ }),
+    );
+    const d = within(await screen.findByRole('dialog'));
+    await user.click(await d.findByRole('button', { name: 'Add to… Harmonic Drives' }));
+    await user.click(
+      within(await d.findByRole('group', { name: /^Add Harmonic Drives to/ })).getByRole('button', {
+        name: /Thesis/,
+      }),
+    );
+    expect(calls('add_to_collection').at(-1)).toEqual({
+      collectionId: 'c-2',
+      item: { kind: 'document', fileId: 'file-1', documentId: null },
+    });
+  });
+
+  it('puts active interests and projects and suggestions on Home', async () => {
+    tauri.setHandler('list_collections', () =>
+      Array.from({ length: 8 }, (_, i) =>
+        tauri.collection({
+          id: `c-${i}`,
+          name: `Interest ${i}`,
+          status: i === 7 ? 'archived' : 'active',
+        }),
+      ),
+    );
+    tauri.setHandler('get_suggestions', () => [
+      tauri.suggestion(),
+      tauri.suggestion({
+        hit: tauri.searchHit({
+          fileInstanceId: 'file-8',
+          documentId: 'doc-8',
+          title: 'Gear Trains',
+        }),
+        reason: { seed: 'recent' },
+        seedId: '',
+      }),
+    ]);
+    const user = await launchOpen();
+    const mine = within(await screen.findByRole('region', { name: 'Interests and projects' }));
+    expect(mine.getAllByTestId('home-collection')).toHaveLength(6);
+    const from = within(screen.getByRole('region', { name: 'From your library' }));
+    const items = from.getAllByTestId('suggestion');
+    expect(items[0]).toHaveTextContent('Related to your interest ‘Mechanisms’');
+    expect(items[1]).toHaveTextContent('Related to your recent trails');
+    await user.click(from.getByRole('button', { name: 'Details for Cycloidal Drives' }));
+    await waitFor(() =>
+      expect(tauri.invoke).toHaveBeenCalledWith('record_open', {
+        fileId: 'file-7',
+        via: { kind: 'suggestion' },
+        action: 'details',
+        place: null,
+      }),
+    );
+    await user.click(
+      within(await screen.findByRole('dialog')).getByRole('button', { name: 'Close details' }),
+    );
+    await user.click(from.getByRole('button', { name: 'Not for this: Gear Trains' }));
+    expect(calls('dismiss_suggestion').at(-1)).toEqual({ seedId: '', documentId: 'doc-8' });
+    // All of them, in the Trails view's tab.
+    await user.click(mine.getByRole('button', { name: 'All interests and projects' }));
+    await h1('Trails');
+    expect(screen.getByRole('radio', { name: 'Interests and projects' })).toBeChecked();
+  });
+
+  it('leaves Home without either section when there is nothing to show', async () => {
+    await launchOpen();
+    await waitFor(() => expect(calls('get_suggestions').length).toBeGreaterThan(0));
+    expect(screen.queryByRole('region', { name: 'Interests and projects' })).toBeNull();
+    expect(screen.queryByRole('region', { name: 'From your library' })).toBeNull();
   });
 });

@@ -32,6 +32,7 @@
     TITLE_MAX,
     trailDates,
   } from '../trailCopy';
+  import AddTo from './AddTo.svelte';
   import AnswerText from './AnswerText.svelte';
   import ProblemNotice from './ProblemNotice.svelte';
   import RecordedSource from './RecordedSource.svelte';
@@ -172,6 +173,11 @@
             Rename
           </button>
         {/if}
+        <AddTo
+          item={{ kind: 'trail', id: d.trail.id }}
+          name={d.trail.label}
+          key={`trail-${d.trail.id}`}
+        />
         <button
           type="button"
           class="button quiet"

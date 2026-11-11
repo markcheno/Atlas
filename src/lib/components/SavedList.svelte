@@ -18,6 +18,7 @@
   import { saved, SAVED_PAGE_SIZE } from '../stores/saved.svelte';
   import { charactersLeft, NOTE_MAX, recordedSourceName } from '../trailCopy';
   import { openRecorded } from '../trailOpen';
+  import AddTo from './AddTo.svelte';
   import AnswerText from './AnswerText.svelte';
   import ProblemNotice from './ProblemNotice.svelte';
   import RecordedSource from './RecordedSource.svelte';
@@ -188,6 +189,13 @@
               <button type="button" class="row-button" onclick={() => void startNote(item)}>
                 {item.note ? 'Edit note' : 'Add a note'}
               </button>
+              <AddTo
+                item={{ kind: item.item, id: item.id }}
+                name={item.item === 'bookmark'
+                  ? item.anchor.title
+                  : (item.question ?? item.sources[0]?.anchor.title ?? 'this finding')}
+                key={key(item)}
+              />
               {#if confirming === key(item)}
                 <div class="confirm" role="group" aria-label="Confirm deleting">
                   <span class="small">{deleteSavedQuestion(item.item as SavedKind)}</span>

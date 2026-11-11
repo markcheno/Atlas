@@ -634,6 +634,26 @@ Do **not** create `knowledge.sqlite`, add a Trails view or record anything befor
   - **Uncited sources of a recorded answer kept as anchors without their excerpts**, to keep a question near 4 KB.
 - **Carried from the Phase 2 close-out and still deferred:** the unexplained miss of an index's first vector on the Linux runner (worked around by the exact search of small indexes); the single Windows failure of a `related` test; the 30k fixture embedded through oMLX overnight (not run); signing and notarization.
 
+**2026-11-11, Slice 3.6** (interests, projects and rediscovery):
+- **Field limits:** a name of 1 to 200 characters; a description and a
+  goal of up to 4,000. A goal and Finished are a project's only
+  (`invalid_collection`). A collection keeps its kind. A finished or
+  archived one can be made active again.
+- **Documents in a collection** are added by a file id and kept by
+  document id and content hash. They are resolved when shown, and one the
+  catalog no longer has says "Atlas hasn't read this document yet".
+- **Deleting a collection** also deletes its dismissals.
+- **Suggestions leave out documents opened in a trail,** not every
+  `step_documents` row. Those rows also hold every search result and
+  cited source, which would leave out most of what the user has merely
+  seen. P3-18 names "an opened document".
+- **A seed's vector** is the re-normalised mean of its documents' Related
+  vectors.
+- **The day's order:** seeds sorted by a hash of the date and the seed,
+  then round-robin.
+- **Added to §9:** `get_collection_membership(item)`, for Add to…'s toggles.
+- **Still deferred:** Export on a collection (3.8).
+
 **2026-11-11, Slice 3.5** (bookmarks and saved findings):
 - **What the renderer sends:**
   - `save_bookmark(target)`: `file{fileId, place}`, where `place` is

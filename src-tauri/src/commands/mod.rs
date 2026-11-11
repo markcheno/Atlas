@@ -8,6 +8,7 @@
 
 pub mod answers;
 pub mod app;
+pub mod collections;
 pub mod documents;
 pub mod embedding;
 pub mod extraction;
@@ -92,4 +93,13 @@ pub const COMMAND_NAMES: &[&str] = &[
     "update_saved_note",
     "delete_saved",
     "list_saved",
+    "list_collections",
+    "get_collection",
+    "save_collection",
+    "delete_collection",
+    "add_to_collection",
+    "remove_from_collection",
+    "get_collection_membership",
+    "get_suggestions",
+    "dismiss_suggestion",
 ];

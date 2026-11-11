@@ -11,6 +11,7 @@ export const FROM_RESULT: OpenVia = { kind: 'result' };
 export const FROM_RELATED: OpenVia = { kind: 'related' };
 export const FROM_TRAIL: OpenVia = { kind: 'trail' };
 export const FROM_BOOKMARK: OpenVia = { kind: 'bookmark' };
+export const FROM_SUGGESTION: OpenVia = { kind: 'suggestion' };
 
 /** Source `n` of the answer on screen. */
 export function fromCitation(answerId: string | null, n: number): OpenVia | undefined {

@@ -241,6 +241,15 @@ pub fn run() {
             commands::saved::update_saved_note,
             commands::saved::delete_saved,
             commands::saved::list_saved,
+            commands::collections::list_collections,
+            commands::collections::get_collection,
+            commands::collections::save_collection,
+            commands::collections::delete_collection,
+            commands::collections::add_to_collection,
+            commands::collections::remove_from_collection,
+            commands::collections::get_collection_membership,
+            commands::collections::get_suggestions,
+            commands::collections::dismiss_suggestion,
         ])
         .build(tauri::generate_context!())
         .expect("error while building Atlas")

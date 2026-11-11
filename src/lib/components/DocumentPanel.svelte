@@ -23,6 +23,7 @@
   import RelatedList from './RelatedList.svelte';
   import TextBadge from './TextBadge.svelte';
   import SaveAction from './SaveAction.svelte';
+  import AddTo from './AddTo.svelte';
   import { BOOKMARK_PASSAGE, BOOKMARKS_HERE } from '../savedCopy';
   import { saved } from '../stores/saved.svelte';
   import { placeText } from '../trailCopy';
@@ -148,6 +149,11 @@
             target={{ kind: 'file', fileId: file.id, place: { kind: 'document' } }}
             key={`bookmark-document-${d.documentId}`}
             name={d.title}
+          />
+          <AddTo
+            item={{ kind: 'document', fileId: file.id, documentId: null }}
+            name={d.title}
+            key={`document-${d.documentId}`}
           />
         {/if}
         {#if file.availability !== 'available' || file.storage === 'cloud_only'}

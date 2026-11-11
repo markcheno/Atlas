@@ -18,6 +18,7 @@ import { theme } from './stores/theme.svelte';
 import { trails } from './stores/trails.svelte';
 import { trailView } from './stores/trailView.svelte';
 import { saved } from './stores/saved.svelte';
+import { collections } from './stores/collections.svelte';
 import { view } from './stores/view.svelte';
 import { workspace } from './stores/workspace.svelte';
 
@@ -36,6 +37,7 @@ export async function applyStatus(status: DataRootStatus, opts: { justChosen?: b
   trails.reset();
   trailView.reset();
   saved.reset();
+  collections.reset();
   if (!appInfo.status) void appInfo.load();
   if (status.state === 'open') {
     await Promise.all([

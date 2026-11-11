@@ -37,8 +37,8 @@ function usable(f: StepFilters) {
 }
 
 class TrailViewState {
-  /** Trails or Saved (Slice 3.5). */
-  tab = $state<'trails' | 'saved'>('trails');
+  /** Trails, Saved (Slice 3.5), or Interests and projects (Slice 3.6). */
+  tab = $state<'trails' | 'saved' | 'collections'>('trails');
 
   // The list.
   text = $state('');
