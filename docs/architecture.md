@@ -209,10 +209,13 @@ Implemented in `src-tauri/src/services/workspace/`. Design rationale is in
 <root>/atlas.lock             exclusive OS lock while a process has the root open
 <root>/config/settings.json   portable preferences (theme)
 <root>/library/catalog.sqlite SQLite catalog, WAL mode (+ -wal, -shm)
+<root>/library/knowledge.sqlite what the user creates: trails, bookmarks, findings, collections (Slice 3.2; ADR 0016)
+<root>/backups/knowledge/      snapshots of the knowledge store, knowledge-<UTC time>.sqlite, the newest 14; never cleaned
+<root>/backups/knowledge/staging/  a snapshot being written and checked; emptied on open
 <root>/tmp/                   staging for atomic writes; emptied on open and by Clean caches
 <root>/cache/                 rebuildable caches (empty so far); emptied by Clean caches
 <root>/indexes/vectors/        the vector index per embedding model, <model>-<generation>.usearch (Slice 2.2); derived, rebuilt when needed
-<root>/content/ assets/ jobs/ models/ exports/ logs/ backups/   reserved, empty
+<root>/content/ assets/ jobs/ models/ exports/ logs/   reserved, empty
 ```
 
 - **Default location:** the OS per-user app-data folder. On macOS that is
@@ -606,6 +609,10 @@ Slice 1.6, in `src-tauri/src/services/documents/` and `services/storage/`.
   the files still waiting, ±40%. Clean caches empties `cache/` and `tmp/`
   (keeping the library's own folders, removing links rather than their
   targets) while holding the workspace, so nothing is staging in `tmp/`.
+  Since Slice 3.2 Storage also shows "Your trails and notes" (the knowledge
+  store with its log) and "Snapshots (N)", apart from the catalog, and a
+  sentence when the store can't be used or the last snapshot didn't happen
+  (`get_knowledge_status`). Clean caches never touches either.
 
 ## Search
 
@@ -827,6 +834,55 @@ Rationale in [ADR 0015](adr/0015-ask-atlas-answers-citations-injection.md).
     opens the cited passage.
   - `just fake-ai` runs the service by hand.
 
+## Knowledge store
+
+Implemented in `src-tauri/src/services/knowledge/` (Slice 3.2). Rationale
+in [ADR 0016](adr/0016-the-knowledge-store.md); schema in
+`src-tauri/migrations/knowledge/` (phase3-spec §6.1).
+
+- **Opening** (`store.rs`) happens after the catalog and the directory
+  repair, with the library's lock held. `KnowledgeStore::open` never fails:
+  - It opens a writer thread (`CatalogWriter::open_named`,
+    `atlas-knowledge-writer`) and reads `PRAGMA user_version` before
+    writing anything.
+  - A newer store is `incompatible`. A file that isn't SQLite, or is
+    someone else's SQLite file, is `damaged`. Either way the file is left
+    byte for byte, and `call`, `handle` and `read` return
+    `knowledge_unavailable`.
+  - Otherwise it switches to WAL, migrates, and opens two read-only
+    connections.
+
+  The library opens whatever the store's state. `OpenRoot.knowledge` is
+  declared before `catalog`, so the store closes first.
+- **Change tracking:** triggers on every user table bump `meta.changes`.
+- **Snapshots** (`snapshot.rs`):
+  - **When:** at open, and hourly on the store's own thread, if the store
+    changed since the last snapshot and the newest is at least 24 hours
+    old.
+  - **How:** `VACUUM INTO` the staging folder on the writer thread,
+    `integrity_check`, an atomic rename into `backups/knowledge/`.
+  - **Kept:** 14, pruned only after a new one passed its check.
+  - **Low space:** no snapshot, `low_space` in the status, nothing
+    deleted.
+  - **Time** comes from the workspace's `Clock` (`Workspace::with_clock`;
+    tests use `TestClock`).
+- **Anchors** (`anchor.rs`): `build(conn, file_id, place)` makes an anchor
+  from the catalog. `resolve(conn, anchor)` gives `found`,
+  `found_elsewhere`, `no_file` or `unknown` with the file and place to
+  open, and never writes. The order of lookups is in ADR 0016.
+- **`get_knowledge_status`** gives the state, the size with the log, the
+  counts of trails, steps, bookmarks, findings and collections, and the
+  snapshots' count, size, newest time and last outcome.
+- **Restoring a snapshot by hand** (Phase 3 has no in-app restore):
+  1. Quit Atlas.
+  2. In the library folder, copy the snapshot you want from
+     `backups/knowledge/` over `library/knowledge.sqlite`.
+  3. Delete `library/knowledge.sqlite-wal` and `library/knowledge.sqlite-shm`
+     if they are there.
+  4. Open Atlas.
+
+  The snapshot is a complete store. Anything saved after it is replaced.
+
 ## Build, CI and measurement
 
 - **PDFium** (Slice 1.2) is pinned in `tools.lock.json` (bblanchon/pdfium-binaries
@@ -847,7 +903,7 @@ Rationale in [ADR 0015](adr/0015-ask-atlas-answers-citations-injection.md).
 
   | Tier | When | What runs | Wall time |
   | --- | --- | --- | --- |
-  | full | Pushes to `main`, tags, pull requests, manual runs (`just ci-remote`) | Every job below on macOS arm64, Windows x64 and Linux x64 | 7–9 min warm; 10 min with cold caches |
+  | full | Pushes to `main`, tags, pull requests, manual runs (`just ci-remote`) | Every job below on macOS arm64, Windows x64 and Linux x64; benchmarks only on pushes | About 12 min warm before merging (the Windows test job); 16–21 min on `main` with benchmarks |
   | quick | Pushes to `slice-*` branches, `just ci-remote quick` | Linux only: Rust format, clippy and tests, bindings, lint, typecheck, frontend tests | 2.5 min warm; 5 min with a cold cache (3.5 min of it compiling) |
   | docs | Branch pushes that change only `*.md`, `docs/` or `spikes/` | ESLint and Prettier (which checks Markdown) | 35 s |
   | evidence | `just ci-remote evidence` only | `evidence`: the 30k text fixture read unthrottled on all three OSes, failing unless every file ends "Text ready" (`bench.mjs --evidence`, phase1-spec §1.3); its own concurrency group | up to 3 h |
@@ -859,7 +915,9 @@ Rationale in [ADR 0015](adr/0015-ask-atlas-answers-citations-injection.md).
     and requires `hello`; on macOS it first runs
     `codesign --verify --deep --strict` on the `.app`.
   - `bench`: the benchmark suite, whose tables become the job summary.
-    Numbers never fail the build.
+    Numbers never fail the build. It runs only on pushes (`main` and tags),
+    not on a slice's run before merging: at 11–20 min it was the slowest
+    job (Slice 3.2).
   - `package`: unsigned release bundles, except on pull requests. The worker
     must say hello from the signed release `.app`, the unpacked `.deb`, the
     AppImage, and a silent per-user NSIS install.
@@ -867,7 +925,12 @@ Rationale in [ADR 0015](adr/0015-ask-atlas-answers-citations-injection.md).
   The quick tier shares the full Linux job's Rust cache (`rust-shared-key`
   in the setup action), so a new slice branch starts warm from `main`'s.
   Slice work runs quick on every push and full before merging, and `main`
-  and tags always run full. Every job uploads its artifacts. See
+  and tags always run full. Every job uploads its artifacts. Timeouts are
+  kept close to the real times, so a stalled runner fails within about
+  half an hour: checks and tests 30 min, benchmarks 30, release bundles
+  20, quick 45. The setup action bounds the Linux package install to 5
+  minutes, then retries from `archive.ubuntu.com` for up to 10 (the runner
+  mirror failed for hours in Slice 3.2). See
   [packaging](packaging.md).
 - **Smoke test** (`e2e/smoke.mjs`). A dependency-free W3C WebDriver client
   drives the debug build through `tauri-driver`. The flow covers
@@ -975,4 +1038,7 @@ Slice 2.7 the Ask Atlas screen; Slice 2.8 the evidence and the
 
 Phase 3 (the knowledge workspace: research trails, bookmarks and saved
 findings, interests and projects, a PDF page view, export) is specified in
-[phase3-spec.md](phase3-spec.md) and not started.
+[phase3-spec.md](phase3-spec.md). Slice 3.1 built the carry-overs
+(iCloud re-reads, the per-model weak margin, Project Gutenberg boilerplate
+left out), 3.1.1 the fusion change, and 3.2 the
+[knowledge store](#knowledge-store).

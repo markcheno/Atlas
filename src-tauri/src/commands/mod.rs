@@ -12,6 +12,7 @@ pub mod documents;
 pub mod embedding;
 pub mod extraction;
 pub mod inventory;
+pub mod knowledge;
 pub mod library;
 pub mod providers;
 pub mod roles;
@@ -70,4 +71,5 @@ pub const COMMAND_NAMES: &[&str] = &[
     "ask_atlas",
     "cancel_answer",
     "acknowledge_disclosure",
+    "get_knowledge_status",
 ];

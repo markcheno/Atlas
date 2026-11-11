@@ -2,7 +2,8 @@
 //! §5.5, §8; the meaning index, phase2-spec §5.6). Sizes come from the
 //! files and from SQLite's `dbstat`, on a connection of their own so
 //! measuring never holds the workspace or a pooled reader. Clean caches
-//! removes only `cache/` and `tmp/` contents, never the meaning index.
+//! removes only `cache/` and `tmp/` contents, never the meaning index, the
+//! knowledge store or its snapshots.
 
 use std::fs;
 use std::io;
@@ -18,7 +19,8 @@ use crate::services::catalog::reader;
 use crate::services::embedding::index::VECTORS_DIR;
 use crate::services::embedding::models;
 use crate::services::extraction::db::EFFECTIVE_STATE_SQL;
-use crate::services::workspace::layout::{CATALOG, DIRECTORIES, TMP};
+use crate::services::knowledge::{SNAPSHOTS_DIR, snapshot, store::store_bytes};
+use crate::services::workspace::layout::{CATALOG, DIRECTORIES, KNOWLEDGE, TMP};
 
 /// Folders whose contents are rebuildable and safe to remove.
 pub const CACHE_DIRS: &[&str] = &["cache", TMP];
@@ -204,6 +206,7 @@ pub fn usage(root: &Path, volumes: &dyn VolumeInspector) -> AtlasResult<StorageU
     let m = measure_catalog(&conn).map_err(AtlasError::db("measure storage"))?;
     drop(conn);
     let catalog = catalog_bytes(root);
+    let snapshots = snapshot::list(&root.join(SNAPSHOTS_DIR));
     Ok(StorageUsage {
         catalog_bytes: catalog,
         text_bytes: m.text,
@@ -217,6 +220,9 @@ pub fn usage(root: &Path, volumes: &dyn VolumeInspector) -> AtlasResult<StorageU
         meaning_estimate: m
             .waiting
             .map(|(chars, files, dims)| meaning_estimate(chars, files, dims)),
+        knowledge_bytes: store_bytes(&root.join(KNOWLEDGE)),
+        snapshot_bytes: snapshots.iter().map(|s| s.bytes).sum(),
+        snapshot_count: snapshots.len() as u32,
         measured_at: now_rfc3339(),
     })
 }

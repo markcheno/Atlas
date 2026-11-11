@@ -26,6 +26,7 @@ import type { CleanCachesResult } from './bindings/CleanCachesResult';
 import type { DuplicatePage } from './bindings/DuplicatePage';
 import type { DuplicateQuery } from './bindings/DuplicateQuery';
 import type { StorageUsage } from './bindings/StorageUsage';
+import type { KnowledgeStatus } from './bindings/KnowledgeStatus';
 import type { DocumentPage } from './bindings/DocumentPage';
 import type { ExtractionOverview } from './bindings/ExtractionOverview';
 import type { EmbeddingOverview } from './bindings/EmbeddingOverview';
@@ -186,6 +187,8 @@ export const atlas = {
   /** The user saw what Ask Atlas sends to this internet service and agreed. */
   acknowledgeDisclosure: (profileId: string) =>
     call<Settings>('acknowledge_disclosure', { profileId }),
+  /** The knowledge store's state, size and snapshots (Slice 3.2). */
+  getKnowledgeStatus: () => call<KnowledgeStatus>('get_knowledge_status'),
 } as const;
 
 export type AtlasApi = typeof atlas;

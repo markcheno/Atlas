@@ -23,7 +23,7 @@ pub struct Signal {
 }
 
 impl Signal {
-    fn new() -> Self {
+    pub(crate) fn new() -> Self {
         Self {
             stop: AtomicBool::new(false),
             seq: Mutex::new(0),

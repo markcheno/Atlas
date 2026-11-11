@@ -30,7 +30,7 @@ use crate::domain::dto::{
 };
 use crate::domain::traits::VolumeInspector;
 use crate::error::{AtlasError, AtlasResult, ErrorPayload};
-use crate::infrastructure::clock::now_rfc3339;
+use crate::infrastructure::clock::{Clock, SystemClock, now_rfc3339};
 use crate::infrastructure::fsutil::{clear_dir, sync_dir};
 use crate::infrastructure::native_path;
 use crate::services::answers::AnswerRegistry;
@@ -40,6 +40,7 @@ use crate::services::embedding::{self, registry::VectorRegistry};
 use crate::services::extraction;
 use crate::services::inventory::{self, InventoryDeps};
 use crate::services::jobs::{self, JobRunners, ProcessorFactory};
+use crate::services::knowledge::KnowledgeStore;
 use crate::services::library::{self, RootStatusCache};
 use crate::services::system::low_space_threshold;
 use layout::{CATALOG, DIRECTORIES, INIT_MARKER, TMP};
@@ -67,6 +68,8 @@ pub struct OpenRoot {
     /// connections for the rest of it (at most a couple of seconds).
     reader: Arc<CatalogReader>,
     root_status: Arc<RootStatusCache>,
+    /// What the user creates (Slice 3.2), closed before the catalog.
+    knowledge: KnowledgeStore,
     catalog: CatalogWriter,
     _lock: RootLock,
     path: PathBuf,
@@ -84,6 +87,10 @@ impl OpenRoot {
     }
     pub fn catalog(&self) -> &CatalogWriter {
         &self.catalog
+    }
+    /// The library's knowledge store (Slice 3.2, ADR 0016).
+    pub fn knowledge(&self) -> &KnowledgeStore {
+        &self.knowledge
     }
     /// The library's answer in progress (Slice 2.6).
     pub fn answers(&self) -> &Arc<AnswerRegistry> {
@@ -133,6 +140,8 @@ enum State {
 pub struct Workspace {
     config: WorkspaceConfig,
     volumes: Arc<dyn VolumeInspector>,
+    /// Where "now" comes from for the knowledge store (Slice 3.2).
+    clock: Arc<dyn Clock>,
     /// One processor per job kind, started for every root this workspace
     /// opens (ADR 0009).
     processors: BTreeMap<JobKind, ProcessorFactory>,
@@ -144,6 +153,7 @@ impl Workspace {
         Self {
             config,
             volumes,
+            clock: Arc::new(SystemClock),
             processors: BTreeMap::new(),
             state: State::NotConfigured,
         }
@@ -153,6 +163,12 @@ impl Workspace {
     /// lock.
     pub fn volumes(&self) -> Arc<dyn VolumeInspector> {
         Arc::clone(&self.volumes)
+    }
+
+    /// Uses `clock` for every root this workspace opens (tests).
+    pub fn with_clock(mut self, clock: Arc<dyn Clock>) -> Self {
+        self.clock = clock;
+        self
     }
 
     /// Runs scans (cataloging) for every root this workspace opens.
@@ -433,6 +449,7 @@ impl Workspace {
         // Rows cataloged before search keys existed (Slice 0.5).
         library::backfill_keys(&catalog)?;
 
+        let knowledge = self.open_knowledge(path);
         let vectors = Arc::new(VectorRegistry::new(path));
         Ok(OpenRoot {
             answers: Arc::default(),
@@ -440,6 +457,7 @@ impl Workspace {
             vectors,
             reader: Arc::new(CatalogReader::open(&catalog_path)?),
             root_status: Arc::default(),
+            knowledge,
             catalog,
             _lock: lock,
             path: path.to_path_buf(),
@@ -447,6 +465,14 @@ impl Workspace {
             settings: settings::read(path),
             manifest,
         })
+    }
+
+    /// Opens the knowledge store and takes a snapshot if one is due. A
+    /// store that can't be used reports why; the library opens anyway.
+    fn open_knowledge(&self, path: &Path) -> KnowledgeStore {
+        let store = KnowledgeStore::open(path, Arc::clone(&self.clock), Arc::clone(&self.volumes));
+        store.snapshot_if_due();
+        store
     }
 
     fn start_jobs(
@@ -496,6 +522,7 @@ impl Workspace {
         fs::remove_file(&marker).map_err(AtlasError::io("finish creating the library"))?;
         let _ = sync_dir(path);
 
+        let knowledge = self.open_knowledge(path);
         let vectors = Arc::new(VectorRegistry::new(path));
         Ok(OpenRoot {
             answers: Arc::default(),
@@ -503,6 +530,7 @@ impl Workspace {
             vectors,
             reader: Arc::new(CatalogReader::open(&path.join(CATALOG))?),
             root_status: Arc::default(),
+            knowledge,
             catalog,
             _lock: lock,
             path: path.to_path_buf(),

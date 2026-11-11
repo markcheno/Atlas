@@ -637,6 +637,15 @@ pub struct StorageUsage {
     /// What indexing the meaning of the files still waiting will add;
     /// `None` until an embedding model is chosen.
     pub meaning_estimate: Option<MeaningEstimate>,
+    /// `library/knowledge.sqlite` with its `-wal` and `-shm` files
+    /// (Slice 3.2): what the user creates. Not part of the catalog, and
+    /// never touched by Clean caches.
+    #[ts(type = "number")]
+    pub knowledge_bytes: u64,
+    /// The snapshots in `backups/knowledge/`. Never touched by Clean caches.
+    #[ts(type = "number")]
+    pub snapshot_bytes: u64,
+    pub snapshot_count: u32,
     pub measured_at: String,
 }
 
@@ -1582,4 +1591,119 @@ pub struct Acknowledgement {
     pub base_url: String,
     pub label: String,
     pub at: String,
+}
+
+// ------------------------------------------------- knowledge (Phase 3, 3.2)
+
+/// Whether the knowledge store (`library/knowledge.sqlite`, ADR 0016) can
+/// be used. The library opens whatever this is.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "snake_case")]
+#[ts(export)]
+pub enum KnowledgeState {
+    Ready,
+    /// Made by a newer Atlas: left exactly as it is.
+    Incompatible,
+    /// Not a store Atlas can read: left exactly as it is.
+    Damaged,
+}
+
+/// What a snapshot check did (phase3-spec §6.3).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "snake_case")]
+#[ts(export)]
+pub enum SnapshotOutcome {
+    Taken,
+    /// Nothing changed since the last snapshot.
+    NotChanged,
+    /// The newest snapshot is less than a day old.
+    NotDue,
+    /// The drive is nearly full: no snapshot, nothing deleted.
+    LowSpace,
+    /// The copy failed its check and was removed.
+    Failed,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct SnapshotStatus {
+    pub count: u32,
+    #[ts(type = "number")]
+    pub bytes: u64,
+    /// RFC 3339; `None` before the first snapshot.
+    pub newest_at: Option<String>,
+    /// The last check since the library opened.
+    pub last_outcome: Option<SnapshotOutcome>,
+}
+
+/// Settings › Storage's "Your trails and notes" (phase3-spec §10).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct KnowledgeStatus {
+    pub state: KnowledgeState,
+    /// The store with its `-wal` and `-shm` files.
+    #[ts(type = "number")]
+    pub bytes: u64,
+    pub trails: u32,
+    pub steps: u32,
+    pub bookmarks: u32,
+    pub findings: u32,
+    pub collections: u32,
+    pub snapshots: SnapshotStatus,
+}
+
+/// A place in a document, by value (phase3-spec §6.2): never a passage,
+/// chunk or file row id, which don't survive a re-read or a move.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct Anchor {
+    pub document_id: String,
+    /// Hex.
+    pub content_hash: String,
+    /// Shown when the document is gone.
+    pub title: String,
+    pub file_type: FileType,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub page_no: Option<u32>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub location: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub ordinal: Option<u32>,
+    /// At most `ANCHOR_EXCERPT_CHARS`; absent for a whole document.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub excerpt: Option<String>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "snake_case")]
+#[ts(export)]
+pub enum AnchorState {
+    /// The document is known and the excerpt is at the saved place.
+    Found,
+    /// The same content, the excerpt now somewhere else in it.
+    FoundElsewhere,
+    /// The document is known, but no file in the library has it now.
+    NoFile,
+    /// The catalog has no such document (yet).
+    Unknown,
+}
+
+/// An anchor resolved against the catalog as it is now.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct ResolvedAnchor {
+    pub state: AnchorState,
+    pub document_id: Option<String>,
+    /// The file to open: available and local first, then cloud-only.
+    pub file_instance_id: Option<String>,
+    pub page_no: Option<u32>,
+    pub location: Option<String>,
+    pub ordinal: Option<u32>,
+    /// Whether the saved excerpt was found; false means the saved place
+    /// is used as it is.
+    pub excerpt_found: bool,
 }

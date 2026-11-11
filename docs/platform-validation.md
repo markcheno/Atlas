@@ -1248,6 +1248,66 @@ merge): full run
 [42943519172](https://github.com/markcheno/Atlas/actions/runs/42943519172),
 all green on three OSes. The smoke passed every step on Windows and Linux.
 
+## Slice 3.2
+
+The knowledge store ([ADR 0016](adr/0016-the-knowledge-store.md)). On
+every OS:
+- **P3-04** (`tests/knowledge.rs`): created on first open at
+  `user_version` 1 in WAL mode, and reopened as it was. A store at version
+  999, a file that isn't SQLite, and someone else's SQLite file each leave
+  the library open, are reported (`incompatible`, `damaged`), refuse every
+  use with `knowledge_unavailable`, and keep their exact bytes.
+- **P3-05** (`tests/knowledge_crash.rs`): six kills of a child writing
+  trails with three steps, bookmarks and collections with an item. Only
+  whole rows remain, every row was counted in `meta.changes`, and both
+  databases pass `integrity_check` (the catalog's FTS check too).
+- **P3-06:**
+  - **The rule** (`tests/knowledge.rs`, with `TestClock`): taken when
+    changed; not when unchanged; not within 24 hours; taken at the next
+    open after a day. The fifteenth removes the oldest only after it is
+    in place.
+  - **A failed check** (unit test): the bad copy is removed and reported.
+  - **Kills** (`tests/knowledge_crash.rs`): six kills of a child taking
+    snapshots in a loop. Only whole snapshots that pass their check remain
+    (at most 15, see ADR 0016), and the next open empties the staging
+    folder.
+- **P3-07** (`tests/storage.rs`): the store and its snapshots are measured.
+  Clean caches leaves both byte-identical. On a nearly full drive there is
+  no snapshot (`low_space`) and none is deleted.
+- **P3-08** (`tests/knowledge.rs`, the real worker on a generated PDF):
+  - moved, renamed, and only a copy in another folder: `found`, at the new
+    file;
+  - the catalog rebuilt with another id: `found` by hash;
+  - unknown content: `unknown`;
+  - an excerpt that is nowhere: the saved place, `excerptFound: false`;
+  - passages re-split: `found_elsewhere`;
+  - the bytes changed, and the folder removed: `no_file`.
+
+  Every resolution leaves the connection's `total_changes` as it was.
+
+**CI on `slice-32`:** full run
+[43064736392](https://github.com/markcheno/Atlas/actions/runs/43064736392),
+all green on three OSes, smoke included, in 15 minutes (benchmarks now
+run after the merge, on `main`). The Linux mirror had recovered by then;
+the fallback wasn't needed.
+
+The first full run
+([43034985393](https://github.com/markcheno/Atlas/actions/runs/43034985393))
+passed every macOS and Windows job. Its Linux jobs failed three times in
+setup, before any build: the runners' own Ubuntu mirror,
+`azure.archive.ubuntu.com`, couldn't be resolved, and `apt-get` retried for
+the job's hour. The shared setup action now bounds that first install to
+5 minutes, then switches to `archive.ubuntu.com` and tries again (10
+minutes). To shorten the wait before each merge, benchmarks now run only on
+pushes to `main` and tags, and the jobs' timeouts are tighter: checks and
+tests 30 minutes (was 75), benchmarks 30 (60), release bundles 20 (60).
+
+Locally, one full `just ci` run failed `p2_12_related_documents…`
+(`tests/related.rs:96`, the near document's related list missing the
+sky), then passed six times on its own and in the next full run. This is
+the second sighting of a `related` failure under load (the first was on
+Windows in Phase 2); still unexplained, and unrelated to the store.
+
 ## Slice 3.1.1
 
 Hybrid fusion's best meaning match counts twice

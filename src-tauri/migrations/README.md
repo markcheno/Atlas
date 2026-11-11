@@ -38,3 +38,24 @@ Rules:
 | 12 | `0012_embeddings.sql` | `embedding_models`, `chunks`, `embeddings` (f16 BLOBs by text hash), `document_embeddings`, `vector_tombstones` and its trigger (Phase 2) |
 | 13 | `0013_embed_jobs.sql` | the embedding job's counters on `jobs`: chunks and characters sent, time waiting on the service (Phase 2) |
 | 14 | `0014_boilerplate.sql` | `documents.boilerplate_chars`: Project Gutenberg header and licence text the EPUB reader left out (Phase 3) |
+
+## Knowledge store migrations
+
+`knowledge/` holds the migrations of `library/knowledge.sqlite`, the
+user's trails and notes (Slice 3.2,
+[ADR 0016](../../docs/adr/0016-the-knowledge-store.md)). They are
+registered in `services/knowledge/migrations.rs`. They follow the rules
+above, with two differences:
+
+- The version is `PRAGMA user_version`, set in the same transaction as the
+  migration. There is no `schema_migrations` table.
+- A newer store, or a file that isn't one, is left untouched and the
+  library opens anyway.
+
+Every user table gets the three `meta.changes` triggers (`AFTER INSERT`,
+`UPDATE`, `DELETE`), so snapshots know whether anything changed. A table
+added later needs them too.
+
+| Version | File | Adds |
+| --- | --- | --- |
+| 1 | `knowledge/0001_knowledge.sql` | `meta` (`changes`, `created_at`), `trails`, `trail_steps`, `step_documents`, `bookmarks`, `findings`, `collections`, `collection_items`, `dismissed_suggestions`, and the change triggers (Phase 3) |

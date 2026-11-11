@@ -44,4 +44,14 @@ meaningFileBytes: number,
  * What indexing the meaning of the files still waiting will add;
  * `None` until an embedding model is chosen.
  */
-meaningEstimate: MeaningEstimate | null, measuredAt: string, };
+meaningEstimate: MeaningEstimate | null, 
+/**
+ * `library/knowledge.sqlite` with its `-wal` and `-shm` files
+ * (Slice 3.2): what the user creates. Not part of the catalog, and
+ * never touched by Clean caches.
+ */
+knowledgeBytes: number, 
+/**
+ * The snapshots in `backups/knowledge/`. Never touched by Clean caches.
+ */
+snapshotBytes: number, snapshotCount: number, measuredAt: string, };

@@ -634,6 +634,31 @@ Do **not** create `knowledge.sqlite`, add a Trails view or record anything befor
   - **Uncited sources of a recorded answer kept as anchors without their excerpts**, to keep a question near 4 KB.
 - **Carried from the Phase 2 close-out and still deferred:** the unexplained miss of an index's first vector on the Linux runner (worked around by the exact search of small indexes); the single Windows failure of a `related` test; the 30k fixture embedded through oMLX overnight (not run); signing and notarization.
 
+**2026-11-11, Slice 3.2** (the knowledge store, [ADR 0016](adr/0016-the-knowledge-store.md)):
+- **A store that can't be used never blocks the library.** A newer store
+  (`incompatible`), or a file that isn't one (`damaged`), is left byte for
+  byte. The library opens, and every use of the store is refused with
+  `knowledge_unavailable`. P3-04's "refuses with a clear error" is read
+  this way: the store is refused, not the library.
+- **Changes are counted by triggers** (`meta.changes`) on every user
+  table, so a later slice can't forget to mark one.
+- **The snapshot rule:** changed since the last snapshot, and the newest
+  at least 24 hours old. Checked at open and hourly while open ("once a
+  day" in §6.3 is the most it happens).
+- **Pruning:** the oldest goes only after a newer snapshot passed its
+  check, so a kill between the two leaves 15 until the next one.
+- **Resolution details** that §6.2 left open:
+  - An excerpt that isn't found anywhere gives `found` at the saved place
+    with `excerptFound: false`.
+  - When the whole excerpt isn't found, its first 160 characters are
+    tried, since a re-split passage may hold only part of the old one.
+- **The writer is the catalog's own code,** opened under another thread
+  name (`CatalogWriter::open_named`). The plan's generic
+  `sqlite_writer.rs` wasn't needed.
+- **`StorageUsage`** gains `knowledgeBytes`, `snapshotBytes` and
+  `snapshotCount`. `get_knowledge_status` adds the state, the counts and
+  the last outcome.
+
 **2026-11-10, Slice 3.1.1** (after the owner's `eval-semantic` on Slice
 3.1):
 - **The best meaning match counts twice in hybrid fusion.** Removing the

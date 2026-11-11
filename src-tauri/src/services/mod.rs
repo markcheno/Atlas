@@ -10,6 +10,7 @@ pub mod embedding;
 pub mod extraction;
 pub mod inventory;
 pub mod jobs;
+pub mod knowledge;
 pub mod library;
 pub mod providers;
 pub mod scheduler;
