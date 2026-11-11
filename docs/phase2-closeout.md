@@ -13,8 +13,6 @@
 
 ## Verdict
 
-<!-- pending: verdict once the evidence run, eval-embed and the DMG smoke are in -->
-
 Phase 2 meets its definition of done on macOS, and in CI with a scripted
 model service on Windows and Linux. The gaps are documented, as §1 allows.
 
@@ -39,6 +37,10 @@ model service on Windows and Linux. The gaps are documented, as §1 allows.
 
 The product owner's Phase 0 decision ("CI only, document gaps") stands for
 Windows and Linux.
+
+One Phase 1 behaviour found during this review is open: a file offloaded
+to iCloud when first cataloged isn't read once it's downloaded (below).
+It's left to the product owner to schedule.
 
 ## Definition of done (§1)
 
@@ -113,7 +115,7 @@ Tests are in `src-tauri/tests/`.
 | Licences: usearch, numkong, cxx and their build crates; GPL/AGPL flagged | ✅ [dependency-licenses.md](dependency-licenses.md) regenerated in Slice 2.8 with no changes: 586 crates, 7 MPL-2.0 entries flagged for review, no GPL or AGPL |
 | CI: the new tests with the scripted backend; bench adds vectors at 100k and embedding at 1k; evidence adds the embedding run | ✅ every full run; the evidence run [42909721037](https://github.com/markcheno/Atlas/actions/runs/42909721037) read the 30k text fixture to the last file and embedded 10k files on every OS (product-owner decision: 30k took 69 minutes on the reference machine) |
 | Smoke with `e2e/fake-ai.mjs`: set up the model, index meaning, a vague question, Ask with a citation that opens | ✅ Windows and Linux (Slice 2.7) |
-| Release evidence: the DMG smoke on macOS against oMLX | <!-- pending: DMG smoke --> |
+| Release evidence: the DMG smoke on macOS against oMLX | ✅ the CI-built `Atlas_0.3.0_aarch64.dmg` (run 42930574567), run by the product owner against oMLX: all 11 steps completed, no problems reported ([platform-validation](platform-validation.md#macos-arm64-slice-28-release-dmg-smoke-2026-11-10)) |
 | Starts without Python, Docker, a database server, Ollama or an LLM; without AI it is Phase 1 plus Settings | ✅ P2-11; the smoke's Phase 1 steps run before any service is added; DMG smoke step 1 |
 
 ## Acceptance checklist (§16): assessment
@@ -189,6 +191,23 @@ ADRs 0012 to 0015.
   - **Its vague question is about a short book it adds**, since the
     smoke's fixture isn't the spike corpus.
 - **Storage is about 1% over 2.5 KB per vector.**
+
+## Found during this review, not fixed
+
+- **A file offloaded to iCloud when Atlas first catalogs it isn't read
+  after it's downloaded.**
+  - The scan marks it cloud-only, and the reader skips it without opening
+    it, as designed.
+  - A later scan sees the file is local again, but its "skipped" status
+    resets only when its size or modification time changes
+    (`services/inventory/db.rs`). Downloading from iCloud usually changes
+    neither.
+  - So the file stays unread, while Details says "Atlas reads it once it
+    is downloaded".
+  - This is a Phase 1 behaviour; Phase 2 doesn't change it. Files read
+    before they were offloaded keep their text and meaning.
+  - The fix is small: a rescan that finds a skipped cloud-only file local
+    resets it to waiting. It's left to the product owner to schedule.
 
 ## Not verified (carried forward)
 

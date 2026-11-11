@@ -961,4 +961,6 @@ Slice 2.2 the chunks, durable embeddings and the vector index
 ([Embeddings and the vector index](#embeddings-and-the-vector-index));
 Slice 2.3 the embedding job that fills them; Slice 2.4 hybrid
 [search](#search); Slice 2.5 [related documents](#related-documents);
-Slice 2.6 the [Ask Atlas](#ask-atlas) engine and the privacy choices.
+Slice 2.6 the [Ask Atlas](#ask-atlas) engine and the privacy choices;
+Slice 2.7 the Ask Atlas screen; Slice 2.8 the evidence and the
+[close-out review](phase2-closeout.md) (version 0.3.0).

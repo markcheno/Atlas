@@ -1212,6 +1212,37 @@ crates.io; its rerun passed.
 | Windows | 1,080 s | 32,006 of 32,006 | 2,418 s | 102 | 272 ms | 2,594 |
 | Linux | 397 s | 32,006 of 32,006 | 1,208 s | 204 | 143 ms | 2,599 |
 
+### macOS arm64, Slice 2.8: release DMG smoke (2026-11-10)
+
+Run by the product owner from the
+[checklist](#release-dmg-smoke-slice-28):
+- **The build:** `Atlas_0.3.0_aarch64.dmg` from CI run
+  [42930574567](https://github.com/markcheno/Atlas/actions/runs/42930574567),
+  13.5 MB, with the small-index exact search.
+- **Started** from Terminal with a scratch `HOME` (`env -i`, outside the
+  shell's hooks).
+- **The library:** a fresh scratch library, with the 100-file generated
+  fixture plus the spike corpus's five books and eight papers.
+- **The services:** oMLX with Qwen3-Embedding-0.6B-8bit and the chat
+  model.
+
+**All 11 steps completed, with no problems reported:**
+1. Phase 1 without any AI service;
+2. the service found and tested, and the Recommendation card;
+3. both models chosen;
+4. indexing meaning to "Meaning up to date", and Storage's Meaning index;
+5. a vague question finding Alice by meaning, and Related;
+6. Ask Atlas: chips, the cited passage, Stop, an off-library question,
+   VoiceOver;
+7. Disable all external AI;
+8. the model switch;
+9. Cmd+Q with no worker left, and the relaunch;
+10. light and dark;
+11. clean-up.
+
+**The checklist's setup** was rewritten as exact commands during the run
+(the fixture folders, `env -i` for the scratch `HOME`).
+
 <!-- ci-2.8 -->
 
 ## Manual checklist for Windows and Linux

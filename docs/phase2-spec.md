@@ -1,6 +1,6 @@
 # Atlas — Phase 2 Implementation Specification v0.1
 
-**Status:** Ready for coding-agent implementation  
+**Status:** Complete. Built in Slices 2.1–2.8; reviewed in the [Phase 2 close-out](phase2-closeout.md) (2026-11-10)  
 **Date:** 2026-11-09 (see Revision notes at the end)  
 **Parent:** [Atlas Product Specification v0.2](product-spec.md) §4, §5, §9, §13; builds on the [Phase 1 Implementation Specification](phase1-spec.md), the [Phase 1 close-out review](phase1-closeout.md), [ADR 0007](adr/0007-provider-connections-and-secrets.md) (provider connections and secrets) and [ADR 0008](adr/0008-extraction-and-vector-engines.md) (the vector engine)  
 **Target platforms:** macOS arm64, Windows x64, Linux x64  
@@ -669,6 +669,21 @@ eval-ask`; [benchmarks](benchmarks.md#ask-atlas-slice-26)):
 - **`ATLAS_E2E_TRACE_MEANING`** (debug builds) prints each meaning search's
   sizes and best similarities, graph and exact, to stderr. The smoke turns
   it on.
+
+**2026-11-10, amended during Slice 2.8 (close-out)** ([review](phase2-closeout.md)):
+
+- **Version 0.3.0.**
+- **The evidence run embeds the 10k text fixture** on every OS (§14), not
+  30k (product-owner decision). 30k took 69 minutes on the reference
+  machine; the runners are slower. Phase 1's 30k extraction gate runs with
+  it.
+- **`just eval-embed`** (owner-run) measures §13's real-model throughput,
+  recall on real vectors and the meaning-only share. It recorded 48.4
+  chunks/s and 12,134 tokens/s, recall@10 0.998 at 512, and 3 of 40.
+- **The 30k fixture embedded through oMLX overnight** is not run, also a
+  product-owner decision. It is projected at 2.5 to 5 hours.
+- **Found during the review and not fixed:** a file offloaded to iCloud
+  when first cataloged isn't read after it's downloaded (the close-out).
 
 ### Primary reference documentation (verify current versions at implementation time)
 
