@@ -10,6 +10,17 @@
   import { search } from '../lib/stores/search.svelte';
   import { trails } from '../lib/stores/trails.svelte';
   import { trailView } from '../lib/stores/trailView.svelte';
+  import { collections } from '../lib/stores/collections.svelte';
+  import { details } from '../lib/stores/details.svelte';
+  import {
+    ALL_COLLECTIONS,
+    COLLECTIONS_HOME,
+    FROM_LIBRARY,
+    kindLabel,
+    NOT_FOR_THIS,
+    reasonText,
+  } from '../lib/collectionCopy';
+  import { FROM_SUGGESTION } from '../lib/openVia';
   import { relativeTime } from '../lib/inventoryCopy';
   import { FIRST_STEP_NOTE, PICK_UP_TITLE, stepsText } from '../lib/trailCopy';
   import { view } from '../lib/stores/view.svelte';
@@ -30,7 +41,23 @@
   $effect(() => {
     void trails.status;
     void loadRecent();
+    void collections.load();
+    void collections.loadSuggestions(3);
   });
+
+  const shownCollections = $derived(collections.active.slice(0, 6));
+
+  async function openCollection(id: string) {
+    view.go('trails');
+    trailView.tab = 'collections';
+    await collections.open(id);
+  }
+
+  function allCollections() {
+    view.go('trails');
+    trailView.tab = 'collections';
+    void collections.close();
+  }
 
   async function pickUp(id: string) {
     view.go('trails');
@@ -86,6 +113,61 @@
               {t.label}
             </button>
             <span class="muted small">{relativeTime(t.lastStepAt)} · {stepsText(t.stepCount)}</span>
+          </li>
+        {/each}
+      </ul>
+    </section>
+  {/if}
+
+  {#if shownCollections.length > 0}
+    <section aria-labelledby="home-collections">
+      <h2 id="home-collections">{COLLECTIONS_HOME}</h2>
+      <ul class="recent">
+        {#each shownCollections as c (c.id)}
+          <li data-testid="home-collection">
+            <button type="button" class="name-button" onclick={() => void openCollection(c.id)}>
+              {c.name}
+            </button>
+            <span class="muted small">{kindLabel(c.kind)}</span>
+          </li>
+        {/each}
+      </ul>
+      <div>
+        <button type="button" class="button quiet" onclick={allCollections}>
+          {ALL_COLLECTIONS}
+        </button>
+      </div>
+    </section>
+  {/if}
+
+  {#if collections.suggestions.length > 0}
+    <section aria-labelledby="home-suggestions">
+      <h2 id="home-suggestions">{FROM_LIBRARY}</h2>
+      <ul class="recent">
+        {#each collections.suggestions as s (s.hit.documentId)}
+          <li data-testid="suggestion">
+            <span class="suggested">
+              <button
+                type="button"
+                class="name-button"
+                aria-label={`Details for ${s.hit.title}`}
+                onclick={(e) =>
+                  void details.open(s.hit.fileInstanceId, e.currentTarget, {
+                    via: FROM_SUGGESTION,
+                  })}
+              >
+                {s.hit.title}
+              </button>
+              <span class="muted small">{reasonText(s.reason)}</span>
+            </span>
+            <button
+              type="button"
+              class="row-button"
+              aria-label={`${NOT_FOR_THIS}: ${s.hit.title}`}
+              onclick={() => void collections.dismiss(s)}
+            >
+              {NOT_FOR_THIS}
+            </button>
           </li>
         {/each}
       </ul>
@@ -151,6 +233,11 @@
     border: 1px solid var(--border);
     border-radius: var(--radius);
     background: var(--surface);
+  }
+
+  .suggested {
+    display: grid;
+    gap: var(--space-1);
   }
 
   .name-button {

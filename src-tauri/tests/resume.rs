@@ -10,7 +10,7 @@
 //! again and Ask again add steps to the continued trail.
 //!
 //! The bookmark and the finding are saved through their service (Slice
-//! 3.5); the interest is written directly until Slice 3.6.
+//! 3.5), and the interest through its own (Slice 3.6).
 
 use std::collections::BTreeMap;
 use std::fs;
@@ -19,14 +19,15 @@ use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use atlas_lib::domain::dto::{
-    AnchorState, FindingSource, OpenAction, OpenPlace, OpenVia, RecordingStatus, SaveTarget,
-    SavedItem, SavedKind, SavedQuery, SearchIntent, StepPayload, TrailDetail, TrailQuery,
+    AnchorState, CollectionInput, CollectionItemRef, CollectionKind, FindingSource, OpenAction,
+    OpenPlace, OpenVia, RecordingStatus, SaveTarget, SavedItem, SavedKind, SavedQuery,
+    SearchIntent, StepPayload, TrailDetail, TrailQuery,
 };
 use atlas_lib::infrastructure::clock::{Clock, TestClock};
 use atlas_lib::services::embedding::{models, triggers};
 use atlas_lib::services::extraction::db as extraction_db;
 use atlas_lib::services::inventory;
-use atlas_lib::services::knowledge::{Recorder, saved};
+use atlas_lib::services::knowledge::{Recorder, collections, saved};
 use rusqlite::Connection;
 use serde::Deserialize;
 use time::macros::datetime;
@@ -361,8 +362,7 @@ fn p3_13_a_session_resumed_after_twelve_weeks_of_change() {
 
     // What the user kept.
     sc.recorder().pin(&main, script.keep.pin).unwrap();
-    // The bookmark and the finding through their service (Slice 3.5); the
-    // interest is written directly until Slice 3.6.
+    // The bookmark, the finding and the interest through their services.
     let bookmark_doc = sc.document_of(&script.keep.bookmark);
     let open_step = recorded
         .steps
@@ -417,37 +417,28 @@ fn p3_13_a_session_resumed_after_twelve_weeks_of_change() {
             .unwrap()
     };
     let kept = stored(&bookmark.id, &finding.id);
-    {
-        let (interest, trail, b, f) = (
-            script.keep.interest.clone(),
-            main.clone(),
-            bookmark.id.clone(),
-            finding.id.clone(),
-        );
-        sc.lib
-            .root()
-            .knowledge()
-            .call(move |c| {
-                c.execute(
-                    "INSERT INTO collections (id, kind, name, created_at, updated_at)
-                     VALUES ('interest-1', 'interest', ?1, 't', 't')",
-                    [&interest],
-                )?;
-                for (kind, id) in [
-                    ("trail", trail.as_str()),
-                    ("bookmark", b.as_str()),
-                    ("finding", f.as_str()),
-                ] {
-                    c.execute(
-                        "INSERT INTO collection_items (collection_id, item_kind, item_id, added_at)
-                         VALUES ('interest-1', ?1, ?2, 't')",
-                        [kind, id],
-                    )?;
-                }
-                Ok::<_, rusqlite::Error>(())
-            })
-            .unwrap()
-            .unwrap();
+    let interest = collections::save(
+        sc.recorder(),
+        &CollectionInput {
+            id: None,
+            kind: CollectionKind::Interest,
+            name: script.keep.interest.clone(),
+            description: None,
+            goal: None,
+            status: None,
+        },
+    )
+    .unwrap();
+    for item in [
+        CollectionItemRef::Trail { id: main.clone() },
+        CollectionItemRef::Bookmark {
+            id: bookmark.id.clone(),
+        },
+        CollectionItemRef::Finding {
+            id: finding.id.clone(),
+        },
+    ] {
+        collections::add(sc.recorder(), &interest.id, &item).unwrap();
     }
     let before = payloads(&sc.trail(&main));
 
@@ -608,15 +599,12 @@ fn p3_13_a_session_resumed_after_twelve_weeks_of_change() {
 
     // What was kept is intact.
     assert_eq!(stored(&bookmark.id, &finding.id), kept);
-    let items: i64 = Connection::open(&store_path)
-        .unwrap()
-        .query_row(
-            "SELECT count(*) FROM collection_items WHERE collection_id = 'interest-1'",
-            [],
-            |r| r.get(0),
-        )
-        .unwrap();
-    assert_eq!(items, 3);
+    let held = collections::get(sc.recorder(), &interest.id).unwrap();
+    assert_eq!(
+        (held.trails.len(), held.bookmarks.len(), held.findings.len()),
+        (1, 1, 1),
+        "the interest holds them all"
+    );
     let SavedItem::Bookmark(still) = saved::list(
         sc.recorder(),
         &SavedQuery {

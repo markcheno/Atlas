@@ -2167,3 +2167,151 @@ pub struct SavedPage {
     pub page_size: u32,
     pub total: u32,
 }
+
+// ---------------------------- interests and projects (Phase 3, Slice 3.6)
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "snake_case")]
+#[ts(export)]
+pub enum CollectionKind {
+    Interest,
+    Project,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "snake_case")]
+#[ts(export)]
+pub enum CollectionStatus {
+    Active,
+    /// Projects only.
+    Finished,
+    Archived,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct CollectionCounts {
+    pub trails: u32,
+    pub bookmarks: u32,
+    pub findings: u32,
+    pub documents: u32,
+}
+
+/// An interest or a project (phase3-spec §5.4).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct Collection {
+    pub id: String,
+    pub kind: CollectionKind,
+    pub name: String,
+    pub description: Option<String>,
+    /// Projects only.
+    pub goal: Option<String>,
+    pub status: CollectionStatus,
+    pub counts: CollectionCounts,
+    pub created_at: String,
+    pub updated_at: String,
+}
+
+/// A new collection (no id) or changes to one.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct CollectionInput {
+    #[serde(default)]
+    pub id: Option<String>,
+    pub kind: CollectionKind,
+    pub name: String,
+    #[serde(default)]
+    pub description: Option<String>,
+    #[serde(default)]
+    pub goal: Option<String>,
+    /// Left as it is when absent; new collections are active.
+    #[serde(default)]
+    pub status: Option<CollectionStatus>,
+}
+
+/// What to add to a collection or take out of it.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+#[ts(export)]
+pub enum CollectionItemRef {
+    Trail {
+        id: String,
+    },
+    Bookmark {
+        id: String,
+    },
+    Finding {
+        id: String,
+    },
+    /// A document, named by one of its files when added, by its id when
+    /// removed.
+    Document {
+        #[serde(default, rename = "fileId")]
+        #[ts(rename = "fileId")]
+        file_id: Option<RecordId>,
+        #[serde(default, rename = "documentId")]
+        #[ts(rename = "documentId")]
+        document_id: Option<RecordId>,
+    },
+}
+
+/// A document in a collection, resolved now.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct CollectionDocument {
+    pub document_id: String,
+    /// The catalog's title now, when it knows the document.
+    pub title: Option<String>,
+    pub resolved: ResolvedAnchor,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct CollectionDetail {
+    pub collection: Collection,
+    pub trails: Vec<TrailSummary>,
+    pub bookmarks: Vec<Bookmark>,
+    pub findings: Vec<Finding>,
+    pub documents: Vec<CollectionDocument>,
+}
+
+/// Which collections an item is in, for Add to….
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct Membership {
+    pub collection_ids: Vec<String>,
+}
+
+/// Why a document is suggested.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(tag = "seed", rename_all = "snake_case")]
+#[ts(export)]
+pub enum SuggestionReason {
+    Interest {
+        name: String,
+    },
+    Project {
+        name: String,
+    },
+    /// The three most recent trails.
+    Recent,
+}
+
+/// A document from the library near what the user is working on
+/// (phase3-spec §7.4), from stored vectors only.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct Suggestion {
+    pub hit: SearchHit,
+    pub reason: SuggestionReason,
+    /// The collection it came from; empty for recent trails.
+    pub seed_id: String,
+}

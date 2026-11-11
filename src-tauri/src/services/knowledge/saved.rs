@@ -547,3 +547,28 @@ pub fn list(rec: &Recorder, query: &SavedQuery) -> AtlasResult<SavedPage> {
         total,
     })
 }
+
+/// These items of `kind`, in the order given, anchors resolved now. Ids
+/// no longer there are left out (a collection's page, Slice 3.6).
+pub(crate) fn by_ids(
+    rec: &Recorder,
+    kind: SavedKind,
+    ids: &[String],
+) -> AtlasResult<Vec<SavedItem>> {
+    if ids.is_empty() {
+        return Ok(Vec::new());
+    }
+    let mut rows: Vec<Row> = rec
+        .store()
+        .read(rows)?
+        .map_err(AtlasError::db("be read"))?
+        .into_iter()
+        .filter(|r| r.kind() == kind && ids.iter().any(|id| id == r.id()))
+        .collect();
+    rows.sort_by_key(|r| ids.iter().position(|id| id == r.id()));
+    rec.catalog().read(|c| {
+        rows.into_iter()
+            .map(|r| finish(c, r))
+            .collect::<AtlasResult<Vec<_>>>()
+    })?
+}

@@ -5,6 +5,8 @@
   import { onMount } from 'svelte';
   import ProblemNotice from '../lib/components/ProblemNotice.svelte';
   import SavedList from '../lib/components/SavedList.svelte';
+  import CollectionList from '../lib/components/CollectionList.svelte';
+  import { COLLECTIONS_TAB } from '../lib/collectionCopy';
   import { SAVED_TAB, TRAILS_TAB } from '../lib/savedCopy';
   import TrailTimeline from '../lib/components/TrailTimeline.svelte';
   import ViewHeading from '../lib/components/ViewHeading.svelte';
@@ -57,10 +59,22 @@
       />
       {SAVED_TAB}
     </label>
+    <label>
+      <input
+        type="radio"
+        name="trails-tab"
+        value="collections"
+        checked={trailView.tab === 'collections'}
+        onchange={() => (trailView.tab = 'collections')}
+      />
+      {COLLECTIONS_TAB}
+    </label>
   </fieldset>
 
   {#if trailView.tab === 'saved'}
     <SavedList />
+  {:else if trailView.tab === 'collections'}
+    <CollectionList />
   {:else if trailView.selectedId}
     <TrailTimeline />
   {:else}

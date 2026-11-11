@@ -60,6 +60,13 @@ import type { SavedItem } from './bindings/SavedItem';
 import type { SavedKind } from './bindings/SavedKind';
 import type { SavedPage } from './bindings/SavedPage';
 import type { SavedQuery } from './bindings/SavedQuery';
+import type { Collection } from './bindings/Collection';
+import type { CollectionDetail } from './bindings/CollectionDetail';
+import type { CollectionInput } from './bindings/CollectionInput';
+import type { CollectionItemRef } from './bindings/CollectionItemRef';
+import type { CollectionStatus } from './bindings/CollectionStatus';
+import type { Membership } from './bindings/Membership';
+import type { Suggestion } from './bindings/Suggestion';
 
 /** Server codes plus two the client itself can produce. */
 export type ApiErrorCode = ErrorCode | 'ipc_unavailable' | 'unexpected';
@@ -248,6 +255,23 @@ export const atlas = {
     call<SavedItem>('update_saved_note', { kind, id, note }),
   deleteSaved: (kind: SavedKind, id: string) => call<void>('delete_saved', { kind, id }),
   listSaved: (query: SavedQuery) => call<SavedPage>('list_saved', { query }),
+
+  /** Interests and projects (Slice 3.6). */
+  listCollections: (status: CollectionStatus | null = null) =>
+    call<Collection[]>('list_collections', { status }),
+  getCollection: (id: string) => call<CollectionDetail>('get_collection', { id }),
+  saveCollection: (input: CollectionInput) => call<Collection>('save_collection', { input }),
+  deleteCollection: (id: string) => call<void>('delete_collection', { id }),
+  addToCollection: (collectionId: string, item: CollectionItemRef) =>
+    call<Collection>('add_to_collection', { collectionId, item }),
+  removeFromCollection: (collectionId: string, item: CollectionItemRef) =>
+    call<Collection>('remove_from_collection', { collectionId, item }),
+  getCollectionMembership: (item: CollectionItemRef) =>
+    call<Membership>('get_collection_membership', { item }),
+  /** From stored vectors only: no model is called. */
+  getSuggestions: (limit = 3) => call<Suggestion[]>('get_suggestions', { limit }),
+  dismissSuggestion: (seedId: string, documentId: string) =>
+    call<void>('dismiss_suggestion', { seedId, documentId }),
 } as const;
 
 export type AtlasApi = typeof atlas;

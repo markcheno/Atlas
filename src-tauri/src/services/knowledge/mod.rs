@@ -14,9 +14,11 @@
 //!   ADR 0017) and read, changed and expired through [`trails`].
 
 pub mod anchor;
+pub mod collections;
 pub mod meta;
 pub mod migrations;
 pub mod record;
+pub mod rediscovery;
 pub mod saved;
 pub mod snapshot;
 pub mod store;

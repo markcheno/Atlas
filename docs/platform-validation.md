@@ -1248,6 +1248,49 @@ merge): full run
 [42943519172](https://github.com/markcheno/Atlas/actions/runs/42943519172),
 all green on three OSes. The smoke passed every step on Windows and Linux.
 
+## Slice 3.6
+
+Interests, projects and rediscovery. On every OS:
+- **P3-17** (`tests/collections.rs`):
+  - an interest and a project hold a trail, a bookmark, a finding and a
+    document; adding again changes nothing; the page shows each, the
+    document resolved with its title; membership is reported;
+  - taking a bookmark out of the project leaves the bookmark;
+  - deleting the trail and the finding takes them out of every
+    collection; adding a deleted trail, or to a deleted collection, is
+    refused;
+  - deleting the interest leaves the bookmark and clears its links;
+  - a project can be finished; an interest can't, nor have a goal; an
+    empty name and one of 201 characters are refused; a collection keeps
+    its kind; archived and finished ones aren't active, and unarchiving
+    brings one back.
+- **P3-18** (`tests/suggestions.rs`, on generated books with the fake
+  embedding):
+  - nothing to start from suggests nothing;
+  - an interest's neighbours are suggested, never its own document, each
+    once, with its reason;
+  - the order is the same on two calls the same day, and three hours
+    later;
+  - a document opened in a trail is left out;
+  - Not for this for one interest leaves the other free to suggest it;
+  - a file deleted and rescanned is left out;
+  - recent trails seed suggestions, without the search's own results, and
+    their Not for this holds;
+  - without an embedding role there are none;
+  - the embedding backend received no request during any of it.
+- **P3-13** now adds its interest through the service: nothing in it is
+  written directly any more.
+
+Vitest covers the third tab (empty state, creating an interest or a
+project with its goal, the active, finished and archived sections), a
+collection's page (its four sections, Remove, Archive, Edit, Mark as
+finished, Delete), Add to… on a trail, a Saved item and a document (active
+ones only, membership shown, add, remove, New interest… created and
+added), and Home's two sections (at most six; reasons; Details recorded as
+from a suggestion; Not for this; hidden when empty).
+
+**CI on `slice-36`:** full run pending.
+
 ## Slice 3.5
 
 Bookmarks and saved findings. On every OS:

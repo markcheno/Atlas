@@ -66,6 +66,7 @@ commands and added the native multi-folder picker.
 | Knowledge store | `get_knowledge_status` | **3.2 (working)** |
 | Trails | `record_open`, `get_recording_status`, `dismiss_trail_note`, `list_trails`, `get_trail`, `start_trail`, `continue_trail`, `rename_trail`, `pin_trail`, `delete_trail`, `delete_trail_step`, `add_trail_note`, `delete_all_trails`; `search_documents` gains `intent`; the `trail-changed` event (recording and expiry are part of `update_settings`) | **3.3 (working)** |
 | Saved | `save_bookmark`, `save_finding`, `update_saved_note`, `delete_saved`, `list_saved` | **3.5 (working)** |
+| Interests and projects | `list_collections`, `get_collection`, `save_collection`, `delete_collection`, `add_to_collection`, `remove_from_collection`, `get_collection_membership`, `get_suggestions`, `dismiss_suggestion` | **3.6 (working)** |
 
 `get_app_status` returns only facts about the running process, including a
 feature list that marks exactly which capabilities this build provides.
@@ -1017,6 +1018,59 @@ Implemented in `src-tauri/src/services/knowledge/saved.rs` and
     bookmarks and findings through `RecordedSource.svelte` (renamed from
     `TrailSource`) and `AnswerText`.
   - The details panel lists **Bookmarks in this document**.
+
+## Interests, projects and rediscovery
+
+Implemented in `src-tauri/src/services/knowledge/{collections,rediscovery}.rs`,
+`src-tauri/src/services/documents/rediscover.rs` and
+`src-tauri/src/commands/collections.rs` (Slice 3.6, phase3-spec §5.4,
+§7.4).
+
+- **Collections:**
+  - An interest has a name (1 to 200 characters) and an optional
+    description. A project adds an optional goal and can be finished.
+    Either can be archived. Its kind never changes, and a goal or Finished
+    on an interest is `invalid_collection`.
+  - Items are links in `collection_items`: a trail, bookmark or finding by
+    id; a document by its id and content hash (added by a file id).
+    Adding twice is a no-op. Removing a link, or deleting the collection
+    (its links cascade, and its dismissals are deleted), never deletes the
+    item. Deleting a trail, bookmark or finding removes its links (Slices
+    3.3, 3.5).
+  - `get_collection` returns the trails' summaries, the bookmarks and
+    findings as Saved shows them (`saved::by_ids`), and each document
+    resolved now, with its catalog title.
+- **Suggestions** (`get_suggestions`, at most six), computed each time and
+  never stored:
+  - **Seeds:** each active collection (its documents, its bookmarks' and
+    findings' sources, its trails' `step_documents`), and the three most
+    recent trails' documents (seed `''`).
+  - **A seed's vector** is the re-normalised mean of its documents' Related
+    vectors (`related::mean_vector`). The nearest 200 chunks of other
+    documents (the seed's own filtered inside the index), at or above the
+    model's similarity floor, are grouped by document, best first.
+  - **Left out:** the seed's documents; documents opened in a trail (open
+    steps' `step_documents`); documents dismissed for that seed; documents
+    with no available file (`search::meaning_hit`).
+  - **Order:** seeds sorted by a BLAKE3 hash of the clock's UTC date and the
+    seed id, then round-robin, each document once: the same all day.
+  - **No model is called.** Only stored vectors are read. With no
+    embedding role, no serving model, or an index not open yet (it is
+    opened in the background), there are none.
+  - `dismiss_suggestion(seedId, documentId)` records Not for this, with the
+    document's hash.
+- **The renderer:**
+  - The Trails view's third tab is **Interests and projects**
+    (`CollectionList.svelte`; a collection's page is
+    `CollectionDetail.svelte`).
+  - `AddTo.svelte` (Add to…) is on a trail's timeline, each Saved item and
+    the details panel. It lists the active collections with `aria-pressed`
+    membership (`get_collection_membership`), and offers New interest… and
+    New project….
+  - Home shows the active collections (at most six, then All interests
+    and projects) and up to three suggestions with their reason, Details
+    (recorded `via: suggestion`) and Not for this. Each section shows only
+    when it has something to show.
 
 ## Build, CI and measurement
 
