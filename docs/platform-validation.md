@@ -1291,7 +1291,9 @@ trail, Home's note, the Privacy part with its confirmation naming the
 count, the search intents, and opens recorded from results and citations
 but not the Library.
 
-**CI on `slice-33`:** full run pending.
+**CI on `slice-33`:** full run
+[43082397519](https://github.com/markcheno/Atlas/actions/runs/43082397519),
+all green on three OSes, smoke included, in 13 minutes.
 
 The first full run
 ([43078984746](https://github.com/markcheno/Atlas/actions/runs/43078984746))
