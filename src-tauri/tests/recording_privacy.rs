@@ -96,15 +96,23 @@ fn p3_16_nothing_recorded_is_anywhere_but_the_knowledge_store() {
     }
 
     let data = base.join("AtlasData");
-    let store = data.join("library/knowledge.sqlite");
+    let library = data.join("library");
+    let snapshots = data.join("backups").join("knowledge");
+    // The store with its log and shared memory, and its snapshots: by
+    // path components, since Windows paths mix separators.
+    let is_store = |path: &Path| {
+        let in_library = path.parent() == Some(library.as_path());
+        let named = path
+            .file_name()
+            .is_some_and(|n| n.to_string_lossy().starts_with("knowledge.sqlite"));
+        (in_library && named) || path.starts_with(&snapshots)
+    };
     let mut in_store = Vec::new();
     let mut checked = 0;
     for path in files(&data).into_iter().chain(files(&base.join("config"))) {
         let bytes = fs::read(&path).unwrap();
         let name = path.to_string_lossy().into_owned();
-        if name.starts_with(store.to_string_lossy().as_ref())
-            || path.starts_with(data.join("backups/knowledge"))
-        {
+        if is_store(&path) {
             in_store.extend(bytes);
             continue;
         }

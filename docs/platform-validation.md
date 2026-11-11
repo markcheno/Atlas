@@ -1293,6 +1293,12 @@ but not the Library.
 
 **CI on `slice-33`:** full run pending.
 
+The first full run
+([43078984746](https://github.com/markcheno/Atlas/actions/runs/43078984746))
+passed on macOS and Linux. On Windows, P3-16 named the store itself as a
+leak: the test told the store from other files by comparing path text, and
+Windows paths mix `\` and `/`. It now compares path components.
+
 ## Slice 3.2
 
 The knowledge store ([ADR 0016](adr/0016-the-knowledge-store.md)). On
