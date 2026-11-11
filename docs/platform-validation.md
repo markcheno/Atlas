@@ -1243,7 +1243,10 @@ Run by the product owner from the
 **The checklist's setup** was rewritten as exact commands during the run
 (the fixture folders, `env -i` for the scratch `HOME`).
 
-<!-- ci-2.8 -->
+**CI on `slice-28b`** (Slice 2.8 rebased onto `main` after Slice 2.7's
+merge): full run
+[42943519172](https://github.com/markcheno/Atlas/actions/runs/42943519172),
+all green on three OSes. The smoke passed every step on Windows and Linux.
 
 ## Manual checklist for Windows and Linux
 
