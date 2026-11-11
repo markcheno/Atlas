@@ -98,6 +98,9 @@ pub enum ErrorCode {
     TrailNotFound,
     /// A note, title or name over its limit (Slice 3.3).
     TextTooLong,
+    /// What was to be saved is no longer there: an answer replaced by a
+    /// newer one, a deleted step (Slice 3.5).
+    SaveSourceGone,
     Internal,
 }
 
@@ -231,6 +234,8 @@ pub enum AtlasError {
     TrailNotFound,
     #[error("Keep the {what} to {max} characters.")]
     TextTooLong { what: &'static str, max: usize },
+    #[error("Atlas can't find that any more.")]
+    SaveSourceGone,
     #[error("Atlas hit an internal error: {0}.")]
     Internal(&'static str),
 }
@@ -310,6 +315,7 @@ impl AtlasError {
             Self::Knowledge(_) => ErrorCode::KnowledgeUnavailable,
             Self::TrailNotFound => ErrorCode::TrailNotFound,
             Self::TextTooLong { .. } => ErrorCode::TextTooLong,
+            Self::SaveSourceGone => ErrorCode::SaveSourceGone,
             Self::Internal(_) => ErrorCode::Internal,
         }
     }
@@ -394,6 +400,7 @@ impl AtlasError {
             }
             Self::TrailNotFound => "It may have been deleted. Go back to your trails.",
             Self::TextTooLong { .. } => "Shorten it, then try again.",
+            Self::SaveSourceGone => "Search or ask again, then save it.",
         })
     }
 

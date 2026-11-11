@@ -21,11 +21,12 @@
     WEAK_NOTE,
   } from '../answerCopy';
   import { answer } from '../stores/answer.svelte';
-  import { fromCitation } from '../openVia';
+  import { citationTarget, fromCitation } from '../openVia';
   import { details } from '../stores/details.svelte';
   import { view } from '../stores/view.svelte';
   import AnswerText from './AnswerText.svelte';
   import DisclosureDialog from './DisclosureDialog.svelte';
+  import SaveAction from './SaveAction.svelte';
   import ProblemNotice from './ProblemNotice.svelte';
   import SourcesUsed from './SourcesUsed.svelte';
 
@@ -59,6 +60,7 @@
     void details.open(s.fileInstanceId, trigger, {
       cited: s,
       via: fromCitation(answer.answerId, s.n),
+      saveAs: citationTarget(s),
     });
   }
 
@@ -129,6 +131,16 @@
       if (s) openSource(s, el);
     }}
   />
+{/if}
+
+{#if answer.phase === 'done' && answer.answerId && answer.text}
+  <div class="keep">
+    <SaveAction
+      finding={{ kind: 'answer', answerId: answer.answerId }}
+      key={`finding-${answer.answerId}`}
+      name={answer.question}
+    />
+  </div>
 {/if}
 
 {#if failure?.kind === 'stream'}

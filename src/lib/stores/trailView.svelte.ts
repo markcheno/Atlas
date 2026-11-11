@@ -37,6 +37,9 @@ function usable(f: StepFilters) {
 }
 
 class TrailViewState {
+  /** Trails or Saved (Slice 3.5). */
+  tab = $state<'trails' | 'saved'>('trails');
+
   // The list.
   text = $state('');
   page = $state(0);
@@ -237,6 +240,7 @@ class TrailViewState {
     this.#detailSeq++;
     if (this.#timer) clearTimeout(this.#timer);
     this.#timer = null;
+    this.tab = 'trails';
     this.text = '';
     this.page = 0;
     this.result = null;

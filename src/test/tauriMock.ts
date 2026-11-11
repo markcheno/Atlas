@@ -51,6 +51,9 @@ import type { ResolvedAnchor } from '../lib/api/bindings/ResolvedAnchor';
 import type { TrailDetail } from '../lib/api/bindings/TrailDetail';
 import type { TrailStep } from '../lib/api/bindings/TrailStep';
 import type { TrailSummary } from '../lib/api/bindings/TrailSummary';
+import type { Bookmark } from '../lib/api/bindings/Bookmark';
+import type { Finding } from '../lib/api/bindings/Finding';
+import type { SavedPage } from '../lib/api/bindings/SavedPage';
 
 export const DEFAULT_ROOT = '/Users/test/Library/Application Support/com.altazlabs.atlas/Library';
 
@@ -59,7 +62,7 @@ export const fakeStatus: AppStatus = {
   os: 'macos',
   arch: 'aarch64',
   buildProfile: 'debug',
-  slice: '3.4',
+  slice: '3.5',
   features: [],
 };
 
@@ -572,6 +575,37 @@ export function trailDetail(overrides: Partial<TrailDetail> = {}): TrailDetail {
   return { trail: trailSummary(), steps, ...overrides };
 }
 
+export function bookmark(overrides: Partial<Bookmark> = {}): Bookmark {
+  return {
+    id: 'bm-1',
+    anchor: anchor(),
+    resolved: resolved(),
+    note: null,
+    createdAt: '2026-11-09T10:00:00Z',
+    updatedAt: '2026-11-09T10:00:00Z',
+    ...overrides,
+  };
+}
+
+export function finding(overrides: Partial<Finding> = {}): Finding {
+  return {
+    id: 'f-1',
+    kind: 'answer',
+    question: 'how do harmonic drives work',
+    text: 'A flexible spline gives **high** reduction [1].',
+    sources: [{ n: 1, anchor: anchor(), resolved: resolved() }],
+    note: 'For chapter 2.',
+    fromStepId: 'step-2',
+    createdAt: '2026-11-10T10:00:00Z',
+    updatedAt: '2026-11-10T10:00:00Z',
+    ...overrides,
+  };
+}
+
+export function savedPage(overrides: Partial<SavedPage> = {}): SavedPage {
+  return { items: [], page: 0, pageSize: 25, total: 0, ...overrides };
+}
+
 export function duplicateGroup(overrides: Partial<DuplicateGroup> = {}): DuplicateGroup {
   return {
     documentId: 'doc-1',
@@ -850,6 +884,15 @@ function defaults(): Record<string, Handler> {
     delete_trail: () => null,
     delete_trail_step: () => null,
     add_trail_note: () => null,
+    // Saved (Slice 3.5): nothing saved unless a test says so.
+    save_bookmark: () => bookmark(),
+    save_finding: () => finding(),
+    update_saved_note: (args) => ({
+      item: 'bookmark',
+      ...bookmark({ id: String(args?.id), note: String(args?.note) || null }),
+    }),
+    delete_saved: () => null,
+    list_saved: () => savedPage(),
     delete_all_trails: () => 0,
   };
 }

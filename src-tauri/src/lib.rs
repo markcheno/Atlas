@@ -236,6 +236,11 @@ pub fn run() {
             commands::trails::delete_trail_step,
             commands::trails::add_trail_note,
             commands::trails::delete_all_trails,
+            commands::saved::save_bookmark,
+            commands::saved::save_finding,
+            commands::saved::update_saved_note,
+            commands::saved::delete_saved,
+            commands::saved::list_saved,
         ])
         .build(tauri::generate_context!())
         .expect("error while building Atlas")

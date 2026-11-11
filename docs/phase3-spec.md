@@ -634,6 +634,27 @@ Do **not** create `knowledge.sqlite`, add a Trails view or record anything befor
   - **Uncited sources of a recorded answer kept as anchors without their excerpts**, to keep a question near 4 KB.
 - **Carried from the Phase 2 close-out and still deferred:** the unexplained miss of an index's first vector on the Linux runner (worked around by the exact search of small indexes); the single Windows failure of a `related` test; the 30k fixture embedded through oMLX overnight (not run); signing and notarization.
 
+**2026-11-11, Slice 3.5** (bookmarks and saved findings):
+- **What the renderer sends:**
+  - `save_bookmark(target)`: `file{fileId, place}`, where `place` is
+    `result`, `citation{answerId, n}`, `page{pageNo}` or `document`; or
+    `step{stepId, index}` for a recorded source.
+  - `save_finding(source)`: `answer{answerId}`, `step{stepId}` or
+    `passage{target}`.
+- **A place** is the document and the anchor's passage ordinal; the whole
+  document is a place of its own.
+- **An answer finding keeps only the cited sources,** as §5.3 says ("with
+  its question and cited sources").
+- **`save_source_gone`** answers a save whose answer was replaced by a
+  newer question, or whose step was deleted.
+- **The Saved filter is matched in Rust,** folded, over titles, excerpts,
+  questions, text and notes: the tables have no filter column, and a
+  knowledge store's saved items are few.
+- **Tabs:** Trails | Saved in 3.5; Interests and projects joins in 3.6.
+- **Still deferred:** Add to an interest or project (3.6) and Export
+  (3.8) on saved items; the page view's Bookmark (3.7).
+- **`SavedItem` is tagged `item`** (not `kind`, which a finding has).
+
 **2026-11-11, Slice 3.4** (the Trails screen and resuming):
 - **Tabs and actions arrive with their slices.** The Trails | Saved |
   Interests and projects tabs come in 3.5, with the second tab, so none is

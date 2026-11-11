@@ -155,3 +155,12 @@ leak.
   the continued trail; the steps they repeat stay as they were.
 - **A recorded answer is shown from the store,** never asked again, and is
   not a live region.
+
+## Amendment: findings (Slice 3.5, 2026-11-11)
+
+- **The last ended answer is kept in memory,** recording on or off, until
+  the next question starts, so it can be saved as a finding. It is written
+  only if the user saves it, or as a trail step while recording.
+- **A finding keeps its own copy** of the question, the delivered text and
+  the cited sources, in the knowledge store, and outlives the step it came
+  from.

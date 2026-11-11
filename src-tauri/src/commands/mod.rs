@@ -16,6 +16,7 @@ pub mod knowledge;
 pub mod library;
 pub mod providers;
 pub mod roles;
+pub mod saved;
 pub mod search;
 pub mod settings;
 pub mod sources;
@@ -86,4 +87,9 @@ pub const COMMAND_NAMES: &[&str] = &[
     "delete_trail_step",
     "add_trail_note",
     "delete_all_trails",
+    "save_bookmark",
+    "save_finding",
+    "update_saved_note",
+    "delete_saved",
+    "list_saved",
 ];

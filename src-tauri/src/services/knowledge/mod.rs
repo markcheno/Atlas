@@ -17,6 +17,7 @@ pub mod anchor;
 pub mod meta;
 pub mod migrations;
 pub mod record;
+pub mod saved;
 pub mod snapshot;
 pub mod store;
 pub mod trails;

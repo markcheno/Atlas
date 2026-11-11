@@ -9,8 +9,8 @@
 //! source resolves as the script says, what was kept is intact, and Search
 //! again and Ask again add steps to the continued trail.
 //!
-//! The bookmark, the finding and the interest are written directly: their
-//! services arrive in Slices 3.5 and 3.6.
+//! The bookmark and the finding are saved through their service (Slice
+//! 3.5); the interest is written directly until Slice 3.6.
 
 use std::collections::BTreeMap;
 use std::fs;
@@ -19,16 +19,15 @@ use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use atlas_lib::domain::dto::{
-    AnchorState, OpenAction, OpenPlace, OpenVia, RecordingStatus, SearchIntent, StepPayload,
-    TrailDetail, TrailQuery,
+    AnchorState, FindingSource, OpenAction, OpenPlace, OpenVia, RecordingStatus, SaveTarget,
+    SavedItem, SavedKind, SavedQuery, SearchIntent, StepPayload, TrailDetail, TrailQuery,
 };
 use atlas_lib::infrastructure::clock::{Clock, TestClock};
 use atlas_lib::services::embedding::{models, triggers};
 use atlas_lib::services::extraction::db as extraction_db;
 use atlas_lib::services::inventory;
-use atlas_lib::services::knowledge::Recorder;
-use atlas_lib::services::knowledge::anchor::from_hex;
-use rusqlite::{Connection, params};
+use atlas_lib::services::knowledge::{Recorder, saved};
+use rusqlite::Connection;
 use serde::Deserialize;
 use time::macros::datetime;
 
@@ -362,64 +361,83 @@ fn p3_13_a_session_resumed_after_twelve_weeks_of_change() {
 
     // What the user kept.
     sc.recorder().pin(&main, script.keep.pin).unwrap();
-    let bookmark_anchor = recorded
+    // The bookmark and the finding through their service (Slice 3.5); the
+    // interest is written directly until Slice 3.6.
+    let bookmark_doc = sc.document_of(&script.keep.bookmark);
+    let open_step = recorded
         .steps
         .iter()
-        .find_map(|s| match &s.payload {
-            StepPayload::Open(o)
-                if o.anchor.document_id == sc.document_of(&script.keep.bookmark) =>
-            {
-                Some(o.anchor.clone())
-            }
-            _ => None,
-        })
-        .unwrap();
-    let (finding_step, finding) = recorded
+        .find(
+            |s| matches!(&s.payload, StepPayload::Open(o) if o.anchor.document_id == bookmark_doc),
+        )
+        .unwrap()
+        .id
+        .clone();
+    let finding_step = recorded
         .steps
         .iter()
-        .find_map(|s| match &s.payload {
-            StepPayload::Ask(a) if a.question == script.keep.finding_from => {
-                Some((s.id.clone(), a.clone()))
-            }
-            _ => None,
-        })
-        .unwrap();
-    let kept = (
-        serde_json::to_string(&bookmark_anchor).unwrap(),
-        serde_json::to_string(&finding.sources).unwrap(),
-    );
+        .find(
+            |s| matches!(&s.payload, StepPayload::Ask(a) if a.question == script.keep.finding_from),
+        )
+        .unwrap()
+        .id
+        .clone();
+    let bookmark = saved::save_bookmark(
+        sc.recorder(),
+        &SaveTarget::Step {
+            step_id: open_step,
+            index: 0,
+        },
+    )
+    .unwrap();
+    saved::set_note(
+        sc.recorder(),
+        SavedKind::Bookmark,
+        &bookmark.id,
+        "Start here",
+    )
+    .unwrap();
+    let finding = saved::save_finding(
+        sc.recorder(),
+        &FindingSource::Step {
+            step_id: finding_step,
+        },
+    )
+    .unwrap();
+    let store_path = sc.lib.env.base.join("AtlasData/library/knowledge.sqlite");
+    let stored = |bookmark: &str, finding: &str| -> (String, String) {
+        Connection::open(&store_path)
+            .unwrap()
+            .query_row(
+                "SELECT (SELECT anchor FROM bookmarks WHERE id = ?1),
+                        (SELECT sources FROM findings WHERE id = ?2)",
+                [bookmark, finding],
+                |r| Ok((r.get(0)?, r.get(1)?)),
+            )
+            .unwrap()
+    };
+    let kept = stored(&bookmark.id, &finding.id);
     {
-        let (anchor_json, sources_json) = kept.clone();
-        let (doc, hash) = (
-            bookmark_anchor.document_id.clone(),
-            from_hex(&bookmark_anchor.content_hash).unwrap(),
-        );
-        let (question, text, interest, trail) = (
-            finding.question.clone(),
-            finding.answer.clone(),
+        let (interest, trail, b, f) = (
             script.keep.interest.clone(),
             main.clone(),
+            bookmark.id.clone(),
+            finding.id.clone(),
         );
         sc.lib
             .root()
             .knowledge()
             .call(move |c| {
                 c.execute(
-                    "INSERT INTO bookmarks (id, anchor, document_id, content_hash, note, created_at, updated_at)
-                     VALUES ('bookmark-1', ?1, ?2, ?3, 'Start here', 't', 't')",
-                    params![anchor_json, doc, hash],
-                )?;
-                c.execute(
-                    "INSERT INTO findings (id, kind, question, text, sources, from_step_id, created_at, updated_at)
-                     VALUES ('finding-1', 'answer', ?1, ?2, ?3, ?4, 't', 't')",
-                    params![question, text, sources_json, finding_step],
-                )?;
-                c.execute(
                     "INSERT INTO collections (id, kind, name, created_at, updated_at)
                      VALUES ('interest-1', 'interest', ?1, 't', 't')",
                     [&interest],
                 )?;
-                for (kind, id) in [("trail", trail.as_str()), ("bookmark", "bookmark-1"), ("finding", "finding-1")] {
+                for (kind, id) in [
+                    ("trail", trail.as_str()),
+                    ("bookmark", b.as_str()),
+                    ("finding", f.as_str()),
+                ] {
                     c.execute(
                         "INSERT INTO collection_items (collection_id, item_kind, item_id, added_at)
                          VALUES ('interest-1', ?1, ?2, 't')",
@@ -589,20 +607,37 @@ fn p3_13_a_session_resumed_after_twelve_weeks_of_change() {
     assert_eq!(display, script.later.rename.to);
 
     // What was kept is intact.
-    let store =
-        Connection::open(sc.lib.env.base.join("AtlasData/library/knowledge.sqlite")).unwrap();
-    let (anchor_json, sources_json, items): (String, String, i64) = store
+    assert_eq!(stored(&bookmark.id, &finding.id), kept);
+    let items: i64 = Connection::open(&store_path)
+        .unwrap()
         .query_row(
-            "SELECT (SELECT anchor FROM bookmarks WHERE id = 'bookmark-1'),
-                    (SELECT sources FROM findings WHERE id = 'finding-1'),
-                    (SELECT count(*) FROM collection_items WHERE collection_id = 'interest-1')",
+            "SELECT count(*) FROM collection_items WHERE collection_id = 'interest-1'",
             [],
-            |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
+            |r| r.get(0),
         )
         .unwrap();
-    assert_eq!((anchor_json, sources_json), kept);
     assert_eq!(items, 3);
-    drop(store);
+    let SavedItem::Bookmark(still) = saved::list(
+        sc.recorder(),
+        &SavedQuery {
+            kind: Some(SavedKind::Bookmark),
+            filter: String::new(),
+            document_id: None,
+            page: 0,
+            page_size: 10,
+        },
+    )
+    .unwrap()
+    .items
+    .remove(0) else {
+        panic!("the bookmark")
+    };
+    assert_eq!(still.note.as_deref(), Some("Start here"));
+    assert_eq!(
+        still.resolved.state,
+        AnchorState::Found,
+        "at the moved file"
+    );
 
     // Search again and Ask again: new steps on the continued trail.
     sc.recorder().continue_trail(&main).unwrap();
