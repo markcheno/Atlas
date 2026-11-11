@@ -1289,7 +1289,14 @@ ones only, membership shown, add, remove, New interest… created and
 added), and Home's two sections (at most six; reasons; Details recorded as
 from a suggestion; Not for this; hidden when empty).
 
-**CI on `slice-36`:** full run pending.
+**CI on `slice-36`:** full run
+[43112066505](https://github.com/markcheno/Atlas/actions/runs/43112066505),
+all green on three OSes, smoke included. The first attempt passed on macOS
+and Linux. On Windows, P0-21 (Phase 0's "closing stops the worker") took
+2.28 s to close a library while cataloging, against its 1 s bound. Nothing
+in this slice changes closing, and the test had passed on Windows in every
+run since Slice 3.2. The re-run of that job passed. It is the first
+sighting; if it comes back, the close path on Windows gets a look.
 
 ## Slice 3.5
 
