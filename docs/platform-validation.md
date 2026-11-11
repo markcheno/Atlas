@@ -1256,7 +1256,11 @@ through `search::hybrid`'s unit tests (a new one: the best meaning match
 leads the partial matches, below every-word matches) and the existing
 hybrid, Related, Ask and fake-backend P2-17 tests.
 
-<!-- ci-3.1.1 -->
+**CI on `slice-311`:** full run
+[42954946415](https://github.com/markcheno/Atlas/actions/runs/42954946415),
+all green on three OSes, smoke included. The product owner's
+`just eval-semantic` afterwards: hybrid hit@5 0.975 at 512 and 1,024
+([benchmarks](benchmarks.md#meaning-search-slice-24)).
 
 ## Slice 3.1
 
