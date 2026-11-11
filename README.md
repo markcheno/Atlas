@@ -116,10 +116,11 @@ with semantic search.
 | Ask Atlas engine: answers from your library through your chat model, citations checked as they stream, prompt-injection bounds; Settings › Privacy: Disable all external AI, agreed services | Working (Phase 2, Slice 2.6; the screen is Slice 2.7) |
 | Ask Atlas screen: Search's Find sources \| Ask Atlas switch, the streamed answer with citation chips that open the passage, Sources used, Stop, the disclosure for internet services | Working (Phase 2, Slice 2.7) |
 | Phase 2 close-out: evidence on three OSes, version 0.3.0 | Done ([review](docs/phase2-closeout.md)); Windows and Linux verified in CI with a scripted model service, with documented gaps |
-| Phase 3: an in-app reader that opens a citation at its page, answer history and trails | Not started (not yet specified) |
+| Phase 3, the knowledge workspace: research trails, bookmarks and saved findings, interests and projects, a PDF page view, Markdown and JSON export | Specified, not started ([spec](docs/phase3-spec.md)) |
 
 Specifications: [product](docs/product-spec.md), [Phase 0](docs/phase0-spec.md),
 [Phase 1](docs/phase1-spec.md), [Phase 2](docs/phase2-spec.md),
+[Phase 3](docs/phase3-spec.md),
 [architecture](docs/architecture.md),
 [ADRs](docs/adr/). Evidence:
 [Phase 0 close-out review](docs/phase0-closeout.md),

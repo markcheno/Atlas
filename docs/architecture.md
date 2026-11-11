@@ -964,3 +964,7 @@ Slice 2.3 the embedding job that fills them; Slice 2.4 hybrid
 Slice 2.6 the [Ask Atlas](#ask-atlas) engine and the privacy choices;
 Slice 2.7 the Ask Atlas screen; Slice 2.8 the evidence and the
 [close-out review](phase2-closeout.md) (version 0.3.0).
+
+Phase 3 (the knowledge workspace: research trails, bookmarks and saved
+findings, interests and projects, a PDF page view, export) is specified in
+[phase3-spec.md](phase3-spec.md) and not started.

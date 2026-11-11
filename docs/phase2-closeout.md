@@ -208,6 +208,7 @@ ADRs 0012 to 0015.
     before they were offloaded keep their text and meaning.
   - The fix is small: a rescan that finds a skipped cloud-only file local
     resets it to waiting. It's left to the product owner to schedule.
+  - Scheduled since: [Phase 3](phase3-spec.md), Slice 3.1.
 
 ## Not verified (carried forward)
 
@@ -225,7 +226,9 @@ ADRs 0012 to 0015.
 
 ## Carry into Phase 3
 
-From Phase 2's measurements and decisions, not new requirements:
+Taken up by the [Phase 3 implementation specification](phase3-spec.md)
+(2026-11-10), which says which of these it implements and which it
+defers. From Phase 2's measurements and decisions, not new requirements:
 
 - **A reader of Atlas's own** that opens a document at a page or
   location, so a citation can go there, not only to the passage.
