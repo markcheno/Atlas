@@ -6,6 +6,7 @@ import type { OpenVia } from './api/bindings/OpenVia';
 
 export const FROM_RESULT: OpenVia = { kind: 'result' };
 export const FROM_RELATED: OpenVia = { kind: 'related' };
+export const FROM_TRAIL: OpenVia = { kind: 'trail' };
 
 /** Source `n` of the answer on screen. */
 export function fromCitation(answerId: string | null, n: number): OpenVia | undefined {

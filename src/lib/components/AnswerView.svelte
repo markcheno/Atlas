@@ -20,16 +20,15 @@
     WAITING,
     WEAK_NOTE,
   } from '../answerCopy';
-  import { paragraphs } from '../answerText';
   import { answer } from '../stores/answer.svelte';
   import { fromCitation } from '../openVia';
   import { details } from '../stores/details.svelte';
   import { view } from '../stores/view.svelte';
+  import AnswerText from './AnswerText.svelte';
   import DisclosureDialog from './DisclosureDialog.svelte';
   import ProblemNotice from './ProblemNotice.svelte';
   import SourcesUsed from './SourcesUsed.svelte';
 
-  const shown = $derived(paragraphs(answer.text));
   const bySource = $derived(new Map(answer.sources.map((s) => [s.n, s])));
   const status = $derived(
     answer.phase === 'finding'
@@ -117,25 +116,19 @@
 {/if}
 
 {#if answer.text}
-  <article class="answer" aria-labelledby="answer-heading" aria-busy={answer.live}>
-    <h2 id="answer-heading" class="visually-hidden">Answer</h2>
-    {#each shown as paragraph, i (i)}
-      <p>
-        {#each paragraph as piece, j (j)}{#if piece.kind === 'cite'}{@const s = bySource.get(
-              piece.n,
-            )}{#if s}<button
-                type="button"
-                class="chip"
-                aria-label={sourceName(s)}
-                title={sourceName(s)}
-                onclick={(e) => openSource(s, e.currentTarget)}>{piece.n}</button
-              >{/if}{:else if piece.bold && piece.italic}<strong><em>{piece.text}</em></strong
-            >{:else if piece.bold}<strong>{piece.text}</strong>{:else if piece.italic}<em
-              >{piece.text}</em
-            >{:else}{piece.text}{/if}{/each}
-      </p>
-    {/each}
-  </article>
+  <AnswerText
+    text={answer.text}
+    headingId="answer-heading"
+    busy={answer.live}
+    label={(n) => {
+      const s = bySource.get(n);
+      return s ? sourceName(s) : null;
+    }}
+    oncite={(n, el) => {
+      const s = bySource.get(n);
+      if (s) openSource(s, el);
+    }}
+  />
 {/if}
 
 {#if failure?.kind === 'stream'}
@@ -166,43 +159,6 @@
 <style>
   p {
     margin: 0;
-  }
-
-  .answer {
-    display: grid;
-    gap: var(--space-3);
-    padding: var(--space-4);
-    border: 1px solid var(--border);
-    border-radius: var(--radius-lg);
-    background: var(--surface);
-    line-height: 1.6;
-  }
-
-  .answer p {
-    white-space: pre-line;
-    overflow-wrap: anywhere;
-  }
-
-  .chip {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    min-width: 1.6em;
-    height: 1.4em;
-    margin: 0 0.1em;
-    padding: 0 0.35em;
-    border: 1px solid var(--border);
-    border-radius: 999px;
-    background: var(--surface-muted, var(--surface));
-    font-size: 0.8em;
-    font-weight: 600;
-    line-height: 1;
-    vertical-align: 0.15em;
-    cursor: pointer;
-  }
-
-  .chip:hover {
-    border-color: var(--accent, currentColor);
   }
 
   .note {

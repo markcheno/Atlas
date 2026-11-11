@@ -352,6 +352,9 @@ impl ExtractProcessor {
         // Files waiting to be read first, then documents due to be read
         // again by a newer reader (which stay searchable meanwhile).
         let mut refreshing = false;
+        // Where the pass over waiting files ended: files after it were
+        // found by a scan that ran meanwhile.
+        let mut pending_end = 0i64;
         let mut restarts = 0u32;
         let mut throttle = job.throttle_reason;
         let mut duty = self.deps.config.run_duty;
@@ -394,10 +397,25 @@ impl ExtractProcessor {
             };
             if files.is_empty() && !refreshing {
                 refreshing = true;
+                pending_end = cursor;
                 cursor = 0;
                 continue;
             }
             if files.is_empty() {
+                // A scan that finished while this job was reading again saw
+                // it running and queued nothing: read what it found first
+                // (Slice 3.4). Files left waiting by the first pass, at or
+                // before `pending_end`, wait for the next one.
+                let (root_id, after) = (job.source_root_id.clone(), pending_end);
+                let newer = self
+                    .catalog
+                    .call(move |c| db::next_files(c, &root_id, after, 1))
+                    .is_ok_and(|f| f.is_ok_and(|f| !f.is_empty()));
+                if newer {
+                    refreshing = false;
+                    cursor = pending_end;
+                    continue;
+                }
                 // Tidy the text index for search before reporting done.
                 let _ = self.catalog.call(|c| db::merge_index(c, 20));
                 if self.transition(

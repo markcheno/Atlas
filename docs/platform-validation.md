@@ -1248,6 +1248,54 @@ merge): full run
 [42943519172](https://github.com/markcheno/Atlas/actions/runs/42943519172),
 all green on three OSes. The smoke passed every step on Windows and Linux.
 
+## Slice 3.4
+
+The Trails screen and resuming. On every OS:
+- **P3-13** (`tests/resume.rs`, scripted by
+  `fixtures/knowledge/resume-scenario.json`), on generated books and the
+  spike corpus's `pg11.epub`, with a scripted chat service:
+  - **The session:** three searches, a question answered with citations
+    and one stopped, and four sources opened. Then a bookmark, a finding
+    and an interest are written, and the trail is pinned.
+  - **The changes:** twelve weeks pass. One opened file moves to another
+    folder, one is renamed, and the cited one is deleted. `pg11.epub`,
+    put back to reader version 2, is read again by version 3 and its
+    passages move one place. The embedding model is switched.
+  - **After the restart and a rescan:**
+    - every step is as it was, in order, and the answer reads byte for
+      byte;
+    - the earlier unpinned trail has expired;
+    - the opened sources resolve `found`, `found`, `found_elsewhere` and
+      `no_file`, at the new path and the new name;
+    - the bookmark, the finding and the interest are intact;
+    - Search again and Ask again add two steps to the continued trail.
+  - **It found a bug, fixed here:** files found by a scan while the reading
+    job was re-reading books were left unread until the next launch.
+
+Vitest covers the Trails screen:
+- the empty state; the list with its pin, filter and pages;
+- every step kind, the recorded answer (bold and italic, no markup, not
+  live), and each source's state;
+- the cited passage with its date; opens recorded from a trail;
+- Continue, Search again and Ask again, including a folder that has gone;
+- rename, pin, notes (with the count and a refusal), and deleting a step
+  and a trail;
+- a reload on a new step;
+- Home's recent trails.
+
+**CI on `slice-34`:** full run
+[43100874125](https://github.com/markcheno/Atlas/actions/runs/43100874125),
+all green on three OSes, smoke included, in 14 minutes.
+
+An earlier full run
+([43093081623](https://github.com/markcheno/Atlas/actions/runs/43093081623))
+passed every check and test on all three, then hit a GitHub Actions
+outage. Finalizing the macOS and Windows build artifacts failed five times
+(an HTML error page in place of JSON), which skipped the Windows smoke. The
+run then stayed "in progress" for 56 minutes and could be neither cancelled
+nor re-run. A third run failed to start while GitHub reported a major
+Actions outage.
+
 ## Slice 3.3
 
 Recording trails ([ADR 0017](adr/0017-trails-and-privacy.md)). On every

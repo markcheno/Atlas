@@ -30,6 +30,8 @@ class SearchState {
   result = $state<SearchPage | null>(null);
   loading = $state(false);
   error = $state<AtlasApiError | null>(null);
+  /** Said once, above the results: a recorded filter that was dropped. */
+  notice = $state<string | null>(null);
 
   #seq = 0;
   /** Filters changed in Ask mode: Find sources searches again on return. */
@@ -83,10 +85,30 @@ class SearchState {
   }
 
   submit(text = this.draft) {
+    this.notice = null;
     this.draft = text;
     this.text = text.trim();
     this.page = 0;
     return this.load('submit');
+  }
+
+  /**
+   * Search again (Slice 3.4): Find sources with these words and filters,
+   * as the user's own submit, so it joins the continued trail. `notice`
+   * says what couldn't be kept.
+   */
+  apply(
+    text: string,
+    filters: { sourceRootId: string | null; fileType: FileType | null },
+    notice: string | null = null,
+  ) {
+    this.mode = 'find';
+    this.sourceRootId = filters.sourceRootId;
+    this.fileType = filters.fileType;
+    this.#filtersMoved = false;
+    const done = this.submit(text);
+    this.notice = notice;
+    return done;
   }
 
   setFilters(change: Partial<Pick<SearchState, 'sourceRootId' | 'fileType'>>) {
@@ -142,6 +164,7 @@ class SearchState {
     this.result = null;
     this.loading = false;
     this.error = null;
+    this.notice = null;
   }
 }
 

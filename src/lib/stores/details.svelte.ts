@@ -30,6 +30,8 @@ class DetailsState {
   focusRelated = $state(false);
   /** Opened from an Ask Atlas citation: the passage sent to the model. */
   cited = $state<SourceUsed | null>(null);
+  /** Under the cited passage: when it was sent (a trail's question). */
+  citedNote = $state<string | null>(null);
   /**
    * How the user reached this document, for their trail (Slice 3.3): the
    * panel's own Open and Show use it too. None from the Library.
@@ -43,12 +45,18 @@ class DetailsState {
   async open(
     fileId: string,
     trigger: HTMLElement | null = null,
-    options: { focusRelated?: boolean; cited?: SourceUsed; via?: OpenVia } = {},
+    options: {
+      focusRelated?: boolean;
+      cited?: SourceUsed;
+      citedNote?: string;
+      via?: OpenVia;
+    } = {},
   ) {
     this.#trigger = trigger;
     this.history = [];
     this.focusRelated = options.focusRelated ?? false;
     this.cited = options.cited ?? null;
+    this.citedNote = options.citedNote ?? null;
     this.via = options.via ?? null;
     await this.#load(fileId, true);
   }
@@ -61,6 +69,7 @@ class DetailsState {
     }
     this.focusRelated = false;
     this.cited = null;
+    this.citedNote = null;
     this.via = FROM_RELATED;
     await this.#load(fileId, true);
   }
@@ -72,6 +81,7 @@ class DetailsState {
     this.history = this.history.slice(0, -1);
     this.focusRelated = false;
     this.cited = null;
+    this.citedNote = null;
     this.via = previous.via;
     await this.#load(previous.fileId, false);
   }
@@ -114,6 +124,7 @@ class DetailsState {
     this.history = [];
     this.focusRelated = false;
     this.cited = null;
+    this.citedNote = null;
     this.via = null;
   }
 }

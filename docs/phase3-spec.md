@@ -634,6 +634,33 @@ Do **not** create `knowledge.sqlite`, add a Trails view or record anything befor
   - **Uncited sources of a recorded answer kept as anchors without their excerpts**, to keep a question near 4 KB.
 - **Carried from the Phase 2 close-out and still deferred:** the unexplained miss of an index's first vector on the Linux runner (worked around by the exact search of small indexes); the single Windows failure of a `related` test; the 30k fixture embedded through oMLX overnight (not run); signing and notarization.
 
+**2026-11-11, Slice 3.4** (the Trails screen and resuming):
+- **Tabs and actions arrive with their slices.** The Trails | Saved |
+  Interests and projects tabs come in 3.5, with the second tab, so none is
+  empty. Add to an interest or project (3.6), Export (3.8) and Save as a
+  finding (3.5) join the timeline then.
+- **A recorded folder no longer in the library** is dropped by Search again
+  and Ask again, and the Search screen says so once.
+- **What each source says** (§5.1's sentences, completed):
+  - `found_elsewhere`: "This passage has moved within the document since."
+  - An excerpt not found again: "Atlas couldn't find this passage again."
+  - A question's source opens with its excerpt as sent: "Sent to the model
+    for this question on {date}."
+- **P3-13** (`fixtures/knowledge/resume-scenario.json`):
+  - It writes the bookmark, finding and interest rows directly until 3.5
+    and 3.6 bring their services.
+  - Its earlier trail starts 7 days before the session, so 12 weeks is
+    past the 90 days.
+  - The re-read is real: the book is put back to reader version 2 with a
+    Project Gutenberg header passage, so reader 3 re-reads it and every
+    passage moves one place.
+  - The changed files are found by a rescan after the restart: Atlas
+    doesn't watch folders.
+- **Found by P3-13 and fixed:** a scan that finished while the reading job
+  was re-reading books queued no job, and that job completed without
+  reading the files the scan had found. It now reads them before it
+  completes.
+
 **2026-11-11, Slice 3.3** (recording trails,
 [ADR 0017](adr/0017-trails-and-privacy.md)):
 - **`start_trail` makes no empty trail.** It clears the current trail so
