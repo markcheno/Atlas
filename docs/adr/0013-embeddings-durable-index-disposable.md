@@ -246,3 +246,27 @@ read from `embeddings` (not from the index), re-normalised:
   at once.
 - Measured, the cache saves little: at 1,000 documents a cold answer takes
   1.8 ms p50, and looking up the ten files is most of it.
+
+## Amendment: small indexes are searched exactly (Phase 2, Slice 2.7, 2026-11-10)
+
+- **Up to 20,000 vectors** (`EXACT_UP_TO`), `VectorIndex::search` scans
+  every vector instead of walking the graph. Filtered searches are
+  unchanged.
+- **Why:** on a Linux CI runner the smoke's question missed the one
+  document that matched it.
+  - The trace showed an exact scan's best at 0.537: the index's first
+    vector, from the first document embedded.
+  - The graph search's best was 0.224, under the 0.25 floor, though it
+    looked at 200 candidates in an index of 4,955.
+  - Windows, where that book was embedded later, found it every time.
+  - The miss didn't reproduce on the reference machine: 40 trials with the
+    target first, in several batch sizes, all found it.
+- **The cost** is a few milliseconds at 20,000 vectors, and the answer is
+  exact. About 800 books' worth of chunks fit, which covers most personal
+  libraries.
+- **Above that, the graph is searched as before.** Measured recall@10 is
+  0.991 to 0.993 unfiltered on synthetic vectors at 100,000 on every runner, and
+  0.998 on real vectors at 512 dimensions. The Linux miss stays open: if
+  the first vector of a large index can be missed, one chunk in hundreds of
+  thousands is the cost, and it is recorded in the Phase 2 close-out.
+

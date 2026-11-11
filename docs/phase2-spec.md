@@ -661,6 +661,14 @@ eval-ask`; [benchmarks](benchmarks.md#ask-atlas-slice-26)):
     library doesn't have.
   - The hashed bag-of-words fake can only find a short text by a question
     in other words.
+- **A small index is searched exactly** (up to 20,000 vectors; ADR 0013,
+  amendment). On the Linux runner, the smoke's meaning search missed the
+  index's first vector. An exact scan found it at 0.54, against a 0.25
+  floor; the graph search's best was 0.22. This revises Slice 2.4's "no
+  exact path", which was about filtered scopes in large indexes.
+- **`ATLAS_E2E_TRACE_MEANING`** (debug builds) prints each meaning search's
+  sizes and best similarities, graph and exact, to stderr. The smoke turns
+  it on.
 
 ### Primary reference documentation (verify current versions at implementation time)
 

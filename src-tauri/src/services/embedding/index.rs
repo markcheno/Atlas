@@ -37,6 +37,12 @@ use crate::services::workspace::layout::CATALOG;
 pub const CONNECTIVITY: usize = 16;
 pub const EXPANSION_ADD: usize = 128;
 pub const EXPANSION_SEARCH: usize = 128;
+/// Up to this many vectors, [`VectorIndex::search`] scans them all exactly
+/// instead of walking the graph. That takes a few milliseconds there, and
+/// it is exact. On a Linux CI runner the graph search missed an index's
+/// first vector, which an exact scan found at 0.54 (Slice 2.7). Personal
+/// libraries of up to about 800 books fit.
+pub const EXACT_UP_TO: usize = 20_000;
 /// Rows per batch when rebuilding or reconciling.
 pub const BATCH: usize = 10_000;
 const RESERVE_STEP: usize = 10_000;
@@ -362,8 +368,12 @@ impl VectorIndex {
     /// The `k` nearest keys with their cosine distances, nearest first.
     pub fn search(&self, query: &[f32], k: usize) -> io::Result<Vec<(u64, f32)>> {
         let inner = self.read();
-        if inner.index.size() == 0 || k == 0 {
+        let size = inner.index.size();
+        if size == 0 || k == 0 {
             return Ok(Vec::new());
+        }
+        if size <= EXACT_UP_TO {
+            return pairs(inner.index.exact_search(query, k).map_err(native)?);
         }
         pairs(inner.index.search(query, k).map_err(native)?)
     }
@@ -676,6 +686,21 @@ mod tests {
             .collect();
         assert!(crate::services::embedding::vector::normalize(&mut v));
         v
+    }
+
+    #[test]
+    fn a_small_index_is_searched_exactly() {
+        let index = VectorIndex::new("m", 32).unwrap();
+        let items: Vec<(u64, Vec<f32>)> = (1..=500).map(|k| (k, unit(k, 32))).collect();
+        index.add_batch(&items, 2).unwrap();
+        for q in [7u64, 123, 499] {
+            let query = unit(q * 31 + 5, 32);
+            assert_eq!(
+                index.search(&query, 10).unwrap(),
+                index.exact_search(&query, 10).unwrap(),
+                "below {EXACT_UP_TO} vectors, search is the exact scan"
+            );
+        }
     }
 
     #[test]
