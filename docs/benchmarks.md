@@ -721,6 +721,18 @@ chunks, 118 fewer: the five licences.
   in Phase 2.
 - **So the 0.950 was flattered by licence text.** The gap is in fusion.
 
+**After Slice 3.1.1** (the best meaning match counts twice in fusion;
+`just eval-semantic`, the product owner, 2026-11-10):
+
+| Hit@5 of 40 | Text only | Meaning only | Hybrid |
+| --- | ---: | ---: | ---: |
+| 1,024 dimensions | 0.875 | 0.975 | **0.975** (from 0.925) |
+| **512 dimensions (stored)** | 0.875 | **0.975** | **0.975** (from 0.900) |
+
+- **Hybrid now equals meaning alone:** 39 of 40 in the top 5, the highest
+  recorded for this corpus. Phase 1's set stays 40/40.
+- **Query embedding** takes 17 ms median and 24 ms at most.
+
 **Ask Atlas after the cut** (`just eval-ask`, the same models):
 
 | Measure | Vague set (40) | Off set (12) |
