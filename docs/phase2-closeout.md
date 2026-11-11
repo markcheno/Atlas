@@ -52,7 +52,7 @@ Windows and Linux.
 | 3 | Related documents for every document with text; never its own copies | ✅ | ✅ | ✅ | P2-12 on every OS; DMG smoke step 5 |
 | 4 | Citations resolve to supplied passages and open the document there; invented ones dropped and said | ◐ | ◐ | ◐ | P2-13, P2-14 on every OS; smoke "ask Atlas answers with a citation that opens the source"; DMG smoke step 6. A citation opens the document's panel at the **passage**, not the page: a product-owner decision (Slice 2.7), since the OS apps can't be told a page on all three systems |
 | 5 | A model change builds a new index while the old serves; a kill leaves no partial state | ✅ | ✅ | ✅ | P2-08 (real kills during a save), P2-05 (kill mid-job), P2-09, P2-16 (nothing persisted); DMG smoke step 8 |
-| 6 | Search p95 under about 250 ms on the 30k text fixture while embedding | ✅ | ◐ | ◐ | P2-18 on the reference machine: 228 ms ([benchmarks](benchmarks.md#meaning-search-slice-24)). The runners report the 1k fixture: p95 218 ms on macOS, 65 ms on Windows, 88 ms on Linux (CI run 42909699433), and the 10k evidence run <!-- pending: evidence p95s --> |
+| 6 | Search p95 under about 250 ms on the 30k text fixture while embedding | ✅ | ◐ | ◐ | P2-18 on the reference machine: 228 ms ([benchmarks](benchmarks.md#meaning-search-slice-24)). The runners report the 1k fixture: p95 218 ms on macOS, 65 ms on Windows, 88 ms on Linux (CI run 42909699433), and the 10k text fixture in the evidence run: 272 ms on Windows, 143 ms on Linux <!-- pending: macOS evidence --> |
 | 7 | No model contacted without an action; disclosure before an internet service; keys stay in the keychain | ✅ | ✅ | ✅ | P2-01 (no library text in a test), P2-15, P2-20; ADR 0015's privacy gate. The OS keychains on Windows and Linux are unverified (below) |
 | 8 | Tests, smoke, benchmarks with vectors in the hundreds of thousands, packaging with the vector engine, licence evidence on three OSes | ✅ | ✅ | ✅ | [platform-validation.md](platform-validation.md), [benchmarks.md](benchmarks.md) (100k vectors on every runner; 300k and 1M on the reference machine), [packaging.md](packaging.md), [dependency-licenses.md](dependency-licenses.md) |
 
@@ -136,6 +136,15 @@ Tests are in `src-tauri/tests/`.
 
 ## Fixed during this review
 
+- **Meaning search on the Linux runner missed the index's first vector.**
+  - The smoke's question found its book by words only.
+  - A debug-only trace (`ATLAS_E2E_TRACE_MEANING`) showed why: an exact
+    scan found the book's chunk, the first vector added, at 0.537. The
+    graph search's best was 0.224, under the 0.25 floor.
+  - An index of up to 20,000 vectors is now searched exactly. That takes a
+    few milliseconds, is exact, and covers about 800 books
+    ([ADR 0013](adr/0013-embeddings-durable-index-disposable.md),
+    amendment).
 - **The Linux smoke couldn't click a button under the status bar.**
   - WebKitGTK's driver refused to click the embedding role's **Use**,
     which the fixed status bar covered (Slice 2.7's first run).
@@ -194,6 +203,8 @@ ADRs 0012 to 0015.
 | 30k search latency while embedding (P2-18) | Windows, Linux | 1k and 10k on CI; the reference machine is macOS |
 | The 30k fixture embedded through oMLX overnight | macOS | Projected at 2.5–5 hours from 48–72 chunks/s (Slices 2.3, 2.8); not run |
 | Signing and notarization | all | As in Phase 1: ad hoc on macOS, unsigned elsewhere |
+| Why the graph search missed an index's first vector on the Linux runner | Linux; larger indexes anywhere | Not reproduced on the reference machine (40 trials). Indexes over 20,000 vectors still search the graph, at measured recall@10 0.991 to 0.998 |
+| A Windows test failure seen once: `related::related_documents_report_their_state_and_never_fail` found no serving model just after indexing (run 42908761627) | Windows | Passed before and after; cause unknown |
 
 ## Carry into Phase 3
 
