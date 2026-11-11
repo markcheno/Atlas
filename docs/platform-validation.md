@@ -1285,7 +1285,9 @@ shown, Save as a finding only on a done answer, the Trails | Saved tabs,
 the Saved list (items, filters, Open as from a bookmark, notes with the
 count and a refusal, Delete), and Bookmarks in this document.
 
-**CI on `slice-35`:** full run pending.
+**CI on `slice-35`:** full run
+[43106072014](https://github.com/markcheno/Atlas/actions/runs/43106072014),
+all green on three OSes, smoke included, in 14 minutes.
 
 ## Slice 3.4
 
