@@ -1287,6 +1287,14 @@ every OS:
 
 **CI on `slice-32`:** full run pending.
 
+The first full run
+([43034985393](https://github.com/markcheno/Atlas/actions/runs/43034985393))
+passed every macOS and Windows job. Its Linux jobs failed three times in
+setup, before any build: the runners' own Ubuntu mirror,
+`azure.archive.ubuntu.com`, couldn't be resolved, and `apt-get` retried for
+the job's hour. The shared setup action now bounds that first install to
+15 minutes, then switches to `archive.ubuntu.com` and tries again.
+
 Locally, one full `just ci` run failed `p2_12_related_documents…`
 (`tests/related.rs:96`, the near document's related list missing the
 sky), then passed six times on its own and in the next full run. This is
