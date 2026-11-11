@@ -190,6 +190,37 @@ chose. Three things make that risky:
   internet service on the loopback address. The app always uses
   `url_policy::location_of`.
 
+### The screen (Slice 2.7)
+
+- **Ask Atlas is a mode of the Search screen:** a radio group "Find sources
+  | Ask Atlas" above the field, under the same folder and type filters.
+  Home's field stays Find sources (product-owner decision, 2026-11-10).
+- **The answer is never markup.** `answerText.ts` turns it into typed
+  pieces:
+  - text;
+  - closed `**bold**` and `*italic*` (or `_italic_`, not inside a word);
+  - `[n]`, which the engine has checked, as a citation chip.
+  - Anything else, `<b>` included, is shown as text. A mark still open
+    mid-stream shows as it is until it closes.
+- **A chip opens the document's panel with a "Cited passage" section:**
+  the source number, its location and the exact excerpt sent (product-owner
+  decision, 2026-11-10).
+  - Open and Reveal work as anywhere else, opening the file at its start.
+  - The OS default apps can't be told to open a PDF or EPUB at a page on
+    all three systems. Opening at the page waits for a reader of Atlas's
+    own.
+- **Sources used** lists every passage sent, cited or not, with its
+  passage and a Details button that opens the panel at it.
+- **Screen readers** hear "Atlas is answering", then the whole answer once
+  it ends. The visible answer is not a live region, so they never hear each
+  piece. The chips are buttons named "Source 2: The Prince, Chapter 17".
+- **Events before the reply:** the engine starts streaming before
+  `ask_atlas` returns, so the screen keeps the steps for an id it doesn't
+  know yet while it waits. It applies them when the reply names that id;
+  any other id's are dropped.
+- **Nothing is kept:** the last answer stays until the next question, a
+  library change or the app closing.
+
 ## Consequences
 
 - An answer can be wrong, but every number in it points at a passage the
@@ -219,4 +250,5 @@ chose. Three things make that risky:
   citation rule, the Gutenberg cut and the weak test
   ([benchmarks](../benchmarks.md#ask-atlas-slice-26)).
 - The Ask Atlas screen (Slice 2.7) builds on `AskReply`, `SourceUsed` and
-  `answer-stream`. Opening a citation uses the source's file and page.
+  `answer-stream`. A citation opens the source's file in the details panel
+  with the passage sent. `pageNo` waits for a reader of Atlas's own.

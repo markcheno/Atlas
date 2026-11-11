@@ -641,6 +641,35 @@ eval-ask`; [benchmarks](benchmarks.md#ask-atlas-slice-26)):
 - **A refusal stops after one sentence:** it doesn't list what the
   excerpts cover, and cites nothing.
 
+**2026-11-10, amended during Slice 2.7** ([ADR 0015](adr/0015-ask-atlas-answers-citations-injection.md), the screen):
+
+- **A citation opens the document panel with the passage, not the page**
+  (product-owner decision). §5.5's "at the cited page or location": the
+  panel shows "Cited passage" with the source number, location and excerpt.
+  Open and Reveal open the file at its start, because the OS default apps
+  can't be told a page on all three systems.
+- **Home is unchanged** (product-owner decision). Its field stays Find
+  sources. §5.8's meaning note was already built (Slice 2.3).
+- **Bold and italic are rendered** (closed `**…**`, `*…*`, `_…_`), as
+  typed pieces, never markup. §5.5 said "plain text"; models use emphasis
+  for titles.
+- **No `ATLAS_E2E_FAKE_AI`** (§10, §14). The smoke starts `e2e/fake-ai.mjs`
+  and types its address into Settings › AI Models, so the real setup path is
+  tested.
+  - Its "vague question" is about a short book the smoke adds to the
+    fixture, not one from `questions-vague.json`, whose documents the smoke
+    library doesn't have.
+  - The hashed bag-of-words fake can only find a short text by a question
+    in other words.
+- **A small index is searched exactly** (up to 20,000 vectors; ADR 0013,
+  amendment). On the Linux runner, the smoke's meaning search missed the
+  index's first vector. An exact scan found it at 0.54, against a 0.25
+  floor; the graph search's best was 0.22. This revises Slice 2.4's "no
+  exact path", which was about filtered scopes in large indexes.
+- **`ATLAS_E2E_TRACE_MEANING`** (debug builds) prints each meaning search's
+  sizes and best similarities, graph and exact, to stderr. The smoke turns
+  it on.
+
 ### Primary reference documentation (verify current versions at implementation time)
 
 - usearch (Rust): <https://docs.rs/usearch/latest/usearch/> and <https://github.com/unum-cloud/usearch>

@@ -2,9 +2,13 @@
   // Full-text search (phase1-spec §5.2): results grouped by document, a
   // highlighted snippet built from typed spans (never markup), why each one
   // matched, and Open, Reveal and Details on every result; More like this
-  // when meaning search is set up (Slice 2.5).
+  // when meaning search is set up (Slice 2.5). Ask Atlas (Slice 2.7) is the
+  // screen's other mode: a question, an answer with citations, and the
+  // sources used, under the same folder and type filters.
   import { untrack } from 'svelte';
   import type { SearchHit } from '../lib/api/bindings/SearchHit';
+  import AnswerView from '../lib/components/AnswerView.svelte';
+  import AskForm from '../lib/components/AskForm.svelte';
   import OriginalActions from '../lib/components/OriginalActions.svelte';
   import OriginalNotice from '../lib/components/OriginalNotice.svelte';
   import ProblemNotice from '../lib/components/ProblemNotice.svelte';
@@ -25,7 +29,7 @@
   import { embedding } from '../lib/stores/embedding.svelte';
   import { extraction } from '../lib/stores/extraction.svelte';
   import { fromHit, originals } from '../lib/stores/originals.svelte';
-  import { search, SEARCH_PAGE_SIZE } from '../lib/stores/search.svelte';
+  import { search, SEARCH_PAGE_SIZE, type SearchMode } from '../lib/stores/search.svelte';
   import { folderName, sources } from '../lib/stores/sources.svelte';
 
   const scannableRoots = $derived(sources.roots.filter((r) => !r.nestedInRootId));
@@ -37,6 +41,12 @@
   function rootName(hit: SearchHit): string {
     const root = sources.roots.find((r) => r.id === hit.sourceRootId);
     return root ? folderName(root.displayPath) : '';
+  }
+
+  const asking = $derived(search.mode === 'ask');
+
+  function setMode(mode: SearchMode) {
+    void search.setMode(mode);
   }
 
   function submit(event: SubmitEvent) {
@@ -68,20 +78,48 @@
 <div class="view">
   <ViewHeading>Search</ViewHeading>
 
-  <form class="box" role="search" onsubmit={submit}>
-    <label for="search-input">Search your library</label>
-    <div class="row">
+  <fieldset class="mode">
+    <legend class="visually-hidden">Search mode</legend>
+    <label>
       <input
-        id="search-input"
-        type="search"
-        placeholder="For example: meteor, “harmonic drive”, café"
-        bind:value={search.draft}
-        aria-describedby="search-help"
+        type="radio"
+        name="search-mode"
+        value="find"
+        checked={!asking}
+        onchange={() => setMode('find')}
       />
-      <button type="submit" class="button primary">Search</button>
-    </div>
-    <p id="search-help" class="muted small">{SEARCH_HELP}</p>
-  </form>
+      Find sources
+    </label>
+    <label>
+      <input
+        type="radio"
+        name="search-mode"
+        value="ask"
+        checked={asking}
+        onchange={() => setMode('ask')}
+      />
+      Ask Atlas
+    </label>
+  </fieldset>
+
+  {#if asking}
+    <AskForm />
+  {:else}
+    <form class="box" role="search" onsubmit={submit}>
+      <label for="search-input">Search your library</label>
+      <div class="row">
+        <input
+          id="search-input"
+          type="search"
+          placeholder="For example: meteor, “harmonic drive”, café"
+          bind:value={search.draft}
+          aria-describedby="search-help"
+        />
+        <button type="submit" class="button primary">Search</button>
+      </div>
+      <p id="search-help" class="muted small">{SEARCH_HELP}</p>
+    </form>
+  {/if}
 
   {#if sources.roots.length > 0}
     <div class="filters">
@@ -114,7 +152,9 @@
     </div>
   {/if}
 
-  {#if search.noWords}
+  {#if asking}
+    <AnswerView />
+  {:else if search.noWords}
     <div class="empty"><p>Type a word to search for.</p></div>
   {:else if search.error}
     <ProblemNotice
@@ -243,6 +283,42 @@
   .box {
     display: grid;
     gap: var(--space-2);
+  }
+
+  .mode {
+    display: inline-flex;
+    justify-self: start;
+    gap: 0;
+    margin: 0;
+    padding: 2px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--surface);
+    min-height: 40px;
+  }
+
+  .mode label {
+    display: inline-flex;
+    align-items: center;
+    padding: 0 var(--space-3);
+    border-radius: calc(var(--radius) - 2px);
+    cursor: pointer;
+  }
+
+  .mode label:has(input:checked) {
+    background: var(--accent-soft);
+    font-weight: 500;
+  }
+
+  .mode label:has(input:focus-visible) {
+    outline: 2px solid var(--focus);
+    outline-offset: 1px;
+  }
+
+  .mode input {
+    position: absolute;
+    opacity: 0;
+    pointer-events: none;
   }
 
   .box label {

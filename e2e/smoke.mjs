@@ -16,7 +16,9 @@ import net from 'node:net';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { CHAT_MODEL, EMBEDDING_MODEL, startFakeAi } from './fake-ai.mjs';
 import { WebDriver, button, lit, sleep } from './webdriver.mjs';
+import { textEpub } from '../scripts/lib/fixture-text.mjs';
 
 const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const args = process.argv.slice(2);
@@ -56,7 +58,27 @@ const summary = JSON.parse(
     .toString()
     .split('\nTo delete later')[0],
 );
-const expected = summary.catalogableFiles;
+// One short book in words of its own, for meaning search and Ask Atlas
+// (Slice 2.7): the fixture's longer, random-word texts are too diluted for
+// a short question to come close to them.
+const LIGHTHOUSE_BOOK = "Lighthouse keeper's log.epub";
+const LIGHTHOUSE_TITLE = "The Lighthouse Keeper's Log";
+fs.writeFileSync(
+  path.join(fixture, LIGHTHOUSE_BOOK),
+  textEpub({
+    id: 'smoke-lighthouse',
+    title: LIGHTHOUSE_TITLE,
+    author: 'Mara Quill',
+    chapters: 1,
+    paragraphs: [
+      'The lighthouse keeper trimmed the lamp wick at dusk and logged every passing schooner through the fog.',
+      'Each night the keeper wrote the schooner names, the fog horn signals and the tide in a leather log.',
+    ],
+  }).bytes,
+);
+// In other words than the book's: no phrase of it, a word it lacks.
+const VAGUE_QUESTION = 'the keeper who logged passing schooners in fog';
+const expected = summary.catalogableFiles + 1;
 const dataRoot = path.join(scratch, 'AtlasData');
 fs.mkdirSync(dataRoot);
 const openerLog = path.join(scratch, 'opened.log');
@@ -70,7 +92,14 @@ const env = {
   // Catalog slowly enough (debug builds only) that "pause and resume
   // cataloging" always finds the scan still running, however fast the runner.
   ATLAS_INVENTORY_RATE: '150',
+  // Index meaning without the job's rests (debug builds only).
+  ATLAS_EMBED_UNTHROTTLED: '1',
+  // Each meaning search's sizes and similarities on stderr (debug builds).
+  ATLAS_E2E_TRACE_MEANING: '1',
 };
+
+// The scripted model service the app is pointed at in Settings (Slice 2.7).
+const fake = await startFakeAi();
 
 const report = {
   os: process.platform,
@@ -186,7 +215,8 @@ function workerProcesses() {
 // Windows, WebKitWebDriver on Linux) on port 4445. On Windows runners that
 // driver sometimes refused the first connection (Slices 1.5–1.7), failing
 // the run before the app opened. Wait briefly for its port, and retry a
-// session that fails to connect once; the report records each retry.
+// session that fails to connect, twice (both of two attempts were refused
+// once in Slice 2.6.2); the report records each retry.
 const NATIVE_PORT = 4445;
 const CONNECT_ERROR = /fetch failed|ECONNREFUSED|actively refused|client error \(Connect\)/i;
 
@@ -197,9 +227,9 @@ async function launch() {
       await wd.start({ 'tauri:options': { application: app } });
       return started;
     } catch (err) {
-      if (attempt >= 2 || !CONNECT_ERROR.test(String(err?.cause ?? err?.message ?? err))) throw err;
+      if (attempt >= 3 || !CONNECT_ERROR.test(String(err?.cause ?? err?.message ?? err))) throw err;
       report.sessionRetries = (report.sessionRetries ?? 0) + 1;
-      console.log(`smoke: the driver refused the session (${err.message}); retrying once`);
+      console.log(`smoke: the driver refused the session (${err.message}); retrying`);
       await sleep(3_000);
     }
   }
@@ -421,6 +451,165 @@ async function run() {
     await wd.waitFor(button('Add a service…'));
   });
 
+  // phase2-spec §14 (Slice 2.7): a model service set up through Settings
+  // as a user would, the library indexed for meaning, a vague question
+  // found by meaning, and Ask Atlas answering with a citation that opens.
+  await step('set up the scripted AI service', async () => {
+    await wd.click(await wd.waitFor(button('Add a service…')));
+    const form = "//form[@aria-label='Add an AI service']";
+    const field = (name, control) =>
+      wd.waitFor(`${form}//label[.//span[normalize-space(.)=${lit(name)}]]//${control}`);
+    await wd.select(await field('Service', 'select'), 'Other OpenAI-compatible');
+    const name = await field('Name', 'input');
+    await wd.clear(name);
+    await wd.type(name, 'Scripted AI');
+    const address = await field('Address', 'input');
+    await wd.clear(address);
+    await wd.type(address, fake.url);
+    await wd.click(await wd.waitFor(`${form}${button('Test')}`, { enabled: true }));
+    const result = await wd.text(
+      await wd.waitFor(`${form}//*[@data-outcome='reachable']`, { timeout: 30_000 }),
+    );
+    await wd.click(await wd.waitFor(`${form}${button('Save')}`));
+    await wd.waitFor("//button[@aria-label='Test Scripted AI']");
+    return { url: fake.url, result };
+  });
+
+  await step('choose the embedding and chat models', async () => {
+    const results = {};
+    for (const [role, title, model] of [
+      ['embeddings', 'Embeddings', EMBEDDING_MODEL],
+      ['chat', 'Chat', CHAT_MODEL],
+    ]) {
+      const group = `//*[@role='group'][@aria-label=${lit(title)}]`;
+      await wd.click(
+        await wd.waitFor(`//button[@aria-label=${lit(`Choose a model for ${role}`)}]`),
+      );
+      const box = await wd.waitFor(`${group}//input[@placeholder='Choose or type a model id']`);
+      await wd.clear(box);
+      await wd.type(box, model);
+      await wd.click(await wd.waitFor(`${group}${button('Test')}`, { enabled: true }));
+      results[role] = await wd.text(
+        await wd.waitFor(`${group}//*[@data-outcome='works']`, { timeout: 60_000 }),
+      );
+      await wd.click(await wd.waitFor(`${group}${button('Use')}`, { enabled: true }));
+      await wd.waitFor(
+        `//*[@data-testid=${lit(`role-${role === 'chat' ? 'chat' : 'embedding'}`)}]`,
+        {
+          timeout: 60_000,
+        },
+      );
+    }
+    const embedding = await wd.text(await wd.waitFor("//*[@data-testid='role-embedding']"));
+    if (!embedding.includes('256 dimensions')) throw new Error(`embedding role: ${embedding}`);
+    return { ...results, embedding };
+  });
+
+  await step('index meaning', async () => {
+    const line = await wd.until(
+      'meaning up to date',
+      async () => {
+        const els = await wd.all("//*[@data-testid='embedding-status']");
+        const t = els.length > 0 ? await wd.text(els[0]) : '';
+        return t.includes('Meaning up to date') && t;
+      },
+      600_000,
+    );
+    report.timingsMs.meaningUpToDate = Date.now() - t0;
+    return { status: line };
+  });
+
+  await step('a vague question finds the document by meaning', async () => {
+    await wd.click(await wd.waitFor(button('Search')));
+    await wd.waitFor(heading('Search'));
+    await wd.click(await wd.waitFor("//label[normalize-space(.)='Find sources']"));
+    const box = await wd.waitFor("//input[@id='search-input']");
+    await wd.clear(box);
+    //  is WebDriver's Enter key.
+    await wd.type(box, `${VAGUE_QUESTION}`);
+    const hitPath = `//li[@data-testid='search-hit'][.//h3[normalize-space(.)=${lit(LIGHTHOUSE_TITLE)}]]`;
+    // A person searches again if meaning was still settling; each attempt,
+    // and any note about meaning search, goes in the report.
+    const attempts = [];
+    for (let attempt = 1; attempt <= 4; attempt += 1) {
+      if (attempt > 1) {
+        await sleep(2_000);
+        await wd.click(await wd.waitFor(`//form[@role='search']${button('Search')}`));
+      }
+      const text = await wd.text(await wd.waitFor(hitPath, { timeout: 30_000 }));
+      const notes = await wd.all("//*[@data-testid='meaning-note']");
+      const note = notes.length > 0 ? await wd.text(notes[0]) : null;
+      attempts.push({ why: text.split('\n').find((l) => /In the|Similar/.test(l)) ?? null, note });
+      if (/similar meaning/i.test(text)) {
+        return { result: text.split('\n').slice(0, 4).join(' / '), attempts };
+      }
+    }
+    // Diagnostics: did the question reach the service, and does Related
+    // (the book's own vectors, no query embedding) find neighbours?
+    const asked = fake.requests.filter(
+      (r) => r.path === '/v1/embeddings' && JSON.stringify(r.body.input).includes('schooners'),
+    );
+    let related;
+    try {
+      await wd.click(
+        await wd.waitFor(`${hitPath}//button[starts-with(@aria-label, 'More like this')]`),
+      );
+      await sleep(3_000);
+      const panel = await wd.all("//*[@role='dialog']");
+      related = panel.length > 0 ? (await wd.text(panel[0])).slice(0, 600) : 'no panel';
+    } catch (err) {
+      related = `error: ${err.message}`;
+    }
+    throw new Error(
+      `not found by meaning: ${JSON.stringify({
+        attempts: attempts.map((a) => a.note),
+        questionEmbeddings: asked.length,
+        inputs: asked.slice(0, 2).map((r) => r.body.input),
+        embeddingRequests: fake.requests.filter((r) => r.path === '/v1/embeddings').length,
+        related,
+      })}`,
+    );
+  });
+
+  await step('ask Atlas answers with a citation that opens the source', async () => {
+    await wd.click(await wd.waitFor("//label[normalize-space(.)='Ask Atlas']"));
+    const field = await wd.waitFor("//textarea[@id='ask-input']");
+    await wd.type(field, VAGUE_QUESTION);
+    await wd.click(await wd.waitFor(button('Ask'), { enabled: true }));
+    // Done: Ask is back in Stop's place, with the answer above Sources used.
+    const article = await wd.until(
+      'the whole answer',
+      async () => {
+        const ask = await wd.all(button('Ask'));
+        const found = await wd.all("//article[@aria-labelledby='answer-heading']");
+        return ask.length > 0 && found.length > 0 && found[0];
+      },
+      60_000,
+    );
+    const answer = await wd.text(article);
+    if (!answer.includes('lighthouse keeper')) throw new Error(`answer: ${answer}`);
+    const sources = await wd.all("//*[@data-testid='source-used']");
+    if (sources.length === 0) throw new Error('no sources used listed');
+    await wd.click(await wd.waitFor("//article//button[starts-with(@aria-label, 'Source 1: ')]"));
+    const cited = await wd.text(
+      await wd.waitFor("//*[@role='dialog']//*[@data-testid='cited-passage']", {
+        timeout: 30_000,
+      }),
+    );
+    if (!cited.includes('Source 1')) throw new Error(`cited passage: ${cited}`);
+    await wd.click(await wd.waitFor("//button[@aria-label='Close details']"));
+    const asked = fake.requests.filter(
+      (r) =>
+        r.path === '/v1/chat/completions' &&
+        !String(r.body.messages?.at(-1)?.content).includes('Reply with the word OK'),
+    );
+    if (asked.length !== 1) throw new Error(`${asked.length} questions reached the service`);
+    if (!asked[0].body.messages.at(-1).content.includes('<source id="1"')) {
+      throw new Error('the question carried no sources');
+    }
+    return { answer, sources: sources.length, cited: cited.split('\n').slice(0, 3).join(' / ') };
+  });
+
   await step('quit and relaunch reopens the same library', async () => {
     await wd.quit();
     await sleep(1_000);
@@ -474,6 +663,7 @@ try {
   await wd.quit();
   finish(true);
   driver.kill();
+  await fake.close();
   process.exit(0);
 } catch (err) {
   await wd.quit();

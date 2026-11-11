@@ -13,6 +13,7 @@ const { search: searchStore } = await import('./lib/stores/search.svelte');
 const { details: detailsStore } = await import('./lib/stores/details.svelte');
 const { providers: providersStore } = await import('./lib/stores/providers.svelte');
 const { roles: rolesStore } = await import('./lib/stores/roles.svelte');
+const { answer: answerStore } = await import('./lib/stores/answer.svelte');
 
 const { default: App } = await import('./App.svelte');
 const { view } = await import('./lib/stores/view.svelte');
@@ -46,6 +47,7 @@ function resetAll() {
   inventory.clear();
   extraction.clear();
   searchStore.reset();
+  answerStore.reset();
   detailsStore.reset();
   theme.apply('system');
 }
@@ -2498,5 +2500,317 @@ describe('related documents', () => {
     await user.type(screen.getByLabelText('Search your library'), 'gears{Enter}');
     const hit = within(await screen.findByTestId('search-hit'));
     expect(hit.queryByRole('button', { name: /More like this/ })).toBeNull();
+  });
+});
+
+describe('Ask Atlas', () => {
+  beforeEach(resetAll);
+
+  type Step = import('./lib/api/bindings/AnswerStep').AnswerStep;
+  const step = (s: Step, answerId = 'answer-1') =>
+    events.emit('answer-stream', { answerId, step: s });
+  const asks = () => tauri.invoke.mock.calls.filter(([c]) => c === 'ask_atlas');
+
+  async function openAsk(reply: unknown = tauri.askStarted()) {
+    tauri.setHandler('list_source_roots', () => [tauri.sourceRoot()]);
+    tauri.setHandler('ask_atlas', () => reply);
+    tauri.setHandler('get_document_detail', (args) =>
+      tauri.documentDetail({
+        file: tauri.fileInstance({ id: String(args?.fileId), documentId: 'doc-1' }),
+      }),
+    );
+    const user = await launchOpen();
+    const nav = screen.getByRole('navigation', { name: 'Main' });
+    await user.click(within(nav).getByRole('button', { name: 'Search' }));
+    await h1('Search');
+    await user.click(screen.getByRole('radio', { name: 'Ask Atlas' }));
+    return user;
+  }
+
+  async function ask(user: ReturnType<typeof userEvent.setup>, q = 'how do harmonic drives work') {
+    await user.type(screen.getByLabelText('Ask your library'), q);
+    await user.click(screen.getByRole('button', { name: 'Ask' }));
+  }
+
+  /** The answer's paragraphs as text (chips read as their numbers). */
+  const answerText = () =>
+    [...screen.getByRole('article', { name: 'Answer' }).querySelectorAll('p')]
+      .map((p) => p.textContent)
+      .join('\n');
+
+  it('is the Search screen’s second mode, a radio group beside Find sources', async () => {
+    const user = await openAsk();
+    const group = screen.getByRole('group', { name: 'Search mode' });
+    expect(
+      within(group)
+        .getAllByRole('radio')
+        .map((r) => r.closest('label')?.textContent?.trim()),
+    ).toEqual(['Find sources', 'Ask Atlas']);
+    expect(screen.getByRole('radio', { name: 'Ask Atlas' })).toBeChecked();
+    expect(screen.getByLabelText('Ask your library')).toBeInTheDocument();
+    expect(screen.queryByLabelText('Search your library')).toBeNull();
+    expect(screen.getByRole('button', { name: 'Ask' })).toBeDisabled();
+    await user.click(screen.getByRole('radio', { name: 'Find sources' }));
+    expect(screen.getByLabelText('Search your library')).toBeInTheDocument();
+  });
+
+  it('asks with the folder and type filters, which don’t search while asking', async () => {
+    const user = await openAsk();
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Type' }), 'epub');
+    expect(tauri.invoke.mock.calls.filter(([c]) => c === 'search_documents')).toHaveLength(0);
+    await ask(user, '  why hired soldiers fail  ');
+    expect(asks()).toEqual([
+      [
+        'ask_atlas',
+        { query: { question: 'why hired soldiers fail', sourceRootId: null, fileType: 'epub' } },
+      ],
+    ]);
+  });
+
+  it('streams the answer with a named chip for each citation, then says it once', async () => {
+    const user = await openAsk();
+    await ask(user);
+    expect(await screen.findByTestId('answer-status')).toHaveTextContent('Waiting for the answer…');
+    expect(screen.getByRole('button', { name: 'Stop' })).toBeInTheDocument();
+    step({ kind: 'thinking' });
+    await waitFor(() => expect(screen.getByTestId('answer-status')).toHaveTextContent('Thinking…'));
+    step({ kind: 'delta', text: 'A flexible spline gives high reduction [1]' });
+    step({ kind: 'citation', n: 1 });
+    step({ kind: 'delta', text: ', invented in 1957 [2].' });
+    step({ kind: 'citation', n: 2 });
+    await waitFor(() => expect(answerText()).toContain('invented in 1957'));
+    expect(screen.queryByTestId('answer-status')).toBeNull();
+    expect(screen.getByTestId('answer-announcer')).toHaveTextContent('Atlas is answering.');
+    expect(
+      screen.getByRole('button', { name: 'Source 1: Harmonic Drives, Page 12' }),
+    ).toHaveTextContent('1');
+    expect(
+      screen.getByRole('button', { name: 'Source 2: Strain Wave Gearing' }),
+    ).toBeInTheDocument();
+    step({ kind: 'done', cited: [1, 2], dropped: 0 });
+    await waitFor(() =>
+      expect(screen.getByTestId('answer-announcer')).toHaveTextContent(
+        'Answer: A flexible spline gives high reduction (source 1), invented in 1957 (source 2).',
+      ),
+    );
+    expect(screen.getByRole('button', { name: 'Ask' })).toBeInTheDocument();
+    expect(screen.queryByTestId('dropped-note')).toBeNull();
+  });
+
+  it('keeps the steps that arrive before Atlas says the answer started', async () => {
+    tauri.setHandler('list_source_roots', () => [tauri.sourceRoot()]);
+    const user = await openAsk();
+    tauri.setHandler('ask_atlas', () => {
+      step({ kind: 'delta', text: 'Early words [1].' });
+      step({ kind: 'delta', text: 'Not ours.' }, 'answer-other');
+      return tauri.askStarted();
+    });
+    await ask(user);
+    await waitFor(() => expect(answerText()).toBe('Early words 1.'));
+    step({ kind: 'done', cited: [1], dropped: 0 });
+    expect(await screen.findByRole('button', { name: 'Ask' })).toBeInTheDocument();
+  });
+
+  it('opens a citation’s document with the passage sent; Close returns to the chip', async () => {
+    const user = await openAsk();
+    await ask(user);
+    step({ kind: 'delta', text: 'High reduction [1].' });
+    step({ kind: 'done', cited: [1], dropped: 0 });
+    const chip = await screen.findByRole('button', { name: 'Source 1: Harmonic Drives, Page 12' });
+    await user.click(chip);
+    const d = await screen.findByRole('dialog');
+    const cited = within(await within(d).findByTestId('cited-passage'));
+    expect(cited.getByRole('heading', { name: 'Cited passage' })).toBeInTheDocument();
+    expect(cited.getByText('Source 1')).toBeInTheDocument();
+    expect(cited.getByText('Page 12')).toBeInTheDocument();
+    expect(cited.getByText(/flexible spline to reach high reduction/)).toBeInTheDocument();
+    expect(tauri.invoke).toHaveBeenCalledWith('get_document_detail', { fileId: 'file-1' });
+    await user.click(within(d).getByRole('button', { name: 'Close details' }));
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(chip).toHaveFocus();
+  });
+
+  it('lists every source sent, cited or not, each with its passage', async () => {
+    const user = await openAsk();
+    await ask(user);
+    step({ kind: 'delta', text: 'Only the first [1].' });
+    step({ kind: 'done', cited: [1], dropped: 0 });
+    const region = within(await screen.findByRole('region', { name: 'Sources used (2)' }));
+    const items = region.getAllByTestId('source-used');
+    expect(items).toHaveLength(2);
+    expect(within(items[0]).getByText('Cited')).toBeInTheDocument();
+    expect(within(items[1]).queryByText('Cited')).toBeNull();
+    expect(items[1]).toHaveTextContent('Strain wave gearing was invented in 1957.');
+    await user.click(
+      region.getByRole('button', { name: 'Details for Source 2: Strain Wave Gearing' }),
+    );
+    const d = await screen.findByRole('dialog');
+    expect(
+      await within(d).findByText('Strain wave gearing was invented in 1957.'),
+    ).toBeInTheDocument();
+    expect(tauri.invoke).toHaveBeenCalledWith('get_document_detail', { fileId: 'file-2' });
+  });
+
+  it('says when Atlas found little, when references were removed, and when meaning was off', async () => {
+    const user = await openAsk(
+      tauri.askStarted({ weak: true, semantic: { state: 'unavailable', reason: 'unreachable' } }),
+    );
+    await ask(user);
+    expect(await screen.findByTestId('weak-note')).toHaveTextContent(
+      'Atlas found little about this in your library; the answer may be thin.',
+    );
+    expect(screen.getByTestId('ask-meaning-note')).toHaveTextContent(
+      "Passages were found by their words only: the AI service isn't reachable.",
+    );
+    step({ kind: 'delta', text: 'Thin [1].' });
+    step({ kind: 'done', cited: [1], dropped: 1 });
+    expect(await screen.findByTestId('dropped-note')).toHaveTextContent(
+      "One reference the model gave didn't match any source and was removed.",
+    );
+    await ask(user, ' again');
+    step({ kind: 'delta', text: 'Thin [1].' });
+    step({ kind: 'done', cited: [1], dropped: 3 });
+    expect(await screen.findByTestId('dropped-note')).toHaveTextContent(
+      "3 references the model gave didn't match any source and were removed.",
+    );
+  });
+
+  it('says when the library has nothing on it, without asking the model', async () => {
+    const user = await openAsk({
+      kind: 'nothing_found',
+      semantic: { state: 'ready', coveragePercent: 100 },
+    });
+    await ask(user);
+    expect(await screen.findByTestId('answer-nothing')).toHaveTextContent(
+      'Atlas found nothing about this in your library, so it didn’t ask the model.',
+    );
+    expect(screen.queryByRole('region', { name: /Sources used/ })).toBeNull();
+  });
+
+  it('shows what an internet service would receive and sends only after Continue', async () => {
+    const needed = {
+      kind: 'needs_disclosure',
+      profileId: 'p-net',
+      profileLabel: 'Cloud Chat',
+      baseUrl: 'https://chat.example/v1',
+      excerptCount: 14,
+      bytes: 23_400,
+    };
+    const user = await openAsk(needed);
+    await ask(user);
+    const d = await screen.findByRole('dialog', { name: 'Send excerpts to an internet service?' });
+    expect(d).toHaveAccessibleDescription(
+      "Atlas will send your question and 14 excerpts from your library, about 23.4 KB, to Cloud Chat at https://chat.example/v1. It's an internet service: what you send leaves this computer.",
+    );
+    expect(within(d).getByRole('button', { name: 'Continue' })).toHaveFocus();
+    await user.click(within(d).getByRole('button', { name: 'Cancel' }));
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(tauri.invoke.mock.calls.filter(([c]) => c === 'acknowledge_disclosure')).toHaveLength(0);
+    expect(screen.getByLabelText('Ask your library')).toHaveFocus();
+
+    await user.click(screen.getByRole('button', { name: 'Ask' }));
+    const again = await screen.findByRole('dialog');
+    tauri.setHandler('ask_atlas', () => tauri.askStarted());
+    await user.click(within(again).getByRole('button', { name: 'Continue' }));
+    expect(tauri.invoke).toHaveBeenCalledWith('acknowledge_disclosure', { profileId: 'p-net' });
+    await waitFor(() => expect(asks()).toHaveLength(3));
+    expect(await screen.findByRole('region', { name: 'Sources used (2)' })).toBeInTheDocument();
+  });
+
+  it('stops an answer and keeps what had arrived', async () => {
+    const user = await openAsk();
+    await ask(user);
+    step({ kind: 'delta', text: 'Half an answer' });
+    await waitFor(() => expect(answerText()).toBe('Half an answer'));
+    await user.click(screen.getByRole('button', { name: 'Stop' }));
+    expect(tauri.invoke).toHaveBeenCalledWith('cancel_answer', { answerId: 'answer-1' });
+    step({ kind: 'stopped' });
+    expect(await screen.findByTestId('answer-status')).toHaveTextContent(
+      'Stopped. The answer so far is kept.',
+    );
+    expect(answerText()).toBe('Half an answer');
+  });
+
+  it('keeps a partial answer when the service fails, and Try again asks again', async () => {
+    const user = await openAsk();
+    await ask(user);
+    step({ kind: 'delta', text: 'Partly [1]' });
+    step({
+      kind: 'error',
+      code: 'network_error',
+      message: 'x',
+      partial: true,
+      cited: [1],
+      dropped: 0,
+    });
+    const alert = within(await screen.findByRole('alert'));
+    expect(alert.getByText('The answer stopped early')).toBeInTheDocument();
+    expect(
+      alert.getByText('Atlas lost the connection to the chat service. Is it still running?'),
+    ).toBeInTheDocument();
+    expect(answerText()).toBe('Partly 1');
+    await user.click(alert.getByRole('button', { name: 'Try again' }));
+    expect(asks()).toHaveLength(2);
+    expect(asks()[1][1]).toEqual({
+      query: { question: 'how do harmonic drives work', sourceRootId: null, fileType: null },
+    });
+  });
+
+  it.each([
+    ['no_answer', 'The model finished without writing an answer.'],
+    ['timeout', 'The chat service stopped answering for too long.'],
+    ['authentication_failed', 'The chat service refused the key.'],
+    ['service_error', 'The chat service reported a problem'],
+  ] as const)('words a failure before any text: %s', async (code, words) => {
+    const user = await openAsk();
+    await ask(user);
+    step({ kind: 'error', code, message: 'x', partial: false, cited: [], dropped: 0 });
+    const alert = within(await screen.findByRole('alert'));
+    expect(alert.getByText("Atlas couldn't get an answer")).toBeInTheDocument();
+    expect(alert.getByText(new RegExp(words.replace(/[.]/g, '\\.')))).toBeInTheDocument();
+    expect(screen.queryByRole('article', { name: 'Answer' })).toBeNull();
+  });
+
+  it('points to Settings when there is no chat model or external AI is off', async () => {
+    const user = await openAsk();
+    tauri.setHandler('ask_atlas', () => {
+      throw tauri.apiError(
+        'chat_model_needed',
+        'Ask Atlas needs a chat model.',
+        'Choose one in Settings.',
+      );
+    });
+    await ask(user);
+    const alert = within(await screen.findByRole('alert'));
+    expect(alert.getByText('Ask Atlas needs a chat model')).toBeInTheDocument();
+    await user.click(alert.getByRole('button', { name: 'Set up AI models' }));
+    await h1('Settings');
+  });
+
+  it('keeps the answer while switching views, and renders bold and italic only', async () => {
+    const user = await openAsk();
+    await ask(user);
+    step({ kind: 'delta', text: 'It is **Candide** by *Voltaire* <b>not bold</b> [1].' });
+    step({ kind: 'done', cited: [1], dropped: 0 });
+    const article = await screen.findByRole('article', { name: 'Answer' });
+    expect(within(article).getByText('Candide').tagName).toBe('STRONG');
+    expect(within(article).getByText('Voltaire').tagName).toBe('EM');
+    expect(article.querySelector('b')).toBeNull();
+    expect(article).toHaveTextContent('<b>not bold</b>');
+    const nav = screen.getByRole('navigation', { name: 'Main' });
+    await user.click(within(nav).getByRole('button', { name: 'Home' }));
+    await user.click(within(nav).getByRole('button', { name: 'Search' }));
+    expect(screen.getByRole('radio', { name: 'Ask Atlas' })).toBeChecked();
+    expect(screen.getByRole('article', { name: 'Answer' })).toHaveTextContent(
+      'It is Candide by Voltaire',
+    );
+  });
+
+  it('counts characters near the 2,000 limit', async () => {
+    const user = await openAsk();
+    const field = screen.getByLabelText('Ask your library');
+    await user.click(field);
+    await user.paste('a'.repeat(1850));
+    expect(screen.getByTestId('ask-counter')).toHaveTextContent('1,850 of 2,000 characters');
   });
 });

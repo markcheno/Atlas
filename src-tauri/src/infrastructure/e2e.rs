@@ -24,6 +24,15 @@ pub const PICK_SOURCES_ENV: &str = "ATLAS_E2E_PICK_SOURCES";
 /// launching the default app or file manager.
 pub const OPENER_LOG_ENV: &str = "ATLAS_E2E_OPENER_LOG";
 
+/// Prints what each meaning search saw to stderr (Slice 2.7: diagnosing a
+/// smoke failure on Linux). Sizes and similarities only, never text.
+pub const TRACE_MEANING_ENV: &str = "ATLAS_E2E_TRACE_MEANING";
+
+/// Whether to trace meaning searches.
+pub fn trace_meaning() -> bool {
+    var(TRACE_MEANING_ENV).is_some()
+}
+
 fn var(name: &str) -> Option<std::ffi::OsString> {
     if !cfg!(debug_assertions) {
         return None;

@@ -94,9 +94,45 @@ pub(super) fn nearest(
     } else {
         s.index.search(&vector, NEIGHBOURS)
     };
-    let Ok(found) = found else {
-        return Ok(Vec::new());
+    let found = match found {
+        Ok(found) => found,
+        Err(err) => {
+            if crate::infrastructure::e2e::trace_meaning() {
+                eprintln!("e2e meaning: the index search failed: {err}");
+            }
+            return Ok(Vec::new());
+        }
     };
+    if crate::infrastructure::e2e::trace_meaning() {
+        let best = found.iter().map(|(_, d)| 1.0 - d).fold(f32::MIN, f32::max);
+        let above = found
+            .iter()
+            .filter(|(_, d)| 1.0 - d >= s.min_similarity)
+            .count();
+        let kept = found
+            .iter()
+            .filter(|(k, d)| 1.0 - d >= s.min_similarity && keep(*k))
+            .count();
+        let exact: Vec<(u64, f32)> = s
+            .index
+            .exact_search(&vector, 3)
+            .map(|v| v.into_iter().map(|(k, d)| (k, 1.0 - d)).collect())
+            .unwrap_or_default();
+        eprintln!("e2e meaning: an exact scan's best: {exact:?}");
+        eprintln!(
+            "e2e meaning: query norm {:.3}, dims {}, index size {}, allowed documents {}, found {}, best similarity {best:.3}, above the floor {above}, kept {kept}, first keys {:?}",
+            vector.iter().map(|x| x * x).sum::<f32>().sqrt(),
+            vector.len(),
+            s.index.len(),
+            allowed.len(),
+            found.len(),
+            found
+                .iter()
+                .take(3)
+                .map(|(k, d)| (*k, 1.0 - d))
+                .collect::<Vec<_>>(),
+        );
+    }
     let ids: Vec<u64> = found
         .iter()
         .filter(|(k, d)| 1.0 - d >= s.min_similarity && keep(*k))

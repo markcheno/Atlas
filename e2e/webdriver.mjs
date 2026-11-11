@@ -52,12 +52,53 @@ export class WebDriver {
     return found.map((e) => e[ELEMENT]);
   }
 
+  /**
+   * Clicks an element, scrolled to the middle of the window first: the
+   * fixed status bar can cover one at the bottom, and WebKitGTK's driver
+   * refuses to click a covered element (Slice 2.7). A refusal while the
+   * page settles is retried briefly.
+   */
   async click(element) {
-    await this.#call('POST', this.#s(`/element/${element}/click`), {});
+    for (let attempt = 1; ; attempt += 1) {
+      await this.execute('arguments[0].scrollIntoView({ block: "center", inline: "center" });', [
+        { [ELEMENT]: element },
+      ]).catch(() => {});
+      try {
+        await this.#call('POST', this.#s(`/element/${element}/click`), {});
+        return;
+      } catch (err) {
+        if (attempt >= 3 || !/not interactable|click intercepted/i.test(err.message)) throw err;
+        await sleep(300);
+      }
+    }
   }
 
   async type(element, text) {
     await this.#call('POST', this.#s(`/element/${element}/value`), { text });
+  }
+
+  /** Empties a text field (Slice 2.7: the AI service form is prefilled). */
+  async clear(element) {
+    await this.#call('POST', this.#s(`/element/${element}/clear`), {});
+  }
+
+  /**
+   * Chooses the option with this visible text in a `<select>`, firing the
+   * `input` and `change` events a person's choice would. (Clicking an
+   * `<option>` isn't handled alike by every native driver.)
+   */
+  async select(element, label) {
+    const ok = await this.execute(
+      `const s = arguments[0];
+       const o = [...s.options].find((o) => o.textContent.trim() === arguments[1]);
+       if (!o) return false;
+       s.value = o.value;
+       s.dispatchEvent(new Event('input', { bubbles: true }));
+       s.dispatchEvent(new Event('change', { bubbles: true }));
+       return true;`,
+      [{ [ELEMENT]: element }, label],
+    );
+    if (!ok) throw new Error(`no option ${label}`);
   }
 
   async text(element) {

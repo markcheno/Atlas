@@ -4,7 +4,7 @@ Atlas is a local-first personal AI librarian for large private collections of
 PDFs, EPUBs, books and papers. *Collect freely. Organize minimally. Retrieve
 intelligently.*
 
-**Status: Phase 2, Slice 2.6.3 (the Ask Atlas engine, tuned over three evaluations); Phases 0 and 1 complete (version 0.2.0, [close-out review](docs/phase1-closeout.md)).** Atlas asks where to keep its library and
+**Status: Phase 2, Slice 2.7 (the Ask Atlas screen); Phases 0 and 1 complete (version 0.2.0, [close-out review](docs/phase1-closeout.md)).** Atlas asks where to keep its library and
 which folders hold your books and papers, then catalogs every PDF and EPUB
 in them in the background, read-only. Cataloging slows on battery, pauses
 when the battery is low or the drive is nearly full, survives quitting and
@@ -114,7 +114,8 @@ with semantic search.
 | Search by meaning as well as words: "Similar meaning" results, fused with text matches; Phase 1's results whenever meaning search can't run | Working (Phase 2, Slice 2.4) |
 | Related documents in the details panel, and More like this on a result | Working (Phase 2, Slice 2.5) |
 | Ask Atlas engine: answers from your library through your chat model, citations checked as they stream, prompt-injection bounds; Settings › Privacy: Disable all external AI, agreed services | Working (Phase 2, Slice 2.6; the screen is Slice 2.7) |
-| Ask Atlas screen | Phase 2, in progress ([spec](docs/phase2-spec.md)): Slices 2.1–2.6 of 2.8 built |
+| Ask Atlas screen: Search's Find sources \| Ask Atlas switch, the streamed answer with citation chips that open the passage, Sources used, Stop, the disclosure for internet services | Working (Phase 2, Slice 2.7) |
+| Phase 2 close-out: evidence on three OSes, version 0.3.0 | Phase 2, in progress ([spec](docs/phase2-spec.md)): Slices 2.1–2.7 of 2.8 built |
 
 Specifications: [product](docs/product-spec.md), [Phase 0](docs/phase0-spec.md),
 [Phase 1](docs/phase1-spec.md), [Phase 2](docs/phase2-spec.md),
@@ -193,6 +194,7 @@ just bench-extraction # extraction benchmark on the 30k text fixture (`just benc
 just eval questions.json ~/AtlasData   # ask a question set against a library, read-only
 just eval-ask         # Ask Atlas against your own embedding and chat models on the corpus (owner-run)
 just e2e              # WebDriver smoke test of the debug build (Windows/Linux; needs tauri-driver)
+just fake-ai          # the smoke test's scripted model service on 127.0.0.1:8765, to try Ask Atlas without a model
 just worker-hello     # start the extraction worker and check it loads PDFium (time to hello)
 just ci-remote        # run CI on GitHub for this pushed branch: full (default) or `just ci-remote quick`
 just ci-status        # recent CI runs for this branch
