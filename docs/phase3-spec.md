@@ -634,6 +634,14 @@ Do **not** create `knowledge.sqlite`, add a Trails view or record anything befor
   - **Uncited sources of a recorded answer kept as anchors without their excerpts**, to keep a question near 4 KB.
 - **Carried from the Phase 2 close-out and still deferred:** the unexplained miss of an index's first vector on the Linux runner (worked around by the exact search of small indexes); the single Windows failure of a `related` test; the 30k fixture embedded through oMLX overnight (not run); signing and notarization.
 
+**2026-11-10, Slice 3.1.1** (after the owner's `eval-semantic` on Slice
+3.1):
+- **The best meaning match counts twice in hybrid fusion.** Removing the
+  licences took away The Raven's and the Dao De Jing's only word matches
+  for v06 and v14. Hybrid hit@5 fell from 0.950 to 0.900, though meaning
+  alone still ranked both first.
+- **`just eval-semantic`** now says which variables it needs.
+
 **2026-11-10, amended during Slice 3.1:**
 
 - **Only marked EPUBs are read again.** A done EPUB already at reader

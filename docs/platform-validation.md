@@ -1248,6 +1248,20 @@ merge): full run
 [42943519172](https://github.com/markcheno/Atlas/actions/runs/42943519172),
 all green on three OSes. The smoke passed every step on Windows and Linux.
 
+## Slice 3.1.1
+
+Hybrid fusion's best meaning match counts twice
+([ADR 0010](adr/0010-full-text-search.md), amendment). It runs on every OS
+through `search::hybrid`'s unit tests (a new one: the best meaning match
+leads the partial matches, below every-word matches) and the existing
+hybrid, Related, Ask and fake-backend P2-17 tests.
+
+**CI on `slice-311`:** full run
+[42954946415](https://github.com/markcheno/Atlas/actions/runs/42954946415),
+all green on three OSes, smoke included. The product owner's
+`just eval-semantic` afterwards: hybrid hit@5 0.975 at 512 and 1,024
+([benchmarks](benchmarks.md#meaning-search-slice-24)).
+
 ## Slice 3.1
 
 The Phase 3 carry-overs ([spec](phase3-spec.md) §7.6). On every OS:

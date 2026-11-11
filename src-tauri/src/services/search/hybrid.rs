@@ -11,7 +11,12 @@
 //!   the words and those found by meaning alone, fused. A document with
 //!   every word is the strongest evidence a search has: fused with partial
 //!   matches, it fell behind them on Phase 1's question set (Slice 2.4). A
-//!   name match still strengthens a result (×1.25). At most
+//!   name match still strengthens a result (×1.25). **The best meaning
+//!   match counts twice** (Slice 3.1.1): as if the words agreed, so the
+//!   document meaning ranks first leads the second tier even when its words
+//!   don't match. Without it, any partial text match that was also near in
+//!   meaning outranked it: v06, v14 and v38 of the vague set ranked 7th and
+//!   8th by hybrid though meaning alone ranked them first. At most
 //!   [`MAX_MEANING_ONLY`] documents found by meaning alone take part, so a
 //!   query that matches nothing still finds next to nothing.
 //! - **Without a meaning list** (meaning search off, failed, or finding
@@ -173,6 +178,12 @@ fn rrf(rank: usize) -> f64 {
     1.0 / (RRF_K + rank as f64 + 1.0)
 }
 
+/// A document's share from the meaning list: its rank's, twice for the
+/// best match (the module docs).
+fn meaning_rrf(rank: usize) -> f64 {
+    if rank == 0 { 2.0 * rrf(0) } else { rrf(rank) }
+}
+
 /// Fuses Phase 1's ranked text matches with the meaning list, in two
 /// tiers: documents with every word, then the rest. With an empty meaning
 /// list, Phase 1's order exactly: text matches, then name matches.
@@ -203,7 +214,7 @@ pub(super) fn fuse(text: Vec<Entry>, mut names_only: Vec<Entry>, near: Vec<Near>
             .document
             .as_deref()
             .and_then(|d| near_rank.get(d).copied());
-        let mut score = rrf(t) + m.map_or(0.0, rrf);
+        let mut score = rrf(t) + m.map_or(0.0, meaning_rrf);
         if e.why == MatchReason::Both {
             score *= NAME_BOOST;
         }
@@ -229,7 +240,7 @@ pub(super) fn fuse(text: Vec<Entry>, mut names_only: Vec<Entry>, near: Vec<Near>
             break;
         }
         taken += 1;
-        let mut score = rrf(m);
+        let mut score = meaning_rrf(m);
         // A file that also matches by name: one result, strengthened.
         let named = names_only
             .iter()
@@ -361,8 +372,51 @@ mod tests {
         );
         assert_eq!(
             out[0].document.as_deref(),
-            Some("m3"),
-            "the name match is strengthened"
+            Some("m0"),
+            "the best meaning match counts twice"
         );
+        assert_eq!(
+            out[1].document.as_deref(),
+            Some("m3"),
+            "the name match is strengthened above its neighbours"
+        );
+    }
+
+    /// Slice 3.1.1: the document meaning ranks first leads the second tier
+    /// though its words don't match, ahead of partial text matches that are
+    /// also near in meaning; documents with every word still come first.
+    #[test]
+    fn the_best_meaning_match_leads_the_partial_matches() {
+        let partial = |d: &str| Entry {
+            all_words: false,
+            ..text(d, MatchReason::Text)
+        };
+        let out = fuse(
+            vec![
+                text("every", MatchReason::Text),
+                partial("p0"),
+                partial("p1"),
+                partial("p2"),
+            ],
+            Vec::new(),
+            vec![near("raven"), near("p0"), near("p1"), near("p2")],
+        );
+        assert_eq!(
+            order(&out),
+            [
+                ("every".into(), MatchReason::Text),
+                ("raven".into(), MatchReason::Semantic),
+                ("p0".into(), MatchReason::TextSemantic),
+                ("p1".into(), MatchReason::TextSemantic),
+                ("p2".into(), MatchReason::TextSemantic),
+            ]
+        );
+        // Found both ways, the best meaning match leads as before.
+        let out = fuse(
+            vec![partial("a"), partial("b")],
+            Vec::new(),
+            vec![near("b"), near("a")],
+        );
+        assert_eq!(out[0].document.as_deref(), Some("b"));
     }
 }

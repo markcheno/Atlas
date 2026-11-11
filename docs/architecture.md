@@ -619,7 +619,8 @@ hybrid-search amendment.
   - The 200 nearest chunks are filtered through `embedding/chunk_map.rs`
     and kept above the model's similarity floor.
   - Reciprocal rank fusion (k = 60) runs in two tiers: every-word matches
-    first.
+    first. The best meaning match counts twice, so it leads the second
+    tier even without matching words (Slice 3.1.1).
   - Reasons `semantic` and `text_semantic`; `SearchPage.semantic` says
     whether meaning search took part.
   - The search command runs off the workspace lock.

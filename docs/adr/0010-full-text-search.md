@@ -158,6 +158,17 @@ exactly it, and `search::search_with` adds meaning.
     with the fake backend), so the tier keeps the strongest evidence a
     search has on top.
 - **Name matches** still strengthen a result by ×1.25.
+- **The best meaning match counts twice** (Phase 3, Slice 3.1.1):
+  - Its meaning share is doubled, as if the words agreed, so the document
+    meaning ranks first leads tier 2 even when its words don't match.
+    Tier 1 (every word) still comes first.
+  - Before, any partial text match that was also near in meaning
+    outranked it.
+  - Once Slice 3.1 removed Project Gutenberg's licences (whose words had
+    given The Raven and the Dao De Jing text matches), the vague set's v06,
+    v14 and v38 ranked 7th or 8th by hybrid though meaning alone ranked
+    them first.
+  - A name match at a lower meaning rank still rises above its neighbours.
 - **Without a meaning list** (meaning search off, failed, or finding
   nothing), the order is exactly Phase 1's.
 - **Reasons:** `Semantic` (similar meaning only) and `TextSemantic` (in the

@@ -319,7 +319,14 @@ fn p2_17_the_vague_set_against_a_real_model() {
     let var = |k: &str| std::env::var(k).ok().filter(|v| !v.is_empty());
     let (Some(base), Some(model)) = (var("ATLAS_EVAL_EMBED_URL"), var("ATLAS_EVAL_EMBED_MODEL"))
     else {
-        panic!("set ATLAS_EVAL_EMBED_URL and ATLAS_EVAL_EMBED_MODEL");
+        panic!(
+            "just eval-semantic needs, for example:\n\
+             ATLAS_EVAL_EMBED_URL=http://localhost:8000/v1\n\
+             ATLAS_EVAL_EMBED_MODEL=Qwen3-Embedding-0.6B-8bit\n\
+             and, if the service needs one, ATLAS_EVAL_EMBED_KEY=<key>. Optional:\n\
+             ATLAS_EVAL_EMBED_KIND (openai_compatible or ollama), ATLAS_EVAL_EMBED_DIMS (1024).\n\
+             Set them in this shell, or on the same line as the command."
+        );
     };
     let key = var("ATLAS_EVAL_EMBED_KEY");
     let kind_text = var("ATLAS_EVAL_EMBED_KIND").unwrap_or_else(|| "openai_compatible".into());
