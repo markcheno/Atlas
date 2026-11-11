@@ -153,3 +153,19 @@ before the run that uses them.
 `scripts/evaluation-questions.test.mjs` keeps the sets well formed, every
 relevant id a readable corpus document, and every off question without
 one.
+
+## The resume scenario (`knowledge/resume-scenario.json`)
+
+The script for P3-13 (phase3-spec §10), which `src-tauri/tests/resume.rs`
+runs on every OS:
+
+- **The library:** generated books without copies, and the spike corpus's
+  `pg11.epub`.
+- **The session:** an earlier session; three searches, two questions and
+  four opens; what the user kept.
+- **Twelve weeks later:** a file moved, one renamed, one deleted, a book
+  read again, and the embedding model switched.
+- **The expected states** of every source opened.
+
+Files are named as the catalog shows them, and searches find them by their
+marker words.

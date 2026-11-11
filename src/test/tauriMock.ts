@@ -46,6 +46,11 @@ import type { RelatedPage } from '../lib/api/bindings/RelatedPage';
 import type { StorageUsage } from '../lib/api/bindings/StorageUsage';
 import type { RecordingStatus } from '../lib/api/bindings/RecordingStatus';
 import type { TrailPage } from '../lib/api/bindings/TrailPage';
+import type { Anchor } from '../lib/api/bindings/Anchor';
+import type { ResolvedAnchor } from '../lib/api/bindings/ResolvedAnchor';
+import type { TrailDetail } from '../lib/api/bindings/TrailDetail';
+import type { TrailStep } from '../lib/api/bindings/TrailStep';
+import type { TrailSummary } from '../lib/api/bindings/TrailSummary';
 
 export const DEFAULT_ROOT = '/Users/test/Library/Application Support/com.altazlabs.atlas/Library';
 
@@ -54,7 +59,7 @@ export const fakeStatus: AppStatus = {
   os: 'macos',
   arch: 'aarch64',
   buildProfile: 'debug',
-  slice: '3.3',
+  slice: '3.4',
   features: [],
 };
 
@@ -441,6 +446,132 @@ export function recordingStatus(overrides: Partial<RecordingStatus> = {}): Recor
   };
 }
 
+export function anchor(overrides: Partial<Anchor> = {}): Anchor {
+  return {
+    documentId: 'doc-1',
+    contentHash: 'ab',
+    title: 'Harmonic Drives',
+    fileType: 'pdf',
+    pageNo: 12,
+    location: 'Page 12',
+    ordinal: 3,
+    excerpt: 'A flexible spline meshes with a rigid circular spline to reach high reduction.',
+    ...overrides,
+  };
+}
+
+export function resolved(overrides: Partial<ResolvedAnchor> = {}): ResolvedAnchor {
+  return {
+    state: 'found',
+    documentId: 'doc-1',
+    fileInstanceId: 'file-1',
+    pageNo: 12,
+    location: 'Page 12',
+    ordinal: 3,
+    excerptFound: true,
+    ...overrides,
+  };
+}
+
+export function trailSummary(overrides: Partial<TrailSummary> = {}): TrailSummary {
+  return {
+    id: 'trail-1',
+    title: null,
+    label: 'harmonic drives',
+    pinned: false,
+    stepCount: 4,
+    startedAt: '2026-11-08T09:00:00Z',
+    lastStepAt: '2026-11-08T09:20:00Z',
+    ...overrides,
+  };
+}
+
+/** A trail with one step of each kind: a search, a question, an open, a note. */
+export function trailDetail(overrides: Partial<TrailDetail> = {}): TrailDetail {
+  const strain = anchor({
+    documentId: 'doc-2',
+    title: 'Strain Wave Gearing',
+    pageNo: null,
+    location: null,
+    excerpt: null,
+  });
+  const steps: TrailStep[] = [
+    {
+      id: 'step-1',
+      seq: 1,
+      at: '2026-11-08T09:00:00Z',
+      note: null,
+      payload: {
+        kind: 'search',
+        v: 1,
+        words: 'harmonic drives',
+        filters: { sourceRootId: 'root-1', folderName: 'Books', fileType: 'pdf' },
+        matched: 14,
+        results: [{ anchor: anchor(), why: 'both' }],
+        semantic: { state: 'off' },
+      },
+      anchors: [resolved()],
+    },
+    {
+      id: 'step-2',
+      seq: 2,
+      at: '2026-11-08T09:05:00Z',
+      note: 'Check the 1957 patent.',
+      payload: {
+        kind: 'ask',
+        v: 1,
+        question: 'how do harmonic drives work',
+        filters: { sourceRootId: null, folderName: null, fileType: null },
+        answer: 'A **flexible** spline gives *high* reduction [1], <b>not</b> markup [2].',
+        ending: { kind: 'done' },
+        cited: [1, 2],
+        dropped: 1,
+        weak: true,
+        semantic: { state: 'off' },
+        model: 'test-chat',
+        location: 'this_computer',
+        sources: [
+          { n: 1, cited: true, anchor: anchor() },
+          {
+            n: 2,
+            cited: true,
+            anchor: anchor({ documentId: 'doc-3', title: 'Gone Book', excerpt: 'Lost words.' }),
+          },
+          { n: 3, cited: false, anchor: strain },
+        ],
+      },
+      anchors: [
+        resolved(),
+        resolved({ state: 'no_file', documentId: 'doc-3', fileInstanceId: null }),
+        resolved({ state: 'unknown', documentId: null, fileInstanceId: null }),
+      ],
+    },
+    {
+      id: 'step-3',
+      seq: 3,
+      at: '2026-11-08T09:10:00Z',
+      note: null,
+      payload: {
+        kind: 'open',
+        v: 1,
+        anchor: anchor({ ordinal: 5 }),
+        via: 'citation',
+        actions: ['details', 'open'],
+      },
+      anchors: [resolved({ state: 'found_elsewhere', ordinal: 4, fileInstanceId: 'file-9' })],
+    },
+    {
+      id: 'step-4',
+      seq: 4,
+      at: '2026-11-08T09:20:00Z',
+      note: null,
+      payload: { kind: 'note', v: 1, text: 'Compare with cycloidal drives.' },
+      anchors: [],
+    },
+  ];
+  return { trail: trailSummary(), steps, ...overrides };
+}
+
 export function duplicateGroup(overrides: Partial<DuplicateGroup> = {}): DuplicateGroup {
   return {
     documentId: 'doc-1',
@@ -711,6 +842,14 @@ function defaults(): Record<string, Handler> {
       return recording();
     },
     list_trails: (): TrailPage => ({ trails: [], page: 0, pageSize: 25, total: 0 }),
+    get_trail: () => trailDetail(),
+    continue_trail: () => trailSummary(),
+    rename_trail: (args) =>
+      trailSummary({ title: String(args?.title), label: String(args?.title) }),
+    pin_trail: (args) => trailSummary({ pinned: Boolean(args?.pinned) }),
+    delete_trail: () => null,
+    delete_trail_step: () => null,
+    add_trail_note: () => null,
     delete_all_trails: () => 0,
   };
 }

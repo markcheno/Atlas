@@ -154,8 +154,8 @@ to Home, and missing, in use, incompatible or invalid goes to a recovery
 screen. The theme is saved in the data root's `config/settings.json`;
 browser storage is not used for Atlas preferences.
 
-Main views: Home, Search, Library and Settings (`NAV_VIEWS` in
-`src/lib/stores/view.svelte.ts`).
+Main views: Home, Search, Library, Trails and Settings (`NAV_VIEWS` in
+`src/lib/stores/view.svelte.ts`; Trails since Slice 3.4).
 
 - **Search** (Slice 1.5, `views/Search.svelte`, `stores/search.svelte.ts`).
   Home's box and the Search view's own box submit to `search_documents`;
@@ -197,7 +197,7 @@ Main views: Home, Search, Library and Settings (`NAV_VIEWS` in
   is the Text status badge.
 
 Accessibility baseline: landmarks and a skip link, `aria-current` on
-navigation, focus moved to each view's heading, Cmd/Ctrl+1–4 view shortcuts,
+navigation, focus moved to each view's heading, Cmd/Ctrl+1–5 view shortcuts,
 visible focus rings, 44px major controls, `prefers-reduced-motion`, and
 system light/dark via `prefers-color-scheme` with a `data-theme` override.
 
@@ -554,7 +554,9 @@ The job side, in the app process (Slice 1.3, ADR 0009).
   else is extracted and committed with its passages in one transaction,
   guarded by the job still running. Two crashes mark a file
   `worker_crashed`; ten restarts back the job off. After the waiting files,
-  the job re-reads documents marked `refresh` (below).
+  the job re-reads documents marked `refresh` (below). Before it
+  completes it reads any file added after its first pass: a scan that
+  finishes while a job runs queues no other (Slice 3.4, found by P3-13).
 - **Reader versions and re-reading** (Slice 1.6, [ADR 0011](adr/0011-re-reading-without-losing-search.md)).
   Each format has its own version (`READER_VERSION_PDF`,
   `READER_VERSION_EPUB`, both 2: first-page titles; EPUB text without
@@ -940,7 +942,38 @@ privacy rules, in [ADR 0017](adr/0017-trails-and-privacy.md).
     trails part (`TrailPrivacy.svelte`).
 - **Reading trails:** `list_trails` (paged, newest activity first,
   filtered on `search_text`) and `get_trail` (steps oldest first, every
-  anchor resolved now) are in place. The Trails screen is Slice 3.4.
+  anchor resolved now).
+
+### The Trails screen and resuming (Slice 3.4)
+
+- **The view** (`views/Trails.svelte`, `stores/trailView.svelte.ts`) is the
+  fourth main view (Cmd/Ctrl+4).
+  - **The list:** a filter (debounced like the Library's), 25 trails a
+    page, each with its label, dates, steps and a Pin toggle.
+  - **An open trail:** `TrailTimeline.svelte`, oldest step first.
+- **Steps as recorded:**
+  - A search with its filters, the count then, and the top results.
+  - A question with its answer through `AnswerText.svelte`: the paragraph
+    and chip rendering taken out of `AnswerView`, not a live region. Then
+    the ending, the weak and dropped notes, and Sources then.
+  - A source opened, with how it was reached; a note.
+  - Steps carry their own note, Add a note and Delete this step. The trail
+    has Continue, Rename, Pin and Delete, and a note of its own at the end.
+- **Sources** (`TrailSource.svelte`, `trailOpen.ts`):
+  - A source that is still there opens in the details panel with
+    `via: trail`, so the open is recorded. A question's source shows its
+    excerpt as sent, with "Sent to the model for this question on …"
+    (`details.open`'s `citedNote`).
+  - `found_elsewhere` and an excerpt not found say so. `no_file` and
+    `unknown` show the saved excerpt and their sentence, and don't open.
+- **Search again and Ask again** call `continue_trail`, then put the
+  recorded words or question and filters on the Search screen and submit
+  (`search.apply`) or ask. A recorded folder that is no longer in the
+  library is dropped, and `search.notice` says so once.
+- **An open timeline** reloads when `trail-changed` reports a new step
+  count for it.
+- **Home** lists the three most recent trails under "Pick up where you
+  left off"; each opens its timeline.
 
 ## Build, CI and measurement
 

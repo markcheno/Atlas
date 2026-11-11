@@ -13,14 +13,16 @@ export type ViewId =
   | 'home'
   | 'search'
   | 'library'
+  | 'trails'
   | 'settings';
 
-export type MainViewId = 'home' | 'search' | 'library' | 'settings';
+export type MainViewId = 'home' | 'search' | 'library' | 'trails' | 'settings';
 
 export const NAV_VIEWS: ReadonlyArray<{ id: MainViewId; label: string }> = [
   { id: 'home', label: 'Home' },
   { id: 'search', label: 'Search' },
   { id: 'library', label: 'Library' },
+  { id: 'trails', label: 'Trails' },
   { id: 'settings', label: 'Settings' },
 ];
 

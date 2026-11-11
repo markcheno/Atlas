@@ -145,3 +145,13 @@ leak.
   5 ms target.
 - `list_trails` and `get_trail` exist from this slice. The Trails screen
   that uses them is Slice 3.4.
+
+## Amendment: resuming (Slice 3.4, 2026-11-11)
+
+- **Opening a source from a trail is a step,** reached `trail`, like any
+  other open.
+- **Search again and Ask again** continue the trail first, then run as
+  ordinary searches and questions under Phase 2's rules. Their steps join
+  the continued trail; the steps they repeat stay as they were.
+- **A recorded answer is shown from the store,** never asked again, and is
+  not a live region.

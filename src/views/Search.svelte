@@ -120,6 +120,10 @@
     {/if}
   </div>
 
+  {#if search.notice}
+    <p class="muted small" role="status" data-testid="search-notice">{search.notice}</p>
+  {/if}
+
   {#if asking}
     <AskForm />
   {:else}

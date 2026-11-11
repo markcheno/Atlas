@@ -215,8 +215,10 @@ describe('main shell', () => {
 
   it('keyboard shortcuts switch views', async () => {
     const user = await launchOpen();
-    await user.keyboard('{Control>}4{/Control}');
+    await user.keyboard('{Control>}5{/Control}');
     expect(await h1('Settings')).toHaveFocus();
+    await user.keyboard('{Control>}4{/Control}');
+    expect(await h1('Trails')).toHaveFocus();
     await user.keyboard('{Control>}3{/Control}');
     expect(await h1('Library')).toHaveFocus();
     await user.keyboard('{Control>}2{/Control}');
@@ -1452,7 +1454,7 @@ describe('search', () => {
       within(nav)
         .getAllByRole('button')
         .map((b) => b.textContent?.trim()),
-    ).toEqual(['Home', 'Search', 'Library', 'Settings']);
+    ).toEqual(['Home', 'Search', 'Library', 'Trails', 'Settings']);
     await user.click(within(nav).getByRole('button', { name: 'Search' }));
     await h1('Search');
     expect(screen.getByText(/Use quotes for an exact phrase/)).toBeInTheDocument();
@@ -3077,5 +3079,309 @@ describe('research trails', () => {
         place: null,
       }),
     );
+  });
+});
+
+describe('the Trails screen', () => {
+  beforeEach(resetAll);
+
+  const nav = () => within(screen.getByRole('navigation', { name: 'Main' }));
+  const calls = (command: string) =>
+    tauri.invoke.mock.calls.filter(([c]) => c === command).map(([, a]) => a);
+
+  async function openTrails(page = tauri.trailSummary()) {
+    tauri.setHandler('list_source_roots', () => [tauri.sourceRoot({ id: 'root-1' })]);
+    tauri.setHandler('list_trails', () => ({
+      trails: [page],
+      page: 0,
+      pageSize: 25,
+      total: 1,
+    }));
+    const user = await launchOpen();
+    await user.click(nav().getByRole('button', { name: 'Trails' }));
+    await h1('Trails');
+    return user;
+  }
+
+  /** Opens the mock's trail: a search, a question, an open and a note. */
+  async function openTimeline() {
+    const user = await openTrails();
+    await user.click(await screen.findByRole('button', { name: 'harmonic drives' }));
+    await screen.findByRole('heading', { level: 2, name: 'harmonic drives' });
+    return user;
+  }
+
+  it('says what trails are before there is one', async () => {
+    const user = await launchOpen();
+    await user.click(nav().getByRole('button', { name: 'Trails' }));
+    await h1('Trails');
+    expect(
+      await screen.findByText(
+        'Atlas keeps a trail of what you search for and ask, on this computer only. Your first search starts one.',
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByLabelText('Filter trails')).toBeNull();
+  });
+
+  it('lists trails with their dates, steps and pin, and pins one', async () => {
+    const user = await openTrails(tauri.trailSummary({ stepCount: 4 }));
+    const row = within(await screen.findByTestId('trail-row'));
+    expect(row.getByText(/Nov 8, 2026 · .* · 4 steps/)).toBeInTheDocument();
+    const pin = row.getByRole('button', { name: 'Pin harmonic drives' });
+    expect(pin).toHaveAttribute('aria-pressed', 'false');
+    await user.click(pin);
+    expect(tauri.invoke).toHaveBeenCalledWith('pin_trail', { trailId: 'trail-1', pinned: true });
+  });
+
+  it('filters by titles, questions and searches, and pages', async () => {
+    const user = await openTrails();
+    tauri.setHandler('list_trails', (args) => {
+      const q = args?.query as { filter: string; page: number };
+      if (q.filter === 'gears') return { trails: [], page: 0, pageSize: 25, total: 0 };
+      return {
+        trails: Array.from({ length: 25 }, (_, i) =>
+          tauri.trailSummary({ id: `t${i + q.page * 25}`, label: `trail ${i + q.page * 25}` }),
+        ),
+        page: q.page,
+        pageSize: 25,
+        total: 30,
+      };
+    });
+    await user.type(screen.getByLabelText('Filter trails'), 'gears');
+    expect(await screen.findByText('No trails match “gears”')).toBeInTheDocument();
+    await user.clear(screen.getByLabelText('Filter trails'));
+    expect(await screen.findByTestId('trail-range')).toHaveTextContent('Showing 1–25 of 30 trails');
+    await user.click(screen.getByRole('button', { name: 'Next' }));
+    await waitFor(() =>
+      expect(calls('list_trails').at(-1)).toEqual({
+        query: { filter: '', page: 1, pageSize: 25 },
+      }),
+    );
+  });
+
+  it('shows each step as recorded, with what became of its sources', async () => {
+    await openTimeline();
+    const steps = screen.getAllByTestId('trail-step');
+    expect(steps.map((s) => s.dataset.kind)).toEqual(['search', 'ask', 'open', 'note']);
+
+    const search = within(steps[0]);
+    expect(search.getByRole('heading', { name: 'Searched for “harmonic drives”' })).toBeVisible();
+    expect(search.getByText('in Books · PDFs only')).toBeInTheDocument();
+    expect(search.getByText('14 documents matched then')).toBeInTheDocument();
+    expect(search.getByRole('button', { name: 'Details for Harmonic Drives' })).toBeVisible();
+
+    // The answer as recorded: bold and italic, never markup; not live.
+    const ask = within(steps[1]);
+    const answer = ask.getByRole('article', { name: 'Answer to “how do harmonic drives work”' });
+    expect(answer.querySelector('strong')).toHaveTextContent('flexible');
+    expect(answer.querySelector('em')).toHaveTextContent('high');
+    expect(answer.querySelector('b')).toBeNull();
+    expect(answer).toHaveTextContent('<b>not</b> markup');
+    expect(answer).not.toHaveAttribute('aria-live');
+    expect(ask.getByRole('button', { name: 'Source 1: Harmonic Drives, Page 12' })).toBeVisible();
+    expect(ask.getByTestId('weak-note')).toBeInTheDocument();
+    expect(ask.getByTestId('dropped-note')).toHaveTextContent(
+      "One reference the model gave didn't match any source and was removed.",
+    );
+    const then = within(ask.getByRole('region', { name: 'Sources then (3)' }));
+    const sourcesThen = then.getAllByTestId('trail-source');
+    expect(within(sourcesThen[1]).getByTestId('anchor-note')).toHaveTextContent(
+      "This file isn't in your library any more.",
+    );
+    expect(within(sourcesThen[1]).getByText('Lost words.')).toBeVisible();
+    expect(within(sourcesThen[1]).queryByRole('button', { name: /Details/ })).toBeNull();
+    expect(within(sourcesThen[2]).getByTestId('anchor-note')).toHaveTextContent(
+      "Atlas hasn't read this file yet.",
+    );
+    expect(ask.getByTestId('step-note')).toHaveTextContent('Check the 1957 patent.');
+
+    const open = within(steps[2]);
+    expect(open.getByRole('heading', { name: 'Opened Harmonic Drives' })).toBeVisible();
+    expect(open.getByText('from a citation · details, then opened')).toBeInTheDocument();
+    expect(open.getByTestId('anchor-note')).toHaveTextContent(
+      'This passage has moved within the document since.',
+    );
+    expect(open.getByRole('button', { name: 'Open Harmonic Drives' })).toBeVisible();
+
+    expect(within(steps[3]).getByText('Compare with cycloidal drives.')).toBeVisible();
+  });
+
+  it('opens a cited source with the passage that was sent, recorded as from a trail', async () => {
+    const user = await openTimeline();
+    const ask = within(screen.getAllByTestId('trail-step')[1]);
+    await user.click(ask.getByRole('button', { name: 'Source 1: Harmonic Drives, Page 12' }));
+    const d = within(await screen.findByRole('dialog'));
+    const cited = within(await d.findByTestId('cited-passage'));
+    expect(cited.getByText(/flexible spline meshes/)).toBeInTheDocument();
+    expect(cited.getByText('Sent to the model for this question on Nov 8, 2026.')).toBeVisible();
+    await waitFor(() =>
+      expect(tauri.invoke).toHaveBeenCalledWith('record_open', {
+        fileId: 'file-1',
+        via: { kind: 'trail' },
+        action: 'details',
+        place: null,
+      }),
+    );
+    await user.click(d.getByRole('button', { name: 'Close details' }));
+    // A chip whose file has gone goes to what the trail kept of it.
+    await user.click(ask.getByRole('button', { name: 'Source 2: Gone Book, Page 12' }));
+    expect(document.activeElement).toHaveAttribute('id', 'step-2-source-2');
+  });
+
+  it('continues the trail, and searches and asks again from it', async () => {
+    const user = await openTimeline();
+    await user.click(screen.getByRole('button', { name: 'Continue this trail' }));
+    expect(await screen.findByTestId('continuing')).toHaveTextContent('New steps join this trail.');
+    expect(calls('continue_trail')).toEqual([{ trailId: 'trail-1' }]);
+
+    await user.click(screen.getByRole('button', { name: 'Search again' }));
+    await h1('Search');
+    await waitFor(() =>
+      expect(tauri.invoke).toHaveBeenCalledWith('search_documents', {
+        query: expect.objectContaining({
+          text: 'harmonic drives',
+          sourceRootId: 'root-1',
+          fileType: 'pdf',
+          page: 0,
+        }),
+        intent: 'submit',
+      }),
+    );
+    expect(screen.getByLabelText('Search your library')).toHaveValue('harmonic drives');
+
+    await user.click(nav().getByRole('button', { name: 'Trails' }));
+    await user.click(await screen.findByRole('button', { name: 'Ask again' }));
+    await h1('Search');
+    await waitFor(() =>
+      expect(tauri.invoke).toHaveBeenCalledWith('ask_atlas', {
+        query: { question: 'how do harmonic drives work', sourceRootId: null, fileType: null },
+      }),
+    );
+    expect(screen.getByRole('radio', { name: 'Ask Atlas' })).toBeChecked();
+    expect(calls('continue_trail')).toHaveLength(3);
+  });
+
+  it('searches everything again when the recorded folder has gone, and says so', async () => {
+    tauri.setHandler('list_source_roots', () => []);
+    tauri.setHandler('list_trails', () => ({
+      trails: [tauri.trailSummary()],
+      page: 0,
+      pageSize: 25,
+      total: 1,
+    }));
+    const user = await launchOpen();
+    await user.click(nav().getByRole('button', { name: 'Trails' }));
+    await user.click(await screen.findByRole('button', { name: 'harmonic drives' }));
+    await user.click(await screen.findByRole('button', { name: 'Search again' }));
+    expect(await screen.findByTestId('search-notice')).toHaveTextContent(
+      "The folder “Books” isn't in your library any more, so Atlas searched all of it.",
+    );
+    expect(calls('search_documents').at(-1)).toMatchObject({
+      query: { sourceRootId: null, fileType: 'pdf' },
+    });
+  });
+
+  it('renames, pins, notes and deletes from the timeline', async () => {
+    const user = await openTimeline();
+    await user.click(screen.getByRole('button', { name: 'Rename' }));
+    const title = screen.getByLabelText('Trail title');
+    expect(title).toHaveFocus();
+    await user.type(title, 'Gears{Enter}');
+    expect(tauri.invoke).toHaveBeenCalledWith('rename_trail', {
+      trailId: 'trail-1',
+      title: 'Gears',
+    });
+    await waitFor(() => expect(calls('get_trail')).toHaveLength(2));
+
+    await user.click(screen.getByRole('button', { name: 'Pin' }));
+    expect(tauri.invoke).toHaveBeenCalledWith('pin_trail', { trailId: 'trail-1', pinned: true });
+
+    // A note on a step, with the count near the limit, and a refusal shown.
+    const first = within(screen.getAllByTestId('trail-step')[0]);
+    await user.click(first.getByRole('button', { name: 'Add a note' }));
+    const box = first.getByLabelText('Note on this step');
+    await user.click(box);
+    await user.paste('a'.repeat(3700));
+    expect(first.getByText('300 characters left')).toBeInTheDocument();
+    tauri.setHandler('add_trail_note', () => {
+      throw { code: 'text_too_long', message: 'Keep the note to 4000 characters.' };
+    });
+    await user.click(first.getByRole('button', { name: 'Save note' }));
+    expect(await screen.findByText('Keep the note to 4000 characters.')).toBeInTheDocument();
+    tauri.setHandler('add_trail_note', () => null);
+    await user.click(first.getByRole('button', { name: 'Save note' }));
+    expect(calls('add_trail_note').at(-1)).toEqual({
+      trailId: 'trail-1',
+      stepId: 'step-1',
+      text: 'a'.repeat(3700),
+    });
+
+    // A note of its own at the end.
+    await user.click(screen.getByRole('button', { name: 'Add a note to this trail' }));
+    await user.type(screen.getByLabelText('A note for this trail'), 'Next: the patent');
+    await user.click(screen.getByRole('button', { name: 'Save note' }));
+    expect(calls('add_trail_note').at(-1)).toEqual({
+      trailId: 'trail-1',
+      stepId: null,
+      text: 'Next: the patent',
+    });
+
+    // A step, after confirming.
+    await user.click(
+      within(screen.getAllByTestId('trail-step')[0]).getByRole('button', {
+        name: 'Delete this step',
+      }),
+    );
+    const confirm = within(screen.getByRole('group', { name: 'Confirm deleting this step' }));
+    await user.click(confirm.getByRole('button', { name: 'Delete' }));
+    expect(tauri.invoke).toHaveBeenCalledWith('delete_trail_step', { stepId: 'step-1' });
+
+    // The trail, after confirming: back to the list.
+    await user.click(screen.getByRole('button', { name: 'Delete…' }));
+    const sure = within(screen.getByRole('group', { name: 'Confirm deleting this trail' }));
+    expect(
+      sure.getByText('Delete this trail and its 4 steps? Bookmarks and saved findings are kept.'),
+    ).toBeInTheDocument();
+    await user.click(sure.getByRole('button', { name: 'Delete' }));
+    expect(tauri.invoke).toHaveBeenCalledWith('delete_trail', { trailId: 'trail-1' });
+    expect(await screen.findByTestId('trail-row')).toBeInTheDocument();
+  });
+
+  it('shows a new step when one joins the open trail', async () => {
+    await openTimeline();
+    expect(calls('get_trail')).toHaveLength(1);
+    events.emit(
+      'trail-changed',
+      tauri.recordingStatus({ currentTrailId: 'trail-1', stepCount: 5 }),
+    );
+    await waitFor(() => expect(calls('get_trail')).toHaveLength(2));
+    expect(screen.getByTestId('continuing')).toBeInTheDocument();
+  });
+
+  it('puts the three most recent trails on Home, each opening its timeline', async () => {
+    tauri.setHandler('list_trails', () => ({
+      trails: [
+        tauri.trailSummary({ id: 'a', label: 'harmonic drives' }),
+        tauri.trailSummary({ id: 'b', label: 'stoic letters' }),
+        tauri.trailSummary({ id: 'c', label: 'sourdough' }),
+      ],
+      page: 0,
+      pageSize: 3,
+      total: 9,
+    }));
+    const user = await launchOpen();
+    const section = within(
+      await screen.findByRole('region', { name: 'Pick up where you left off' }),
+    );
+    expect(section.getAllByTestId('recent-trail')).toHaveLength(3);
+    await user.click(section.getByRole('button', { name: 'stoic letters' }));
+    await h1('Trails');
+    expect(tauri.invoke).toHaveBeenCalledWith('get_trail', { trailId: 'b' });
+  });
+
+  it('leaves Home without the section when there are no trails', async () => {
+    await launchOpen();
+    await waitFor(() => expect(calls('list_trails').length).toBeGreaterThan(0));
+    expect(screen.queryByRole('region', { name: 'Pick up where you left off' })).toBeNull();
   });
 });

@@ -16,55 +16,31 @@ use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use atlas_lib::domain::dto::{
-    AnswerErrorCode, AnswerEvent, AnswerStep, AskEnding, AskQuery, AskReply, AskStarted, FileType,
-    OpenAction, OpenPlace, OpenVia, ProviderKind, ProviderLocation, ProviderProfileInput, Reached,
-    RecordingStatus, SearchIntent, SearchPage, SearchQuery, StepPayload, TrailDetail, TrailQuery,
+    AnswerErrorCode, AnswerStep, AskEnding, AskReply, AskStarted, FileType, OpenAction, OpenPlace,
+    OpenVia, ProviderLocation, Reached, RecordingStatus, SearchIntent, SearchPage, SearchQuery,
+    StepPayload, TrailDetail, TrailQuery,
 };
 use atlas_lib::infrastructure::clock::{Clock, TestClock};
-use atlas_lib::services::answers::stream::ChatLimits;
-use atlas_lib::services::answers::{self, AnswerEvents, AskDeps};
 use atlas_lib::services::knowledge::Recorder;
-use atlas_lib::services::providers::{privacy, profiles, url_policy};
-use atlas_lib::services::search::MeaningContext;
 use rusqlite::Connection;
 use serde_json::json;
 use time::macros::datetime;
 
 mod common;
-use common::http::{MockServer, Reply, stream};
+use common::chat::{Chat, delta, sse, streamed};
+use common::http::Reply;
 use common::meaning::{BREAD, LONG, Lib, SKY};
 use common::wait_until;
 
-const SSE: &str = "text/event-stream";
 const NEAR_SKY: &str =
     "Distant comets and glowing nebulae drifted past the starship on its long voyage.";
 const QUESTION: &str = "comets and glowing nebulae";
-
-fn delta(text: &str) -> String {
-    format!(
-        "data: {}\n\n",
-        json!({"choices":[{"delta":{"content": text}}]})
-    )
-}
-
-fn sse(parts: &[&str]) -> Vec<String> {
-    let mut out: Vec<String> = parts.iter().map(|p| delta(p)).collect();
-    out.push("data: [DONE]\n\n".into());
-    out
-}
-
-fn streamed(pieces: &[String], pause: Duration) -> Reply {
-    let refs: Vec<&str> = pieces.iter().map(String::as_str).collect();
-    stream(SSE, &refs, pause)
-}
 
 /// A library with a chat role whose service can be swapped per question.
 struct Rec {
     lib: Lib,
     clock: Arc<TestClock>,
-    profile: String,
-    servers: Mutex<Vec<MockServer>>,
-    events: Arc<Mutex<Vec<AnswerEvent>>>,
+    chat: Chat,
     statuses: Arc<Mutex<Vec<RecordingStatus>>>,
 }
 
@@ -79,39 +55,11 @@ impl Rec {
                     sink.lock().unwrap().push(s.clone())
                 }))
         });
-        let saved = profiles::save(
-            lib.root(),
-            &lib.vault,
-            ProviderProfileInput {
-                id: None,
-                kind: ProviderKind::OpenaiCompatible,
-                label: "Chat service".into(),
-                base_url: "http://127.0.0.1:9/v1".into(),
-                api_key: None,
-                clear_api_key: false,
-                insecure_http_acknowledged: false,
-            },
-        )
-        .unwrap();
-        let profile = saved.id.clone();
-        lib.root()
-            .catalog()
-            .call(move |c| {
-                c.execute(
-                    "INSERT OR REPLACE INTO model_roles (role, provider_profile_id, model_id,
-                         dimensions, tested_at, updated_at)
-                     VALUES ('chat', ?1, 'test-chat', NULL, 't', 't')",
-                    [&profile],
-                )
-                .unwrap();
-            })
-            .unwrap();
+        let chat = Chat::new(&lib);
         Self {
             lib,
             clock,
-            profile: saved.id,
-            servers: Mutex::default(),
-            events: Arc::default(),
+            chat,
             statuses,
         }
     }
@@ -122,20 +70,7 @@ impl Rec {
 
     /// The next questions are answered with `reply`.
     fn answer_with(&self, reply: Reply) {
-        let server = MockServer::start(vec![("POST /v1/chat/completions", reply)]);
-        let (id, url) = (self.profile.clone(), server.url("/v1"));
-        self.lib
-            .root()
-            .catalog()
-            .call(move |c| {
-                c.execute(
-                    "UPDATE provider_profiles SET base_url = ?2 WHERE id = ?1",
-                    [&id, &url],
-                )
-                .unwrap();
-            })
-            .unwrap();
-        self.servers.lock().unwrap().push(server);
+        self.chat.answer_with(&self.lib, reply);
     }
 
     /// What `search_documents` does.
@@ -146,62 +81,19 @@ impl Rec {
     }
 
     fn ask(&self, question: &str) -> AskReply {
-        let root = self.lib.root();
-        let log = Arc::clone(&self.events);
-        let events: AnswerEvents =
-            Arc::new(move |e: &AnswerEvent| log.lock().unwrap().push(e.clone()));
-        let settings = root.settings().privacy.clone();
-        answers::ask(
-            &AskDeps {
-                reader: root.reader(),
-                meaning: MeaningContext {
-                    vectors: root.vectors(),
-                    catalog: &root.catalog().handle(),
-                    embedder: &self.lib.embedder,
-                    vault: &self.lib.vault,
-                    allow_remote: privacy::remote_embedding(&settings),
-                },
-                vault: &self.lib.vault,
-                privacy: &settings,
-                locate: url_policy::location_of,
-                limits: ChatLimits::default(),
-                events,
-                answers: root.answers(),
-                recorder: Some(root.recorder()),
-            },
-            &AskQuery {
-                question: question.into(),
-                source_root_id: None,
-                file_type: None,
-            },
-        )
-        .unwrap()
+        self.chat.ask(&self.lib, question)
     }
 
     fn started(&self, question: &str) -> AskStarted {
-        match self.ask(question) {
-            AskReply::Started(s) => s,
-            other => panic!("expected an answer, got {other:?}"),
-        }
+        self.chat.started(&self.lib, question)
     }
 
     fn steps(&self, id: &str) -> Vec<AnswerStep> {
-        self.events
-            .lock()
-            .unwrap()
-            .iter()
-            .filter(|e| e.answer_id == id)
-            .map(|e| e.step.clone())
-            .collect()
+        self.chat.steps(id)
     }
 
     fn ended(&self, id: &str) -> bool {
-        self.steps(id).iter().any(|s| {
-            matches!(
-                s,
-                AnswerStep::Done { .. } | AnswerStep::Stopped | AnswerStep::Error { .. }
-            )
-        })
+        self.chat.ended(id)
     }
 
     /// Every step recorded, over every trail.

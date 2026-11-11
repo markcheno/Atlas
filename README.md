@@ -4,7 +4,7 @@ Atlas is a local-first personal AI librarian for large private collections of
 PDFs, EPUBs, books and papers. *Collect freely. Organize minimally. Retrieve
 intelligently.*
 
-**Status: Phase 3, Slice 3.3 (recording trails, after the knowledge store and the carry-overs); Phase 2 complete (version 0.3.0, [close-out review](docs/phase2-closeout.md)); Phases 0 and 1 complete ([Phase 1 review](docs/phase1-closeout.md)).** Atlas asks where to keep its library and
+**Status: Phase 3, Slice 3.4 (the Trails screen and resuming, after recording trails, the knowledge store and the carry-overs); Phase 2 complete (version 0.3.0, [close-out review](docs/phase2-closeout.md)); Phases 0 and 1 complete ([Phase 1 review](docs/phase1-closeout.md)).** Atlas asks where to keep its library and
 which folders hold your books and papers, then catalogs every PDF and EPUB
 in them in the background, read-only. Cataloging slows on battery, pauses
 when the battery is low or the drive is nearly full, survives quitting and
@@ -69,7 +69,11 @@ records a trail of what you search for, what you ask and what it answered,
 and the sources you open from them, on this computer only. The status bar
 says "Trail: recording" and pauses it with one click, Search has New
 trail, and Settings › Privacy can stop recording, keep unpinned trails
-past 90 days, or delete them all.
+past 90 days, or delete them all. The Trails view shows every trail as a
+timeline: what you searched, what you asked and what Atlas answered then,
+and what you opened, each source saying whether it is still in your
+library. Continue, Search again and Ask again pick a trail up, and Home
+lists the three most recent.
 
 Every push to `main`, every release tag and every pull request is built
 and tested on macOS (Apple silicon), Windows x64, and Linux x64; pushes to
@@ -129,8 +133,9 @@ with semantic search.
 | Phase 2 close-out: evidence on three OSes, version 0.3.0 | Done ([review](docs/phase2-closeout.md)); Windows and Linux verified in CI with a scripted model service, with documented gaps |
 | Phase 3 carry-overs: downloaded iCloud files read at the next rescan, a weak-retrieval margin per embedding model, Project Gutenberg headers and licences left out when a book is read | Working (Phase 3, Slice 3.1) |
 | Phase 3, the knowledge store: your trails and notes in a database of their own (`library/knowledge.sqlite`), never blocking the library, snapshotted daily when changed (14 kept), shown in Settings › Storage and never touched by Clean caches | Working (Phase 3, Slice 3.2) |
-| Phase 3, recording trails: submitted searches, questions with their answers and sources, and the sources you open from them, in 30-minute sessions; pause from the status bar, New trail, 90-day expiry of unpinned trails, Delete all trails in Settings › Privacy; nothing leaves the knowledge store | Working (Phase 3, Slice 3.3; the Trails screen to read them is Slice 3.4) |
-| Phase 3, the knowledge workspace: research trails, bookmarks and saved findings, interests and projects, a PDF page view, Markdown and JSON export | Phase 3, in progress ([spec](docs/phase3-spec.md)): Slices 3.1 to 3.3 of 3.9 built |
+| Phase 3, recording trails: submitted searches, questions with their answers and sources, and the sources you open from them, in 30-minute sessions; pause from the status bar, New trail, 90-day expiry of unpinned trails, Delete all trails in Settings › Privacy; nothing leaves the knowledge store | Working (Phase 3, Slice 3.3) |
+| Phase 3, the Trails screen: every trail, its timeline with the answers as recorded and each source's state now, Continue, Search again and Ask again; Home's "Pick up where you left off" | Working (Phase 3, Slice 3.4) |
+| Phase 3, the knowledge workspace: research trails, bookmarks and saved findings, interests and projects, a PDF page view, Markdown and JSON export | Phase 3, in progress ([spec](docs/phase3-spec.md)): Slices 3.1 to 3.4 of 3.9 built |
 
 Specifications: [product](docs/product-spec.md), [Phase 0](docs/phase0-spec.md),
 [Phase 1](docs/phase1-spec.md), [Phase 2](docs/phase2-spec.md),

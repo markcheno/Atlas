@@ -1,0 +1,141 @@
+<script lang="ts">
+  // A source a trail recorded (Slice 3.4, phase3-spec §5.1): its title and
+  // place as they were, what became of it, and Details (or Open) when it is
+  // still in the library. What is gone says so, with the excerpt saved.
+  import type { Anchor } from '../api/bindings/Anchor';
+  import type { ResolvedAnchor } from '../api/bindings/ResolvedAnchor';
+  import { FROM_TRAIL } from '../openVia';
+  import { openableFile, openRecorded } from '../trailOpen';
+  import { anchorNote, placeText, recordedSourceName } from '../trailCopy';
+  import OriginalActions from './OriginalActions.svelte';
+
+  let {
+    anchor,
+    resolved,
+    n,
+    cited = false,
+    at,
+    opens = false,
+    id,
+  }: {
+    anchor: Anchor;
+    resolved: ResolvedAnchor | undefined;
+    /** A question's source number. */
+    n?: number;
+    cited?: boolean;
+    /** When the step was recorded. */
+    at: string;
+    /** Offer Open and Show as well as Details (a source opened). */
+    opens?: boolean;
+    id?: string;
+  } = $props();
+
+  const name = $derived(n ? recordedSourceName(n, anchor) : anchor.title);
+  const place = $derived(placeText(anchor));
+  const note = $derived(resolved ? anchorNote(resolved) : null);
+  const fileId = $derived(openableFile(resolved));
+  const gone = $derived(!fileId);
+</script>
+
+<!-- Focused (never tabbed to) when a chip names a source that has gone. -->
+<!-- svelte-ignore a11y_no_noninteractive_tabindex -->
+<div class="source" {id} tabindex={id ? -1 : undefined} data-testid="trail-source">
+  <div class="head">
+    {#if n}<span class="n" aria-hidden="true">{n}</span>{/if}
+    <span class="title">{anchor.title}</span>
+    {#if place}<span class="muted small">{place}</span>{/if}
+    {#if cited}<span class="badge">Cited</span>{/if}
+    {#if fileId}
+      <span class="actions">
+        <button
+          type="button"
+          class="row-button"
+          aria-label={`Details for ${name}`}
+          onclick={(e) =>
+            openRecorded(anchor, resolved, e.currentTarget, n ? { n, at } : undefined)}
+        >
+          Details
+        </button>
+        {#if opens}
+          <OriginalActions
+            item={{
+              id: fileId,
+              displayName: anchor.title,
+              availability: 'available',
+              via: FROM_TRAIL,
+            }}
+          />
+        {/if}
+      </span>
+    {/if}
+  </div>
+  {#if note}
+    <p class="small" data-testid="anchor-note" data-state={resolved?.state}>{note}</p>
+  {/if}
+  {#if anchor.excerpt}
+    {#if gone}
+      <p class="excerpt">{anchor.excerpt}</p>
+    {:else}
+      <details>
+        <summary>{n ? 'The passage sent' : 'The passage then'}</summary>
+        <p class="excerpt">{anchor.excerpt}</p>
+      </details>
+    {/if}
+  {/if}
+</div>
+
+<style>
+  .source {
+    display: grid;
+    gap: var(--space-2);
+    padding: var(--space-3);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--surface);
+  }
+
+  .head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-1) var(--space-3);
+  }
+
+  .n {
+    min-width: 1.6em;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .title {
+    font-weight: 500;
+    overflow-wrap: anywhere;
+  }
+
+  .actions {
+    display: inline-flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+    margin-left: auto;
+  }
+
+  p {
+    margin: 0;
+  }
+
+  summary {
+    cursor: pointer;
+    font-size: 13px;
+  }
+
+  .excerpt {
+    margin: var(--space-2) 0 0;
+    white-space: pre-line;
+    line-height: 1.5;
+    overflow-wrap: anywhere;
+  }
+
+  .small {
+    font-size: 13px;
+  }
+</style>

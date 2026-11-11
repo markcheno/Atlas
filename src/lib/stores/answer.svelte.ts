@@ -137,6 +137,7 @@ class AnswerStore {
   async ask(question = this.draft) {
     const text = question.trim();
     if (text === '') return;
+    search.notice = null;
     if (this.live && this.answerId) void atlas.cancelAnswer(this.answerId).catch(() => {});
     const seq = ++this.#seq;
     this.#clearAnswer();

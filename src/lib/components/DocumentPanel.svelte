@@ -137,7 +137,7 @@
             {#if cited.location}<span>{cited.location}</span>{/if}
           </p>
           <p class="cited-text">{cited.excerpt}</p>
-          <p class="muted small">{FROM_LAST_QUESTION}</p>
+          <p class="muted small">{details.citedNote ?? FROM_LAST_QUESTION}</p>
         </section>
       {/if}
 

@@ -60,6 +60,18 @@ impl Lib {
         copies_first: bool,
         configure: impl FnOnce(Workspace) -> Workspace,
     ) -> Self {
+        Self::custom(texts, copies_first, 2, &[], configure)
+    }
+
+    /// As [`Lib::with_workspace`], with `copies` extra copies of files and
+    /// `extra` files (such as spike-corpus books) put in the folder too.
+    pub fn custom(
+        texts: &[&str],
+        copies_first: bool,
+        copies: u32,
+        extra: &[&Path],
+        configure: impl FnOnce(Workspace) -> Workspace,
+    ) -> Self {
         let texts: Vec<String> = texts.iter().map(|t| (*t).to_owned()).collect();
         let order = if copies_first {
             "(SELECT COUNT(*) FROM file_instances f WHERE f.document_id = d.id) DESC, d.id"
@@ -75,10 +87,18 @@ impl Lib {
         let out = Command::new("node")
             .arg(Path::new(env!("CARGO_MANIFEST_DIR")).join("../scripts/generate-fixtures.mjs"))
             .arg(&books)
-            .args(["--files", "10", "--text-kb", "2", "--copies", "2"])
+            .args(["--files", "10", "--text-kb", "2", "--copies"])
+            .arg(copies.to_string())
             .output()
             .unwrap();
         assert!(out.status.success());
+        if !extra.is_empty() {
+            let dir = books.join("corpus");
+            std::fs::create_dir_all(&dir).unwrap();
+            for file in extra {
+                std::fs::copy(file, dir.join(file.file_name().unwrap())).unwrap();
+            }
+        }
         let root = ws.require_open().unwrap();
         let added = sources::add(root, &books).unwrap();
         inventory::control::enqueue(root, &added.id).unwrap();
@@ -127,13 +147,14 @@ impl Lib {
                 (id, kind)
             })
             .collect();
-        let sky_type = docs[0].1;
+        // No texts: no subject documents (the resume scenario).
+        let sky_type = docs.first().map_or(FileType::Pdf, |d| d.1);
         let embedder = Arc::new(QueryEmbedder::new(h.query_backends()));
         let lib = Self {
             ws,
             embedder,
             vault: SecretVault::new(None),
-            sky: docs[0].0.clone(),
+            sky: docs.first().map(|d| d.0.clone()).unwrap_or_default(),
             sky_type,
             docs,
             h,

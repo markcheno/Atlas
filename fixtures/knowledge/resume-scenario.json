@@ -1,0 +1,49 @@
+{
+  "about": "The resume scenario (phase3-spec §10, P3-13), run by src-tauri/tests/resume.rs on every OS. Files are named as the catalog shows them; searches find the file to open by its marker words. 'cited' names a question's source number.",
+  "library": {
+    "generated": { "files": 10, "textKb": 2, "copies": 0 },
+    "corpus": ["epub/pg11.epub"]
+  },
+  "earlier": {
+    "daysBefore": 7,
+    "searches": ["History marker 3"]
+  },
+  "session": [
+    { "search": "Engineering marker 1", "open": "book 000001.pdf" },
+    { "search": "Mathematics marker 2", "open": "book 000002.pdf" },
+    { "search": "Alice rabbit", "open": "pg11.epub" },
+    {
+      "ask": "Biology marker 5",
+      "answer": ["Cells **divide** [1]", " and *grow* [2]."],
+      "openCited": 1,
+      "citedFile": "book 000005.pdf"
+    },
+    { "ask": "Biology marker 5 cells", "stopAfterText": true }
+  ],
+  "keep": {
+    "pin": true,
+    "bookmark": "book 000001.pdf",
+    "findingFrom": "Biology marker 5",
+    "interest": "Cells and gears"
+  },
+  "later": {
+    "weeks": 12,
+    "move": { "file": "book 000001.pdf", "to": "Archive" },
+    "rename": { "file": "book 000002.pdf", "to": "renamed 000002.pdf" },
+    "delete": "book 000005.pdf",
+    "reread": "pg11.epub",
+    "embeddingDims": 32
+  },
+  "expect": {
+    "kinds": ["search", "open", "search", "open", "search", "open", "ask", "open", "ask"],
+    "opened": {
+      "book 000001.pdf": "found",
+      "book 000002.pdf": "found",
+      "pg11.epub": "found_elsewhere",
+      "book 000005.pdf": "no_file"
+    },
+    "earlierTrail": "expired",
+    "searchAgain": "Engineering marker 1",
+    "askAgain": "Biology marker 5"
+  }
+}

@@ -6,7 +6,7 @@
 
   let { children }: { children: Snippet } = $props();
 
-  // Cmd+1–4 on macOS, Ctrl+1–4 elsewhere, jump between the main views.
+  // Cmd+1–5 on macOS, Ctrl+1–5 elsewhere, jump between the main views.
   function onKeydown(event: KeyboardEvent) {
     if (!(event.metaKey || event.ctrlKey) || event.altKey || event.shiftKey) return;
     const index = Number(event.key) - 1;
