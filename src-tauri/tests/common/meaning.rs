@@ -50,6 +50,16 @@ impl Lib {
     /// As [`Lib::new`], with one document per text (`copies_first`: the
     /// documents with copies first).
     pub fn with_texts(texts: &[&str], copies_first: bool) -> Self {
+        Self::with_workspace(texts, copies_first, |ws| ws)
+    }
+
+    /// As [`Lib::with_texts`], with the workspace changed by `configure`
+    /// before the library opens (a clock, trail events).
+    pub fn with_workspace(
+        texts: &[&str],
+        copies_first: bool,
+        configure: impl FnOnce(Workspace) -> Workspace,
+    ) -> Self {
         let texts: Vec<String> = texts.iter().map(|t| (*t).to_owned()).collect();
         let order = if copies_first {
             "(SELECT COUNT(*) FROM file_instances f WHERE f.document_id = d.id) DESC, d.id"
@@ -59,7 +69,7 @@ impl Lib {
         let limit = texts.len();
         let h = EmbedHarness::new(fast_embedding());
         let env = Env::new();
-        let mut ws = env.workspace_with_embedding(&h);
+        let mut ws = configure(env.workspace_with_embedding(&h));
         ws.choose(&env.base.join("AtlasData")).unwrap();
         let books = env.base.join("Books");
         let out = Command::new("node")

@@ -634,6 +634,38 @@ Do **not** create `knowledge.sqlite`, add a Trails view or record anything befor
   - **Uncited sources of a recorded answer kept as anchors without their excerpts**, to keep a question near 4 KB.
 - **Carried from the Phase 2 close-out and still deferred:** the unexplained miss of an index's first vector on the Linux runner (worked around by the exact search of small indexes); the single Windows failure of a `related` test; the 30k fixture embedded through oMLX overnight (not run); signing and notarization.
 
+**2026-11-11, Slice 3.3** (recording trails,
+[ADR 0017](adr/0017-trails-and-privacy.md)):
+- **`start_trail` makes no empty trail.** It clears the current trail so
+  the next step starts one, and returns the `RecordingStatus`, not a
+  `TrailSummary`.
+- **`record_open(fileId, via, action, place?)`** gains `action` (details,
+  page, open, reveal). `via` carries a citation's answer id and number, so
+  Rust anchors at the passage that was cited. `library` is a `via` that
+  records nothing.
+- **Opens merge:** the same document opened again the same way (the
+  details, then Open) adds the action to the last step.
+- **A note the user adds is written while paused**, like a finding saved
+  from the screen. Only automatic recording pauses.
+- **Not steps:** a question refused before anything was asked (no chat
+  model, external AI off, an invalid question) and the disclosure. "Failed"
+  in P3-09 is an answer that failed after it started.
+- **Atlas has no log.** "Logged and shown once" (§7.1) is shown once: the
+  status's `failed` flag, until a step is saved again. P3-16 checks the
+  process's stdout and stderr, every file of the library and its config
+  outside the store, and the catalog's tables.
+- **`trail-changed`** is sent after each step and each change, not
+  coalesced: steps come at the user's pace.
+- **Added to §9:** `get_recording_status` and `dismiss_trail_note` (Home's
+  note, `meta.first_step_noted`), and the error codes `trail_not_found`
+  and `text_too_long`. The recording state is its own `RecordingStatus`,
+  not part of `KnowledgeStatus`.
+- **A search step's results** keep a 300-character excerpt each, enough to
+  find them again after a re-read; a cited source keeps its excerpt as
+  sent (at most 2,000).
+- **`list_trails` and `get_trail`** are registered in this slice, as §9
+  says; the Trails screen that uses them is Slice 3.4.
+
 **2026-11-11, Slice 3.2** (the knowledge store, [ADR 0016](adr/0016-the-knowledge-store.md)):
 - **A store that can't be used never blocks the library.** A newer store
   (`incompatible`), or a file that isn't one (`damaged`), is left byte for

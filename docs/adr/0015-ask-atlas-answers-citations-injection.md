@@ -1,6 +1,7 @@
 # ADR 0015: Ask Atlas — answers, citations and injection bounds
 
-- **Status:** Accepted (Phase 2, Slice 2.6)
+- **Status:** Accepted (Phase 2, Slice 2.6); amended by
+  [ADR 0017](0017-trails-and-privacy.md) (Phase 3, Slice 3.3)
 - **Date:** 2026-11-10
 - **Context documents:** [Phase 2 spec](../phase2-spec.md) §5.5, §5.7,
   §7.6, §7.7, §8, §9; [ADR 0007](0007-provider-connections-and-secrets.md)
@@ -255,3 +256,12 @@ chose. Three things make that risky:
 - The Ask Atlas screen (Slice 2.7) builds on `AskReply`, `SourceUsed` and
   `answer-stream`. A citation opens the source's file in the details panel
   with the passage sent. `pageNo` waits for a reader of Atlas's own.
+
+## Amendment: answers kept in trails (Phase 3, Slice 3.3, 2026-11-11)
+
+"Nothing is persisted" no longer holds. While recording is on, a question
+and its answer become a step of the user's trail in the knowledge store
+when the answer ends. An answer is persisted only there, or as a finding
+the user saved (Slice 3.5). The catalog, the job tables and every other
+file in the library still never hold a question or an answer, and Atlas
+keeps no log. See [ADR 0017](0017-trails-and-privacy.md).

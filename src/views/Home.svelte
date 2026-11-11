@@ -6,6 +6,8 @@
   import { embedding } from '../lib/stores/embedding.svelte';
   import { homeMeaningNote } from '../lib/embeddingCopy';
   import { search } from '../lib/stores/search.svelte';
+  import { trails } from '../lib/stores/trails.svelte';
+  import { FIRST_STEP_NOTE } from '../lib/trailCopy';
   import { view } from '../lib/stores/view.svelte';
 
   let text = $state('');
@@ -39,6 +41,15 @@
       <p class="small" data-testid="meaning-note">{meaningNote}</p>
     {/if}
   </form>
+
+  {#if trails.status?.firstStepNote}
+    <aside class="note" aria-label="About trails" data-testid="trail-note">
+      <p class="small">{FIRST_STEP_NOTE}</p>
+      <button type="button" class="button quiet" onclick={() => void trails.dismissNote()}>
+        Got it
+      </button>
+    </aside>
+  {/if}
 
   <section aria-labelledby="home-library">
     <h2 id="home-library">Your library</h2>
@@ -79,5 +90,20 @@
 
   .small {
     font-size: 13px;
+  }
+
+  .note {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-3);
+    padding: var(--space-3) var(--space-4);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--surface);
+  }
+
+  .note p {
+    margin: 0;
   }
 </style>

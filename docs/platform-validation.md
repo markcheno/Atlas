@@ -1248,6 +1248,59 @@ merge): full run
 [42943519172](https://github.com/markcheno/Atlas/actions/runs/42943519172),
 all green on three OSes. The smoke passed every step on Windows and Linux.
 
+## Slice 3.3
+
+Recording trails ([ADR 0017](adr/0017-trails-and-privacy.md)). On every
+OS:
+- **P3-09** (`tests/recording.rs`, on a read, embedded fixture library
+  with a scripted chat service):
+  - a submit, page 1, a refresh, a filter change and the same submit again
+    are one search step, updated by the repeat; the same search in one
+    folder is a second, with the folder's name;
+  - questions done, stopped, failed midway and with nothing found are four
+    steps, each with its ending and the text as delivered; the cited
+    source keeps its excerpt as sent, the others none;
+  - a citation, a result (details then Open: one step) and Related are
+    open steps anchored at the cited passage, the hit's passage and the
+    whole document; the Library is none;
+  - every anchor resolves `found` at once.
+- **P3-10:** paused, a search, a question, an open and nothing found leave
+  `meta.changes` unchanged and all succeed; a note is still written. With
+  the store refusing writes (`query_only`), the search and the answer
+  succeed, the failure is reported once, and the next saved step clears it.
+- **P3-11** (`tests/trails.rs`, with a settable clock): steps 29 minutes
+  apart share a trail and 31 minutes apart don't; New trail starts one and
+  makes no empty trail; Continue joins an old one; a relaunch 10 minutes
+  later continues it.
+- **P3-12:** at 90 days and a minute only the unpinned trail outside a
+  collection goes, at most daily; with expiry off nothing goes; bookmarks
+  and findings stay.
+- **P3-14:** deleting a step recounts its trail and its filter text;
+  deleting the last step deletes the trail and its place in an interest; a
+  finding's sources stay byte for byte; Delete all trails returns the
+  count.
+- **P3-16** (`tests/recording_privacy.rs`): a child process records a
+  session with marker words in the search, the question, the model's
+  answer, a note and a title. None is in its stdout or stderr, in any file
+  of the library or its config outside the store, or in any catalog table
+  but the documents' own; the store holds all of them.
+- **P3-05** now kills the writer during recorder steps too.
+
+Vitest covers the indicator and its toggle, a failure shown once, New
+trail, Home's note, the Privacy part with its confirmation naming the
+count, the search intents, and opens recorded from results and citations
+but not the Library.
+
+**CI on `slice-33`:** full run
+[43082397519](https://github.com/markcheno/Atlas/actions/runs/43082397519),
+all green on three OSes, smoke included, in 13 minutes.
+
+The first full run
+([43078984746](https://github.com/markcheno/Atlas/actions/runs/43078984746))
+passed on macOS and Linux. On Windows, P3-16 named the store itself as a
+leak: the test told the store from other files by comparing path text, and
+Windows paths mix `\` and `/`. It now compares path components.
+
 ## Slice 3.2
 
 The knowledge store ([ADR 0016](adr/0016-the-knowledge-store.md)). On

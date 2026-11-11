@@ -14,6 +14,7 @@ const { details: detailsStore } = await import('./lib/stores/details.svelte');
 const { providers: providersStore } = await import('./lib/stores/providers.svelte');
 const { roles: rolesStore } = await import('./lib/stores/roles.svelte');
 const { answer: answerStore } = await import('./lib/stores/answer.svelte');
+const { trails: trailsStore } = await import('./lib/stores/trails.svelte');
 
 const { default: App } = await import('./App.svelte');
 const { view } = await import('./lib/stores/view.svelte');
@@ -49,6 +50,7 @@ function resetAll() {
   searchStore.reset();
   answerStore.reset();
   detailsStore.reset();
+  trailsStore.reset();
   theme.apply('system');
 }
 
@@ -230,7 +232,13 @@ describe('main shell', () => {
       expect(tauri.invoke).toHaveBeenCalledWith('update_settings', {
         settings: {
           appearance: { theme: 'dark' },
-          privacy: { allowRemoteEmbedding: false, disableExternalAi: false, acknowledged: [] },
+          privacy: {
+            allowRemoteEmbedding: false,
+            disableExternalAi: false,
+            acknowledged: [],
+            recordTrails: true,
+            expireTrails: true,
+          },
         },
       }),
     );
@@ -2298,7 +2306,13 @@ describe('indexing meaning', () => {
       expect(tauri.invoke).toHaveBeenCalledWith('update_settings', {
         settings: {
           appearance: { theme: 'system' },
-          privacy: { allowRemoteEmbedding: true, disableExternalAi: false, acknowledged: [] },
+          privacy: {
+            allowRemoteEmbedding: true,
+            disableExternalAi: false,
+            acknowledged: [],
+            recordTrails: true,
+            expireTrails: true,
+          },
         },
       }),
     );
@@ -2308,7 +2322,13 @@ describe('indexing meaning', () => {
       expect(tauri.invoke).toHaveBeenCalledWith('update_settings', {
         settings: {
           appearance: { theme: 'dark' },
-          privacy: { allowRemoteEmbedding: true, disableExternalAi: false, acknowledged: [] },
+          privacy: {
+            allowRemoteEmbedding: true,
+            disableExternalAi: false,
+            acknowledged: [],
+            recordTrails: true,
+            expireTrails: true,
+          },
         },
       }),
     );
@@ -2327,7 +2347,13 @@ describe('indexing meaning', () => {
       expect(tauri.invoke).toHaveBeenCalledWith('update_settings', {
         settings: {
           appearance: { theme: 'system' },
-          privacy: { allowRemoteEmbedding: false, disableExternalAi: true, acknowledged: [] },
+          privacy: {
+            allowRemoteEmbedding: false,
+            disableExternalAi: true,
+            acknowledged: [],
+            recordTrails: true,
+            expireTrails: true,
+          },
         },
       }),
     );
@@ -2360,7 +2386,13 @@ describe('indexing meaning', () => {
       expect(tauri.invoke).toHaveBeenCalledWith('update_settings', {
         settings: {
           appearance: { theme: 'system' },
-          privacy: { allowRemoteEmbedding: false, disableExternalAi: false, acknowledged: [] },
+          privacy: {
+            allowRemoteEmbedding: false,
+            disableExternalAi: false,
+            acknowledged: [],
+            recordTrails: true,
+            expireTrails: true,
+          },
         },
       }),
     );
@@ -2850,5 +2882,200 @@ describe('Ask Atlas', () => {
     await user.click(field);
     await user.paste('a'.repeat(1850));
     expect(screen.getByTestId('ask-counter')).toHaveTextContent('1,850 of 2,000 characters');
+  });
+});
+
+describe('research trails', () => {
+  beforeEach(() => {
+    resetAll();
+    libraryStore.reset();
+  });
+
+  const statusBar = () => within(screen.getByRole('contentinfo', { name: 'Status' }));
+  const nav = () => within(screen.getByRole('navigation', { name: 'Main' }));
+  const recordedOpens = () => tauri.invoke.mock.calls.filter(([c]) => c === 'record_open');
+
+  it('shows the indicator, which pauses and resumes recording', async () => {
+    const user = await launchOpen();
+    const button = await statusBar().findByRole('button', { name: 'Trail: recording' });
+    expect(button).toHaveAttribute('aria-pressed', 'true');
+    await user.click(button);
+    await waitFor(() =>
+      expect(tauri.invoke).toHaveBeenCalledWith('update_settings', {
+        settings: expect.objectContaining({
+          privacy: expect.objectContaining({ recordTrails: false }),
+        }),
+      }),
+    );
+    const paused = await statusBar().findByRole('button', { name: 'Trail: paused' });
+    expect(paused).toHaveAttribute('aria-pressed', 'false');
+    await user.click(paused);
+    expect(await statusBar().findByRole('button', { name: 'Trail: recording' })).toBeVisible();
+  });
+
+  it('says once when a step could not be saved, and when trails are unavailable', async () => {
+    tauri.setHandler('get_recording_status', () => tauri.recordingStatus({ state: 'unavailable' }));
+    const user = await launchOpen();
+    events.emit('trail-changed', tauri.recordingStatus({ failed: true }));
+    expect(await statusBar().findByTestId('trail-failed')).toHaveTextContent(
+      "Atlas couldn't save this step",
+    );
+    events.emit('trail-changed', tauri.recordingStatus({ currentTrailId: 't1', stepCount: 2 }));
+    await waitFor(() => expect(statusBar().queryByTestId('trail-failed')).toBeNull());
+    events.emit('trail-changed', tauri.recordingStatus({ state: 'unavailable' }));
+    await user.click(await statusBar().findByRole('button', { name: 'Trails unavailable' }));
+    await h1('Settings');
+  });
+
+  it('starts a new trail from beside the search mode', async () => {
+    const user = await launchOpen();
+    await user.click(nav().getByRole('button', { name: 'Search' }));
+    await h1('Search');
+    await user.click(screen.getByRole('button', { name: 'New trail' }));
+    expect(tauri.invoke).toHaveBeenCalledWith('start_trail', undefined);
+    expect(await screen.findByTestId('new-trail-status')).toHaveTextContent(
+      'The next search starts a new trail.',
+    );
+    events.emit('trail-changed', tauri.recordingStatus({ currentTrailId: 't2', stepCount: 1 }));
+    await waitFor(() => expect(screen.getByTestId('new-trail-status')).toHaveTextContent(''));
+    // Paused, there is nothing to start.
+    trailsStore.status = tauri.recordingStatus({ state: 'paused' });
+    await waitFor(() => expect(screen.getByRole('button', { name: 'New trail' })).toBeDisabled());
+  });
+
+  it("shows Home's note after the first step until it is dismissed", async () => {
+    tauri.setHandler('get_recording_status', () => tauri.recordingStatus({ firstStepNote: true }));
+    const user = await launchOpen();
+    const note = await screen.findByTestId('trail-note');
+    expect(note).toHaveTextContent(
+      'Atlas now keeps a trail of your searches and questions on this computer, so you can pick them up later. Pause it or delete trails any time.',
+    );
+    await user.click(within(note).getByRole('button', { name: 'Got it' }));
+    expect(tauri.invoke).toHaveBeenCalledWith('dismiss_trail_note', undefined);
+    await waitFor(() => expect(screen.queryByTestId('trail-note')).toBeNull());
+  });
+
+  it('keeps the choices in Privacy, and deletes all trails after naming how many', async () => {
+    tauri.setHandler('get_knowledge_status', () => tauri.knowledgeStatus({ trails: 12 }));
+    tauri.setHandler('delete_all_trails', () => 12);
+    const user = await launchOpen();
+    await user.click(nav().getByRole('button', { name: 'Settings' }));
+    const section = within(await screen.findByRole('region', { name: 'Research trails' }));
+    expect(section.getByText(/stays on this computer/)).toBeInTheDocument();
+    expect(section.getByRole('checkbox', { name: 'Record my trails' })).toBeChecked();
+
+    await user.click(
+      section.getByRole('checkbox', { name: 'Remove unpinned trails after 90 days' }),
+    );
+    await waitFor(() =>
+      expect(tauri.invoke).toHaveBeenCalledWith('update_settings', {
+        settings: expect.objectContaining({
+          privacy: expect.objectContaining({ expireTrails: false, recordTrails: true }),
+        }),
+      }),
+    );
+    await user.click(section.getByRole('checkbox', { name: 'Record my trails' }));
+    expect(await section.findByText(/Paused: nothing is recorded/)).toBeInTheDocument();
+    expect(await statusBar().findByRole('button', { name: 'Trail: paused' })).toBeVisible();
+
+    // Keep leaves everything; Delete names the count first.
+    await user.click(section.getByRole('button', { name: 'Delete all trails…' }));
+    let confirm = within(
+      await section.findByRole('group', { name: 'Confirm deleting all trails' }),
+    );
+    await user.click(confirm.getByRole('button', { name: 'Keep' }));
+    expect(tauri.invoke).not.toHaveBeenCalledWith('delete_all_trails', undefined);
+    await user.click(section.getByRole('button', { name: 'Delete all trails…' }));
+    confirm = within(await section.findByRole('group', { name: 'Confirm deleting all trails' }));
+    expect(
+      confirm.getByText('Delete all 12 trails? Bookmarks and saved findings are kept.'),
+    ).toBeInTheDocument();
+    await user.click(confirm.getByRole('button', { name: 'Delete' }));
+    expect(await section.findByTestId('trails-deleted')).toHaveTextContent('Deleted 12 trails.');
+    expect(tauri.invoke).toHaveBeenCalledWith('delete_all_trails', undefined);
+  });
+
+  it('records only a submitted search, and opens from a result but never from the Library', async () => {
+    const hit = tauri.searchHit({ fileInstanceId: 'h1' });
+    tauri.setHandler('list_source_roots', () => [tauri.sourceRoot()]);
+    tauri.setHandler('search_documents', () =>
+      tauri.searchPage({ hits: [hit], matchedDocuments: 1 }),
+    );
+    const intents = () =>
+      tauri.invoke.mock.calls
+        .filter(([c]) => c === 'search_documents')
+        .map(([, a]) => (a as { intent: string }).intent);
+    const user = await launchOpen();
+    await user.type(screen.getByLabelText('Search your library'), 'gears{Enter}');
+    await h1('Search');
+    await waitFor(() => expect(intents()).toEqual(['submit']));
+    await searchStore.goTo(1);
+    await searchStore.setFilters({ fileType: 'pdf' });
+    searchStore.refreshLive();
+    await waitFor(() => expect(intents()).toEqual(['submit', 'refresh', 'refresh', 'refresh']), {
+      timeout: 3000,
+    });
+
+    await user.click(await screen.findByRole('button', { name: `Details for ${hit.displayName}` }));
+    await waitFor(() =>
+      expect(tauri.invoke).toHaveBeenCalledWith('record_open', {
+        fileId: 'h1',
+        via: { kind: 'result' },
+        action: 'details',
+        place: null,
+      }),
+    );
+    const d = await screen.findByRole('dialog');
+    await user.click(within(d).getByRole('button', { name: /^Open / }));
+    await waitFor(() =>
+      expect(tauri.invoke).toHaveBeenCalledWith('record_open', {
+        fileId: 'h1',
+        via: { kind: 'result' },
+        action: 'open',
+        place: null,
+      }),
+    );
+    await user.click(within(d).getByRole('button', { name: 'Close details' }));
+
+    // The Library: details and Open, and no step.
+    const before = recordedOpens().length;
+    tauri.setHandler('list_documents', () =>
+      tauri.documentPage({ items: [tauri.fileInstance({ id: 'f1' })], matchedSoFar: 1 }),
+    );
+    await user.click(nav().getByRole('button', { name: 'Library' }));
+    await screen.findByRole('table');
+    await user.click(screen.getAllByRole('button', { name: /^Details for / })[0]);
+    const panel = await screen.findByRole('dialog');
+    await user.click(within(panel).getByRole('button', { name: /^Open / }));
+    await waitFor(() =>
+      expect(tauri.invoke).toHaveBeenCalledWith('open_original', expect.anything()),
+    );
+    expect(recordedOpens()).toHaveLength(before);
+  });
+
+  it('records a citation opened from an answer, with the answer and its number', async () => {
+    tauri.setHandler('list_source_roots', () => [tauri.sourceRoot()]);
+    tauri.setHandler('ask_atlas', () => tauri.askStarted());
+    const user = await launchOpen();
+    await user.click(nav().getByRole('button', { name: 'Search' }));
+    await h1('Search');
+    await user.click(screen.getByRole('radio', { name: 'Ask Atlas' }));
+    await user.type(screen.getByLabelText('Ask your library'), 'how do harmonic drives work');
+    await user.click(screen.getByRole('button', { name: 'Ask' }));
+    const step = (s: import('./lib/api/bindings/AnswerStep').AnswerStep) =>
+      events.emit('answer-stream', { answerId: 'answer-1', step: s });
+    step({ kind: 'delta', text: 'High reduction [1].' });
+    step({ kind: 'done', cited: [1], dropped: 0 });
+    await user.click(
+      await screen.findByRole('button', { name: 'Source 1: Harmonic Drives, Page 12' }),
+    );
+    await waitFor(() =>
+      expect(tauri.invoke).toHaveBeenCalledWith('record_open', {
+        fileId: 'file-1',
+        via: { kind: 'citation', answerId: 'answer-1', n: 1 },
+        action: 'details',
+        place: null,
+      }),
+    );
   });
 });

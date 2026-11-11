@@ -9,6 +9,7 @@
   import type { RelatedPage } from '../api/bindings/RelatedPage';
   import { statusLabel } from '../libraryCopy';
   import { NOT_INDEXED, relatedBy, relatedNote, relatedPending } from '../relatedCopy';
+  import { FROM_RELATED } from '../openVia';
   import { details } from '../stores/details.svelte';
   import { embedding } from '../stores/embedding.svelte';
   import { fromHit, originals } from '../stores/originals.svelte';
@@ -130,10 +131,10 @@
               >
                 Details
               </button>
-              <OriginalActions item={fromHit(hit)} />
+              <OriginalActions item={fromHit(hit, FROM_RELATED)} />
             </div>
             {#if originals.hasNotice(hit.fileInstanceId)}
-              <OriginalNotice item={fromHit(hit)} />
+              <OriginalNotice item={fromHit(hit, FROM_RELATED)} />
             {/if}
           </li>
         {/each}

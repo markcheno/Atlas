@@ -20,6 +20,7 @@ pub mod search;
 pub mod settings;
 pub mod sources;
 pub mod storage;
+pub mod trails;
 pub mod workspace;
 
 /// Names of every registered command, in registration order. Kept in sync
@@ -72,4 +73,17 @@ pub const COMMAND_NAMES: &[&str] = &[
     "cancel_answer",
     "acknowledge_disclosure",
     "get_knowledge_status",
+    "record_open",
+    "get_recording_status",
+    "dismiss_trail_note",
+    "list_trails",
+    "get_trail",
+    "start_trail",
+    "continue_trail",
+    "rename_trail",
+    "pin_trail",
+    "delete_trail",
+    "delete_trail_step",
+    "add_trail_note",
+    "delete_all_trails",
 ];

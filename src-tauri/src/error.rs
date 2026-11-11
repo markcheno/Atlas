@@ -94,6 +94,10 @@ pub enum ErrorCode {
     /// The knowledge store (trails, bookmarks, findings) can't be used:
     /// from a newer Atlas, damaged, or failing (Phase 3).
     KnowledgeUnavailable,
+    /// A trail or trail step that is no longer there (Slice 3.3).
+    TrailNotFound,
+    /// A note, title or name over its limit (Slice 3.3).
+    TextTooLong,
     Internal,
 }
 
@@ -223,6 +227,10 @@ pub enum AtlasError {
     /// The knowledge store (Phase 3). The library itself keeps working.
     #[error("Atlas couldn't {0} your trails and notes.")]
     Knowledge(&'static str),
+    #[error("That trail is no longer there.")]
+    TrailNotFound,
+    #[error("Keep the {what} to {max} characters.")]
+    TextTooLong { what: &'static str, max: usize },
     #[error("Atlas hit an internal error: {0}.")]
     Internal(&'static str),
 }
@@ -300,6 +308,8 @@ impl AtlasError {
             Self::Io { .. } => ErrorCode::IoError,
             Self::Database { .. } => ErrorCode::DatabaseError,
             Self::Knowledge(_) => ErrorCode::KnowledgeUnavailable,
+            Self::TrailNotFound => ErrorCode::TrailNotFound,
+            Self::TextTooLong { .. } => ErrorCode::TextTooLong,
             Self::Internal(_) => ErrorCode::Internal,
         }
     }
@@ -382,6 +392,8 @@ impl AtlasError {
             Self::Knowledge(_) => {
                 "Your library still works. Settings › Storage says what happened to your trails and notes."
             }
+            Self::TrailNotFound => "It may have been deleted. Go back to your trails.",
+            Self::TextTooLong { .. } => "Shorten it, then try again.",
         })
     }
 

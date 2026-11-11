@@ -7,6 +7,7 @@ import { atlas, AtlasApiError, toApiError } from '../api/client';
 import type { FileType } from '../api/bindings/FileType';
 import type { SearchPage } from '../api/bindings/SearchPage';
 import type { SearchQuery } from '../api/bindings/SearchQuery';
+import type { SearchIntent } from '../api/bindings/SearchIntent';
 import { hasWords } from '../searchCopy';
 
 export const SEARCH_PAGE_SIZE = 20;
@@ -52,7 +53,12 @@ class SearchState {
     };
   }
 
-  async load() {
+  /**
+   * Runs the search. Only the user's own submit says `submit`, so only it
+   * becomes a step of the trail (Slice 3.3); paging, live refreshes and
+   * filter changes are `refresh`.
+   */
+  async load(intent: SearchIntent = 'refresh') {
     const seq = ++this.#seq;
     if (this.text.trim() === '' || this.noWords) {
       this.result = null;
@@ -62,7 +68,7 @@ class SearchState {
     }
     this.loading = true;
     try {
-      const result = await atlas.searchDocuments(this.query());
+      const result = await atlas.searchDocuments(this.query(), intent);
       if (seq === this.#seq) {
         this.result = result;
         this.error = null;
@@ -80,7 +86,7 @@ class SearchState {
     this.draft = text;
     this.text = text.trim();
     this.page = 0;
-    return this.load();
+    return this.load('submit');
   }
 
   setFilters(change: Partial<Pick<SearchState, 'sourceRootId' | 'fileType'>>) {

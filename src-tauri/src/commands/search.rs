@@ -1,6 +1,6 @@
 use tauri::State;
 
-use crate::domain::dto::{SearchPage, SearchQuery};
+use crate::domain::dto::{SearchIntent, SearchPage, SearchQuery};
 use crate::error::{AtlasError, AtlasResult};
 use crate::services::search::{self, MeaningContext};
 use crate::state::AppState;
@@ -10,10 +10,15 @@ use crate::state::AppState;
 /// (phase1-spec §7.4, phase2-spec §7.4). The workspace is held only to
 /// take the library's handles: a query's embedding (up to 1.5 s) never
 /// blocks other commands.
+///
+/// `intent` says why it ran (Slice 3.3): only a `submit` is recorded into
+/// the user's trail; paging, a live refresh and a filter change are
+/// `refresh`, the default.
 #[tauri::command]
 pub async fn search_documents(
     state: State<'_, AppState>,
     query: SearchQuery,
+    intent: Option<SearchIntent>,
 ) -> AtlasResult<SearchPage> {
     let handles = state
         .with_workspace(|ws| {
@@ -24,13 +29,14 @@ pub async fn search_documents(
                 std::sync::Arc::clone(root.vectors()),
                 root.catalog().handle(),
                 crate::services::providers::privacy::remote_embedding(&root.settings().privacy),
+                std::sync::Arc::clone(root.recorder()),
             ))
         })
         .await?;
     let (vault, embedder) = (state.vault.clone(), state.query.clone());
     tauri::async_runtime::spawn_blocking(move || {
-        let (reader, roots, vectors, catalog, allow_remote) = handles;
-        search::run_hybrid(
+        let (reader, roots, vectors, catalog, allow_remote, recorder) = handles;
+        let page = search::run_hybrid(
             &reader,
             &roots,
             &MeaningContext {
@@ -41,7 +47,9 @@ pub async fn search_documents(
                 allow_remote,
             },
             &query,
-        )
+        )?;
+        recorder.search(&query, intent.unwrap_or_default(), &page);
+        Ok(page)
     })
     .await
     .map_err(|_| AtlasError::Internal("a background task failed"))?

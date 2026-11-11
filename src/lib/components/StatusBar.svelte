@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { onMount, tick } from 'svelte';
   import { atlas } from '../api/client';
   import type { AppStatus } from '../api/bindings/AppStatus';
   import { count, elapsedText, statusLine } from '../inventoryCopy';
@@ -9,6 +9,8 @@
   import { view } from '../stores/view.svelte';
   import { extraction } from '../stores/extraction.svelte';
   import { inventory } from '../stores/inventory.svelte';
+  import { trails } from '../stores/trails.svelte';
+  import { TRAIL_FAILED, trailLabel, trailToggleLabel } from '../trailCopy';
 
   let status = $state<AppStatus | null>(null);
 
@@ -31,6 +33,12 @@
   const meaningPausable = $derived(
     meaning !== null && ['queued', 'running', 'paused_policy'].includes(meaning.state),
   );
+
+  async function openStorage() {
+    view.go('settings');
+    await tick();
+    document.getElementById('settings-storage')?.scrollIntoView?.({ block: 'start' });
+  }
 
   onMount(() => {
     atlas.getAppStatus().then(
@@ -181,6 +189,33 @@
           </button>
         {/if}
       </div>
+    </div>
+  {/if}
+  {#if trails.status}
+    <div class="cataloging" data-testid="trail-indicator">
+      {#if trails.status.state === 'unavailable'}
+        <button
+          type="button"
+          class="small-button"
+          title="Settings › Storage says what happened"
+          onclick={() => void openStorage()}
+        >
+          {trailLabel(trails.status)}
+        </button>
+      {:else}
+        <button
+          type="button"
+          class="small-button"
+          aria-pressed={trails.recording}
+          title={trailToggleLabel(trails.status)}
+          onclick={() => void trails.toggle()}
+        >
+          {trailLabel(trails.status)}
+        </button>
+      {/if}
+      {#if trails.status.failed}
+        <span role="status" data-testid="trail-failed">{TRAIL_FAILED}</span>
+      {/if}
     </div>
   {/if}
   {#if status}

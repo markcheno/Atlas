@@ -16,9 +16,10 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use rusqlite::{Connection, OpenFlags, OptionalExtension};
+use rusqlite::{Connection, OpenFlags};
 use time::{Date, Month, OffsetDateTime, PrimitiveDateTime, Time};
 
+use super::meta;
 use super::store::Inner;
 use crate::domain::dto::{KnowledgeState, SnapshotOutcome};
 use crate::infrastructure::fsutil::sync_dir;
@@ -124,15 +125,10 @@ fn record(inner: &Inner, outcome: SnapshotOutcome) -> SnapshotOutcome {
 
 /// The store's change count, and the count its newest snapshot captured.
 fn changes(conn: &Connection) -> rusqlite::Result<(i64, Option<i64>)> {
-    let get = |key: &str| -> rusqlite::Result<Option<i64>> {
-        conn.query_row(
-            "SELECT CAST(value AS INTEGER) FROM meta WHERE key = ?1",
-            [key],
-            |r| r.get(0),
-        )
-        .optional()
-    };
-    Ok((get("changes")?.unwrap_or(0), get("last_snapshot_change")?))
+    Ok((
+        meta::get_int(conn, "changes")?.unwrap_or(0),
+        meta::get_int(conn, "last_snapshot_change")?,
+    ))
 }
 
 /// Takes a snapshot if one is due. `None` when the store isn't ready.
@@ -227,11 +223,8 @@ fn take_locked(inner: &Inner, before_check: &dyn Fn(&Path)) -> SnapshotOutcome {
     let _ = sync_dir(&dir);
     let stamp = crate::infrastructure::clock::rfc3339(at);
     let _ = writer.call(move |c| {
-        c.execute(
-            "INSERT INTO meta (key, value) VALUES ('last_snapshot_at', ?1), ('last_snapshot_change', ?2)
-             ON CONFLICT (key) DO UPDATE SET value = excluded.value",
-            rusqlite::params![stamp, count.to_string()],
-        )
+        meta::set(c, "last_snapshot_at", &stamp)?;
+        meta::set(c, "last_snapshot_change", &count.to_string())
     });
     prune(&dir, KEEP);
     record(inner, SnapshotOutcome::Taken)
@@ -319,7 +312,7 @@ mod tests {
     fn a_copy_that_fails_its_check_is_removed_and_reported() {
         let dir = tempfile::tempdir().unwrap();
         let clock = Arc::new(TestClock::at(datetime!(2026-11-11 09:00 UTC)));
-        let store = KnowledgeStore::open(dir.path(), clock, Arc::new(Roomy));
+        let store = KnowledgeStore::open(dir.path(), clock, Arc::new(Roomy), Arc::default());
         store
             .call(|c| {
                 c.execute(

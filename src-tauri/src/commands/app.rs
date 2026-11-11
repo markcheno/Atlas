@@ -8,7 +8,7 @@ use crate::state::AppState;
 
 /// The slice this build implements, "<phase>.<slice>" (Phase 1, Slice 1 is
 /// "1.1"). The UI derives the phase from it.
-pub const CURRENT_SLICE: &str = "3.2";
+pub const CURRENT_SLICE: &str = "3.3";
 
 /// (id, label, delivering slice, implemented in this build)
 const FEATURES: &[(&str, &str, &str, bool)] = &[
@@ -74,6 +74,12 @@ const FEATURES: &[(&str, &str, &str, bool)] = &[
         "knowledge_store",
         "Your trails and notes, kept apart and snapshotted",
         "3.2",
+        true,
+    ),
+    (
+        "trail_recording",
+        "Trails of your searches, questions and the sources you open",
+        "3.3",
         true,
     ),
 ];

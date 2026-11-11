@@ -6,7 +6,9 @@
 import { atlas, AtlasApiError, toApiError } from '../api/client';
 import type { Availability } from '../api/bindings/Availability';
 import type { FileInstance } from '../api/bindings/FileInstance';
+import type { OpenVia } from '../api/bindings/OpenVia';
 import type { SearchHit } from '../api/bindings/SearchHit';
+import { recordOpen } from './trails.svelte';
 
 /** What the actions need to know about a file. */
 export interface Original {
@@ -14,22 +16,27 @@ export interface Original {
   displayName: string;
   availability: Availability;
   sizeBytes?: number | null;
+  /** How the user got here, for their trail; none from the Library. */
+  via?: OpenVia;
 }
 
-export const fromFile = (f: FileInstance): Original => ({
+export const fromFile = (f: FileInstance, via?: OpenVia): Original => ({
   id: f.id,
   displayName: f.displayName,
   availability: f.availability,
   sizeBytes: f.sizeBytes,
+  via,
 });
 
 /** A search result or a related document. */
 export const fromHit = (
   h: Pick<SearchHit, 'fileInstanceId' | 'displayName' | 'availability'>,
+  via?: OpenVia,
 ): Original => ({
   id: h.fileInstanceId,
   displayName: h.displayName,
   availability: h.availability,
+  via,
 });
 
 const asApiError = (command: string, err: unknown) =>
@@ -45,6 +52,7 @@ class OriginalsState {
     try {
       await atlas.openOriginal(item.id, allowDownload);
       this.confirmId = null;
+      recordOpen(item.id, item.via, 'open');
     } catch (err) {
       const error = asApiError('open_original', err);
       if (error.code === 'file_cloud_only') {
@@ -60,6 +68,7 @@ class OriginalsState {
     this.problem = null;
     try {
       await atlas.revealOriginal(item.id);
+      recordOpen(item.id, item.via, 'reveal');
     } catch (err) {
       this.problem = { id: item.id, error: asApiError('reveal_original', err) };
     }

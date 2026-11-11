@@ -43,6 +43,15 @@ import type { Settings } from './bindings/Settings';
 import type { SourceRoot } from './bindings/SourceRoot';
 import type { SearchPage } from './bindings/SearchPage';
 import type { SearchQuery } from './bindings/SearchQuery';
+import type { SearchIntent } from './bindings/SearchIntent';
+import type { OpenAction } from './bindings/OpenAction';
+import type { OpenPlace } from './bindings/OpenPlace';
+import type { OpenVia } from './bindings/OpenVia';
+import type { RecordingStatus } from './bindings/RecordingStatus';
+import type { TrailDetail } from './bindings/TrailDetail';
+import type { TrailPage } from './bindings/TrailPage';
+import type { TrailQuery } from './bindings/TrailQuery';
+import type { TrailSummary } from './bindings/TrailSummary';
 
 /** Server codes plus two the client itself can produce. */
 export type ApiErrorCode = ErrorCode | 'ipc_unavailable' | 'unexpected';
@@ -142,7 +151,13 @@ export const atlas = {
   getExtractionStatus: () => call<ExtractionOverview>('get_extraction_status'),
   startEmbedding: (sourceRootId: string) => call<string>('start_embedding', { sourceRootId }),
   getEmbeddingStatus: () => call<EmbeddingOverview>('get_embedding_status'),
-  searchDocuments: (query: SearchQuery) => call<SearchPage>('search_documents', { query }),
+  /**
+   * `intent` says why it ran (Slice 3.3): only `submit` (the user asked)
+   * is recorded into the trail; paging, refreshes and filter changes are
+   * `refresh`.
+   */
+  searchDocuments: (query: SearchQuery, intent: SearchIntent = 'refresh') =>
+    call<SearchPage>('search_documents', { query, intent }),
   getDocumentDetail: (fileId: string) => call<DocumentDetail>('get_document_detail', { fileId }),
   listDuplicates: (query: DuplicateQuery) => call<DuplicatePage>('list_duplicates', { query }),
   getRelatedDocuments: (documentId: string, limit = 10) =>
@@ -189,6 +204,31 @@ export const atlas = {
     call<Settings>('acknowledge_disclosure', { profileId }),
   /** The knowledge store's state, size and snapshots (Slice 3.2). */
   getKnowledgeStatus: () => call<KnowledgeStatus>('get_knowledge_status'),
+
+  /**
+   * A source the user opened (Slice 3.3). Only ids and how it was reached
+   * are sent; Rust builds the step. From the Library it is not a step.
+   */
+  recordOpen: (fileId: string, via: OpenVia, action: OpenAction, place?: OpenPlace) =>
+    call<void>('record_open', { fileId, via, action, place: place ?? null }),
+  getRecordingStatus: () => call<RecordingStatus>('get_recording_status'),
+  dismissTrailNote: () => call<RecordingStatus>('dismiss_trail_note'),
+  listTrails: (query: TrailQuery) => call<TrailPage>('list_trails', { query }),
+  /** A trail's steps with their anchors resolved now (Slice 3.3). */
+  getTrail: (trailId: string) => call<TrailDetail>('get_trail', { trailId }),
+  /** "New trail": the next step starts one. */
+  startTrail: () => call<RecordingStatus>('start_trail'),
+  continueTrail: (trailId: string) => call<TrailSummary>('continue_trail', { trailId }),
+  renameTrail: (trailId: string, title: string) =>
+    call<TrailSummary>('rename_trail', { trailId, title }),
+  pinTrail: (trailId: string, pinned: boolean) =>
+    call<TrailSummary>('pin_trail', { trailId, pinned }),
+  deleteTrail: (trailId: string) => call<void>('delete_trail', { trailId }),
+  deleteTrailStep: (stepId: string) => call<void>('delete_trail_step', { stepId }),
+  addTrailNote: (trailId: string, text: string, stepId?: string) =>
+    call<void>('add_trail_note', { trailId, stepId: stepId ?? null, text }),
+  /** Every trail; bookmarks and findings are kept. The number deleted. */
+  deleteAllTrails: () => call<number>('delete_all_trails'),
 } as const;
 
 export type AtlasApi = typeof atlas;

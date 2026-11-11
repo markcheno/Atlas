@@ -122,6 +122,7 @@ pub(crate) fn excerpts(conn: &Connection, found: &[Found]) -> rusqlite::Result<V
                 location,
                 page_no,
                 excerpt: text,
+                passage: Some(place.passage),
             });
         }
     }

@@ -8,7 +8,13 @@ import type { Settings } from '../api/bindings/Settings';
 
 export const DEFAULT_SETTINGS: Settings = {
   appearance: { theme: 'system' },
-  privacy: { allowRemoteEmbedding: false, disableExternalAi: false, acknowledged: [] },
+  privacy: {
+    allowRemoteEmbedding: false,
+    disableExternalAi: false,
+    acknowledged: [],
+    recordTrails: true,
+    expireTrails: true,
+  },
 };
 
 class SettingsStore {

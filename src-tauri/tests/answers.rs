@@ -156,6 +156,8 @@ impl Ask {
                 limits,
                 events,
                 answers: root.answers(),
+                // Recording has its own tests (tests/trails.rs).
+                recorder: None,
             },
             &AskQuery {
                 question: question.into(),

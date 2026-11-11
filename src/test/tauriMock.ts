@@ -44,6 +44,8 @@ import type { SourceUsed } from '../lib/api/bindings/SourceUsed';
 import type { RelatedHit } from '../lib/api/bindings/RelatedHit';
 import type { RelatedPage } from '../lib/api/bindings/RelatedPage';
 import type { StorageUsage } from '../lib/api/bindings/StorageUsage';
+import type { RecordingStatus } from '../lib/api/bindings/RecordingStatus';
+import type { TrailPage } from '../lib/api/bindings/TrailPage';
 
 export const DEFAULT_ROOT = '/Users/test/Library/Application Support/com.altazlabs.atlas/Library';
 
@@ -52,7 +54,7 @@ export const fakeStatus: AppStatus = {
   os: 'macos',
   arch: 'aarch64',
   buildProfile: 'debug',
-  slice: '3.2',
+  slice: '3.3',
   features: [],
 };
 
@@ -428,6 +430,17 @@ export function knowledgeStatus(overrides: Partial<KnowledgeStatus> = {}): Knowl
   };
 }
 
+export function recordingStatus(overrides: Partial<RecordingStatus> = {}): RecordingStatus {
+  return {
+    state: 'recording',
+    currentTrailId: null,
+    stepCount: 0,
+    firstStepNote: false,
+    failed: false,
+    ...overrides,
+  };
+}
+
 export function duplicateGroup(overrides: Partial<DuplicateGroup> = {}): DuplicateGroup {
   return {
     documentId: 'doc-1',
@@ -555,9 +568,21 @@ const plannedSlices: Record<string, string> = {};
 function defaults(): Record<string, Handler> {
   let settings: Settings = {
     appearance: { theme: 'system' },
-    privacy: { allowRemoteEmbedding: false, disableExternalAi: false, acknowledged: [] },
+    privacy: {
+      allowRemoteEmbedding: false,
+      disableExternalAi: false,
+      acknowledged: [],
+      recordTrails: true,
+      expireTrails: true,
+    },
   };
   let roots: SourceRoot[] = [];
+  let firstStepNote = false;
+  const recording = (): RecordingStatus =>
+    recordingStatus({
+      state: settings.privacy.recordTrails ? 'recording' : 'paused',
+      firstStepNote,
+    });
   let profiles: ProviderProfile[] = [];
   let modelRoles: ModelRoles = { chat: null, embedding: null };
   const withoutProfile = (id: unknown): ModelRoles => ({
@@ -677,6 +702,16 @@ function defaults(): Record<string, Handler> {
     cancel_answer: () => null,
     acknowledge_disclosure: () => settings,
     get_knowledge_status: () => knowledgeStatus(),
+    // Trails (Slice 3.3): recording follows Settings › Privacy.
+    record_open: () => null,
+    get_recording_status: () => recording(),
+    start_trail: () => recording(),
+    dismiss_trail_note: () => {
+      firstStepNote = false;
+      return recording();
+    },
+    list_trails: (): TrailPage => ({ trails: [], page: 0, pageSize: 25, total: 0 }),
+    delete_all_trails: () => 0,
   };
 }
 

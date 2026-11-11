@@ -10,13 +10,61 @@
 //! - It is snapshotted without being asked (`snapshot.rs`).
 //! - A store that can't be opened never blocks the library: it reports
 //!   its state, and Atlas leaves the file exactly as it is.
+//! - Trails are recorded into it by the [`Recorder`] (Slice 3.3,
+//!   ADR 0017) and read, changed and expired through [`trails`].
 
 pub mod anchor;
+pub mod meta;
 pub mod migrations;
+pub mod record;
 pub mod snapshot;
 pub mod store;
+pub mod trails;
 
+use std::sync::atomic::{AtomicBool, Ordering};
+
+use crate::domain::dto::PrivacySettings;
+
+pub use record::{AskRecord, Recorder, TrailEvents};
 pub use store::{KnowledgeHandle, KnowledgeStore};
+
+/// Settings › Privacy's trail choices, shared by the recorder and the
+/// store's hourly thread, and updated when the user changes them.
+#[derive(Debug)]
+pub struct TrailSettings {
+    record: AtomicBool,
+    expire: AtomicBool,
+}
+
+impl TrailSettings {
+    pub fn new(privacy: &PrivacySettings) -> Self {
+        Self {
+            record: AtomicBool::new(privacy.record_trails),
+            expire: AtomicBool::new(privacy.expire_trails),
+        }
+    }
+
+    pub fn set(&self, privacy: &PrivacySettings) {
+        self.record.store(privacy.record_trails, Ordering::SeqCst);
+        self.expire.store(privacy.expire_trails, Ordering::SeqCst);
+    }
+
+    /// "Record my trails".
+    pub fn recording(&self) -> bool {
+        self.record.load(Ordering::SeqCst)
+    }
+
+    /// "Remove unpinned trails after 90 days".
+    pub fn expiring(&self) -> bool {
+        self.expire.load(Ordering::SeqCst)
+    }
+}
+
+impl Default for TrailSettings {
+    fn default() -> Self {
+        Self::new(&PrivacySettings::default())
+    }
+}
 
 /// Where snapshots go, under the data root.
 pub const SNAPSHOTS_DIR: &str = "backups/knowledge";
