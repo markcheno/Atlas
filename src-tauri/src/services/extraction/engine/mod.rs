@@ -6,6 +6,7 @@
 
 pub mod epub;
 pub mod garble;
+pub mod gutenberg;
 pub mod hash;
 pub mod pdf;
 pub mod sniff;
@@ -20,7 +21,8 @@ use crate::domain::dto::FileType;
 /// 2: a title from the first page (Slice 1.6).
 pub const READER_VERSION_PDF: u32 = 2;
 /// 2: plain text without Markdown marks such as `# ` (Slice 1.6).
-pub const READER_VERSION_EPUB: u32 = 2;
+/// 3: Project Gutenberg's header and licence left out (Slice 3.1).
+pub const READER_VERSION_EPUB: u32 = 3;
 
 /// The current reader version for a file type.
 pub const fn reader_version(file_type: FileType) -> u32 {
@@ -89,6 +91,10 @@ pub struct Summary {
     pub language: Option<String>,
     /// Passages cut at [`MAX_PASSAGE_CHARS`].
     pub truncated: u32,
+    /// Characters left out as Project Gutenberg's header and licence
+    /// (EPUB reader version 3).
+    #[serde(default)]
+    pub boilerplate_chars: u64,
 }
 
 /// Receives pieces as they are extracted. Returns false to stop (the

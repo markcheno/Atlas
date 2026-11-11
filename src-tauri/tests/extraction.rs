@@ -222,7 +222,9 @@ fn p1_04_the_corpus_reaches_its_expected_statuses() {
         ),
         0
     );
-    assert!(lib.one("SELECT COUNT(*) FROM passages") > 500);
+    // 484 since Slice 3.1 left out the five Project Gutenberg licences
+    // (about five 4,000-character pieces each).
+    assert!(lib.one("SELECT COUNT(*) FROM passages") > 450);
     // PDFs: one passage per page.
     assert_eq!(
         lib.one(
@@ -473,6 +475,72 @@ fn p1_13_cloud_only_files_are_never_opened() {
         lib.stats(),
         (1, 1),
         "only the local file reached the worker"
+    );
+}
+
+/// P3-01: a file skipped while only in the cloud is read once a rescan
+/// finds it stored here, though a download keeps its size and time; one
+/// still in the cloud is never opened. A file that was evicted after the
+/// scan (skipped by the hash step, its storage still local) is read on the
+/// next rescan too.
+#[test]
+fn p3_01_files_back_from_the_cloud_are_read() {
+    let lib = Lib::new();
+    let books = lib.books();
+    for name in ["one-column.pdf", "two-column.pdf", "features.pdf"] {
+        fs::copy(corpus().join("pdf/generated").join(name), books.join(name)).unwrap();
+    }
+    let canonical = dunce::canonicalize(&books).unwrap();
+    let source = &lib.h.inv.source;
+    source.mark_cloud_only(&canonical.join("two-column.pdf"));
+    source.mark_cloud_only(&canonical.join("features.pdf"));
+    let root = lib.add(&books);
+    lib.wait_settled();
+    assert_eq!(lib.stats(), (1, 1));
+    assert_eq!(
+        lib.file(&books.join("two-column.pdf")).extraction.state,
+        ExtractionState::CloudOnly
+    );
+
+    // Downloaded: the same bytes, size and time, only stored here now.
+    source.mark_local(&canonical.join("two-column.pdf"));
+    lib.rescan(&root);
+    lib.wait_settled();
+    assert_eq!(
+        lib.file(&books.join("two-column.pdf")).extraction.state,
+        ExtractionState::Done
+    );
+    assert_eq!(
+        lib.file(&books.join("features.pdf")).extraction.state,
+        ExtractionState::CloudOnly,
+        "still in the cloud"
+    );
+    assert_eq!(lib.stats(), (2, 2), "the cloud file was never opened");
+
+    // Evicted between the scan and the read: the hash step skipped it while
+    // its storage stayed local.
+    let evicted = lib.file(&books.join("one-column.pdf")).id;
+    lib.root()
+        .catalog()
+        .call(move |c| {
+            c.execute(
+                "UPDATE file_instances SET extract_state = 'skipped_cloud_only', document_id = NULL
+                 WHERE id = ?1",
+                [&evicted],
+            )
+        })
+        .unwrap()
+        .unwrap();
+    assert_eq!(
+        lib.file(&books.join("one-column.pdf")).extraction.state,
+        ExtractionState::CloudOnly
+    );
+    lib.rescan(&root);
+    lib.wait_settled();
+    assert_eq!(
+        lib.file(&books.join("one-column.pdf")).extraction.state,
+        ExtractionState::Done,
+        "read again once a rescan finds it here"
     );
 }
 

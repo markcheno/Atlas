@@ -107,5 +107,6 @@ pub fn extract(pdfium: &Pdfium, file: File, sink: &mut Sink<'_>) -> Result<Summa
         authors,
         language: None,
         truncated,
+        boilerplate_chars: 0,
     })
 }

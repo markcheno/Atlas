@@ -256,16 +256,16 @@ pub fn commit_document(
     let new_id = uuid::Uuid::new_v4().to_string();
     let document_id: String = tx.query_row(
         "INSERT INTO documents (id, content_hash, state, reason, extractor_version, page_count,
-             char_count, title, authors, language, content_title, refresh, created_at,
-             updated_at)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, 0, ?12, ?12)
+             char_count, title, authors, language, content_title, refresh, boilerplate_chars,
+             created_at, updated_at)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, 0, ?13, ?12, ?12)
          ON CONFLICT (content_hash) DO UPDATE SET
              state = excluded.state, reason = excluded.reason,
              extractor_version = excluded.extractor_version, page_count = excluded.page_count,
              char_count = excluded.char_count, title = excluded.title,
              authors = excluded.authors, language = excluded.language,
              content_title = excluded.content_title, refresh = 0,
-             updated_at = excluded.updated_at
+             boilerplate_chars = excluded.boilerplate_chars, updated_at = excluded.updated_at
          RETURNING id",
         params![
             new_id,
@@ -279,7 +279,8 @@ pub fn commit_document(
             authors,
             summary.and_then(|s| s.language.as_deref()),
             summary.and_then(|s| s.content_title.as_deref()),
-            now
+            now,
+            summary.map_or(0, |s| s.boilerplate_chars as i64)
         ],
         |r| r.get(0),
     )?;
@@ -373,8 +374,11 @@ type Stale = (String, String, Option<String>, Option<String>, Option<u32>);
 /// Marks documents read by an older reader to be read again, keeping them
 /// linked and searchable (phase1-spec §6.1, Slice 1.6). A document whose
 /// output would not change is moved to the current version instead:
-/// documents without text (the reason stays the same) and PDFs whose own
-/// metadata already gives a usable title. Returns (refreshing, bumped).
+/// documents without text (the reason stays the same), PDFs whose own
+/// metadata already gives a usable title, and EPUBs already at reader
+/// version 2 whose text never mentions Project Gutenberg (version 3 only
+/// cuts that publisher's header and licence, Slice 3.1). Returns
+/// (refreshing, bumped).
 pub fn mark_refresh(conn: &Connection) -> rusqlite::Result<(usize, usize)> {
     let stale: Vec<Stale> = conn
         .prepare(
@@ -394,6 +398,19 @@ pub fn mark_refresh(conn: &Connection) -> rusqlite::Result<(usize, usize)> {
             |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?, r.get(4)?)),
         )?
         .collect::<rusqlite::Result<_>>()?;
+    if stale.is_empty() {
+        return Ok((0, 0));
+    }
+    // Documents whose text mentions Project Gutenberg, from the full-text
+    // index: the only EPUBs reader version 3 reads differently.
+    let gutenberg: std::collections::HashSet<String> = conn
+        .prepare(
+            "SELECT DISTINCT p.document_id FROM passages_fts
+             JOIN passages p ON p.id = passages_fts.rowid
+             WHERE passages_fts MATCH '\"project gutenberg\"'",
+        )?
+        .query_map([], |r| r.get(0))?
+        .collect::<rusqlite::Result<_>>()?;
     let (mut refreshing, mut bumped) = (0, 0);
     for (id, state, title, file_type, version) in stale {
         // An orphan (no files left) is never read again.
@@ -406,7 +423,10 @@ pub fn mark_refresh(conn: &Connection) -> rusqlite::Result<(usize, usize)> {
         }
         let unchanged = state != "done"
             || (file_type == FileType::Pdf
-                && crate::services::documents::has_usable_title(title.as_deref()));
+                && crate::services::documents::has_usable_title(title.as_deref()))
+            || (file_type == FileType::Epub
+                && version.unwrap_or(0) >= 2
+                && !gutenberg.contains(&id));
         if unchanged {
             conn.execute(
                 "UPDATE documents SET extractor_version = ?2 WHERE id = ?1",

@@ -76,6 +76,11 @@ pub const MIGRATIONS: &[Migration] = &[
         name: "embed_jobs",
         sql: include_str!("../../../migrations/0013_embed_jobs.sql"),
     },
+    Migration {
+        version: 14,
+        name: "boilerplate",
+        sql: include_str!("../../../migrations/0014_boilerplate.sql"),
+    },
 ];
 
 /// Highest catalog schema version this build can read and write.
@@ -427,7 +432,7 @@ mod tests {
                          VALUES ('j', 'r', 'completed', 'extract', 't', 't');",
                 )
                 .unwrap();
-                assert_eq!(migrate(c, "t2").unwrap(), 13);
+                assert_eq!(migrate_to(c, 13, "t2").unwrap(), 13);
                 let counters: (i64, i64, i64) = c
                     .query_row(
                         "SELECT embedded_chunks, sent_chars, service_ms FROM jobs WHERE id = 'j'",
@@ -436,6 +441,33 @@ mod tests {
                     )
                     .unwrap();
                 assert_eq!(counters, (0, 0, 0), "existing jobs start at zero");
+            })
+            .unwrap();
+    }
+
+    #[test]
+    fn version_14_counts_the_boilerplate_left_out() {
+        use crate::services::catalog::writer::CatalogWriter;
+
+        let dir = tempfile::tempdir().unwrap();
+        let writer = CatalogWriter::open(&dir.path().join("catalog.sqlite")).unwrap();
+        writer
+            .call(|c| {
+                assert_eq!(migrate_to(c, 13, "t").unwrap(), 13);
+                c.execute_batch(
+                    "INSERT INTO documents (id, content_hash, state, created_at, updated_at)
+                         VALUES ('d', x'01', 'done', 't', 't');",
+                )
+                .unwrap();
+                assert_eq!(migrate(c, "t2").unwrap(), 14);
+                let n: i64 = c
+                    .query_row(
+                        "SELECT boilerplate_chars FROM documents WHERE id = 'd'",
+                        [],
+                        |r| r.get(0),
+                    )
+                    .unwrap();
+                assert_eq!(n, 0, "documents read before start at zero");
             })
             .unwrap();
     }

@@ -81,7 +81,7 @@ export function rowState(item: FileInstance, ov: ExtractionOverview | null): Ext
 export function reasonText(item: FileInstance): string | null {
   const { state, reason } = item.extraction;
   if (state === 'cloud_only') {
-    return 'Its contents are only in the cloud. Atlas reads it once it is downloaded.';
+    return 'Its contents are only in the cloud. Once it’s downloaded, Rescan its folder in Settings › Library folders and Atlas reads it.';
   }
   if (!reason) return null;
   return REASONS[reason] ?? "Atlas couldn't read this file's text.";

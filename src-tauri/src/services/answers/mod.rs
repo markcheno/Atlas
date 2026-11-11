@@ -181,6 +181,7 @@ pub fn ask(deps: &AskDeps<'_>, query: &AskQuery) -> AtlasResult<AskReply> {
         sources.len(),
         retrieval.best_similarity,
         retrieval.min_similarity,
+        retrieval.weak_margin,
     );
     let count = sources.len() as u32;
     let (events, limits, id) = (Arc::clone(&deps.events), deps.limits, answer_id.clone());

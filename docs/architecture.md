@@ -376,6 +376,8 @@ Implemented in `src-tauri/src/services/inventory/`; rationale in
 - **Cloud files.** iCloud dataless files, legacy `.icloud` placeholders,
   and Windows cloud placeholders are cataloged as `cloud_only` without
   being downloaded. Listing a dataless folder has a 15 second timeout.
+  Once a file is downloaded, the next Rescan of its folder reads it, though
+  a download keeps its size and time (Slice 3.1).
 - **Progress.** The `inventory-status` Tauri event carries an
   `InventoryOverview`, at most 4 per second plus on every state change.
   The UI shows counts only, never totals or percentages. The counts come
@@ -485,7 +487,9 @@ Implemented in `src-tauri/src/services/extraction/` (the worker in Slice
   or a zip for EPUB); streaming BLAKE3; PDFium with one passage per page;
   for EPUBs a zip pre-scan before rbook reads anything (DRM, zip-slip,
   32 MiB per entry, 256 MiB per archive), then rbook and html2text in spine
-  order, split into pieces of at most 4,000 characters; and the
+  order, split into pieces of at most 4,000 characters, leaving out
+  Project Gutenberg's header and licence (`engine/gutenberg.rs`, reader
+  version 3, Slice 3.1; counted in `documents.boilerplate_chars`); and the
   unreadable-text rule (half the pages under 20 visible characters, or 10%
   control, private-use or replacement characters → `needs_ocr`, no text
   stored). Files are opened read-only, never recalling cloud content
@@ -531,7 +535,8 @@ The job side, in the app process (Slice 1.3, ADR 0009).
   text. `file_instances` gains `extract_state` (`pending`, `linked`,
   `skipped_cloud_only`, `unreadable`, `hash_failed`), the hashed size and
   mtime, `document_id` and `extract_attempts`. A rescan that sees a new
-  size or mtime sets the file back to `pending`.
+  size or mtime sets the file back to `pending`, as it does a
+  `skipped_cloud_only` file it now finds stored locally (Slice 3.1).
 - **Supervisor** (`extraction/supervisor.rs`) implements `DocumentProcessor`
   over the worker: a 30 s inactivity timeout per request, a memory cap of
   `min(1 GiB, 15% of RAM)` polled every 250 ms, kill and restart, and a kill
@@ -755,7 +760,9 @@ Rationale in [ADR 0015](adr/0015-ask-atlas-answers-citations-injection.md).
   - About 24,000 characters in all, filled round-robin, at most 2,000 each.
   - Project Gutenberg's header and licence are cut out.
   - `weak`: fewer than 3 sources, or the best meaning match under the
-    floor + 0.20 (tuned with Qwen3-Embedding-0.6B).
+    floor plus the model's weak margin, from the recommendation catalog
+    (`weakMargin`; 0.20, tuned with Qwen3-Embedding-0.6B, and the default
+    for models the catalog doesn't know; Slice 3.1).
 - **Prompt** (`prompt.rs`): a fixed system message, then one user message
   of `<source id="n" title="…" location="…">` blocks and the
   `<question>`. Every `<` and `>` inside them is escaped.

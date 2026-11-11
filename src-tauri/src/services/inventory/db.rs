@@ -211,9 +211,14 @@ pub fn commit_batch(
              ON CONFLICT (source_root_id, rel_path) DO UPDATE SET
                  -- Changed content needs reading again (phase1-spec §6.1).
                  -- SET expressions see the old row, so order doesn't matter.
+                 -- A file skipped while only in the cloud and now stored
+                 -- here is read: a download keeps its size and time
+                 -- (Slice 3.1).
                  extract_state = CASE
                      WHEN size_bytes IS NOT excluded.size_bytes
                        OR mtime_secs IS NOT excluded.mtime_secs
+                     THEN 'pending'
+                     WHEN extract_state = 'skipped_cloud_only' AND excluded.storage = 'local'
                      THEN 'pending' ELSE extract_state END,
                  document_id = CASE
                      WHEN size_bytes IS NOT excluded.size_bytes
@@ -222,6 +227,7 @@ pub fn commit_batch(
                  extract_attempts = CASE
                      WHEN size_bytes IS NOT excluded.size_bytes
                        OR mtime_secs IS NOT excluded.mtime_secs
+                       OR (extract_state = 'skipped_cloud_only' AND excluded.storage = 'local')
                      THEN 0 ELSE extract_attempts END,
                  updated_at = CASE
                      WHEN size_bytes IS NOT excluded.size_bytes

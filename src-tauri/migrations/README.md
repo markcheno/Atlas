@@ -37,3 +37,4 @@ Rules:
 | 11 | `0011_model_roles.sql` | `model_roles`: the service and model for chat and for embeddings (Phase 2) |
 | 12 | `0012_embeddings.sql` | `embedding_models`, `chunks`, `embeddings` (f16 BLOBs by text hash), `document_embeddings`, `vector_tombstones` and its trigger (Phase 2) |
 | 13 | `0013_embed_jobs.sql` | the embedding job's counters on `jobs`: chunks and characters sent, time waiting on the service (Phase 2) |
+| 14 | `0014_boilerplate.sql` | `documents.boilerplate_chars`: Project Gutenberg header and licence text the EPUB reader left out (Phase 3) |

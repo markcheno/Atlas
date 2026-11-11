@@ -454,6 +454,7 @@ fn p2_17_the_vague_set_against_a_real_model() {
                 index,
                 chunk_map: &mut map,
                 min_similarity: 0.0,
+                weak_margin: atlas_lib::services::providers::recommend::DEFAULT_WEAK_MARGIN,
             };
             let meaning = root
                 .reader()
@@ -469,6 +470,7 @@ fn p2_17_the_vague_set_against_a_real_model() {
                 index,
                 chunk_map: &mut map2,
                 min_similarity: profile.min_similarity,
+                weak_margin: profile.weak_margin,
             };
             let hybrid = root
                 .reader()
@@ -566,6 +568,7 @@ fn p2_17_the_vague_set_against_a_real_model() {
             index: &stored,
             chunk_map: &mut map,
             min_similarity: profile.min_similarity,
+            weak_margin: profile.weak_margin,
         };
         let page = root
             .reader()
@@ -848,6 +851,7 @@ fn embedding_throughput_and_recall_against_a_real_model() {
             index: &stored,
             chunk_map: &mut map,
             min_similarity: profile.min_similarity,
+            weak_margin: profile.weak_margin,
         };
         let page = root
             .reader()
@@ -1277,8 +1281,8 @@ fn ask_atlas_against_real_models() {
         );
     }
     eprintln!(
-        "weak retrieval is a margin below {:.2}",
-        answers::retrieve::WEAK_MARGIN
+        "weak retrieval is a margin below {:.2} (the model's, from the recommendation catalog)",
+        atlas_lib::services::providers::recommend::query_profile(&model).weak_margin
     );
     let out = std::path::Path::new(env!("CARGO_TARGET_TMPDIR")).join("eval-ask-answers.md");
     std::fs::write(&out, transcript).unwrap();

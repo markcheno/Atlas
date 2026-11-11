@@ -50,6 +50,9 @@ pub struct Semantic<'a> {
     pub chunk_map: &'a mut ChunkMap,
     /// Cosine similarity below which a chunk isn't a meaning match.
     pub min_similarity: f32,
+    /// How far above the floor the best match must be for Ask Atlas's
+    /// retrieval not to count as weak: the model's own (Slice 3.1).
+    pub weak_margin: f32,
 }
 
 /// One document found by meaning: its best chunk.

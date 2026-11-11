@@ -198,6 +198,11 @@ impl FaultySource {
     pub fn mark_cloud_only(&self, path: &Path) {
         self.cloud.lock().unwrap().insert(path.to_path_buf());
     }
+    /// Reports `path` as stored here again from the next listing on: a
+    /// download, which keeps the file's size and time.
+    pub fn mark_local(&self, path: &Path) {
+        self.cloud.lock().unwrap().remove(path);
+    }
 }
 
 impl InventorySource for FaultySource {
