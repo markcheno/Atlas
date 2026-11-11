@@ -1261,7 +1261,13 @@ The Phase 3 carry-overs ([spec](phase3-spec.md) §7.6). On every OS:
   Project Gutenberg EPUBs without their header and licence, and only those
   books read again on upgrading from reader version 2.
 
-<!-- ci-3.1 -->
+**CI on `slice-31`:** full run
+[42951386736](https://github.com/markcheno/Atlas/actions/runs/42951386736),
+all green on three OSes, smoke included. The product owner re-ran
+`just eval-semantic` and `just eval-ask`
+([benchmarks](benchmarks.md#meaning-search-slice-24)): hybrid hit@5 at 512
+is 0.900, from 0.950; the licences had been giving two questions text
+matches.
 
 ## Manual checklist for Windows and Linux
 

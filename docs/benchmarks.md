@@ -697,6 +697,46 @@ product owner on 2026-11-10, release build):
   stored 512 for 38. Three (8%) are found only with meaning: v06 ("verses
   about a grief that refuses to end"), v11 and v14.
 
+**After Slice 3.1's Gutenberg cut** (`just eval-semantic`, the product
+owner, 2026-11-10, the same model and corpus). The corpus now makes 1,836
+chunks, 118 fewer: the five licences.
+
+| Hit@5 of 40 | Text only | Meaning only | Hybrid |
+| --- | ---: | ---: | ---: |
+| 1,024 dimensions | 0.875 | 0.975 | 0.925 |
+| **512 dimensions (stored)** | 0.875 | **0.975** | **0.900** (from 0.950) |
+
+- **The gate still holds:** hybrid hit@5 is at least 0.80, and meaning only
+  beats text only. Phase 1's set is 40/40.
+- **The licences had been lifting two questions.** For both, meaning alone
+  now ranks the right book first, but hybrid ranks it 7th and 8th:
+  - v06 ("verses about a grief that refuses to end"): text 9th (Phase 2)
+    to not found;
+  - v14 ("ancient Chinese thoughts on ruling by doing nothing"): text 6th
+    to not found.
+- **Where the text match came from.** Both had matched by words in the
+  licence text ("end", "refuses", "nothing"). Without it, each book is a
+  meaning-only result, and hybrid search ranks a meaning-only result below
+  documents that match some words and are near in meaning: v38's problem
+  in Phase 2.
+- **So the 0.950 was flattered by licence text.** The gap is in fusion.
+
+**Ask Atlas after the cut** (`just eval-ask`, the same models):
+
+| Measure | Vague set (40) | Off set (12) |
+| --- | ---: | ---: |
+| First word, p50 / p95 | 13.4 s / 20.3 s | 14.4 s / 16.1 s |
+| Whole answer, p50 / p95 | 22.9 s / 35.1 s | 18.9 s / 21.0 s |
+| A relevant document among the sources | 39 / 40 | — |
+| Citation rate (cited ÷ supplied) | 0.20 (115 / 582) | 0.26 (45 / 172) |
+| Invented citations | 0 | 0 |
+| Answers saying the excerpts don't cover it | 4 | 12 of 12 (8 citing nothing) |
+| Weak retrieval (the model's margin, 0.20) | 0 | 8 |
+
+These are in line with the run after Slice 2.6.3, a little faster, with
+no invented citation reaching the text. The weak margin now comes from the
+model's profile and gives the same flags.
+
 ## Related documents (Slice 2.5)
 
 `benches/embedding.rs`, after the job has finished: related documents for
