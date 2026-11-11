@@ -7,6 +7,7 @@
 import { vi } from 'vitest';
 import type { AiRole } from '../lib/api/bindings/AiRole';
 import type { AppStatus } from '../lib/api/bindings/AppStatus';
+import type { KnowledgeStatus } from '../lib/api/bindings/KnowledgeStatus';
 import type { CapabilityResult } from '../lib/api/bindings/CapabilityResult';
 import type { ModelRole } from '../lib/api/bindings/ModelRole';
 import type { ModelRoles } from '../lib/api/bindings/ModelRoles';
@@ -51,7 +52,7 @@ export const fakeStatus: AppStatus = {
   os: 'macos',
   arch: 'aarch64',
   buildProfile: 'debug',
-  slice: '3.1',
+  slice: '3.2',
   features: [],
 };
 
@@ -400,7 +401,29 @@ export function storageUsage(overrides: Partial<StorageUsage> = {}): StorageUsag
     meaningCatalogBytes: 0,
     meaningFileBytes: 0,
     meaningEstimate: null,
+    knowledgeBytes: 98_304,
+    snapshotBytes: 196_608,
+    snapshotCount: 2,
     measuredAt: '2026-11-09T00:00:00Z',
+    ...overrides,
+  };
+}
+
+export function knowledgeStatus(overrides: Partial<KnowledgeStatus> = {}): KnowledgeStatus {
+  return {
+    state: 'ready',
+    bytes: 98_304,
+    trails: 0,
+    steps: 0,
+    bookmarks: 0,
+    findings: 0,
+    collections: 0,
+    snapshots: {
+      count: 2,
+      bytes: 196_608,
+      newestAt: '2026-11-10T09:00:00Z',
+      lastOutcome: 'not_due',
+    },
     ...overrides,
   };
 }
@@ -653,6 +676,7 @@ function defaults(): Record<string, Handler> {
     ask_atlas: (): AskReply => ({ kind: 'nothing_found', semantic: { state: 'off' } }),
     cancel_answer: () => null,
     acknowledge_disclosure: () => settings,
+    get_knowledge_status: () => knowledgeStatus(),
   };
 }
 

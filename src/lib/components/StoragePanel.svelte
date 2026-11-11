@@ -1,14 +1,24 @@
 <script lang="ts">
   // Settings › Storage (phase1-spec §5.5): what the library's data takes by
   // category, the estimate for the text still to be read, and Clean caches.
+  // Your trails and notes and their snapshots (Slice 3.2) are shown apart:
+  // Clean caches never touches them.
   import { onMount } from 'svelte';
   import { atlas, AtlasApiError, toApiError } from '../api/client';
   import type { StorageUsage } from '../api/bindings/StorageUsage';
+  import type { KnowledgeStatus } from '../api/bindings/KnowledgeStatus';
   import { formatBytes } from '../format';
-  import { estimateText, meaningEstimateText, freedText } from '../storageCopy';
+  import {
+    estimateText,
+    meaningEstimateText,
+    freedText,
+    knowledgeText,
+    snapshotsLabel,
+  } from '../storageCopy';
   import ProblemNotice from './ProblemNotice.svelte';
 
   let usage = $state<StorageUsage | null>(null);
+  let knowledge = $state<KnowledgeStatus | null>(null);
   let error = $state<AtlasApiError | null>(null);
   let cleaning = $state(false);
   let cleaned = $state<string | null>(null);
@@ -16,7 +26,17 @@
   const asError = (command: string, err: unknown) =>
     err instanceof AtlasApiError ? err : toApiError(command, err);
 
+  async function readKnowledge() {
+    try {
+      knowledge = await atlas.getKnowledgeStatus();
+    } catch {
+      // The sizes below still show; the sentence needs the status.
+      knowledge = null;
+    }
+  }
+
   async function measure() {
+    void readKnowledge();
     try {
       usage = await atlas.getStorageUsage();
       error = null;
@@ -79,7 +99,18 @@
         <dt>Caches</dt>
         <dd>{formatBytes(usage.cacheBytes)}</dd>
       </div>
+      <div>
+        <dt>Your trails and notes</dt>
+        <dd data-testid="knowledge-bytes">{formatBytes(usage.knowledgeBytes)}</dd>
+      </div>
+      <div>
+        <dt>{snapshotsLabel(usage.snapshotCount)}</dt>
+        <dd data-testid="snapshot-bytes">{formatBytes(usage.snapshotBytes)}</dd>
+      </div>
     </dl>
+    {#if knowledgeText(knowledge)}
+      <p data-testid="knowledge-note">{knowledgeText(knowledge)}</p>
+    {/if}
     <p data-testid="indexing-estimate">
       {estimateText(usage.estimate, usage.dataVolumeFreeBytes)}
     </p>
@@ -97,7 +128,8 @@
   </div>
   <p class="muted small">
     Clean caches removes only temporary files Atlas can make again. It never removes your catalog,
-    the text Atlas has read, the meaning index, or your settings.
+    the text Atlas has read, the meaning index, your settings, or your trails and notes and their
+    snapshots.
   </p>
 </div>
 

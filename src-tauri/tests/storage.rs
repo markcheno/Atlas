@@ -202,3 +202,88 @@ fn clean_caches_empties_only_the_caches() {
     );
     drop(ws);
 }
+
+/// P3-07 (Slice 3.2): the knowledge store and its snapshots are measured,
+/// never touched by Clean caches, and low space stops new snapshots
+/// without deleting any.
+#[test]
+fn p3_07_clean_caches_and_low_space_leave_trails_and_snapshots_alone() {
+    use std::sync::Arc;
+
+    use atlas_lib::domain::dto::{SnapshotOutcome, VolumeKind};
+    use atlas_lib::services::knowledge::{SNAPSHOTS_DIR, snapshot};
+    use atlas_lib::services::workspace::layout::KNOWLEDGE;
+    use common::{FakeVolumes, GIB};
+
+    let env = Env::new();
+    let root = data(&env);
+    let add = |ws: &Workspace, id: &str| {
+        let id = id.to_owned();
+        ws.require_open()
+            .unwrap()
+            .knowledge()
+            .call(move |c| {
+                c.execute(
+                    "INSERT INTO findings (id, kind, text, sources, created_at, updated_at)
+                     VALUES (?1, 'passage', ?2, '[]', 't', 't')",
+                    rusqlite::params![id, "kept ".repeat(2_000)],
+                )
+            })
+            .unwrap()
+            .unwrap();
+    };
+    {
+        let mut ws = env.workspace();
+        ws.choose(&root).unwrap();
+        for n in 0..50 {
+            add(&ws, &format!("f{n}"));
+        }
+        let store = ws.require_open().unwrap().knowledge();
+        assert_eq!(snapshot::take(store.inner()), Some(SnapshotOutcome::Taken));
+        fs::write(root.join("cache/previews/p.bin"), vec![1u8; 4_000]).unwrap();
+
+        let usage = storage::usage(&root, local().as_ref()).unwrap();
+        let snaps = snapshot::list(&root.join(SNAPSHOTS_DIR));
+        assert_eq!(usage.snapshot_count, 1);
+        assert_eq!(usage.snapshot_bytes, snaps[0].bytes);
+        assert!(
+            usage.knowledge_bytes > 50 * 10_000,
+            "{}",
+            usage.knowledge_bytes
+        );
+        assert_eq!(usage.cache_bytes, 4_000);
+    }
+    // Closed, so the store's bytes stand still.
+    let snapshot_file = snapshot::list(&root.join(SNAPSHOTS_DIR))[0].path.clone();
+    let (store_before, snap_before) = (
+        fs::read(root.join(KNOWLEDGE)).unwrap(),
+        fs::read(&snapshot_file).unwrap(),
+    );
+    assert_eq!(storage::clean_caches(&root).unwrap(), 4_000);
+    assert_eq!(fs::read(root.join(KNOWLEDGE)).unwrap(), store_before);
+    assert_eq!(fs::read(&snapshot_file).unwrap(), snap_before);
+
+    // A nearly full drive: a change, but no snapshot, and none deleted.
+    let full = Arc::new(FakeVolumes {
+        kind: VolumeKind::Local,
+        free: GIB / 2,
+        total: 500 * GIB,
+    });
+    {
+        let mut ws = env.workspace_with(full.clone());
+        ws.startup();
+        add(&ws, "after");
+        let store = ws.require_open().unwrap().knowledge();
+        assert_eq!(
+            snapshot::take(store.inner()),
+            Some(SnapshotOutcome::LowSpace)
+        );
+        assert_eq!(
+            store.status().snapshots.last_outcome,
+            Some(SnapshotOutcome::LowSpace)
+        );
+    }
+    let snaps = snapshot::list(&root.join(SNAPSHOTS_DIR));
+    assert_eq!(snaps.len(), 1);
+    assert_eq!(fs::read(&snaps[0].path).unwrap(), snap_before);
+}

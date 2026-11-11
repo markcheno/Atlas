@@ -212,6 +212,7 @@ pub fn run() {
             commands::answers::ask_atlas,
             commands::answers::cancel_answer,
             commands::answers::acknowledge_disclosure,
+            commands::knowledge::get_knowledge_status,
         ])
         .build(tauri::generate_context!())
         .expect("error while building Atlas")

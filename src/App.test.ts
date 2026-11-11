@@ -2101,6 +2101,44 @@ describe('storage', () => {
     const { section } = await openStorage();
     expect(await section.findByText("Atlas couldn't measure its storage")).toBeInTheDocument();
   });
+
+  it('shows your trails and notes and their snapshots apart from the caches', async () => {
+    const { section } = await openStorage();
+    expect(await section.findByText('Your trails and notes')).toBeInTheDocument();
+    expect(section.getByText('Snapshots (2)')).toBeInTheDocument();
+    expect(section.getByTestId('knowledge-bytes')).toHaveTextContent(/KB/);
+    expect(section.getByTestId('snapshot-bytes')).toHaveTextContent(/KB/);
+    expect(section.queryByTestId('knowledge-note')).not.toBeInTheDocument();
+    expect(section.getByText(/your trails and notes and their\s+snapshots/)).toBeInTheDocument();
+  });
+
+  it.each([
+    [{ state: 'damaged' } as const, "Atlas can't read your trails and notes"],
+    [{ state: 'incompatible' } as const, 'saved by a newer version of Atlas'],
+    [
+      {
+        snapshots: { count: 2, bytes: 1, newestAt: null, lastOutcome: 'low_space' },
+      } as const,
+      "didn't make a new snapshot",
+    ],
+    [
+      { snapshots: { count: 2, bytes: 1, newestAt: null, lastOutcome: 'failed' } } as const,
+      'failed its check and was removed',
+    ],
+  ])('says what happened to your trails and notes %#', async (status, text) => {
+    tauri.setHandler('get_knowledge_status', () => tauri.knowledgeStatus(status));
+    const { section } = await openStorage();
+    expect(await section.findByTestId('knowledge-note')).toHaveTextContent(text);
+  });
+
+  it('still shows the sizes when the store status cannot be read', async () => {
+    tauri.setHandler('get_knowledge_status', () => {
+      throw tauri.apiError('knowledge_unavailable', "Atlas couldn't read your trails and notes.");
+    });
+    const { section } = await openStorage();
+    expect(await section.findByText('Your trails and notes')).toBeInTheDocument();
+    expect(section.queryByTestId('knowledge-note')).not.toBeInTheDocument();
+  });
 });
 
 describe('title sources', () => {

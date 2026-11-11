@@ -23,8 +23,13 @@ pub struct CatalogReader {
 impl CatalogReader {
     /// Opens the pool. Call after the writer has applied migrations.
     pub fn open(path: &Path) -> AtlasResult<Self> {
-        let mut conns = Vec::with_capacity(POOL_SIZE);
-        for _ in 0..POOL_SIZE {
+        Self::open_sized(path, POOL_SIZE)
+    }
+
+    /// A pool of `size` connections (the knowledge store keeps two).
+    pub fn open_sized(path: &Path, size: usize) -> AtlasResult<Self> {
+        let mut conns = Vec::with_capacity(size);
+        for _ in 0..size {
             conns.push(open_reader(path)?);
         }
         Ok(Self {

@@ -4,7 +4,7 @@ Atlas is a local-first personal AI librarian for large private collections of
 PDFs, EPUBs, books and papers. *Collect freely. Organize minimally. Retrieve
 intelligently.*
 
-**Status: Phase 3, Slice 3.1.1 (the carry-overs, and fusion's best meaning match); Phase 2 complete (version 0.3.0, [close-out review](docs/phase2-closeout.md)); Phases 0 and 1 complete ([Phase 1 review](docs/phase1-closeout.md)).** Atlas asks where to keep its library and
+**Status: Phase 3, Slice 3.2 (the knowledge store, after the carry-overs); Phase 2 complete (version 0.3.0, [close-out review](docs/phase2-closeout.md)); Phases 0 and 1 complete ([Phase 1 review](docs/phase1-closeout.md)).** Atlas asks where to keep its library and
 which folders hold your books and papers, then catalogs every PDF and EPUB
 in them in the background, read-only. Cataloging slows on battery, pauses
 when the battery is low or the drive is nearly full, survives quitting and
@@ -57,8 +57,14 @@ chat model chosen, Atlas can answer a question from the passages it finds
 in your library, citing them by number. Every citation is checked against
 the passages it sent, and invented ones are removed. An internet service
 gets nothing until you have seen what will be sent and agreed, and
-Settings › Privacy can turn all external AI off. The screen for asking
-arrives in the next slice.
+Settings › Privacy can turn all external AI off. The Ask Atlas screen
+streams the answer with citation chips and lists the sources used. Since
+Phase 3, files downloaded from iCloud are read at the next rescan, and
+Project Gutenberg's header and licence are left out of the books' text.
+Atlas now keeps a separate store for what you will save (trails, bookmarks,
+notes), takes a snapshot of it once a day when it has changed, and never
+lets a damaged or newer store stop your library from opening. Settings ›
+Storage shows it as "Your trails and notes" and "Snapshots".
 
 Every push to `main`, every release tag and every pull request is built
 and tested on macOS (Apple silicon), Windows x64, and Linux x64; pushes to
@@ -117,7 +123,8 @@ with semantic search.
 | Ask Atlas screen: Search's Find sources \| Ask Atlas switch, the streamed answer with citation chips that open the passage, Sources used, Stop, the disclosure for internet services | Working (Phase 2, Slice 2.7) |
 | Phase 2 close-out: evidence on three OSes, version 0.3.0 | Done ([review](docs/phase2-closeout.md)); Windows and Linux verified in CI with a scripted model service, with documented gaps |
 | Phase 3 carry-overs: downloaded iCloud files read at the next rescan, a weak-retrieval margin per embedding model, Project Gutenberg headers and licences left out when a book is read | Working (Phase 3, Slice 3.1) |
-| Phase 3, the knowledge workspace: research trails, bookmarks and saved findings, interests and projects, a PDF page view, Markdown and JSON export | Phase 3, in progress ([spec](docs/phase3-spec.md)): Slice 3.1 of 3.9 built |
+| Phase 3, the knowledge store: your trails and notes in a database of their own (`library/knowledge.sqlite`), never blocking the library, snapshotted daily when changed (14 kept), shown in Settings › Storage and never touched by Clean caches | Working (Phase 3, Slice 3.2; no trails recorded yet) |
+| Phase 3, the knowledge workspace: research trails, bookmarks and saved findings, interests and projects, a PDF page view, Markdown and JSON export | Phase 3, in progress ([spec](docs/phase3-spec.md)): Slices 3.1 and 3.2 of 3.9 built |
 
 Specifications: [product](docs/product-spec.md), [Phase 0](docs/phase0-spec.md),
 [Phase 1](docs/phase1-spec.md), [Phase 2](docs/phase2-spec.md),

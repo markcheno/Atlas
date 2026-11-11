@@ -91,6 +91,9 @@ pub enum ErrorCode {
     InvalidQuestion,
     IoError,
     DatabaseError,
+    /// The knowledge store (trails, bookmarks, findings) can't be used:
+    /// from a newer Atlas, damaged, or failing (Phase 3).
+    KnowledgeUnavailable,
     Internal,
 }
 
@@ -217,6 +220,9 @@ pub enum AtlasError {
         #[source]
         source: rusqlite::Error,
     },
+    /// The knowledge store (Phase 3). The library itself keeps working.
+    #[error("Atlas couldn't {0} your trails and notes.")]
+    Knowledge(&'static str),
     #[error("Atlas hit an internal error: {0}.")]
     Internal(&'static str),
 }
@@ -293,6 +299,7 @@ impl AtlasError {
             Self::SecretStoreFailed => ErrorCode::SecretStoreFailed,
             Self::Io { .. } => ErrorCode::IoError,
             Self::Database { .. } => ErrorCode::DatabaseError,
+            Self::Knowledge(_) => ErrorCode::KnowledgeUnavailable,
             Self::Internal(_) => ErrorCode::Internal,
         }
     }
@@ -371,6 +378,9 @@ impl AtlasError {
             Self::InvalidQuestion { .. } => "Type a question, then choose Ask.",
             Self::Io { .. } | Self::Database { .. } => {
                 "Try again. If this keeps happening, check the drive for problems."
+            }
+            Self::Knowledge(_) => {
+                "Your library still works. Settings › Storage says what happened to your trails and notes."
             }
         })
     }

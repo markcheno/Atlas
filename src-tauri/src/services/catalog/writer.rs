@@ -70,12 +70,18 @@ impl CatalogWriter {
     /// written to the database file until a job asks for it, so a catalog
     /// from a newer Atlas can be inspected and refused untouched.
     pub fn open(path: &Path) -> AtlasResult<Self> {
+        Self::open_named(path, "atlas-catalog-writer")
+    }
+
+    /// As [`open`](Self::open), with the writer thread named `thread`: the
+    /// knowledge store (Phase 3) runs its own writer on this same code.
+    pub fn open_named(path: &Path, thread: &str) -> AtlasResult<Self> {
         let (tx, rx) = mpsc::channel::<Job>();
         let (ready_tx, ready_rx) = mpsc::sync_channel::<AtlasResult<()>>(1);
         let db_path = path.to_path_buf();
 
         let thread = thread::Builder::new()
-            .name("atlas-catalog-writer".into())
+            .name(thread.into())
             .spawn(move || {
                 let mut conn = match open_connection(&db_path) {
                     Ok(conn) => {

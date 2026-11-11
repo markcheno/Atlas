@@ -10,6 +10,8 @@ pub const LOCK: &str = "atlas.lock";
 pub const INIT_MARKER: &str = ".atlas-init";
 pub const SETTINGS: &str = "config/settings.json";
 pub const CATALOG: &str = "library/catalog.sqlite";
+/// What the user creates (Phase 3, ADR 0016), apart from the catalog.
+pub const KNOWLEDGE: &str = "library/knowledge.sqlite";
 /// Staging area for atomic writes; emptied each time the root is opened.
 pub const TMP: &str = "tmp";
 
@@ -30,6 +32,9 @@ pub const DIRECTORIES: &[&str] = &[
     "logs",
     TMP,
     "backups",
+    // Snapshots of the knowledge store (Slice 3.2). Never cleaned.
+    "backups/knowledge",
+    "backups/knowledge/staging",
 ];
 
 /// Offered when the user picks a folder that already holds other files.
