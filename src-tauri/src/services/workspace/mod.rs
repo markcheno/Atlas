@@ -42,6 +42,7 @@ use crate::services::inventory::{self, InventoryDeps};
 use crate::services::jobs::{self, JobRunners, ProcessorFactory};
 use crate::services::knowledge::{KnowledgeStore, Recorder, TrailEvents, TrailSettings};
 use crate::services::library::{self, RootStatusCache};
+use crate::services::reader::{ReaderConfig, ReaderService};
 use crate::services::system::low_space_threshold;
 use layout::{CATALOG, DIRECTORIES, INIT_MARKER, TMP};
 use lock::RootLock;
@@ -63,6 +64,8 @@ pub struct OpenRoot {
     answers: Arc<AnswerRegistry>,
     /// Records trails into the knowledge store (Slice 3.3).
     recorder: Arc<Recorder>,
+    /// The page view's renderer and its worker (Slice 3.7).
+    pages: Arc<ReaderService>,
     jobs: JobRunners,
     /// The vector indexes, after the runners (which save them as they stop).
     vectors: Arc<VectorRegistry>,
@@ -102,6 +105,10 @@ impl OpenRoot {
     /// Records and changes trails (Slice 3.3, ADR 0017).
     pub fn recorder(&self) -> &Arc<Recorder> {
         &self.recorder
+    }
+    /// Renders PDF pages for the page view (Slice 3.7, ADR 0018).
+    pub fn pages(&self) -> &Arc<ReaderService> {
+        &self.pages
     }
     /// The library's vector indexes (Slice 2.3).
     pub fn vectors(&self) -> &Arc<VectorRegistry> {
@@ -151,6 +158,8 @@ pub struct Workspace {
     clock: Arc<dyn Clock>,
     /// Where the recording status goes (`trail-changed`, Slice 3.3).
     trail_events: Option<TrailEvents>,
+    /// The page view's worker (Slice 3.7); `None` renders nothing.
+    reader: Option<ReaderConfig>,
     /// One processor per job kind, started for every root this workspace
     /// opens (ADR 0009).
     processors: BTreeMap<JobKind, ProcessorFactory>,
@@ -164,6 +173,7 @@ impl Workspace {
             volumes,
             clock: Arc::new(SystemClock),
             trail_events: None,
+            reader: None,
             processors: BTreeMap::new(),
             state: State::NotConfigured,
         }
@@ -185,6 +195,12 @@ impl Workspace {
     /// `events` (Slice 3.3).
     pub fn with_trail_events(mut self, events: TrailEvents) -> Self {
         self.trail_events = Some(events);
+        self
+    }
+
+    /// Renders pages for the page view with `config`'s worker (Slice 3.7).
+    pub fn with_reader(mut self, config: ReaderConfig) -> Self {
+        self.reader = Some(config);
         self
     }
 
@@ -476,6 +492,7 @@ impl Workspace {
         Ok(OpenRoot {
             answers: Arc::default(),
             recorder: self.recorder(&knowledge, &reader),
+            pages: self.pages(path),
             jobs: self.start_jobs(&catalog, path, &vectors)?,
             vectors,
             reader,
@@ -503,6 +520,10 @@ impl Workspace {
         store.snapshot_if_due();
         store.expire_if_due();
         store
+    }
+
+    fn pages(&self, path: &Path) -> Arc<ReaderService> {
+        Arc::new(ReaderService::new(path, self.reader.clone()))
     }
 
     fn recorder(&self, knowledge: &KnowledgeStore, reader: &Arc<CatalogReader>) -> Arc<Recorder> {
@@ -567,6 +588,7 @@ impl Workspace {
         Ok(OpenRoot {
             answers: Arc::default(),
             recorder: self.recorder(&knowledge, &reader),
+            pages: self.pages(path),
             jobs: self.start_jobs(&catalog, path, &vectors)?,
             vectors,
             reader,

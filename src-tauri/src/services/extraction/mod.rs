@@ -23,4 +23,4 @@ pub const WORKER_ARG: &str = "--extract-worker";
 pub const PDFIUM_VERSION: &str = "chromium/8125";
 
 /// Version of the JSON-lines protocol between the app and the worker.
-pub const PROTOCOL_VERSION: u32 = 1;
+pub const PROTOCOL_VERSION: u32 = 2;

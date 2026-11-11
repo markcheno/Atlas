@@ -634,6 +634,46 @@ Do **not** create `knowledge.sqlite`, add a Trails view or record anything befor
   - **Uncited sources of a recorded answer kept as anchors without their excerpts**, to keep a question near 4 KB.
 - **Carried from the Phase 2 close-out and still deferred:** the unexplained miss of an index's first vector on the Linux runner (worked around by the exact search of small indexes); the single Windows failure of a `related` test; the 30k fixture embedded through oMLX overnight (not run); signing and notarization.
 
+**2026-11-11, Slice 3.7** (the PDF page view; [ADR 0018](adr/0018-the-page-view.md)):
+- **Refusals are an answer, not a kill.** Protocol 2 adds
+  `RenderFailed { reason }` beside `Rendered`, with reasons
+  `page_out_of_range`, `encrypted`, `malformed`, `too_large`, `cloud_only`
+  and `bad_path`. The worker keeps running. Only a hang, the memory cap, a
+  crash or a protocol fault kill it. The command's `render_failed` error
+  adds `not_read`, `not_a_pdf`, `unavailable` and `worker`; a width outside
+  1 to 2,000, or page 0, is `invalid_render`.
+- **The cache key includes what was looked for:**
+  `cache/previews/<content hash>/<page>-<width>-<find key>.png`, with a
+  `.json` beside it (page count, size, rectangles). The find key is 8 hex
+  characters of the BLAKE3 hash of the normalised text, or `none`. §7.5
+  had `<page>-<width>.png`, which can't hold the outline.
+- **A cached page shows for a file now only in the cloud:** the cache is
+  read before the file is, and nothing is downloaded to show it. P3-21's
+  "not rendered without agreement" holds for pages not yet cached.
+- **A page too tall at the width asked for is scaled** to the 3,000 px long
+  edge, not refused, so a long page still shows. P3-20's "a page over the
+  size limits" is the width over 2,000 (`invalid_render`) and the 8 MiB PNG
+  limit.
+- **`find` is text the screen already shows** (an excerpt or a snippet, at
+  most 2,000 characters). It is searched for and hashed for the key, and
+  never stored. The passage is looked for only on the page it was cited
+  on.
+- **The PDFium module check** (P3-20) runs on macOS (dyld) and Linux
+  (`/proc/self/maps`). Windows has no cheap module list, so it is skipped
+  there.
+- **P3-21's cloud-only case is tested at the reader level.** It renders
+  with the path's `FileCloudOnly` error in hand, because a file's cloud
+  flags can't be faked on a real filesystem. `path_for`'s mapping is
+  Open's, which P1-13 covers.
+- **Malformed PDFs that PDFium repairs render.** P3-20 asks that each of
+  the corpus's `malformed/` files either renders or gives `render_failed`,
+  and that the next good render works.
+- **Where the outline is missed:** text PDFium reads differently from the
+  extraction. Superscript marks in a paper's author list and hyphens PDFium
+  marks with a control character both do it. 4 of 37 corpus pages in the
+  benchmark, all arXiv first pages or hyphenated lines. The page still
+  shows, with its text below.
+
 **2026-11-11, Slice 3.6** (interests, projects and rediscovery):
 - **Field limits:** a name of 1 to 200 characters; a description and a
   goal of up to 4,000. A goal and Finished are a project's only

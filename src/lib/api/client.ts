@@ -67,6 +67,7 @@ import type { CollectionItemRef } from './bindings/CollectionItemRef';
 import type { CollectionStatus } from './bindings/CollectionStatus';
 import type { Membership } from './bindings/Membership';
 import type { Suggestion } from './bindings/Suggestion';
+import type { PageImage } from './bindings/PageImage';
 
 /** Server codes plus two the client itself can produce. */
 export type ApiErrorCode = ErrorCode | 'ipc_unavailable' | 'unexpected';
@@ -272,6 +273,18 @@ export const atlas = {
   getSuggestions: (limit = 3) => call<Suggestion[]>('get_suggestions', { limit }),
   dismissSuggestion: (seedId: string, documentId: string) =>
     call<void>('dismiss_suggestion', { seedId, documentId }),
+
+  /**
+   * A PDF page (Slice 3.7), rendered in the reader's own worker. `find` is
+   * text already on screen, outlined when it is on the page.
+   */
+  renderPage: (
+    fileId: string,
+    pageNo: number,
+    widthPx: number,
+    find: string | null = null,
+    allowDownload = false,
+  ) => call<PageImage>('render_page', { fileId, pageNo, widthPx, find, allowDownload }),
 } as const;
 
 export type AtlasApi = typeof atlas;

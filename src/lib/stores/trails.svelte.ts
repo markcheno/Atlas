@@ -18,9 +18,15 @@ export const TRAIL_EVENT = 'trail-changed';
  * Tells Rust a source was opened, after it was. Never fails the open: a
  * problem shows in the indicator. No `via` (the Library) records nothing.
  */
-export function recordOpen(fileId: string, via: OpenVia | undefined, action: OpenAction) {
+export function recordOpen(
+  fileId: string,
+  via: OpenVia | undefined,
+  action: OpenAction,
+  pageNo?: number,
+) {
   if (!via || via.kind === 'library') return;
-  void atlas.recordOpen(fileId, via, action).catch(() => {});
+  const place = pageNo === undefined ? undefined : { pageNo };
+  void atlas.recordOpen(fileId, via, action, place).catch(() => {});
 }
 
 const asApiError = (command: string, err: unknown) =>

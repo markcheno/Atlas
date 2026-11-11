@@ -67,6 +67,7 @@ commands and added the native multi-folder picker.
 | Trails | `record_open`, `get_recording_status`, `dismiss_trail_note`, `list_trails`, `get_trail`, `start_trail`, `continue_trail`, `rename_trail`, `pin_trail`, `delete_trail`, `delete_trail_step`, `add_trail_note`, `delete_all_trails`; `search_documents` gains `intent`; the `trail-changed` event (recording and expiry are part of `update_settings`) | **3.3 (working)** |
 | Saved | `save_bookmark`, `save_finding`, `update_saved_note`, `delete_saved`, `list_saved` | **3.5 (working)** |
 | Interests and projects | `list_collections`, `get_collection`, `save_collection`, `delete_collection`, `add_to_collection`, `remove_from_collection`, `get_collection_membership`, `get_suggestions`, `dismiss_suggestion` | **3.6 (working)** |
+| Page view | `render_page` | **3.7 (working)** |
 
 `get_app_status` returns only facts about the running process, including a
 feature list that marks exactly which capabilities this build provides.
@@ -483,12 +484,15 @@ Implemented in `src-tauri/src/services/extraction/` (the worker in Slice
   sidecar binary, so it stays a mode of the app executable.
 - **Protocol.** JSON lines over stdin and stdout
   (`extraction/protocol.rs`). The first line is
-  `{"type":"hello","protocol":1,"extractorVersion":…,"pdfiumVersion":"chromium/8125","selfTest":{"pages":2,"chars":…}}`,
+  `{"type":"hello","protocol":2,"extractorVersion":…,"pdfiumVersion":"chromium/8125","selfTest":{"pages":2,"chars":…}}`,
   or `{"type":"unavailable","reason":"not_found|load_failed|self_test_failed"}`
   followed by exit code 3. Then one request at a time: `hash {path}` →
   `hashed {hash, size, mtimeSecs}` or `hashFailed {reason}`; `extract
   {path, kind}` → `page` frames, then `done {summary}` or `failed {outcome,
-  reason}`. Paths are the catalog's platform-tagged bytes, hex-encoded.
+  reason}`; from protocol 2 (Slice 3.7), `render {path, page, width,
+  find?}` → `rendered {page, pageCount, width, height, png, rects, found}`
+  or `renderFailed {reason}` ([Page view](#page-view)). Paths are the
+  catalog's platform-tagged bytes, hex-encoded.
   Reasons are fixed codes, never paths; library messages go to stderr.
 - **Engines** (`extraction/engine/`, worker only). A signature sniff (`%PDF-`,
   or a zip for EPUB); streaming BLAKE3; PDFium with one passage per page;
@@ -527,8 +531,9 @@ Implemented in `src-tauri/src/services/extraction/` (the worker in Slice
   wait on the parent's handle returns. It exits without running exit
   handlers, since PDFium may be mid-call. On Windows each worker is also
   in a kill-on-close Job Object the app holds open, so the kernel ends it
-  with the app. One worker per library (`ATLAS_EXTRACT_WORKERS` is not
-  built; [ADR 0009](adr/0009-jobs-and-extraction.md)).
+  with the app. One extraction worker per library (`ATLAS_EXTRACT_WORKERS`
+  is not built; [ADR 0009](adr/0009-jobs-and-extraction.md)); the page
+  view has a second, for rendering only (Slice 3.7).
 
 ## Extraction
 
@@ -1072,6 +1077,68 @@ Implemented in `src-tauri/src/services/knowledge/{collections,rediscovery}.rs`,
     (recorded `via: suggestion`) and Not for this. Each section shows only
     when it has something to show.
 
+## Page view
+
+Implemented in `src-tauri/src/services/reader/{mod,cache}.rs`,
+`src-tauri/src/services/extraction/engine/render.rs`,
+`src-tauri/src/commands/reader.rs`, `src/lib/stores/pageView.svelte.ts` and
+`src/lib/components/PageView.svelte` (Slice 3.7, phase3-spec §5.5, §7.5;
+[ADR 0018](adr/0018-the-page-view.md)).
+
+- **A second worker.** `ReaderService` (one per open library, in
+  `OpenRoot`) owns its own `Supervisor` over the app executable. It is
+  started at the first render, killed after 60 s idle by its own thread,
+  and dropped with the library. One render at a time. The extraction job
+  never uses it, and it never uses the extraction worker.
+- **In the worker** (`engine/render.rs`): Open's file checks (`hash::open`,
+  the signature sniff), then PDFium renders the page at the width asked for
+  (at most 2,000 px; the long edge scaled to at most 3,000), encodes RGBA
+  to PNG (`png`, fast compression; at most 8 MiB), and finds the passage
+  (whitespace collapsed, 200 characters, then 60), turning each match's
+  segments into pixel rectangles. Not found is `found: false`, not an
+  error. Debug builds' test faults (`hang`, `exit`, `bloat`) apply to
+  renders too.
+- **Limits:** the supervisor's 30 s inactivity and memory cap kill the
+  worker, and the next render starts another. `WorkerStats` gains `renders`
+  and `peak_rss_bytes`, which is also sampled after each render.
+- **`render_page(fileId, pageNo, widthPx, find?, allowDownload?)`:**
+  1. Under the workspace lock, `reader::prepare` looks up the document, its
+     content hash and type (`render_failed` `not_read` or `not_a_pdf`), the
+     page's text from its passages, and the path or Open's error through
+     `source_open::path_for`.
+  2. Off the lock, on a blocking thread: the width and page are checked
+     (`invalid_render`); the cache is read; only then is the path's error
+     returned (so a cached page shows for a file now only in the cloud);
+     the worker renders; the page is cached.
+  3. `PageImage { pageNo, pageCount, width, height, png (base64), rects,
+     found, text, fromCache }`.
+- **The cache:** `cache/previews/<content hash>/<page>-<width>-<find
+  key>.png` with a `.json` (page count, size, rectangles), written beside
+  and renamed. The find key is 8 hex characters of the BLAKE3 hash of the
+  normalised text, or `none`. At most 200 MB (`ReaderConfig`): after each
+  write the oldest by modification time go first, and a hit refreshes the
+  time. Clean caches empties it; Storage counts it with the caches.
+- **The renderer:**
+  - **Show the page** is offered only for a PDF with a page number: on the
+    details panel's cited passage (`find` = the excerpt), a PDF search
+    result (the snippet's text) and a recorded source with a PDF anchor
+    (bookmarks, trail steps, collections).
+  - `PageView.svelte` is a modal dialog, mounted once in `App.svelte`. It
+    has Previous and Next, a page field ("Page 12 of 340"), Fit width or
+    Actual size, Bookmark this page (`file{fileId, page{pageNo}}`), Open in
+    the default app and Close. Escape closes it, focus is trapped while it
+    is open, and focus returns to the button that opened it.
+  - The image is a `data:` URL with alternative text ("Page 12 of 340").
+    The outline is drawn as boxes over it, positioned in percentages so
+    they follow either size. The page's text is shown below it. The
+    passage is looked for only on the page it was cited on.
+  - Showing a page records `record_open(…, 'page', {pageNo})` with the
+    caller's `via`. A file only in the cloud asks Download and show, as
+    Open does.
+- **No PDFium in the main process:** P3-20 checks the loaded modules after
+  rendering (Linux `/proc/self/maps`, macOS dyld). The check is skipped on
+  Windows.
+
 ## Build, CI and measurement
 
 - **PDFium** (Slice 1.2) is pinned in `tools.lock.json` (bblanchon/pdfium-binaries
@@ -1153,7 +1220,9 @@ Implemented in `src-tauri/src/services/knowledge/{collections,rediscovery}.rs`,
   cycles and unthrottled, sampling the app and the worker, and kills a
   child mid-read to check recovery. CI runs all three on the 1k fixtures;
   the 30k text fixture runs locally (`just bench-search`,
-  `just bench-extraction`). Method and results: [benchmarks](benchmarks.md).
+  `just bench-extraction`). `reader.rs` (Slice 3.7) renders the corpus's
+  PDF pages in the reader's worker (`just bench-reader`, and in CI's bench
+  job). Method and results: [benchmarks](benchmarks.md).
 
 ## Spikes (Slice 0.9)
 

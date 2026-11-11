@@ -151,6 +151,10 @@ eval-ask:
 eval-embed:
     cargo test --manifest-path {{ manifest }} --locked --release --test semantic_eval -- --ignored --nocapture embedding_throughput_and_recall_against_a_real_model
 
+# The page view (Slice 3.7): corpus PDF pages rendered at 1,200 px in the reader's worker, with and without the passage outlined, plus a cache hit and the worker's peak memory
+bench-reader out="":
+    pnpm bench --reader-only {{ if out == "" { "" } else { "--out " + out } }}
+
 # The vector index alone (Phase 2): build, save, load, rebuild, recall and latency at `size` synthetic 1,024-dimension vectors (CI runs 100000)
 bench-vectors size="300000" out="":
     pnpm bench --vectors-only --vectors-size {{ size }} {{ if out == "" { "" } else { "--out " + out } }}
@@ -223,3 +227,11 @@ licenses:
 clean:
     cargo clean --manifest-path {{ manifest }}
     node -e "require('fs').rmSync('dist', { recursive: true, force: true })"
+
+# Cargo never removes old test binaries: about 90 GB had built up by Slice
+# 3.7. This removes everything here a build makes again, and nothing else.
+# Remove all build outputs: `clean`, plus the spikes' targets and sidecar build
+clean-all: clean
+    cargo clean --manifest-path spikes/vector-bench/Cargo.toml
+    cargo clean --manifest-path spikes/extraction-bench/Cargo.toml
+    node -e "for (const d of ['spikes/extraction-bench/sidecar/docling/build', 'spikes/extraction-bench/sidecar/docling/.venv']) require('fs').rmSync(d, { recursive: true, force: true })"

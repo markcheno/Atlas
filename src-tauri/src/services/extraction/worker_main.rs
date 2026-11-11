@@ -155,7 +155,61 @@ fn answer(pdfium: &Pdfium, request: Request) -> bool {
             };
             send(&frame)
         }
+        Request::Render {
+            path,
+            page,
+            width,
+            find,
+        } => {
+            let Some(path) = decode_path(&path) else {
+                return send(&render_failed("bad_path"));
+            };
+            let result = std::panic::catch_unwind(AssertUnwindSafe(|| {
+                render(pdfium, &path, page, width, find.as_deref())
+            }));
+            let frame = match result {
+                Ok(Ok(p)) => {
+                    use base64::prelude::{BASE64_STANDARD, Engine as _};
+                    Frame::Rendered {
+                        page: p.page,
+                        page_count: p.page_count,
+                        width: p.width,
+                        height: p.height,
+                        png: BASE64_STANDARD.encode(&p.png),
+                        found: !p.rects.is_empty(),
+                        rects: p.rects,
+                    }
+                }
+                Ok(Err(reason)) => render_failed(reason),
+                Err(_) => render_failed("malformed"),
+            };
+            send(&frame)
+        }
     }
+}
+
+fn render_failed(reason: &str) -> Frame {
+    Frame::RenderFailed {
+        reason: reason.to_owned(),
+    }
+}
+
+/// A page of a PDF for the page view (Slice 3.7).
+fn render(
+    pdfium: &Pdfium,
+    path: &Path,
+    page: u32,
+    width: u32,
+    find: Option<&str>,
+) -> Result<engine::render::Page, &'static str> {
+    let mut file = hash::open(path).map_err(|e| match e {
+        hash::HashError::CloudOnly => "cloud_only",
+        hash::HashError::Unreadable | hash::HashError::Failed => "malformed",
+    })?;
+    sniff::check(&mut file, FileType::Pdf).map_err(|_| "malformed")?;
+    file.seek(SeekFrom::Start(0)).map_err(|_| "malformed")?;
+    fault(path, None);
+    engine::render::render(pdfium, file, page, width, find)
 }
 
 fn failed(f: Failure) -> Frame {
@@ -179,7 +233,7 @@ fn extract(
     sniff::check(&mut file, kind)?;
     file.seek(SeekFrom::Start(0))
         .map_err(|_| Failure::new(Outcome::Malformed, "read_failed"))?;
-    fault(path, sink);
+    fault(path, Some(sink));
     match kind {
         FileType::Pdf => engine::pdf::extract(pdfium, file, sink),
         FileType::Epub => engine::epub::extract(file, sink),
@@ -187,8 +241,9 @@ fn extract(
 }
 
 /// See [`TEST_FAULT_ENV`]: strikes mid-document, after one page has been
-/// sent. Does nothing in release builds.
-fn fault(path: &Path, sink: &mut engine::Sink<'_>) {
+/// sent (an extraction), or before answering (a render). Does nothing in
+/// release builds.
+fn fault(path: &Path, sink: Option<&mut engine::Sink<'_>>) {
     if !cfg!(debug_assertions) {
         return;
     }
@@ -206,12 +261,14 @@ fn fault(path: &Path, sink: &mut engine::Sink<'_>) {
     }) else {
         return;
     };
-    sink(engine::Piece {
-        ordinal: 0,
-        page_no: Some(1),
-        location: "Page 1".into(),
-        text: "partial".into(),
-    });
+    if let Some(sink) = sink {
+        sink(engine::Piece {
+            ordinal: 0,
+            page_no: Some(1),
+            location: "Page 1".into(),
+            text: "partial".into(),
+        });
+    }
     match mode {
         "hang" => loop {
             std::thread::sleep(std::time::Duration::from_secs(60));

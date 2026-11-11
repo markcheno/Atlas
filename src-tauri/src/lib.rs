@@ -31,6 +31,7 @@ use services::extraction::job::{self as extraction_job, ExtractionConfig, Extrac
 use services::extraction::supervisor::WorkerCommand;
 use services::inventory::{InventoryConfig, InventoryDeps};
 use services::providers::secrets::{SecretStore, SecretVault};
+use services::reader::ReaderConfig;
 use services::system::ResourceGovernor;
 use services::workspace::{Workspace, WorkspaceConfig, layout};
 use state::AppState;
@@ -150,6 +151,7 @@ pub fn run() {
                 .with_trail_events(Arc::new(move |status: &RecordingStatus| {
                     let _ = trail_emitter.emit(TRAIL_EVENT, status);
                 }))
+                .with_reader(ReaderConfig::new(WorkerCommand::current_exe()?))
                 .with_inventory(deps)
                 .with_job_processor(JobKind::Extract, extraction_job::factory(extraction))
                 .with_job_processor(JobKind::Embed, embedding_job::factory(embedding));
@@ -250,6 +252,7 @@ pub fn run() {
             commands::collections::get_collection_membership,
             commands::collections::get_suggestions,
             commands::collections::dismiss_suggestion,
+            commands::reader::render_page,
         ])
         .build(tauri::generate_context!())
         .expect("error while building Atlas")

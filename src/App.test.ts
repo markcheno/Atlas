@@ -3924,3 +3924,197 @@ describe('interests, projects and suggestions', () => {
     expect(screen.queryByRole('region', { name: 'From your library' })).toBeNull();
   });
 });
+
+describe('the page view', () => {
+  beforeEach(() => {
+    resetAll();
+    libraryStore.reset();
+  });
+
+  const nav = () => within(screen.getByRole('navigation', { name: 'Main' }));
+  const calls = (command: string) =>
+    tauri.invoke.mock.calls.filter(([c]) => c === command).map(([, a]) => a);
+  const pageDialog = () =>
+    within(screen.getByLabelText('Close the page').closest('[role="dialog"]') as HTMLElement);
+
+  async function citedPassage() {
+    tauri.setHandler('list_source_roots', () => [tauri.sourceRoot()]);
+    tauri.setHandler('ask_atlas', () => tauri.askStarted());
+    const user = await launchOpen();
+    await user.click(nav().getByRole('button', { name: 'Search' }));
+    await user.click(screen.getByRole('radio', { name: 'Ask Atlas' }));
+    await user.type(screen.getByLabelText('Ask your library'), 'how do harmonic drives work');
+    await user.click(screen.getByRole('button', { name: 'Ask' }));
+    const step = (s: import('./lib/api/bindings/AnswerStep').AnswerStep) =>
+      events.emit('answer-stream', { answerId: 'answer-1', step: s });
+    step({ kind: 'delta', text: 'High reduction [1].' });
+    step({ kind: 'done', cited: [1], dropped: 0 });
+    await user.click(
+      await screen.findByRole('button', { name: 'Source 1: Harmonic Drives, Page 12' }),
+    );
+    const cited = within(await screen.findByTestId('cited-passage'));
+    return { user, cited };
+  }
+
+  it('shows a cited page with its passage outlined and its text below', async () => {
+    const { user, cited } = await citedPassage();
+    const show = cited.getByRole('button', { name: 'Show the page' });
+    await user.click(show);
+    expect(calls('render_page').at(-1)).toEqual({
+      fileId: 'file-1',
+      pageNo: 12,
+      widthPx: 1200,
+      find: expect.stringContaining('flexible spline'),
+      allowDownload: false,
+    });
+    const view = pageDialog();
+    const figure = await view.findByTestId('page-image');
+    expect(within(figure).getByRole('img', { name: 'Page 12 of 340' })).toHaveAttribute(
+      'src',
+      'data:image/png;base64,iVBORw0KGgo=',
+    );
+    expect(view.getAllByTestId('page-outline')).toHaveLength(1);
+    expect(view.getByRole('heading', { name: "The page's text, as Atlas read it" })).toBeVisible();
+    expect(view.getByText(/rigid circular spline/)).toBeVisible();
+    await waitFor(() =>
+      expect(tauri.invoke).toHaveBeenCalledWith('record_open', {
+        fileId: 'file-1',
+        via: { kind: 'citation', answerId: 'answer-1', n: 1 },
+        action: 'page',
+        place: { pageNo: 12 },
+      }),
+    );
+
+    // Another page: no passage looked for there.
+    await user.click(view.getByRole('button', { name: 'Next page' }));
+    await waitFor(() =>
+      expect(calls('render_page').at(-1)).toMatchObject({ pageNo: 13, find: null }),
+    );
+    expect(await view.findByRole('img', { name: 'Page 13 of 340' })).toBeVisible();
+    expect(view.queryByTestId('page-outline')).toBeNull();
+
+    // The page field, bounded by the document.
+    const field = view.getByLabelText('Page number');
+    await user.clear(field);
+    await user.type(field, '1{Enter}');
+    await waitFor(() => expect(calls('render_page').at(-1)).toMatchObject({ pageNo: 1 }));
+    expect(await view.findByRole('button', { name: 'Previous page' })).toBeDisabled();
+    await user.clear(field);
+    await user.type(field, '9999{Enter}');
+    await waitFor(() => expect(calls('render_page').at(-1)).toMatchObject({ pageNo: 340 }));
+
+    // Fit width, actual size; bookmark the page.
+    await user.click(view.getByRole('radio', { name: 'Actual size' }));
+    expect(view.getByTestId('page-image')).toHaveClass('actual');
+    await user.click(view.getByRole('button', { name: 'Bookmark this page' }));
+    expect(calls('save_bookmark').at(-1)).toEqual({
+      target: { kind: 'file', fileId: 'file-1', place: { kind: 'page', pageNo: 340 } },
+    });
+
+    // Escape closes and focus returns to where it was opened.
+    await user.keyboard('{Escape}');
+    await waitFor(() => expect(screen.queryByLabelText('Close the page')).toBeNull());
+    expect(show).toHaveFocus();
+  });
+
+  it('says when the passage is not on the page, and when the page cannot be shown', async () => {
+    tauri.setHandler('render_page', () => tauri.pageImage({ found: false, rects: [] }));
+    const { user, cited } = await citedPassage();
+    await user.click(cited.getByRole('button', { name: 'Show the page' }));
+    expect(
+      await pageDialog().findByText(/The passage isn't marked: Atlas didn't find it on this page./),
+    ).toBeVisible();
+    await user.click(pageDialog().getByRole('button', { name: 'Close the page' }));
+
+    tauri.setHandler('render_page', () => {
+      throw { code: 'render_failed', message: "Atlas couldn't show this page." };
+    });
+    await user.click(cited.getByRole('button', { name: 'Show the page' }));
+    const error = within(await pageDialog().findByTestId('page-error'));
+    expect(error.getByText("Atlas couldn't show this page")).toBeVisible();
+    await user.click(error.getByRole('button', { name: 'Open in the default app' }));
+    expect(calls('open_original').at(-1)).toEqual({ fileId: 'file-1', allowDownload: false });
+  });
+
+  it('asks before downloading a file stored only in the cloud', async () => {
+    tauri.setHandler('render_page', (args) => {
+      if (!args?.allowDownload) {
+        throw { code: 'file_cloud_only', message: 'This file is stored only in the cloud.' };
+      }
+      return tauri.pageImage();
+    });
+    const { user, cited } = await citedPassage();
+    await user.click(cited.getByRole('button', { name: 'Show the page' }));
+    const view = pageDialog();
+    expect(
+      await view.findByText(
+        'This file is stored only in the cloud. Showing the page will download it.',
+      ),
+    ).toBeVisible();
+    await user.click(view.getByRole('button', { name: 'Download and show' }));
+    await waitFor(() => expect(calls('render_page').at(-1)).toMatchObject({ allowDownload: true }));
+    expect(await view.findByTestId('page-image')).toBeVisible();
+  });
+
+  it('offers the page for a PDF result and a PDF bookmark, never an EPUB', async () => {
+    tauri.setHandler('list_source_roots', () => [tauri.sourceRoot()]);
+    tauri.setHandler('search_documents', () =>
+      tauri.searchPage({
+        hits: [
+          tauri.searchHit({ fileInstanceId: 'h1' }),
+          tauri.searchHit({
+            fileInstanceId: 'h2',
+            documentId: 'doc-2',
+            displayName: 'gears.epub',
+            fileType: 'epub',
+            pageNo: null,
+            location: 'Chapter 3, part 2',
+          }),
+        ],
+        matchedDocuments: 2,
+      }),
+    );
+    const user = await launchOpen();
+    await user.type(screen.getByLabelText('Search your library'), 'gears{Enter}');
+    await h1('Search');
+    const show = await screen.findByRole('button', {
+      name: 'Show the page: harmonic.pdf, page 12',
+    });
+    expect(screen.queryByRole('button', { name: /Show the page: gears.epub/ })).toBeNull();
+    await user.click(show);
+    expect(calls('render_page').at(-1)).toMatchObject({ fileId: 'h1', pageNo: 12 });
+    await user.click(pageDialog().getByRole('button', { name: 'Close the page' }));
+
+    // A saved bookmark of a PDF page.
+    tauri.setHandler('list_saved', () =>
+      tauri.savedPage({
+        items: [
+          { item: 'bookmark', ...tauri.bookmark() },
+          {
+            item: 'bookmark',
+            ...tauri.bookmark({
+              id: 'bm-2',
+              anchor: tauri.anchor({ title: 'Gears', fileType: 'epub', pageNo: null }),
+            }),
+          },
+        ],
+        total: 2,
+      }),
+    );
+    await user.click(nav().getByRole('button', { name: 'Trails' }));
+    await user.click(screen.getByRole('radio', { name: 'Saved' }));
+    const items = await screen.findAllByTestId('saved-item');
+    await user.click(
+      within(items[0]).getByRole('button', { name: 'Show the page: Harmonic Drives' }),
+    );
+    await waitFor(() =>
+      expect(tauri.invoke).toHaveBeenCalledWith('record_open', {
+        fileId: 'file-1',
+        via: { kind: 'bookmark' },
+        action: 'page',
+        place: { pageNo: 12 },
+      }),
+    );
+    expect(within(items[1]).queryByRole('button', { name: /Show the page/ })).toBeNull();
+  });
+});

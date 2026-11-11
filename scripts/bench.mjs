@@ -9,7 +9,7 @@
 //   node scripts/bench.mjs [--out <dir>] [--sweep] [--search-only] [--extraction-only]
 //                          [--vectors-only] [--embedding-only] [--search-size 30k|1k]
 //                          [--extraction-size 30k|1k] [--vectors-size 100000]
-//                          [--embedding-size 30k|10k|1k] [--max-p95-ms 250]
+//                          [--embedding-size 30k|10k|1k] [--max-p95-ms 250] [--reader-only]
 //
 // --search-size picks the search fixture: 30k (default; the P1-19 reference
 // measurement, run locally) or 1k (CI: the 30k text fixture takes over 40
@@ -29,6 +29,9 @@
 // --vectors-only runs just the vector index benchmark (Phase 2), at
 // --vectors-size vectors of 1,024 dimensions (default 100,000, as CI; the
 // reference machine also records 300,000 and 1,000,000);
+// --reader-only runs just the page view benchmark (Phase 3, Slice 3.7):
+// pages of the spike corpus's PDFs rendered at 1,200 px in the reader's
+// worker, with and without a passage to outline, plus a cache hit.
 // --max-p95-ms makes it fail above that search p95 while reading (the
 // reference machine's check, P1-19). Fixtures go in <out>/fixtures and are
 // reused.
@@ -52,15 +55,18 @@ const evidence = args.includes('--evidence');
 const extractionOnly = evidence || args.includes('--extraction-only');
 const vectorsOnly = args.includes('--vectors-only');
 const embeddingOnly = args.includes('--embedding-only');
-if ([searchOnly, extractionOnly, vectorsOnly, embeddingOnly].filter(Boolean).length > 1)
+const readerOnly = args.includes('--reader-only');
+if ([searchOnly, extractionOnly, vectorsOnly, embeddingOnly, readerOnly].filter(Boolean).length > 1)
   throw new Error(
-    '--search-only, --extraction-only, --vectors-only and --embedding-only exclude each other',
+    '--search-only, --extraction-only, --vectors-only, --embedding-only and --reader-only exclude each other',
   );
-const runInventory = !searchOnly && !extractionOnly && !vectorsOnly && !embeddingOnly;
-const runSearch = !extractionOnly && !vectorsOnly && !embeddingOnly;
-const runExtraction = !searchOnly && !vectorsOnly && !embeddingOnly;
-const runVectors = !searchOnly && !extractionOnly && !embeddingOnly;
-const runEmbedding = evidence || (!searchOnly && !extractionOnly && !vectorsOnly);
+const runInventory =
+  !searchOnly && !extractionOnly && !vectorsOnly && !embeddingOnly && !readerOnly;
+const runSearch = !extractionOnly && !vectorsOnly && !embeddingOnly && !readerOnly;
+const runExtraction = !searchOnly && !vectorsOnly && !embeddingOnly && !readerOnly;
+const runVectors = !searchOnly && !extractionOnly && !embeddingOnly && !readerOnly;
+const runEmbedding = evidence || (!searchOnly && !extractionOnly && !vectorsOnly && !readerOnly);
+const runReader = !evidence && !searchOnly && !extractionOnly && !vectorsOnly && !embeddingOnly;
 const vectorsSize = Number(opt('vectors-size', '100000'));
 if (!Number.isInteger(vectorsSize) || vectorsSize < 100)
   throw new Error('--vectors-size is a whole number of at least 100');
@@ -163,6 +169,8 @@ execFileSync(
     'vectors',
     '--bench',
     'embedding',
+    '--bench',
+    'reader',
     '--no-run',
   ],
   { stdio: 'inherit' },
@@ -318,12 +326,35 @@ if (runEmbedding) {
   embeddingResult = JSON.parse(fs.readFileSync(embeddingFile, 'utf8'));
 }
 
+let readerResult = null;
+if (runReader) {
+  console.error('bench: page view');
+  const readerFile = path.join(out, 'bench-reader.json');
+  execFileSync(
+    'cargo',
+    [
+      'bench',
+      '--manifest-path',
+      path.join(repo, 'src-tauri', 'Cargo.toml'),
+      '--locked',
+      '--bench',
+      'reader',
+      '--',
+      '--out',
+      readerFile,
+    ],
+    { stdio: ['ignore', 'ignore', 'inherit'] },
+  );
+  readerResult = JSON.parse(fs.readFileSync(readerFile, 'utf8'));
+}
+
 const md =
   (results.length ? summarize(results) : '') +
   (searchResult ? summarizeSearch(searchResult) : '') +
   (extractionResult ? summarizeExtraction(extractionResult) : '') +
   (vectorsResult ? summarizeVectors(vectorsResult) : '') +
-  (embeddingResult ? summarizeEmbedding(embeddingResult) : '');
+  (embeddingResult ? summarizeEmbedding(embeddingResult) : '') +
+  (readerResult ? summarizeReader(readerResult) : '');
 fs.writeFileSync(path.join(out, `bench-${process.platform}.md`), md);
 console.log(md);
 if (process.env.GITHUB_STEP_SUMMARY) fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, md);
@@ -529,5 +560,21 @@ function summarizeEmbedding(r) {
       `| ${rel.cold.p50Ms} / ${rel.cold.p95Ms} / ${rel.cold.maxMs} | ${rel.warm.p95Ms} | ${rel.meanHits} |`,
     );
   }
+  return `${lines.join('\n')}\n`;
+}
+
+function summarizeReader(r) {
+  const mib = (b) => (b / 1048576).toFixed(1);
+  const t = (x) => `${x.p50Ms} / ${x.p95Ms} / ${x.maxMs}`;
+  const lines = [
+    '',
+    `## Page view (${r.machine.os} ${r.machine.arch}${r.machine.ci ? ', CI runner' : ''})`,
+    '',
+    `${r.pages} pages of ${r.files} corpus PDFs rendered at ${r.width} px in the reader's worker (Slice 3.7).`,
+    '',
+    '| First render ms | Render p50 / p95 / max ms | With the passage p50 / p95 / max ms | Outlined | Cache hit ms | Worker peak MiB |',
+    '| ---: | ---: | ---: | ---: | ---: | ---: |',
+    `| ${r.firstRenderMs} | ${t(r.render)} | ${t(r.renderWithFind)} | ${r.found} of ${r.renderWithFind.renders} | ${r.cacheHitMs} | ${mib(r.workerPeakRssBytes)} |`,
+  ];
   return `${lines.join('\n')}\n`;
 }

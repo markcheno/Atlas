@@ -975,3 +975,42 @@ CI has no model. There, the engine runs against a scripted service
 streaming canned answers (`tests/answers.rs`, P2-13 to P2-16).
 
 <!-- results:end -->
+
+## Page view (Slice 3.7)
+
+**Harness:** `src-tauri/benches/reader.rs` (`just bench-reader`, and in
+`just bench` and CI's bench job). It renders through `ReaderService` and
+the real reader worker, as `render_page` does, at 1,200 px (phase3-spec
+§13).
+
+- **Pages:** the first three pages, as the extraction worker reads them, of
+  each text PDF in the spike corpus. That is the 6 generated PDFs and the 8
+  real ones (arXiv papers and Federal Register documents): 37 pages from
+  14 files.
+- **Measured:**
+  - the first render, which includes starting the worker and loading
+    PDFium;
+  - each page without a passage, and again with one: 400 characters of
+    the page's own text, starting 40 characters in, as a citation's
+    excerpt would be;
+  - a cache hit;
+  - the worker's peak resident memory, sampled after each render.
+- Every request uses a cache key of its own, so only the cache hit comes
+  from the cache.
+
+**M5 Pro** (2026-11-11, release build):
+
+| First render ms | Render p50 / p95 / max ms | With the passage p50 / p95 / max ms | Outlined | Cache hit ms | Worker peak MiB |
+| ---: | ---: | ---: | ---: | ---: | ---: |
+| 29.7 | 10.8 / 17.1 / 17.8 | 11.3 / 17.2 / 18.6 | 33 of 37 | 0.4 | 62.2 |
+
+- **Against the target:** p95 is 17 ms, far under §13's 500 ms. Starting
+  the worker adds about 20 ms to the first render.
+- **Finding the passage** costs about half a millisecond a page.
+- **The 4 pages not outlined** are arXiv first pages and one hyphenated
+  line. PDFium's page text doesn't match the extracted text there: a
+  superscript affiliation mark ("Kuznetsov1"), or a hyphen PDFium marks
+  with U+0002. The page shows without an outline, as designed
+  ([ADR 0018](adr/0018-the-page-view.md)).
+- **CI runners** record it in the bench job on `main` pushes from this
+  slice on. Those numbers arrive with Phase 3's close-out (Slice 3.9).
