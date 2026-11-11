@@ -1285,7 +1285,11 @@ every OS:
 
   Every resolution leaves the connection's `total_changes` as it was.
 
-**CI on `slice-32`:** full run pending.
+**CI on `slice-32`:** full run
+[43064736392](https://github.com/markcheno/Atlas/actions/runs/43064736392),
+all green on three OSes, smoke included, in 15 minutes (benchmarks now
+run after the merge, on `main`). The Linux mirror had recovered by then;
+the fallback wasn't needed.
 
 The first full run
 ([43034985393](https://github.com/markcheno/Atlas/actions/runs/43034985393))
