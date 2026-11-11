@@ -1177,7 +1177,25 @@ The Ask Atlas screen. On every OS:
   - "a vague question finds the document by meaning";
   - "ask Atlas answers with a citation that opens the source".
 
-<!-- ci-2.7 -->
+**Fixed before the merge:**
+- **Clicks under the status bar:** the Linux smoke's clicks failed on
+  buttons the fixed status bar covered. Clicks now scroll their element to
+  the middle first.
+- **The index's first vector:** meaning search on the Linux runner missed
+  it. A small index (up to 20,000 vectors) is now searched exactly
+  ([ADR 0013](adr/0013-embeddings-durable-index-disposable.md), amendment).
+  `ATLAS_E2E_TRACE_MEANING`'s trace showed the gap: exact 0.537, graph
+  0.224.
+
+**CI on `slice-27`:** full run
+[42927865867](https://github.com/markcheno/Atlas/actions/runs/42927865867),
+all green; the smoke passed every step on Windows and Linux, the Ask steps
+included.
+
+**A Windows flake seen once:** run 42908761627 failed
+`related::related_documents_report_their_state_and_never_fail`. Its
+`models::serving` found no model just after the test library was indexed.
+It passed before and after; the cause isn't known.
 
 ## Manual checklist for Windows and Linux
 
