@@ -147,6 +147,10 @@ eval-semantic:
 eval-ask:
     cargo test --manifest-path {{ manifest }} --locked --release --test semantic_eval -- --ignored --nocapture ask_atlas_against_real_models
 
+# Embedding throughput (chunks/s, tokens/s), the index's recall@10 on real vectors at full length and 512, and the vague questions only meaning finds, run by its owner (Slice 2.8): the ATLAS_EVAL_EMBED_* variables as for eval-semantic; a few minutes on the spike corpus
+eval-embed:
+    cargo test --manifest-path {{ manifest }} --locked --release --test semantic_eval -- --ignored --nocapture embedding_throughput_and_recall_against_a_real_model
+
 # The vector index alone (Phase 2): build, save, load, rebuild, recall and latency at `size` synthetic 1,024-dimension vectors (CI runs 100000)
 bench-vectors size="300000" out="":
     pnpm bench --vectors-only --vectors-size {{ size }} {{ if out == "" { "" } else { "--out " + out } }}
@@ -201,7 +205,7 @@ spike-builds out="":
 spike-licenses:
     pnpm spike:licenses
 
-# Run CI on GitHub for the pushed current branch: `full` (every OS, smoke, benchmarks, bundles), `quick` (Linux checks and tests) or `evidence` (30k text extraction on every OS, every file read). Pushes to slice-* run quick by themselves
+# Run CI on GitHub for the pushed current branch: `full` (every OS, smoke, benchmarks, bundles), `quick` (Linux checks and tests) or `evidence` (30k text extraction on every OS, every file read, then the 10k text fixture embedded with the scripted backend). Pushes to slice-* run quick by themselves
 ci-remote scope="full":
     gh workflow run ci.yml --ref "$(git branch --show-current)" -f scope={{ scope }}
 

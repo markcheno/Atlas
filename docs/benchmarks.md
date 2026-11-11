@@ -1,6 +1,7 @@
-# Benchmarks (Phase 0)
+# Benchmarks
 
-These are measurements, not guarantees (phase0-spec §13). They describe
+These are measurements, not guarantees (phase0-spec §13, phase1-spec §13,
+phase2-spec §13). They describe
 the computers listed with each table, on the dates given. CI runners are
 shared virtual machines with noisy neighbours; use their numbers to compare
 operating systems and spot regressions, not as absolute speeds.
@@ -448,6 +449,40 @@ Duplicates' first page takes 33 ms at p95 over 2,001 groups, and Settings
 › Storage 122 ms. Cataloging is unchanged since Phase 0: 483 files/s at
 the policy rate on 30k, browse p95 under 37 ms while scanning.
 
+## Phase 2 summary (Slice 2.8)
+
+Phase 2's measures against phase2-spec §13's provisional targets.
+- **The reference machine** is the M5 Pro, with oMLX for the real model.
+- **The runners** are CI's evidence run
+  [42909721037](https://github.com/markcheno/Atlas/actions/runs/42909721037)
+  (the 10k text fixture embedded with the scripted backend; the 30k text
+  fixture read) and the full run
+  [42909699433](https://github.com/markcheno/Atlas/actions/runs/42909699433)
+  (100k vectors, the 1k text fixture).
+- **The details** are in the sections that follow.
+
+| Measure | M5 Pro | macOS runner | Windows runner | Linux runner | Target |
+| --- | --- | --- | --- | --- | --- |
+| Hybrid search p95 while embedding | **228 ms** (30k) | 254 ms (10k), 218 ms (1k) | 272 ms (10k), 65 ms (1k) | 143 ms (10k), 88 ms (1k) | under about 250 ms on the reference machine at 30k |
+| Recall@10 of the index | 0.960 at 1M (synthetic); **0.998** at 512, 0.993 at 1,024 (real vectors) | 0.993 at 100k | 0.991 at 100k | 0.992 at 100k | ≥ 0.95 on real vectors |
+| Catalog bytes per vector (1,024 dimensions) | 2,597 (30k) | 2,600 (10k) | 2,594 (10k) | 2,599 (10k) | at most 2.5 KB: about 1% over |
+| Index file ÷ raw vectors | 0.536 | 0.536 | 0.536 | 0.536 | at most 0.6 |
+| Embedding with the scripted backend | 178 chunks/s (30k) | 73 chunks/s (10k) | 102 chunks/s (10k) | 204 chunks/s (10k) | — |
+| Status events a second while embedding | – | 2.6 (10k) | 2.3 (10k) | 2.9 (10k) | a few, coalesced |
+| The 30k text fixture read (Phase 1's gate, again) | 343 s at Run | 393 s | 1,080 s | 397 s | every file: 32,006 of 32,006 on every runner |
+| Embedding through oMLX (Qwen3-Embedding-0.6B) | 48.4 chunks/s, 12,134 tokens/s | — | — | — | the 30k fixture overnight: projected at 2.5–5 hours, not run |
+| Vague set, hybrid hit@5 (P2-17) | 0.950 at 512 | — | — | — | ≥ 0.80 |
+| Ask Atlas, first word and whole answer p50 (Qwen3.8-27B) | 15.6 s / 25.7 s | — | — | — | — |
+
+- **The hybrid p95 target is the reference machine's** (§1.6): 228 ms at
+  30k.
+  - The runners report it at 10k, as the spec allows.
+  - Windows (272 ms) and macOS (254 ms) are just over 250 ms there, on
+    shared four-core and three-core VMs.
+  - Linux is at 143 ms.
+- **Storage is about 1% over 2.5 KB per vector at 1,024 dimensions.** At
+  the stored 512 for Qwen3-Embedding it is about half that.
+
 ## Vector index (Slice 2.2)
 
 The index alone (`benches/vectors.rs`, `just bench-vectors <size>`):
@@ -599,6 +634,22 @@ is no separate exact-search path for small scopes.
 | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | --- |
 | 1k text | M5 Pro | 1,001 | 24,606 | 408 | 2,528 | 0.536 | 98 ms | 60 / 85 / 101 ms |
 | 30k text | M5 Pro | 30,001 | 733,668 | 178 | 2,597 | 0.536 | 1,864 ms | 145 / **228** / 813 ms |
+| 1k text | macOS runner | 1,001 | 24,606 | 142 | 2,567 | 0.536 | 181 ms | 148 / 218 / 282 ms |
+| 1k text | Windows runner | 1,001 | 24,606 | 282 | 2,609 | 0.536 | 415 ms | 54 / 65 / 82 ms |
+| 1k text | Linux runner | 1,001 | 24,606 | 365 | 2,564 | 0.536 | 102 ms | 58 / 88 / 100 ms |
+
+The runners' rows are from CI run
+[42909699433](https://github.com/markcheno/Atlas/actions/runs/42909699433)
+(Slice 2.8, the bench job). They also measured:
+
+| Runner | Catalog growth per 1,000 documents | Status events per second | Related p95 (cold) |
+| --- | ---: | ---: | ---: |
+| macOS | 60.2 MiB | 2.7 | 5.9 ms |
+| Windows | 61.2 MiB | 1.9 | 3.4 ms |
+| Linux | 60.1 MiB | 3.4 | 4.2 ms |
+
+The status line's event rate stays at a few a second, as the job's
+coalescing intends.
 
 **P2-18 holds:** hybrid search p95 is 228 ms while the embedding job fills
 the 30k text fixture, under the 250 ms target.
@@ -612,6 +663,39 @@ the 30k text fixture, under the 250 ms target.
   (ADR 0013).
 - **The fake answers at once,** so the job's pace here is Atlas's own work.
   With oMLX the service sets it (about 72 chunks/s, Slice 2.3).
+
+**Throughput and recall on real vectors** (`just eval-embed`, run by the
+product owner on 2026-11-10, release build):
+
+- **The setup:** oMLX with `Qwen3-Embedding-0.6B-8bit`. Every chunk of the
+  spike corpus (1,954) was embedded again in the job's batches (126
+  requests of at most 16 chunks and 16,000 characters), timed at the
+  service.
+- **The recall queries:** the 40 vague questions and 200 chunks, the
+  index's top 10 against an exact cosine scan.
+
+| Measure | 1,024 dimensions (the service's) | 512 (stored) |
+| --- | ---: | ---: |
+| Chunks per second | 48.4 | the same |
+| Tokens per second (counted by the service) | 12,134 | the same |
+| Characters per second | 47,011 | the same |
+| Recall@10 of the index on real vectors | **0.9933** | **0.9979** |
+
+- **512 costs the service nothing less:** it always computes 1,024
+  numbers, and Atlas cuts them. The gain is storage and search, not
+  embedding time.
+- **Recall clears the ≥ 0.95 target** on real vectors at both lengths.
+  Synthetic vectors gave 0.960 at a million (Slice 2.2).
+- **The pace differs from Slice 2.3's 72 chunks/s** (67,000 characters/s).
+  Chunk size doesn't explain it: both average about 950 characters. The
+  two runs differ in library (1,000 generated books there), build (debug
+  there) and who sends the requests (the job there, this test here). At 48
+  to 72 chunks/s the 30k text fixture (0.6 to 0.9 million chunks) would
+  take 2.5 to 5 hours: overnight, but not measured.
+- **The share only meaning finds:** of the 40 vague questions, text alone
+  puts a relevant document in the top 5 for 35, and hybrid search at the
+  stored 512 for 38. Three (8%) are found only with meaning: v06 ("verses
+  about a grief that refuses to end"), v11 and v14.
 
 ## Related documents (Slice 2.5)
 

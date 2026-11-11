@@ -47,11 +47,11 @@ import type { StorageUsage } from '../lib/api/bindings/StorageUsage';
 export const DEFAULT_ROOT = '/Users/test/Library/Application Support/com.altazlabs.atlas/Library';
 
 export const fakeStatus: AppStatus = {
-  appVersion: '0.2.0',
+  appVersion: '0.3.0',
   os: 'macos',
   arch: 'aarch64',
   buildProfile: 'debug',
-  slice: '2.7',
+  slice: '2.8',
   features: [],
 };
 

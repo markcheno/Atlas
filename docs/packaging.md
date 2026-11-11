@@ -1,7 +1,8 @@
 # Packaging and installation
 
-Phase 0 builds are **development distributions**: unsigned, not notarized,
-and not production-ready (phase0-spec §14). They exist to prove that Atlas
+Atlas's builds are **development distributions**: ad-hoc signed on macOS,
+unsigned elsewhere, not notarized, and not production-ready (phase0-spec
+§14; unchanged through Phase 2). They exist to prove that Atlas
 builds, installs, and runs on each OS. Don't hand them to people who
 can't work through the security prompts described below.
 
@@ -23,14 +24,35 @@ days, debug bundles for 14).
 
 | Bundle | Size | Notes |
 | --- | ---: | --- |
-| `Atlas_0.2.0_aarch64.dmg` | 11.6 MiB | 29 MiB app once installed; includes PDFium (7.0 MiB) |
-| `Atlas_0.2.0_x64-setup.exe` | 8.3 MiB | Uses the system WebView2; includes PDFium (7.2 MiB) |
-| `Atlas_0.2.0_amd64.deb` | 13.6 MiB | Uses the distribution's WebKitGTK; includes PDFium (7.7 MiB) |
-| `Atlas_0.2.0_amd64.AppImage` | 87.4 MiB | Bundles WebKitGTK, GTK and their libraries, and PDFium |
+| `Atlas_0.3.0_aarch64.dmg` | 12.9 MiB | 33 MiB app once installed; includes PDFium (7.0 MiB) |
+| `Atlas_0.3.0_x64-setup.exe` | 9.2 MiB | Uses the system WebView2; includes PDFium (7.2 MiB) |
+| `Atlas_0.3.0_amd64.deb` | 16.1 MiB | Uses the distribution's WebKitGTK; includes PDFium (7.7 MiB) |
+| `Atlas_0.3.0_amd64.AppImage` | 89.6 MiB | Bundles WebKitGTK, GTK and their libraries, and PDFium |
 
-Release builds of version 0.2.0 (the Phase 1 close-out) from CI run
+Release builds of version 0.3.0 (the Phase 2 close-out) from CI run
+[42909699433](https://github.com/markcheno/Atlas/actions/runs/42909699433),
+2026-11-10. Version 0.2.0 (the Phase 1 close-out, CI run
 [42683848551](https://github.com/markcheno/Atlas/actions/runs/42683848551),
-2026-11-09. In Slice 1.2, with PDFium newly added, CI runs
+2026-11-09) measured 11.6, 8.3, 13.6 and 87.4 MiB.
+
+**What Phase 2 added** (0.2.0 → 0.3.0, the vector engine and all of
+Phase 2's code):
+
+| | 0.2.0 | 0.3.0 | Change |
+| --- | ---: | ---: | ---: |
+| DMG | 11.6 MiB | 12.9 MiB | +1.3 |
+| Windows setup | 8.3 MiB | 9.2 MiB | +0.9 |
+| `.deb` | 13.6 MiB | 16.1 MiB | +2.5 |
+| AppImage | 87.4 MiB | 89.6 MiB | +2.2 |
+| macOS executable (`Atlas.app/Contents/MacOS/atlas`) | 23.0 MB | 26.5 MB | +3.5 MB |
+| Linux executable (`/usr/bin/atlas` in the `.deb`) | 31.7 MB | 38.9 MB | +7.1 MB |
+
+- **The executables are as bundled, not stripped:** the release profile
+  doesn't strip symbols.
+- **The Windows executable** inside the NSIS installer wasn't extracted;
+  the installer's +0.9 MiB is the measure there.
+- **Every change is within ADR 0008's 15 MB budget** for the vector
+  engine, though it covers all of Phase 2, not usearch alone. In Slice 1.2, with PDFium newly added, CI runs
 [42531070487](https://github.com/markcheno/Atlas/actions/runs/42531070487)
 (macOS, Linux) and
 [42531636951](https://github.com/markcheno/Atlas/actions/runs/42531636951)
@@ -148,7 +170,7 @@ working GTK and graphics stack.
 smoke under Xvfb). Other distributions, Wayland sessions, and ARM aren't
 tested, and Atlas makes no claim of working on every distribution.
 
-## Not done in Phase 0
+## Not done yet (Phases 0 to 2)
 
 - Code signing and notarization (Apple Developer ID, Windows Authenticode).
   Notarization must review the `disable-library-validation` entitlement
