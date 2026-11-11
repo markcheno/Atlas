@@ -4,7 +4,7 @@ Atlas is a local-first personal AI librarian for large private collections of
 PDFs, EPUBs, books and papers. *Collect freely. Organize minimally. Retrieve
 intelligently.*
 
-**Status: Phase 3, Slice 3.1 (the carry-overs); Phase 2 complete (version 0.3.0, [close-out review](docs/phase2-closeout.md)); Phases 0 and 1 complete ([Phase 1 review](docs/phase1-closeout.md)).** Atlas asks where to keep its library and
+**Status: Phase 3, Slice 3.1.1 (the carry-overs, and fusion's best meaning match); Phase 2 complete (version 0.3.0, [close-out review](docs/phase2-closeout.md)); Phases 0 and 1 complete ([Phase 1 review](docs/phase1-closeout.md)).** Atlas asks where to keep its library and
 which folders hold your books and papers, then catalogs every PDF and EPUB
 in them in the background, read-only. Cataloging slows on battery, pauses
 when the battery is low or the drive is nearly full, survives quitting and
