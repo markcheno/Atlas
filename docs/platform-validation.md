@@ -1292,7 +1292,10 @@ Vitest covers the page view on a cited passage:
   app, and Download and show for a cloud-only file;
 - Show the page on a PDF result and a PDF bookmark, and never on an EPUB.
 
-**CI on `slice-37`:** full run pending.
+**CI on `slice-37`:** full run
+[43121702213](https://github.com/markcheno/Atlas/actions/runs/43121702213),
+all green on three OSes at the first attempt, smoke included (Windows and
+Linux).
 
 ## Slice 3.6
 
