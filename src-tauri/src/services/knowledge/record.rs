@@ -11,7 +11,9 @@
 //!   Atlas has no log, so it is written nowhere.
 //! - **Nothing here keeps content outside the store.** The places of the
 //!   last results and the last answer's sources are kept in memory, so an
-//!   open from them anchors at the passage the user saw.
+//!   open from them anchors at the passage the user saw. So is the last
+//!   ended answer, recording or not, so it can be saved as a finding
+//!   (Slice 3.5) until the next question.
 
 use std::collections::HashMap;
 use std::path::Path;
@@ -24,8 +26,8 @@ use super::anchor::{self, Place};
 use super::store::Inner;
 use super::trails::{self, Appended, PAYLOAD_VERSION, Target};
 use crate::domain::dto::{
-    Anchor, AskEnding, AskQuery, AskStep, FileType, KnowledgeState, NoteStep, OpenAction,
-    OpenPlace, OpenStep, OpenVia, ProviderLocation, Reached, RecordId, RecordingState,
+    Anchor, AskEnding, AskQuery, AskStep, FilePlace, FileType, KnowledgeState, NoteStep,
+    OpenAction, OpenPlace, OpenStep, OpenVia, ProviderLocation, Reached, RecordId, RecordingState,
     RecordingStatus, SearchIntent, SearchPage, SearchQuery, SearchStep, SemanticStatus, SourceUsed,
     StepFilters, StepPayload, StepResult, StepSource, TrailDetail, TrailPage, TrailQuery,
     TrailSummary,
@@ -45,14 +47,25 @@ pub const RESULT_EXCERPT_CHARS: usize = 300;
 /// taken when the answer starts, recorded when it ends.
 #[derive(Debug, Clone)]
 pub struct AskRecord {
-    question: String,
+    /// Empty for a question with nothing found (no answer started).
+    pub(crate) answer_id: String,
+    pub(crate) question: String,
     filters: StepFilters,
     /// Each source's number and anchor, its excerpt as sent.
-    sources: Vec<(u32, Anchor)>,
+    pub(crate) sources: Vec<(u32, Anchor)>,
     weak: bool,
     semantic: SemanticStatus,
     model: Option<String>,
     location: Option<ProviderLocation>,
+}
+
+/// The last answer that ended, kept in memory until the next question.
+#[derive(Debug, Clone)]
+pub struct LastAnswer {
+    pub record: AskRecord,
+    pub outcome: AnswerOutcome,
+    /// Its trail step, when it was recorded.
+    pub step_id: Option<String>,
 }
 
 /// How an answer ended, from its thread.
@@ -101,6 +114,7 @@ pub struct Recorder {
     events: Option<TrailEvents>,
     failed: AtomicBool,
     places: Mutex<Places>,
+    last: Mutex<Option<LastAnswer>>,
 }
 
 fn truncate(text: &str, max: usize) -> String {
@@ -151,6 +165,7 @@ impl Recorder {
             events,
             failed: AtomicBool::new(false),
             places: Mutex::new(Places::default()),
+            last: Mutex::new(None),
         }
     }
 
@@ -291,8 +306,8 @@ impl Recorder {
         }
     }
 
-    /// When an answer starts: remembers its sources' places, and, when
-    /// recording, what its step will need.
+    /// When an answer starts: remembers its sources' places, and what its
+    /// step, or a finding saved from it, will need.
     pub fn ask_started(&self, start: AskStart<'_>) -> Option<AskRecord> {
         let AskStart {
             answer_id,
@@ -314,9 +329,8 @@ impl Recorder {
                 })
                 .collect(),
         ));
-        if !self.recording() {
-            return None;
-        }
+        // A newer question: the one before can no longer be saved.
+        *self.last.lock().unwrap_or_else(|p| p.into_inner()) = None;
         let built = self.catalog.read(|c| -> AtlasResult<AskRecord> {
             let mut anchors = Vec::new();
             for s in sources {
@@ -329,6 +343,7 @@ impl Recorder {
                 anchors.push((s.n, anchor));
             }
             Ok(AskRecord {
+                answer_id: answer_id.to_owned(),
                 question: query.question.trim().to_owned(),
                 filters: filters(c, query.source_root_id.as_ref(), query.file_type)
                     .map_err(AtlasError::db("be read"))?,
@@ -342,17 +357,29 @@ impl Recorder {
         match built {
             Ok(Ok(record)) => Some(record),
             _ => {
-                self.report_failure();
+                if self.recording() {
+                    self.report_failure();
+                }
                 None
             }
         }
     }
 
-    /// When an answer has ended, however it ended.
+    /// When an answer has ended, however it ended: kept for a finding, and
+    /// recorded while recording is on.
     pub fn ask(&self, record: AskRecord, outcome: AnswerOutcome) {
+        let keep = !record.answer_id.is_empty();
+        if keep {
+            *self.last.lock().unwrap_or_else(|p| p.into_inner()) = Some(LastAnswer {
+                record: record.clone(),
+                outcome: outcome.clone(),
+                step_id: None,
+            });
+        }
         if !self.recording() {
             return;
         }
+        let answer_id = record.answer_id.clone();
         let sources = record
             .sources
             .into_iter()
@@ -364,7 +391,7 @@ impl Recorder {
                 StepSource { n, cited, anchor }
             })
             .collect();
-        self.write(
+        let written = self.write(
             Target::Current,
             StepPayload::Ask(AskStep {
                 v: PAYLOAD_VERSION,
@@ -381,6 +408,15 @@ impl Recorder {
                 sources,
             }),
         );
+        if let Some(appended) = written {
+            let mut last = self.last.lock().unwrap_or_else(|p| p.into_inner());
+            if let Some(l) = last
+                .as_mut()
+                .filter(|l| keep && l.record.answer_id == answer_id)
+            {
+                l.step_id = Some(appended.step_id);
+            }
+        }
     }
 
     /// A question with nothing in the library to answer it from.
@@ -400,6 +436,7 @@ impl Recorder {
             .ok()
             .and_then(Result::ok)
             .map(|filters| AskRecord {
+                answer_id: String::new(),
                 question: query.question.trim().to_owned(),
                 filters,
                 sources: Vec::new(),
@@ -482,6 +519,47 @@ impl Recorder {
             }
             _ => self.report_failure(),
         }
+    }
+
+    // ------------------------------------------------------- for saved
+
+    pub(crate) fn store(&self) -> &Arc<Inner> {
+        &self.store
+    }
+
+    pub(crate) fn catalog(&self) -> &Arc<CatalogReader> {
+        &self.catalog
+    }
+
+    /// The last ended answer, if it is `answer_id`.
+    pub(crate) fn last_answer(&self, answer_id: &str) -> Option<LastAnswer> {
+        self.last
+            .lock()
+            .unwrap_or_else(|p| p.into_inner())
+            .clone()
+            .filter(|l| l.record.answer_id == answer_id)
+    }
+
+    /// The passage behind what the screen showed of `file_id`: its hit in
+    /// the last results, or source `n` of the answer on screen.
+    pub(crate) fn place_for(&self, file_id: &str, place: &FilePlace) -> Place {
+        let places = self.places();
+        let passage = match place {
+            FilePlace::Result => places.results.get(file_id).copied(),
+            FilePlace::Citation { answer_id, n } => places
+                .answer
+                .as_ref()
+                .filter(|(id, _)| id == answer_id)
+                .and_then(|(_, sources)| {
+                    sources
+                        .iter()
+                        .find(|s| s.n == *n && s.file == file_id)
+                        .and_then(|s| s.passage)
+                }),
+            FilePlace::Page { page_no } => return Place::Page(*page_no),
+            FilePlace::Document => return Place::Document,
+        };
+        passage.map_or(Place::Document, Place::Passage)
     }
 
     // ------------------------------------------------------ the user's

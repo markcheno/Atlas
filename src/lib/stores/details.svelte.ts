@@ -8,6 +8,7 @@ import { tick } from 'svelte';
 import { atlas, AtlasApiError, toApiError } from '../api/client';
 import type { DocumentDetail } from '../api/bindings/DocumentDetail';
 import type { OpenVia } from '../api/bindings/OpenVia';
+import type { SaveTarget } from '../api/bindings/SaveTarget';
 import type { SourceUsed } from '../api/bindings/SourceUsed';
 import { FROM_RELATED } from '../openVia';
 import { recordOpen } from './trails.svelte';
@@ -32,6 +33,8 @@ class DetailsState {
   cited = $state<SourceUsed | null>(null);
   /** Under the cited passage: when it was sent (a trail's question). */
   citedNote = $state<string | null>(null);
+  /** What the panel's Bookmark keeps: the place it was opened at. */
+  saveAs = $state<SaveTarget | null>(null);
   /**
    * How the user reached this document, for their trail (Slice 3.3): the
    * panel's own Open and Show use it too. None from the Library.
@@ -50,6 +53,7 @@ class DetailsState {
       cited?: SourceUsed;
       citedNote?: string;
       via?: OpenVia;
+      saveAs?: SaveTarget;
     } = {},
   ) {
     this.#trigger = trigger;
@@ -57,6 +61,7 @@ class DetailsState {
     this.focusRelated = options.focusRelated ?? false;
     this.cited = options.cited ?? null;
     this.citedNote = options.citedNote ?? null;
+    this.saveAs = options.saveAs ?? null;
     this.via = options.via ?? null;
     await this.#load(fileId, true);
   }
@@ -70,6 +75,7 @@ class DetailsState {
     this.focusRelated = false;
     this.cited = null;
     this.citedNote = null;
+    this.saveAs = null;
     this.via = FROM_RELATED;
     await this.#load(fileId, true);
   }
@@ -82,6 +88,7 @@ class DetailsState {
     this.focusRelated = false;
     this.cited = null;
     this.citedNote = null;
+    this.saveAs = null;
     this.via = previous.via;
     await this.#load(previous.fileId, false);
   }
@@ -125,6 +132,7 @@ class DetailsState {
     this.focusRelated = false;
     this.cited = null;
     this.citedNote = null;
+    this.saveAs = null;
     this.via = null;
   }
 }

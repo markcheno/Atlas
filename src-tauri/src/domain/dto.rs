@@ -2006,3 +2006,164 @@ pub struct RecordingStatus {
     /// The last step couldn't be saved; cleared by the next one that is.
     pub failed: bool,
 }
+
+// ------------------------------------------- saved (Phase 3, Slice 3.5)
+
+/// Where in a file the renderer asks to save (phase3-spec §7.3). Rust turns
+/// it into an anchor from the catalog and what it showed.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+#[ts(export)]
+pub enum FilePlace {
+    /// The passage of that file's hit in the last results.
+    Result,
+    /// Source `n` of the answer `answerId`, as it was sent.
+    Citation {
+        #[serde(rename = "answerId")]
+        #[ts(rename = "answerId")]
+        answer_id: String,
+        n: u32,
+    },
+    /// A PDF page (the page view, Slice 3.7).
+    Page {
+        #[serde(rename = "pageNo")]
+        #[ts(rename = "pageNo")]
+        page_no: u32,
+    },
+    /// The whole document.
+    Document,
+}
+
+/// What to bookmark, or to save as a passage.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+#[ts(export)]
+pub enum SaveTarget {
+    File {
+        #[serde(rename = "fileId")]
+        #[ts(rename = "fileId")]
+        file_id: RecordId,
+        place: FilePlace,
+    },
+    /// Anchor `index` of a recorded trail step, as it was recorded.
+    Step {
+        #[serde(rename = "stepId")]
+        #[ts(rename = "stepId")]
+        step_id: String,
+        index: u32,
+    },
+}
+
+/// Where a finding comes from: never its text, which Rust has.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+#[ts(export)]
+pub enum FindingSource {
+    /// The answer on screen (the last one ended).
+    Answer {
+        #[serde(rename = "answerId")]
+        #[ts(rename = "answerId")]
+        answer_id: String,
+    },
+    /// A question recorded in a trail.
+    Step {
+        #[serde(rename = "stepId")]
+        #[ts(rename = "stepId")]
+        step_id: String,
+    },
+    /// A passage.
+    Passage { target: SaveTarget },
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "snake_case")]
+#[ts(export)]
+pub enum SavedKind {
+    Bookmark,
+    Finding,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "snake_case")]
+#[ts(export)]
+pub enum FindingKind {
+    Answer,
+    Passage,
+}
+
+/// A source of a finding, as it was kept, and where it is now.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct SavedSource {
+    pub n: u32,
+    pub anchor: Anchor,
+    pub resolved: ResolvedAnchor,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct Bookmark {
+    pub id: String,
+    pub anchor: Anchor,
+    /// Where it is now (§6.2).
+    pub resolved: ResolvedAnchor,
+    pub note: Option<String>,
+    pub created_at: String,
+    pub updated_at: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct Finding {
+    pub id: String,
+    pub kind: FindingKind,
+    /// An answer's question.
+    pub question: Option<String>,
+    /// The answer with its `[n]` markers, or the passage. Shown as text.
+    pub text: String,
+    pub sources: Vec<SavedSource>,
+    pub note: Option<String>,
+    /// The trail step it came from; it may have expired since.
+    pub from_step_id: Option<String>,
+    pub created_at: String,
+    pub updated_at: String,
+}
+
+/// Tagged `item`, not `kind`: a finding has a `kind` of its own.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(tag = "item", rename_all = "snake_case")]
+#[ts(export)]
+pub enum SavedItem {
+    Bookmark(Bookmark),
+    Finding(Finding),
+}
+
+/// A page of saved items, newest first.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct SavedQuery {
+    #[serde(default)]
+    pub kind: Option<SavedKind>,
+    /// Matched folded against titles, excerpts, questions, text and notes.
+    #[serde(default)]
+    pub filter: String,
+    /// Only bookmarks and findings of this document.
+    #[serde(default)]
+    pub document_id: Option<RecordId>,
+    pub page: u32,
+    pub page_size: u32,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct SavedPage {
+    pub items: Vec<SavedItem>,
+    pub page: u32,
+    pub page_size: u32,
+    pub total: u32,
+}

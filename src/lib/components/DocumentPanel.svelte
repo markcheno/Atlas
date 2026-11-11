@@ -5,6 +5,9 @@
   // returns focus to whatever opened it. Related documents (Slice 2.5) can
   // be shown in the panel in turn, with Back to the one before. Opened from
   // an Ask Atlas citation, it shows the passage sent first (Slice 2.7).
+  // Its document, and the cited passage, can be bookmarked, and its
+  // bookmarks are listed (Slice 3.5).
+  import type { Bookmark } from '../api/bindings/Bookmark';
   import type { FileInstance } from '../api/bindings/FileInstance';
   import { CITED_PASSAGE, FROM_LAST_QUESTION } from '../answerCopy';
   import { reasonText } from '../extractionCopy';
@@ -19,6 +22,10 @@
   import ProblemNotice from './ProblemNotice.svelte';
   import RelatedList from './RelatedList.svelte';
   import TextBadge from './TextBadge.svelte';
+  import SaveAction from './SaveAction.svelte';
+  import { BOOKMARK_PASSAGE, BOOKMARKS_HERE } from '../savedCopy';
+  import { saved } from '../stores/saved.svelte';
+  import { placeText } from '../trailCopy';
 
   let panel = $state<HTMLElement>();
   let closeButton = $state<HTMLButtonElement>();
@@ -26,6 +33,20 @@
   const d = $derived(details.detail);
   const heading = $derived(d ? d.title : 'Details');
   const previous = $derived(details.history.at(-1));
+
+  /** This document's bookmarks: refreshed when anything is saved. */
+  let here = $state<Bookmark[]>([]);
+  $effect(() => {
+    const doc = d?.documentId;
+    void saved.states;
+    if (!doc) {
+      here = [];
+      return;
+    }
+    void saved.forDocument(doc).then((b) => {
+      if (details.detail?.documentId === doc) here = b;
+    });
+  });
 
   function rootName(file: FileInstance): string {
     const root = sources.roots.find((r) => r.id === file.sourceRootId);
@@ -122,6 +143,13 @@
 
       <div class="actions">
         <OriginalActions item={fromFile(file, details.via ?? undefined)} />
+        {#if d.documentId}
+          <SaveAction
+            target={{ kind: 'file', fileId: file.id, place: { kind: 'document' } }}
+            key={`bookmark-document-${d.documentId}`}
+            name={d.title}
+          />
+        {/if}
         {#if file.availability !== 'available' || file.storage === 'cloud_only'}
           <span class="badge" data-status={file.availability}>{statusLabel(file)}</span>
         {/if}
@@ -138,6 +166,23 @@
           </p>
           <p class="cited-text">{cited.excerpt}</p>
           <p class="muted small">{details.citedNote ?? FROM_LAST_QUESTION}</p>
+          {#if details.saveAs}
+            {@const key =
+              details.saveAs.kind === 'step'
+                ? `${details.saveAs.stepId}-${details.saveAs.index}`
+                : `${file.id}-${cited.n}`}
+            <div class="actions">
+              <SaveAction
+                target={details.saveAs}
+                key={`bookmark-cited-${key}`}
+                label={BOOKMARK_PASSAGE}
+              />
+              <SaveAction
+                finding={{ kind: 'passage', target: details.saveAs }}
+                key={`finding-cited-${key}`}
+              />
+            </div>
+          {/if}
         </section>
       {/if}
 
@@ -197,6 +242,22 @@
         </section>
       {/if}
 
+      {#if here.length > 0}
+        <section aria-labelledby="details-bookmarks" data-testid="bookmarks-here">
+          <h3 id="details-bookmarks">{BOOKMARKS_HERE}</h3>
+          <ul class="bookmarks">
+            {#each here as b (b.id)}
+              <li>
+                <span class="small">{placeText(b.anchor) || 'The whole document'}</span>
+                {#if b.anchor.excerpt}<span class="muted small excerpt">{b.anchor.excerpt}</span
+                  >{/if}
+                {#if b.note}<span class="small note">{b.note}</span>{/if}
+              </li>
+            {/each}
+          </ul>
+        </section>
+      {/if}
+
       <RelatedList documentId={d.documentId} />
     {:else}
       <p class="muted" role="status">Loading details…</p>
@@ -205,6 +266,34 @@
 {/if}
 
 <style>
+  .bookmarks {
+    display: grid;
+    gap: var(--space-2);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .bookmarks li {
+    display: grid;
+    gap: var(--space-1);
+    padding: var(--space-2) var(--space-3);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+  }
+
+  .bookmarks .excerpt {
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  .bookmarks .note {
+    white-space: pre-line;
+  }
+
   .cited {
     display: grid;
     gap: var(--space-2);

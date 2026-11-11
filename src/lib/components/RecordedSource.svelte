@@ -1,13 +1,17 @@
 <script lang="ts">
-  // A source a trail recorded (Slice 3.4, phase3-spec §5.1): its title and
-  // place as they were, what became of it, and Details (or Open) when it is
-  // still in the library. What is gone says so, with the excerpt saved.
+  // A recorded or saved source (Slices 3.4, 3.5; phase3-spec §5.1, §5.3):
+  // its title and place as they were, what became of it, and Details (or
+  // Open) when it is still in the library. What is gone says so, with the
+  // excerpt saved. With `saveAs`, it can be bookmarked.
   import type { Anchor } from '../api/bindings/Anchor';
+  import type { OpenVia } from '../api/bindings/OpenVia';
   import type { ResolvedAnchor } from '../api/bindings/ResolvedAnchor';
+  import type { SaveTarget } from '../api/bindings/SaveTarget';
   import { FROM_TRAIL } from '../openVia';
   import { openableFile, openRecorded } from '../trailOpen';
   import { anchorNote, placeText, recordedSourceName } from '../trailCopy';
   import OriginalActions from './OriginalActions.svelte';
+  import SaveAction from './SaveAction.svelte';
 
   let {
     anchor,
@@ -17,6 +21,8 @@
     at,
     opens = false,
     id,
+    via = FROM_TRAIL,
+    saveAs,
   }: {
     anchor: Anchor;
     resolved: ResolvedAnchor | undefined;
@@ -28,6 +34,10 @@
     /** Offer Open and Show as well as Details (a source opened). */
     opens?: boolean;
     id?: string;
+    /** How opening it is recorded: from a trail, or a bookmark. */
+    via?: OpenVia;
+    /** When set, a Bookmark button keeps this. */
+    saveAs?: SaveTarget;
   } = $props();
 
   const name = $derived(n ? recordedSourceName(n, anchor) : anchor.title);
@@ -35,6 +45,9 @@
   const note = $derived(resolved ? anchorNote(resolved) : null);
   const fileId = $derived(openableFile(resolved));
   const gone = $derived(!fileId);
+  const saveKey = $derived(
+    saveAs?.kind === 'step' ? `bookmark-${saveAs.stepId}-${saveAs.index}` : `bookmark-${id ?? ''}`,
+  );
 </script>
 
 <!-- Focused (never tabbed to) when a chip names a source that has gone. -->
@@ -45,29 +58,31 @@
     <span class="title">{anchor.title}</span>
     {#if place}<span class="muted small">{place}</span>{/if}
     {#if cited}<span class="badge">Cited</span>{/if}
-    {#if fileId}
-      <span class="actions">
+    <span class="actions">
+      {#if fileId}
         <button
           type="button"
           class="row-button"
           aria-label={`Details for ${name}`}
           onclick={(e) =>
-            openRecorded(anchor, resolved, e.currentTarget, n ? { n, at } : undefined)}
+            openRecorded(anchor, resolved, e.currentTarget, {
+              question: n ? { n, at } : undefined,
+              via,
+              saveAs,
+            })}
         >
           Details
         </button>
         {#if opens}
           <OriginalActions
-            item={{
-              id: fileId,
-              displayName: anchor.title,
-              availability: 'available',
-              via: FROM_TRAIL,
-            }}
+            item={{ id: fileId, displayName: anchor.title, availability: 'available', via }}
           />
         {/if}
-      </span>
-    {/if}
+      {/if}
+      {#if saveAs}
+        <SaveAction target={saveAs} key={saveKey} {name} />
+      {/if}
+    </span>
   </div>
   {#if note}
     <p class="small" data-testid="anchor-note" data-state={resolved?.state}>{note}</p>

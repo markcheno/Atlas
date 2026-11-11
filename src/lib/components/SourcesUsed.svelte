@@ -3,7 +3,8 @@
   // numbered as it cites them, cited or not, each as the exact text sent.
   import type { SourceUsed } from '../api/bindings/SourceUsed';
   import { sourceName, sourcesHeading } from '../answerCopy';
-  import { fromCitation } from '../openVia';
+  import { citationTarget, fromCitation } from '../openVia';
+  import SaveAction from './SaveAction.svelte';
   import { answer } from '../stores/answer.svelte';
   import { details } from '../stores/details.svelte';
 
@@ -28,10 +29,18 @@
               details.open(s.fileInstanceId, e.currentTarget, {
                 cited: s,
                 via: fromCitation(answer.answerId, s.n),
+                saveAs: citationTarget(s),
               })}
           >
             Details
           </button>
+          {#if citationTarget(s)}
+            <SaveAction
+              target={citationTarget(s)}
+              key={`bookmark-source-${answer.answerId}-${s.n}`}
+              name={sourceName(s)}
+            />
+          {/if}
         </div>
         <details>
           <summary>The passage sent</summary>

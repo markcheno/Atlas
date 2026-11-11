@@ -1248,6 +1248,45 @@ merge): full run
 [42943519172](https://github.com/markcheno/Atlas/actions/runs/42943519172),
 all green on three OSes. The smoke passed every step on Windows and Linux.
 
+## Slice 3.5
+
+Bookmarks and saved findings. On every OS:
+- **P3-15** (`tests/saved.rs`, on generated books with a scripted chat
+  service):
+  - **Bookmarks:**
+    - from a result, at the hit's passage, with the document's id and hash
+      from the catalog;
+    - the same place again, and the same place from the trail's step: one
+      bookmark, refreshed;
+    - a page and the whole document of another book: two;
+    - from a citation, with the excerpt as sent;
+    - after the file moves and is rescanned, the bookmark resolves at the
+      new file.
+  - **Findings:**
+    - an answer keeps its question, the delivered text, only the cited
+      source, and its step;
+    - while paused, the answer on screen is still kept;
+    - after a newer question, the old answer is gone but its step can be
+      kept;
+    - a passage;
+    - a deleted step is refused, and a finding saved from it stays whole.
+  - **Notes and the list:**
+    - notes of 4,000 characters are saved, 4,001 are refused, and empty
+      clears;
+    - the list is newest first, filters by kind, text (folded) and
+      document, and pages;
+    - deleting takes the item out of its interest;
+    - saving is never a trail step.
+  - A finding serializes with both `item` and its own `kind`.
+- **P3-13** now saves its bookmark and finding through the service.
+
+Vitest covers every Bookmark and Save button and its target, a refusal
+shown, Save as a finding only on a done answer, the Trails | Saved tabs,
+the Saved list (items, filters, Open as from a bookmark, notes with the
+count and a refusal, Delete), and Bookmarks in this document.
+
+**CI on `slice-35`:** full run pending.
+
 ## Slice 3.4
 
 The Trails screen and resuming. On every OS:

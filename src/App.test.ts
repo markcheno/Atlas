@@ -3385,3 +3385,267 @@ describe('the Trails screen', () => {
     expect(screen.queryByRole('region', { name: 'Pick up where you left off' })).toBeNull();
   });
 });
+
+describe('bookmarks and saved findings', () => {
+  beforeEach(() => {
+    resetAll();
+    libraryStore.reset();
+  });
+
+  const nav = () => within(screen.getByRole('navigation', { name: 'Main' }));
+  const calls = (command: string) =>
+    tauri.invoke.mock.calls.filter(([c]) => c === command).map(([, a]) => a);
+
+  async function searchFor(text: string) {
+    tauri.setHandler('list_source_roots', () => [tauri.sourceRoot()]);
+    tauri.setHandler('search_documents', () =>
+      tauri.searchPage({ hits: [tauri.searchHit({ fileInstanceId: 'h1' })], matchedDocuments: 1 }),
+    );
+    const user = await launchOpen();
+    await user.type(screen.getByLabelText('Search your library'), `${text}{Enter}`);
+    await h1('Search');
+    return user;
+  }
+
+  async function answered() {
+    tauri.setHandler('list_source_roots', () => [tauri.sourceRoot()]);
+    tauri.setHandler('ask_atlas', () => tauri.askStarted());
+    const user = await launchOpen();
+    await user.click(nav().getByRole('button', { name: 'Search' }));
+    await user.click(screen.getByRole('radio', { name: 'Ask Atlas' }));
+    await user.type(screen.getByLabelText('Ask your library'), 'how do harmonic drives work');
+    await user.click(screen.getByRole('button', { name: 'Ask' }));
+    const step = (s: import('./lib/api/bindings/AnswerStep').AnswerStep) =>
+      events.emit('answer-stream', { answerId: 'answer-1', step: s });
+    return { user, step };
+  }
+
+  it('bookmarks a search result and says so', async () => {
+    const hit = tauri.searchHit({ fileInstanceId: 'h1' });
+    const user = await searchFor('gears');
+    await user.click(await screen.findByRole('button', { name: `Bookmark: ${hit.displayName}` }));
+    expect(calls('save_bookmark')).toEqual([
+      { target: { kind: 'file', fileId: 'h1', place: { kind: 'result' } } },
+    ]);
+    expect(await screen.findByTestId('save-status-bookmark-hit-h1')).toHaveTextContent(
+      'Bookmarked',
+    );
+  });
+
+  it('bookmarks the document from its details, and lists its bookmarks there', async () => {
+    tauri.setHandler('list_saved', (args) =>
+      (args?.query as { documentId: string | null }).documentId === 'doc-1'
+        ? tauri.savedPage({
+            items: [{ item: 'bookmark', ...tauri.bookmark({ note: 'The key page.' }) }],
+            total: 1,
+          })
+        : tauri.savedPage(),
+    );
+    const user = await searchFor('gears');
+    await user.click(await screen.findByRole('button', { name: /^Details for / }));
+    const d = within(await screen.findByRole('dialog'));
+    const here = within(await d.findByTestId('bookmarks-here'));
+    expect(here.getByRole('heading', { name: 'Bookmarks in this document' })).toBeVisible();
+    expect(here.getByText('Page 12')).toBeVisible();
+    expect(here.getByText('The key page.')).toBeVisible();
+    await user.click(d.getByRole('button', { name: 'Bookmark: Harmonic Drives' }));
+    expect(calls('save_bookmark').at(-1)).toEqual({
+      target: { kind: 'file', fileId: 'h1', place: { kind: 'document' } },
+    });
+  });
+
+  it('keeps an answer once it is done, and its cited passage and sources', async () => {
+    const { user, step } = await answered();
+    step({ kind: 'delta', text: 'High reduction [1].' });
+    expect(screen.queryByRole('button', { name: /^Save as a finding/ })).toBeNull();
+    step({ kind: 'done', cited: [1], dropped: 0 });
+    await user.click(
+      await screen.findByRole('button', {
+        name: 'Save as a finding: how do harmonic drives work',
+      }),
+    );
+    expect(calls('save_finding').at(-1)).toEqual({
+      source: { kind: 'answer', answerId: 'answer-1' },
+    });
+    expect(await screen.findByTestId('save-status-finding-answer-1')).toHaveTextContent(
+      'Saved as a finding',
+    );
+
+    // A source in Sources used.
+    await user.click(
+      screen.getByRole('button', { name: 'Bookmark: Source 2: Strain Wave Gearing' }),
+    );
+    expect(calls('save_bookmark').at(-1)).toEqual({
+      target: {
+        kind: 'file',
+        fileId: 'file-2',
+        place: { kind: 'citation', answerId: 'answer-1', n: 2 },
+      },
+    });
+
+    // The cited passage, from its chip: as a bookmark and as a finding.
+    await user.click(screen.getByRole('button', { name: 'Source 1: Harmonic Drives, Page 12' }));
+    const cited = within(await screen.findByTestId('cited-passage'));
+    const citation = {
+      kind: 'file',
+      fileId: 'file-1',
+      place: { kind: 'citation', answerId: 'answer-1', n: 1 },
+    };
+    await user.click(cited.getByRole('button', { name: 'Bookmark this passage' }));
+    expect(calls('save_bookmark').at(-1)).toEqual({ target: citation });
+    await user.click(cited.getByRole('button', { name: 'Save as a finding' }));
+    expect(calls('save_finding').at(-1)).toEqual({
+      source: { kind: 'passage', target: citation },
+    });
+  });
+
+  it('says why something could not be kept', async () => {
+    tauri.setHandler('save_bookmark', () => {
+      throw { code: 'save_source_gone', message: "Atlas can't find that any more." };
+    });
+    const user = await searchFor('gears');
+    await user.click(await screen.findByRole('button', { name: /^Bookmark: / }));
+    expect(await screen.findByTestId('save-status-bookmark-hit-h1')).toHaveTextContent(
+      "Atlas can't find that any more.",
+    );
+  });
+
+  it('keeps a trail’s question and bookmarks a recorded source', async () => {
+    tauri.setHandler('list_trails', () => ({
+      trails: [tauri.trailSummary()],
+      page: 0,
+      pageSize: 25,
+      total: 1,
+    }));
+    const user = await launchOpen();
+    await user.click(nav().getByRole('button', { name: 'Trails' }));
+    await user.click(await screen.findByRole('button', { name: 'harmonic drives' }));
+    const steps = await screen.findAllByTestId('trail-step');
+    const ask = within(steps[1]);
+    await user.click(
+      ask.getByRole('button', { name: 'Save as a finding: how do harmonic drives work' }),
+    );
+    expect(calls('save_finding').at(-1)).toEqual({ source: { kind: 'step', stepId: 'step-2' } });
+    const result = within(steps[0]);
+    await user.click(result.getByRole('button', { name: 'Bookmark: Harmonic Drives' }));
+    expect(calls('save_bookmark').at(-1)).toEqual({
+      target: { kind: 'step', stepId: 'step-1', index: 0 },
+    });
+    // Opening a recorded source passes what its panel's bookmark keeps.
+    await user.click(ask.getByRole('button', { name: 'Source 1: Harmonic Drives, Page 12' }));
+    const cited = within(await screen.findByTestId('cited-passage'));
+    await user.click(cited.getByRole('button', { name: 'Bookmark this passage' }));
+    expect(calls('save_bookmark').at(-1)).toEqual({
+      target: { kind: 'step', stepId: 'step-2', index: 0 },
+    });
+  });
+
+  it('shows the Saved tab beside Trails, empty at first', async () => {
+    const user = await launchOpen();
+    await user.click(nav().getByRole('button', { name: 'Trails' }));
+    const tabs = within(screen.getByRole('group', { name: 'Show' }));
+    expect(tabs.getAllByRole('radio').map((r) => r.closest('label')?.textContent?.trim())).toEqual([
+      'Trails',
+      'Saved',
+    ]);
+    await user.click(tabs.getByRole('radio', { name: 'Saved' }));
+    expect(
+      await screen.findByText(
+        'Bookmarks and findings you save show here. Bookmark a passage or save an answer to keep it.',
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it('lists what was saved, filters it, edits notes and deletes', async () => {
+    tauri.setHandler('list_saved', (args) => {
+      const q = args?.query as { kind: string | null; filter: string };
+      if (q.filter === 'nothing') return tauri.savedPage();
+      const items = [
+        { item: 'finding' as const, ...tauri.finding() },
+        {
+          item: 'bookmark' as const,
+          ...tauri.bookmark({
+            resolved: tauri.resolved({ state: 'no_file', fileInstanceId: null }),
+          }),
+        },
+        {
+          item: 'bookmark' as const,
+          ...tauri.bookmark({ id: 'bm-2', anchor: tauri.anchor({ title: 'Gears' }) }),
+        },
+      ].filter((i) => !q.kind || i.item === q.kind);
+      return tauri.savedPage({ items, total: items.length });
+    });
+    const user = await launchOpen();
+    await user.click(nav().getByRole('button', { name: 'Trails' }));
+    await user.click(screen.getByRole('radio', { name: 'Saved' }));
+    const items = await screen.findAllByTestId('saved-item');
+    expect(items.map((i) => i.dataset.kind)).toEqual(['finding', 'bookmark', 'bookmark']);
+
+    // A finding: its answer as kept, its sources, its note.
+    const f = within(items[0]);
+    expect(
+      f.getByRole('heading', { name: 'Answer to “how do harmonic drives work”' }),
+    ).toBeVisible();
+    expect(f.getByRole('article').querySelector('strong')).toHaveTextContent('high');
+    expect(f.getByTestId('saved-note')).toHaveTextContent('For chapter 2.');
+
+    // A bookmark whose file has gone says so; one still there opens, as
+    // reached from a bookmark.
+    expect(within(items[1]).getByTestId('anchor-note')).toHaveTextContent(
+      "This file isn't in your library any more.",
+    );
+    await user.click(within(items[2]).getByRole('button', { name: 'Details for Gears' }));
+    await waitFor(() =>
+      expect(tauri.invoke).toHaveBeenCalledWith('record_open', {
+        fileId: 'file-1',
+        via: { kind: 'bookmark' },
+        action: 'details',
+        place: null,
+      }),
+    );
+    await user.click(
+      within(await screen.findByRole('dialog')).getByRole('button', { name: 'Close details' }),
+    );
+
+    // Filters.
+    await user.click(screen.getByRole('radio', { name: 'Findings' }));
+    await waitFor(() =>
+      expect(calls('list_saved').at(-1)).toMatchObject({ query: { kind: 'finding' } }),
+    );
+    expect(await screen.findAllByTestId('saved-item')).toHaveLength(1);
+    await user.click(screen.getByRole('radio', { name: 'All' }));
+    await user.type(screen.getByLabelText('Filter saved'), 'nothing');
+    expect(await screen.findByText('Nothing saved matches “nothing”')).toBeInTheDocument();
+    await user.clear(screen.getByLabelText('Filter saved'));
+
+    // A note, near the limit and refused over it, then saved.
+    const bookmarkItem = within((await screen.findAllByTestId('saved-item'))[2]);
+    await user.click(bookmarkItem.getByRole('button', { name: 'Add a note' }));
+    const box = bookmarkItem.getByLabelText('Note');
+    await user.click(box);
+    await user.paste('b'.repeat(3800));
+    expect(bookmarkItem.getByText('200 characters left')).toBeInTheDocument();
+    tauri.setHandler('update_saved_note', () => {
+      throw { code: 'text_too_long', message: 'Keep the note to 4000 characters.' };
+    });
+    await user.click(bookmarkItem.getByRole('button', { name: 'Save note' }));
+    expect(await screen.findByText('Keep the note to 4000 characters.')).toBeInTheDocument();
+    tauri.setHandler('update_saved_note', () => ({ item: 'bookmark', ...tauri.bookmark() }));
+    await user.click(bookmarkItem.getByRole('button', { name: 'Save note' }));
+    expect(calls('update_saved_note').at(-1)).toEqual({
+      kind: 'bookmark',
+      id: 'bm-2',
+      note: 'b'.repeat(3800),
+    });
+
+    // Delete, after confirming.
+    const first = within((await screen.findAllByTestId('saved-item'))[0]);
+    await user.click(first.getByRole('button', { name: 'Delete…' }));
+    const confirm = within(first.getByRole('group', { name: 'Confirm deleting' }));
+    expect(
+      confirm.getByText('Delete this finding? Its trail, if it still has one, is kept.'),
+    ).toBeInTheDocument();
+    await user.click(confirm.getByRole('button', { name: 'Delete' }));
+    expect(calls('delete_saved').at(-1)).toEqual({ kind: 'finding', id: 'f-1' });
+  });
+});

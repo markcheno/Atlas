@@ -11,6 +11,7 @@
   import AskForm from '../lib/components/AskForm.svelte';
   import OriginalActions from '../lib/components/OriginalActions.svelte';
   import OriginalNotice from '../lib/components/OriginalNotice.svelte';
+  import SaveAction from '../lib/components/SaveAction.svelte';
   import ProblemNotice from '../lib/components/ProblemNotice.svelte';
   import ViewHeading from '../lib/components/ViewHeading.svelte';
   import { statusLabel } from '../lib/libraryCopy';
@@ -255,6 +256,13 @@
                 </button>
               {/if}
               <OriginalActions item={fromHit(hit, FROM_RESULT)} />
+              {#if hit.documentId}
+                <SaveAction
+                  target={{ kind: 'file', fileId: hit.fileInstanceId, place: { kind: 'result' } }}
+                  key={`bookmark-hit-${hit.fileInstanceId}`}
+                  name={hit.displayName}
+                />
+              {/if}
             </div>
             {#if originals.hasNotice(hit.fileInstanceId)}
               <OriginalNotice item={fromHit(hit, FROM_RESULT)} />

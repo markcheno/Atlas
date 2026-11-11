@@ -34,7 +34,8 @@
   } from '../trailCopy';
   import AnswerText from './AnswerText.svelte';
   import ProblemNotice from './ProblemNotice.svelte';
-  import TrailSource from './TrailSource.svelte';
+  import RecordedSource from './RecordedSource.svelte';
+  import SaveAction from './SaveAction.svelte';
 
   const d = $derived(trailView.detail);
   const current = $derived(
@@ -98,7 +99,9 @@
     const k = step.payload.sources.findIndex((s) => s.n === n);
     const source = step.payload.sources[k];
     if (!source) return;
-    if (!openRecorded(source.anchor, step.anchors[k], trigger, { n, at: step.at })) {
+    const saveAs = { kind: 'step' as const, stepId: step.id, index: k };
+    const question = { n, at: step.at };
+    if (!openRecorded(source.anchor, step.anchors[k], trigger, { question, saveAs })) {
       document.getElementById(`${step.id}-source-${n}`)?.focus();
     }
   }
@@ -215,7 +218,14 @@
             {#if p.results.length > 0}
               <ul class="sources" aria-label="Top results then">
                 {#each p.results as r, k (k)}
-                  <li><TrailSource anchor={r.anchor} resolved={step.anchors[k]} at={step.at} /></li>
+                  <li>
+                    <RecordedSource
+                      anchor={r.anchor}
+                      resolved={step.anchors[k]}
+                      at={step.at}
+                      saveAs={{ kind: 'step', stepId: step.id, index: k }}
+                    />
+                  </li>
                 {/each}
               </ul>
             {/if}
@@ -254,13 +264,14 @@
                 <ol>
                   {#each p.sources as s, k (s.n)}
                     <li>
-                      <TrailSource
+                      <RecordedSource
                         anchor={s.anchor}
                         resolved={step.anchors[k]}
                         n={s.n}
                         cited={s.cited}
                         at={step.at}
                         id={`${step.id}-source-${s.n}`}
+                        saveAs={{ kind: 'step', stepId: step.id, index: k }}
                       />
                     </li>
                   {/each}
@@ -271,11 +282,24 @@
               <button type="button" class="button" onclick={() => void trailView.askAgain(p)}>
                 {ASK_AGAIN}
               </button>
+              {#if p.answer}
+                <SaveAction
+                  finding={{ kind: 'step', stepId: step.id }}
+                  key={`finding-${step.id}`}
+                  name={p.question}
+                />
+              {/if}
             </div>
           {:else if p.kind === 'open'}
             <h3>Opened {p.anchor.title}</h3>
             <p class="muted small">{reachedLabel(p.via)} · {actionsText(p.actions)}</p>
-            <TrailSource anchor={p.anchor} resolved={step.anchors[0]} at={step.at} opens />
+            <RecordedSource
+              anchor={p.anchor}
+              resolved={step.anchors[0]}
+              at={step.at}
+              opens
+              saveAs={{ kind: 'step', stepId: step.id, index: 0 }}
+            />
           {:else}
             <h3 class="visually-hidden">Your note</h3>
             <p class="note-text">{p.text}</p>

@@ -5,6 +5,8 @@
  * shows the excerpt that was sent as the cited passage.
  */
 import type { Anchor } from './api/bindings/Anchor';
+import type { OpenVia } from './api/bindings/OpenVia';
+import type { SaveTarget } from './api/bindings/SaveTarget';
 import type { ResolvedAnchor } from './api/bindings/ResolvedAnchor';
 import type { SourceUsed } from './api/bindings/SourceUsed';
 import { FROM_TRAIL } from './openVia';
@@ -33,23 +35,26 @@ function asCited(n: number, a: Anchor, r: ResolvedAnchor, fileId: string): Sourc
 }
 
 /**
- * Opens a recorded anchor's document in the details panel. A question's
- * source (`n`, with its excerpt) shows that excerpt as the cited passage.
- * False when there is nothing to open.
+ * Opens a recorded or saved anchor's document in the details panel. A
+ * question's source (`n`, with its excerpt) shows that excerpt as the
+ * cited passage; `saveAs` is what the panel's Bookmark keeps. False when
+ * there is nothing to open.
  */
 export function openRecorded(
   a: Anchor,
   r: ResolvedAnchor | undefined,
   trigger: HTMLElement | null,
-  question?: { n: number; at: string },
+  options: { question?: { n: number; at: string }; via?: OpenVia; saveAs?: SaveTarget } = {},
 ): boolean {
   const fileId = openableFile(r);
   if (!fileId || !r) return false;
+  const { question } = options;
   const cited = question && a.excerpt ? asCited(question.n, a, r, fileId) : undefined;
   void details.open(fileId, trigger, {
-    via: FROM_TRAIL,
+    via: options.via ?? FROM_TRAIL,
     cited,
     citedNote: cited && question ? citedOn(question.at) : undefined,
+    saveAs: options.saveAs,
   });
   return true;
 }

@@ -65,6 +65,7 @@ commands and added the native multi-folder picker.
 | Ask Atlas | `ask_atlas`, `cancel_answer`, `acknowledge_disclosure` (the privacy choices are part of `update_settings`); the `answer-stream` event | **2.6 (working)** |
 | Knowledge store | `get_knowledge_status` | **3.2 (working)** |
 | Trails | `record_open`, `get_recording_status`, `dismiss_trail_note`, `list_trails`, `get_trail`, `start_trail`, `continue_trail`, `rename_trail`, `pin_trail`, `delete_trail`, `delete_trail_step`, `add_trail_note`, `delete_all_trails`; `search_documents` gains `intent`; the `trail-changed` event (recording and expiry are part of `update_settings`) | **3.3 (working)** |
+| Saved | `save_bookmark`, `save_finding`, `update_saved_note`, `delete_saved`, `list_saved` | **3.5 (working)** |
 
 `get_app_status` returns only facts about the running process, including a
 feature list that marks exactly which capabilities this build provides.
@@ -974,6 +975,48 @@ privacy rules, in [ADR 0017](adr/0017-trails-and-privacy.md).
   count for it.
 - **Home** lists the three most recent trails under "Pick up where you
   left off"; each opens its timeline.
+
+## Bookmarks and findings
+
+Implemented in `src-tauri/src/services/knowledge/saved.rs` and
+`src-tauri/src/commands/saved.rs` (Slice 3.5, phase3-spec §5.3, §7.3).
+
+- **The renderer names what to keep; Rust builds it.**
+  - `SaveTarget::File { fileId, place }`, where `place` is `result`,
+    `citation{answerId, n}`, `page{pageNo}` or `document`. The anchor is
+    built from the catalog at the passage the recorder remembers for that
+    result or citation; a page's first passage; or the whole document. A
+    citation of the answer on screen keeps its excerpt as sent.
+  - `SaveTarget::Step { stepId, index }` keeps a trail step's anchor as it
+    was recorded.
+- **One bookmark per place:** the same `document_id` and anchor ordinal
+  (`json_extract(anchor, '$.ordinal') IS ?`, so the whole document counts
+  as a place) updates the bookmark already there.
+- **Findings** (`FindingSource`):
+  - `answer{answerId}` reads the recorder's last ended answer. It is kept
+    in memory, recording or not, until the next question starts: the
+    question, the delivered text, and the cited sources only, with the step
+    id when it was recorded.
+  - `step{stepId}` reads a recorded question.
+  - `passage{target}` keeps one passage's text with its anchor.
+  - Anything gone answers `save_source_gone`.
+- **Notes** use the trails' 4,000-character check. **Deleting** also
+  removes `collection_items`, in one transaction. Saving is never a trail
+  step; opening a saved item is (`via: bookmark`).
+- **`list_saved`** reads every bookmark and finding, filters by kind,
+  document and folded text in Rust (no filter column; the counts are
+  small), sorts by `updated_at`, then resolves the page's anchors.
+  `SavedItem` is tagged `item`, because a finding has a `kind` of its own.
+- **The renderer:**
+  - `SaveAction.svelte` is a Bookmark or Save as a finding button with its
+    status. It appears on search results, the details panel (the whole
+    document; the cited passage as a bookmark and as a finding, from
+    `details.open`'s `saveAs`), Sources used, a done answer, a trail
+    question, and each recorded source.
+  - The Trails view has Trails | Saved tabs. `SavedList.svelte` shows
+    bookmarks and findings through `RecordedSource.svelte` (renamed from
+    `TrailSource`) and `AnswerText`.
+  - The details panel lists **Bookmarks in this document**.
 
 ## Build, CI and measurement
 

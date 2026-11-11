@@ -52,6 +52,14 @@ import type { TrailDetail } from './bindings/TrailDetail';
 import type { TrailPage } from './bindings/TrailPage';
 import type { TrailQuery } from './bindings/TrailQuery';
 import type { TrailSummary } from './bindings/TrailSummary';
+import type { Bookmark } from './bindings/Bookmark';
+import type { Finding } from './bindings/Finding';
+import type { FindingSource } from './bindings/FindingSource';
+import type { SaveTarget } from './bindings/SaveTarget';
+import type { SavedItem } from './bindings/SavedItem';
+import type { SavedKind } from './bindings/SavedKind';
+import type { SavedPage } from './bindings/SavedPage';
+import type { SavedQuery } from './bindings/SavedQuery';
 
 /** Server codes plus two the client itself can produce. */
 export type ApiErrorCode = ErrorCode | 'ipc_unavailable' | 'unexpected';
@@ -229,6 +237,17 @@ export const atlas = {
     call<void>('add_trail_note', { trailId, stepId: stepId ?? null, text }),
   /** Every trail; bookmarks and findings are kept. The number deleted. */
   deleteAllTrails: () => call<number>('delete_all_trails'),
+
+  /**
+   * Bookmarks and findings (Slice 3.5). The renderer names what to keep;
+   * Rust builds it from the catalog and from what it showed.
+   */
+  saveBookmark: (target: SaveTarget) => call<Bookmark>('save_bookmark', { target }),
+  saveFinding: (source: FindingSource) => call<Finding>('save_finding', { source }),
+  updateSavedNote: (kind: SavedKind, id: string, note: string) =>
+    call<SavedItem>('update_saved_note', { kind, id, note }),
+  deleteSaved: (kind: SavedKind, id: string) => call<void>('delete_saved', { kind, id }),
+  listSaved: (query: SavedQuery) => call<SavedPage>('list_saved', { query }),
 } as const;
 
 export type AtlasApi = typeof atlas;

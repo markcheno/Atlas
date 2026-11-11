@@ -4,6 +4,8 @@
   // the open trail's timeline.
   import { onMount } from 'svelte';
   import ProblemNotice from '../lib/components/ProblemNotice.svelte';
+  import SavedList from '../lib/components/SavedList.svelte';
+  import { SAVED_TAB, TRAILS_TAB } from '../lib/savedCopy';
   import TrailTimeline from '../lib/components/TrailTimeline.svelte';
   import ViewHeading from '../lib/components/ViewHeading.svelte';
   import { count, relativeTime } from '../lib/inventoryCopy';
@@ -33,7 +35,33 @@
 <div class="view">
   <ViewHeading>Trails</ViewHeading>
 
-  {#if trailView.selectedId}
+  <fieldset class="tabs">
+    <legend class="visually-hidden">Show</legend>
+    <label>
+      <input
+        type="radio"
+        name="trails-tab"
+        value="trails"
+        checked={trailView.tab === 'trails'}
+        onchange={() => (trailView.tab = 'trails')}
+      />
+      {TRAILS_TAB}
+    </label>
+    <label>
+      <input
+        type="radio"
+        name="trails-tab"
+        value="saved"
+        checked={trailView.tab === 'saved'}
+        onchange={() => (trailView.tab = 'saved')}
+      />
+      {SAVED_TAB}
+    </label>
+  </fieldset>
+
+  {#if trailView.tab === 'saved'}
+    <SavedList />
+  {:else if trailView.selectedId}
     <TrailTimeline />
   {:else}
     {#if page && (page.total > 0 || trailView.text)}
@@ -119,6 +147,41 @@
 </div>
 
 <style>
+  .tabs {
+    display: inline-flex;
+    justify-self: start;
+    margin: 0;
+    padding: 2px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--surface);
+    min-height: 40px;
+  }
+
+  .tabs label {
+    display: inline-flex;
+    align-items: center;
+    padding: 0 var(--space-3);
+    border-radius: calc(var(--radius) - 2px);
+    cursor: pointer;
+  }
+
+  .tabs label:has(input:checked) {
+    background: var(--accent-soft);
+    font-weight: 500;
+  }
+
+  .tabs label:has(input:focus-visible) {
+    outline: 2px solid var(--focus);
+    outline-offset: 1px;
+  }
+
+  .tabs input {
+    position: absolute;
+    opacity: 0;
+    pointer-events: none;
+  }
+
   .view {
     display: grid;
     gap: var(--space-4);
