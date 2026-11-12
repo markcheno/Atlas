@@ -1177,7 +1177,8 @@ phase3-spec §5.8, §7.7; [ADR 0019](adr/0019-export-and-import.md)).
   dismissedSuggestions }`, with `deny_unknown_fields` on every row and no
   paths.
 - **Import** (`import.rs`):
-  1. Read the file: at most 256 MiB, then parsed and checked.
+  1. Read the file: at most 1 GiB (Slice 3.9; peak memory about 2.4 times
+     the file), then parsed and checked.
   2. `merge(dry: true)` is the dry run.
   3. `Pending` holds one parsed file under a token for 10 minutes.
   4. `apply` takes a snapshot, then runs `merge(dry: false)` in one
@@ -1223,7 +1224,7 @@ phase3-spec §5.8, §7.7; [ADR 0019](adr/0019-export-and-import.md)).
   | full | Pushes to `main`, tags, pull requests, manual runs (`just ci-remote`) | Every job below on macOS arm64, Windows x64 and Linux x64; benchmarks only on pushes | About 12 min warm before merging (the Windows test job); 16–21 min on `main` with benchmarks |
   | quick | Pushes to `slice-*` branches, `just ci-remote quick` | Linux only: Rust format, clippy and tests, bindings, lint, typecheck, frontend tests | 2.5 min warm; 5 min with a cold cache (3.5 min of it compiling) |
   | docs | Branch pushes that change only `*.md`, `docs/` or `spikes/` | ESLint and Prettier (which checks Markdown) | 35 s |
-  | evidence | `just ci-remote evidence` only | `evidence`: the 30k text fixture read unthrottled on all three OSes, failing unless every file ends "Text ready" (`bench.mjs --evidence`, phase1-spec §1.3); its own concurrency group | up to 3 h |
+  | evidence | `just ci-remote evidence` only | `evidence` (Phase 3, Slice 3.9): the knowledge store at 100,000 steps loaded through Import, with import's memory, and the page view, on all three OSes (`bench.mjs --evidence`). Phases 1 and 2's evidence (the 30k read, the 10k embedding) is `bench.mjs --evidence-phase2`. Its own concurrency group | 8 to 15 min |
 
   The full tier runs:
   - `check-and-build`: every check and test, then debug bundles. On Windows
@@ -1368,5 +1369,10 @@ findings, interests and projects, a PDF page view, export) is specified in
 [phase3-spec.md](phase3-spec.md). Slice 3.1 built the carry-overs
 (iCloud re-reads, the per-model weak margin, Project Gutenberg boilerplate
 left out), 3.1.1 the fusion change, 3.2 the
-[knowledge store](#knowledge-store), and 3.3
-[recording trails](#recording-trails).
+[knowledge store](#knowledge-store), 3.3
+[recording trails](#recording-trails), 3.4 the Trails screen and resuming,
+3.5 [bookmarks and findings](#bookmarks-and-findings), 3.6
+[interests, projects and rediscovery](#interests-projects-and-rediscovery),
+3.7 the [page view](#page-view), 3.8 [export and import](#export-and-import),
+and 3.9 the evidence and the [close-out review](phase3-closeout.md)
+(version 0.4.0).

@@ -24,12 +24,30 @@ days, debug bundles for 14).
 
 | Bundle | Size | Notes |
 | --- | ---: | --- |
-| `Atlas_0.3.0_aarch64.dmg` | 12.9 MiB | 33 MiB app once installed; includes PDFium (7.0 MiB) |
-| `Atlas_0.3.0_x64-setup.exe` | 9.2 MiB | Uses the system WebView2; includes PDFium (7.2 MiB) |
-| `Atlas_0.3.0_amd64.deb` | 16.1 MiB | Uses the distribution's WebKitGTK; includes PDFium (7.7 MiB) |
-| `Atlas_0.3.0_amd64.AppImage` | 89.6 MiB | Bundles WebKitGTK, GTK and their libraries, and PDFium |
+| `Atlas_0.4.0_aarch64.dmg` | 13.8 MiB | 35.5 MiB app once installed; includes PDFium (7.0 MiB) |
+| `Atlas_0.4.0_x64-setup.exe` | 9.9 MiB | Uses the system WebView2; includes PDFium (7.2 MiB) |
+| `Atlas_0.4.0_amd64.deb` | 17.2 MiB | Uses the distribution's WebKitGTK; includes PDFium (7.7 MiB) |
+| `Atlas_0.4.0_amd64.AppImage` | 90.5 MiB | Bundles WebKitGTK, GTK and their libraries, and PDFium |
 
-Release builds of version 0.3.0 (the Phase 2 close-out) from CI run
+Release builds of version 0.4.0 (the Phase 3 close-out) from CI run
+[43138111316](https://github.com/markcheno/Atlas/actions/runs/43138111316),
+2026-11-12.
+
+**What Phase 3 added** (0.3.0 → 0.4.0: the knowledge store, trails,
+bookmarks and findings, collections, the page view and its worker, export
+and import). No native library was added: the page view renders with the
+PDFium already bundled.
+
+| | 0.3.0 | 0.4.0 | Change |
+| --- | ---: | ---: | ---: |
+| DMG | 12.9 MiB | 13.8 MiB | +0.9 |
+| Windows setup | 9.2 MiB | 9.9 MiB | +0.7 |
+| `.deb` | 16.1 MiB | 17.2 MiB | +1.1 |
+| AppImage | 89.6 MiB | 90.5 MiB | +0.9 |
+| macOS executable (`Atlas.app/Contents/MacOS/atlas`) | 26.5 MB | 29.4 MB | +2.9 MB |
+| Linux executable (`/usr/bin/atlas` in the `.deb`) | 38.9 MB | 43.2 MB | +4.3 MB |
+
+Version 0.3.0 (the Phase 2 close-out) is from CI run
 [42909699433](https://github.com/markcheno/Atlas/actions/runs/42909699433),
 2026-11-10. Version 0.2.0 (the Phase 1 close-out, CI run
 [42683848551](https://github.com/markcheno/Atlas/actions/runs/42683848551),
@@ -170,7 +188,7 @@ working GTK and graphics stack.
 smoke under Xvfb). Other distributions, Wayland sessions, and ARM aren't
 tested, and Atlas makes no claim of working on every distribution.
 
-## Not done yet (Phases 0 to 2)
+## Not done yet (Phases 0 to 3)
 
 - Code signing and notarization (Apple Developer ID, Windows Authenticode).
   Notarization must review the `disable-library-validation` entitlement
@@ -187,6 +205,10 @@ See [dependency licenses](dependency-licenses.md). In short:
 - The Rust and npm dependencies compiled into the app are under permissive
   licenses (MIT, Apache-2.0, BSD, ISC, Zlib, Unicode, and similar). The
   report flags anything else.
+- **Phase 3** made `png` 0.18.1 and `base64` 0.23.1 direct dependencies
+  (the page view's PNG encoding and its IPC). Both were already in the
+  dependency tree, both are MIT OR Apache-2.0, and the report still lists
+  586 crates. The report doesn't tell direct dependencies from the rest.
 - **AppImage:** bundles system libraries from the build machine, including
   WebKitGTK and GTK, which are **LGPL-2.1+**. Redistributing the AppImage
   means meeting LGPL terms for those libraries: offer their source and

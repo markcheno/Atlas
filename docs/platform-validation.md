@@ -1248,6 +1248,42 @@ merge): full run
 [42943519172](https://github.com/markcheno/Atlas/actions/runs/42943519172),
 all green on three OSes. The smoke passed every step on Windows and Linux.
 
+## Slice 3.9
+
+The Phase 3 close-out ([review](phase3-closeout.md)).
+
+**Evidence run**
+[43140187034](https://github.com/markcheno/Atlas/actions/runs/43140187034)
+(`just ci-remote evidence`, now Phase 3's): the knowledge store at 10,000
+trails and 100,000 steps, loaded through Import, and the page view, on
+every OS. All three passed at the first attempt. The numbers are in the
+[Phase 3 summary](benchmarks.md#phase-3-summary-slice-39).
+
+| Runner | Import apply s | Import peak MiB | Trails list p95 ms | 50-step trail p95 ms | Snapshot s | Page render p95 ms |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| macOS | 22.2 | 578 | 1.1 | 48.3 | 5.10 | 30.9 |
+| Windows | 46.1 | 571 | 5.3 | 65.0 | 3.55 | 58.4 |
+| Linux | 19.9 | 569 | 1.8 | 44.6 | 4.37 | 30.8 |
+
+**New on every OS:**
+- **`tests/gutenberg_reread.rs`** (§13's carry-over): 12 of 788 chunks
+  embedded again after the Gutenberg re-read.
+- **P3-23's link cases are now required on Windows**
+  (`ATLAS_TEST_REQUIRE_SYMLINKS=1` in CI), and they passed in run
+  [43138111316](https://github.com/markcheno/Atlas/actions/runs/43138111316).
+  Slice 3.8 couldn't say whether they ran there.
+- **The bad-file test** refuses a sparse file of 1 GiB + 1 byte.
+
+**CI on `slice-39`:** full run
+[43138111316](https://github.com/markcheno/Atlas/actions/runs/43138111316),
+all green on three OSes, smoke included. It built the 0.4.0 bundles.
+
+### macOS arm64, Slice 3.9: release DMG smoke
+
+<!-- dmg-smoke-39 -->
+Pending: the product owner's run of the
+[checklist](#release-dmg-smoke-slice-39).
+
 ## Slice 3.8
 
 Export and import. On every OS:
