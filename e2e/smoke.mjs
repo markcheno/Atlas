@@ -730,6 +730,9 @@ async function openNewestTrail() {
   await wd.waitFor(heading('Trails'));
   const tabs = await wd.all("//label[normalize-space(.)='Trails']");
   if (tabs.length > 0) await wd.click(tabs[0]);
+  // A trail opened earlier is still showing: back to the list first.
+  const back = await wd.all(button('Back to trails'));
+  if (back.length > 0) await wd.click(back[0]);
   await wd.click(
     await wd.waitFor(
       "(//li[@data-testid='trail-row']//button[contains(@class, 'name-button')])[1]",
