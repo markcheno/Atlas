@@ -1824,6 +1824,106 @@ env -i HOME="$HOME/atlas-smoke/home" PATH=/usr/bin:/bin \
 11. **Clean up:** Settings › AI Models › Remove the oMLX service, which
     deletes its key. Then `rm -rf ~/atlas-smoke`.
 
+### Release DMG smoke (Slice 3.9)
+
+The Phase 3 close-out's macOS check of the CI-built 0.4.0 DMG against oMLX:
+a real research session, closed, changed and resumed (phase3-spec §14).
+
+**Setup:** as for Slice 2.8, with a fresh `~/atlas-smoke` (remove the old
+one first), plus two scratch folders for export and a second library:
+
+```sh
+mkdir -p ~/atlas-smoke/home ~/atlas-smoke/Library ~/atlas-smoke/Library2 \
+         ~/atlas-smoke/Vault ~/atlas-smoke/Moved
+just fixtures ~/atlas-smoke/Books 100 0 4
+mkdir -p ~/atlas-smoke/Books/from-the-corpus
+cp spikes/extraction-bench/corpus/epub/*.epub \
+   spikes/extraction-bench/corpus/pdf/real/*.pdf \
+   ~/atlas-smoke/Books/from-the-corpus/
+cp -R /Volumes/Atlas/Atlas.app ~/atlas-smoke/
+env -i HOME="$HOME/atlas-smoke/home" PATH=/usr/bin:/bin \
+  "$HOME/atlas-smoke/Atlas.app/Contents/MacOS/atlas"
+```
+
+Choose `~/atlas-smoke/Library` for the library and add
+`~/atlas-smoke/Books`. Keep the Terminal window open.
+
+1. **Recording, without AI.**
+   - Before any search, Trails says what trails are.
+   - Search `"Engineering marker 1"` (quoted), then `harbour`. The status
+     bar shows that the trail is recording. Trails lists one trail with
+     both searches.
+   - **Pause recording trails** (status bar) and search `orbital`: nothing
+     new in the trail. **Resume recording trails**.
+2. **oMLX and both models,** as in Slice 2.8's steps 2 and 3; then
+   "Meaning up to date".
+3. **A research session.**
+   - Ask a question whose sources include a PDF, for example about one of
+     the corpus papers. Open a citation: the details panel shows the cited
+     passage.
+   - **Show the page** on that PDF citation, or on a PDF search result:
+     - the page, with the passage outlined when found, and its text below;
+     - Next and Previous, the page field, Fit width and Actual size;
+     - **Bookmark this page**;
+     - Escape returns to the button.
+   - On a result, **Bookmark**. On the answer, **Save as a finding**. Give
+     the finding a note in Trails › Saved.
+   - Trails › Interests and projects: **New interest…** and **New
+     project…** (with a goal). Use **Add to…** on the trail, the bookmark
+     and the finding.
+4. **Changes while it's closed.**
+   - Note which PDF the answer cited.
+   - Cmd+Q. In Finder, move that PDF into `~/atlas-smoke/Moved`, then
+     move `Moved` into `Books`. Delete one other book the trail shows,
+     for example a search result.
+   - Start Atlas again, then Settings › Library Folders › **Rescan**.
+5. **Resuming.**
+   - Trails › the session: every step in order, and the answer word for
+     word as it was.
+   - The moved PDF's citation opens it at its place; Show the page still
+     works.
+   - The deleted book says it's no longer in the library, and still shows
+     the passage that was seen.
+   - **Continue this trail**, then **Search again** and **Ask again**: the
+     new steps join the same trail.
+6. **Home:** Pick up where you left off, the interest and project, and up to
+   three suggestions with their reason. **Not for this** removes one.
+7. **Export.**
+   - First put a note of your own at
+     `~/atlas-smoke/Vault/Atlas/Trails/<date> <trail's name>.md`, with any
+     text. Use the trail's name as Trails shows it and today's date in UTC,
+     for example `2026-11-12 harbour.md`.
+   - On the trail, **Export…** › Markdown notes › Obsidian links › choose
+     `~/atlas-smoke/Vault`:
+     - the result says where it wrote, and that 1 already existed and was
+       left alone;
+     - your note is unchanged, and Atlas's sits beside it as "… 2.md";
+     - open both in a text editor (or Obsidian).
+   - Settings › Export and import › **Export…** › Everything › Markdown
+     links, into the same Vault. Notes there link to each other.
+   - **Export…** › Everything › One JSON file, into the Vault.
+8. **Import into a second library.**
+   - Settings › Storage › **Use a different location…** ›
+     `~/atlas-smoke/Library2`, and add the same Books folder.
+   - Settings › Export and import › **Import from a file…** › the JSON:
+     - the sentence says how many trails, findings, bookmarks, and
+       interests and projects are new, and that importing never removes
+       anything;
+     - **Import**: Trails, Saved and Interests and projects show them.
+   - Import the same file again: everything is already here.
+9. **Your data is kept.**
+   - Settings › Storage shows Your trails and notes and Snapshots (at least
+     one, from the import). **Clean caches**: trails, bookmarks and findings
+     all stay.
+   - Settings › Privacy › **Delete all trails…**: the confirmation names
+     the count. Bookmarks and findings stay.
+10. **VoiceOver** (⌘F5) on the page view (it reads "Page n of N" and the
+    page's text) and on a trail's timeline. Then light and dark.
+11. **Optional, with iCloud Drive:** a book offloaded to iCloud ("Remove
+    Download"), downloaded again, is read at the next rescan.
+12. **Clean up:** remove the oMLX service in Settings › AI Models, then
+    `rm -rf ~/atlas-smoke`.
+
 ### Installers (Slice 0.8)
 
 1. Download the release artifact for the OS from a green CI run.

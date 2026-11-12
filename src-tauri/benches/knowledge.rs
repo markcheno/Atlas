@@ -156,6 +156,53 @@ fn read_done(ws: &Workspace) -> bool {
     inv.active.is_none() && ov.active.is_none() && ov.counts.total > 0 && ov.counts.pending == 0
 }
 
+/// This process's resident memory, sampled every 20 ms until stopped.
+struct Sampler {
+    stop: Arc<std::sync::atomic::AtomicBool>,
+    before: u64,
+    thread: std::thread::JoinHandle<u64>,
+}
+
+fn rss() -> u64 {
+    let pid = sysinfo::get_current_pid().expect("a pid");
+    let Ok(mut sys) = sysinfo::System::new() else {
+        return 0;
+    };
+    sys.refresh_processes_specifics(
+        sysinfo::ProcessesToUpdate::Some(&[pid]),
+        true,
+        sysinfo::ProcessRefreshKind::nothing().with_memory(),
+    );
+    sys.process(pid).map_or(0, sysinfo::Process::memory)
+}
+
+impl Sampler {
+    fn start() -> Self {
+        let stop = Arc::new(std::sync::atomic::AtomicBool::new(false));
+        let before = rss();
+        let flag = Arc::clone(&stop);
+        let thread = std::thread::spawn(move || {
+            let mut peak = before;
+            while !flag.load(std::sync::atomic::Ordering::SeqCst) {
+                peak = peak.max(rss());
+                std::thread::sleep(Duration::from_millis(20));
+            }
+            peak.max(rss())
+        });
+        Self {
+            stop,
+            before,
+            thread,
+        }
+    }
+
+    /// The memory before, and the peak.
+    fn stop(self) -> (u64, u64) {
+        self.stop.store(true, std::sync::atomic::Ordering::SeqCst);
+        (self.before, self.thread.join().unwrap())
+    }
+}
+
 fn node(script: &str, args: &[&std::ffi::OsStr]) -> String {
     let out = Command::new("node")
         .arg(
@@ -249,14 +296,17 @@ fn main() {
     )
     .unwrap();
 
-    // The import: its dry run, then applying it (with its snapshot).
+    // The import: its dry run, then applying it (with its snapshot), with
+    // this process's memory sampled throughout (Slice 3.9: the 1 GiB cap).
     let h = Handles::of(root).unwrap();
+    let memory = Sampler::start();
     let t = Instant::now();
     let preview = export::preview(&h, &store_file).unwrap();
     let preview_ms = ms(t.elapsed());
     let t = Instant::now();
     export::apply(&h, &preview.token).unwrap();
     let apply_ms = ms(t.elapsed());
+    let (rss_before, rss_peak) = memory.stop();
 
     let rec = root.recorder();
     let store = root.knowledge().shared();
@@ -444,7 +494,12 @@ fn main() {
         "generated": generated,
         "documents": docs.len(),
         "steps": steps_here,
-        "import": { "previewMs": preview_ms, "applyMs": apply_ms },
+        "import": {
+            "previewMs": preview_ms,
+            "applyMs": apply_ms,
+            "rssBeforeBytes": rss_before,
+            "peakRssDeltaBytes": rss_peak.saturating_sub(rss_before),
+        },
         "list": list,
         "listFiltered": filtered,
         "openFifty": { "anchors": anchors, "times": open },

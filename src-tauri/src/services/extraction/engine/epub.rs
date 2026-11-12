@@ -197,7 +197,7 @@ pub fn extract(mut file: File, sink: &mut Sink<'_>) -> Result<Summary, Failure> 
 
     let mut budget = Budget::default();
     let mut readability = Readability::default();
-    let mut cutter = Cutter::default();
+    let mut cutter = Cutter::for_worker();
     let mut ordinal = 0u32;
     let mut chapters = 0u32;
     // Sends one spine item's kept text as pieces. Locations keep the spine

@@ -66,11 +66,11 @@ import type { ImportSummary } from '../lib/api/bindings/ImportSummary';
 export const DEFAULT_ROOT = '/Users/test/Library/Application Support/com.altazlabs.atlas/Library';
 
 export const fakeStatus: AppStatus = {
-  appVersion: '0.3.0',
+  appVersion: '0.4.0',
   os: 'macos',
   arch: 'aarch64',
   buildProfile: 'debug',
-  slice: '3.8',
+  slice: '3.9',
   features: [],
 };
 
