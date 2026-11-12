@@ -1248,6 +1248,92 @@ merge): full run
 [42943519172](https://github.com/markcheno/Atlas/actions/runs/42943519172),
 all green on three OSes. The smoke passed every step on Windows and Linux.
 
+## Slice 3.8
+
+Export and import. On every OS:
+- **P3-22** (`tests/export.rs`, a store built through the real services:
+  a search, a question answered by the scripted service, an open, a note
+  and a step's note; a second trail of the same name; a bookmark with a
+  note; an answer and a passage finding; an interest and a project named
+  `CON`; a "Not for this"):
+  - everything as Markdown in both link styles: 7 notes, each starting
+    with front matter that names it, and every link pointing at a written
+    file;
+  - names: forbidden characters, `CON` as `CON_`, the same name twice as
+    ` 2`, a 200-character title cut to 100;
+  - the trail note as recorded, its sources with their files as text; a
+    finding linked back to its trail; a project with its goal and
+    documents;
+  - a second export where the user keeps their own note under a trail's
+    name: their file is left byte for byte, ours goes beside it, a third
+    export replaces only Atlas's notes, and a rename leaves the old note
+    (nothing deleted);
+  - a deleted book: its bookmark note says no file has it now.
+- **P3-23:**
+  - refused: a library folder, a folder inside it, the data root, a folder
+    inside it; an `Atlas` that is a file, a link, or has a linked
+    `Trails`;
+  - `exports` inside the data root is allowed, as is a folder that
+    contains the library;
+  - a link planted at a note's name: the note goes beside it, and what it
+    points at is untouched;
+  - after every case, the scratch tree outside `<chosen>/Atlas` is
+    compared file by file (the data root's own databases aside, and no
+    `Atlas` appears in it).
+  - On Windows the link cases run where the account may make symbolic
+    links.
+- **P3-24:**
+  - everything as JSON, with no paths in it, imported into an empty
+    library: every table equal;
+  - into the same library: everything already here, and the store's change
+    count unchanged;
+  - a newer rename, note and step note win, both ways, with no step
+    duplicated; the older file then changes nothing;
+  - a bookmark at the same place under another id is the same bookmark;
+  - a token applies once, an unknown one is expired, and applying takes a
+    snapshot;
+  - eight bad files, refused whole in a full store and an empty one, with
+    nothing written: truncated, version 99, a bad id, a 4,001-character
+    note, a payload of another version, an unknown step kind, a link to
+    nothing, an unknown field;
+  - a 256 MiB + 1 file (sparse) is refused as too large.
+- **A generated store** (`scripts/generate-knowledge.mjs`, 950 trails)
+  imports cleanly, and its dry run counts the trails expiry would remove.
+
+**Unit tests** cover safe names, front-matter ids, links in both styles,
+YAML quoting, the bad-file kinds, UTC times, the one-time token, migration
+2 on a version-1 store, and `lastFolder` surviving the renderer's settings.
+
+**Vitest** covers:
+- Export… from a trail, a finding (not a bookmark), a collection and
+  Settings, with the scope, format and link style sent;
+- link style hidden for JSON;
+- a cancelled dialog, the result sentence, a refusal's reason, and Escape
+  returning focus;
+- Import: a cancelled dialog, the dry run's sentence (new, here, newer,
+  expiring), Cancel, Import and its report, and a refused file.
+
+**The smoke** (Windows and Linux) gains §14's Phase 3 steps:
+1. a search and a question are recorded;
+2. quit and relaunch (the existing step);
+3. the trail is resumed and its citation opens;
+4. a bookmark is saved;
+5. the page view shows a page;
+6. a trail is exported to a scratch folder, its note checked on disk.
+
+**CI on `slice-38`:** full run
+[43134406571](https://github.com/markcheno/Atlas/actions/runs/43134406571),
+all green on three OSes, all six new smoke steps included on Windows and
+Linux (the Windows job took 14 minutes).
+- **The first run**
+  ([43132767095](https://github.com/markcheno/Atlas/actions/runs/43132767095))
+  passed five of the new steps on Linux and failed the export step: the
+  Trails tab still showed the trail opened two steps before, so the smoke
+  found no list to pick from. It now goes back to the list first.
+- **Not shown in the log:** whether the Windows runner's account could make
+  symbolic links. P3-23 prints its skip note only to the test's captured
+  output, so the log doesn't say whether those cases ran.
+
 ## Slice 3.7
 
 The PDF page view, against the real reader worker. On every OS:

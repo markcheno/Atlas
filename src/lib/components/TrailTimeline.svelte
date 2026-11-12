@@ -32,6 +32,8 @@
     TITLE_MAX,
     trailDates,
   } from '../trailCopy';
+  import { EXPORT } from '../exportCopy';
+  import { exportDialog } from '../stores/exportDialog.svelte';
   import AddTo from './AddTo.svelte';
   import AnswerText from './AnswerText.svelte';
   import ProblemNotice from './ProblemNotice.svelte';
@@ -178,6 +180,17 @@
           name={d.trail.label}
           key={`trail-${d.trail.id}`}
         />
+        <button
+          type="button"
+          class="button quiet"
+          onclick={(e) =>
+            exportDialog.show(
+              { what: 'trail', id: d.trail.id, name: d.trail.label },
+              e.currentTarget,
+            )}
+        >
+          {EXPORT}
+        </button>
         <button
           type="button"
           class="button quiet"

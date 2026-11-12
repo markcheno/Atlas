@@ -37,6 +37,7 @@ use crate::services::answers::AnswerRegistry;
 use crate::services::catalog::reader::CatalogReader;
 use crate::services::catalog::{self, CatalogWriter};
 use crate::services::embedding::{self, registry::VectorRegistry};
+use crate::services::export::import::Pending;
 use crate::services::extraction;
 use crate::services::inventory::{self, InventoryDeps};
 use crate::services::jobs::{self, JobRunners, ProcessorFactory};
@@ -66,6 +67,8 @@ pub struct OpenRoot {
     recorder: Arc<Recorder>,
     /// The page view's renderer and its worker (Slice 3.7).
     pages: Arc<ReaderService>,
+    /// An import's dry run, waiting for Import (Slice 3.8).
+    imports: Arc<Pending>,
     jobs: JobRunners,
     /// The vector indexes, after the runners (which save them as they stop).
     vectors: Arc<VectorRegistry>,
@@ -109,6 +112,10 @@ impl OpenRoot {
     /// Renders PDF pages for the page view (Slice 3.7, ADR 0018).
     pub fn pages(&self) -> &Arc<ReaderService> {
         &self.pages
+    }
+    /// An import waiting for its Import button (Slice 3.8).
+    pub fn imports(&self) -> &Arc<Pending> {
+        &self.imports
     }
     /// The library's vector indexes (Slice 2.3).
     pub fn vectors(&self) -> &Arc<VectorRegistry> {
@@ -493,6 +500,7 @@ impl Workspace {
             answers: Arc::default(),
             recorder: self.recorder(&knowledge, &reader),
             pages: self.pages(path),
+            imports: Arc::default(),
             jobs: self.start_jobs(&catalog, path, &vectors)?,
             vectors,
             reader,
@@ -589,6 +597,7 @@ impl Workspace {
             answers: Arc::default(),
             recorder: self.recorder(&knowledge, &reader),
             pages: self.pages(path),
+            imports: Arc::default(),
             jobs: self.start_jobs(&catalog, path, &vectors)?,
             vectors,
             reader,

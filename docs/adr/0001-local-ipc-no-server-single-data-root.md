@@ -1,6 +1,7 @@
 # ADR 0001: Local IPC with no server, and one Atlas data root
 
-- **Status:** Accepted
+- **Status:** Accepted. Its list of exceptions was amended by
+  [ADR 0019](0019-export-and-import.md) (Phase 3, Slice 3.8: export folders).
 - **Date:** 2026-11-07
 - **Context documents:** [product spec](../product-spec.md) sections 6, 8 and 12;
   [Phase 0 spec](../phase0-spec.md) sections 4, 6 and 9
@@ -39,7 +40,10 @@ referenced by path and never written to. The documented exceptions are:
 - API keys, which live in OS credential storage;
 - a tiny OS-managed locator file recording where the data root is;
 - webview, installer and other caches the OS manages outside the root;
-- storage belonging to separately installed runtimes such as Ollama.
+- storage belonging to separately installed runtimes such as Ollama;
+- export folders the user chooses in a native dialog, and only the `Atlas`
+  folder Atlas makes inside one (Phase 3, Slice 3.8;
+  [ADR 0019](0019-export-and-import.md)).
 
 Network and cloud-synced volumes are rejected as a data root, because SQLite
 WAL and file locking are unreliable there.

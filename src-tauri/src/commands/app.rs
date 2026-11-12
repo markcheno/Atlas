@@ -8,7 +8,7 @@ use crate::state::AppState;
 
 /// The slice this build implements, "<phase>.<slice>" (Phase 1, Slice 1 is
 /// "1.1"). The UI derives the phase from it.
-pub const CURRENT_SLICE: &str = "3.7";
+pub const CURRENT_SLICE: &str = "3.8";
 
 /// (id, label, delivering slice, implemented in this build)
 const FEATURES: &[(&str, &str, &str, bool)] = &[
@@ -104,6 +104,12 @@ const FEATURES: &[(&str, &str, &str, bool)] = &[
         "page_view",
         "A PDF page shown inside Atlas, the passage outlined",
         "3.7",
+        true,
+    ),
+    (
+        "export_import",
+        "Trails, bookmarks, findings and collections exported as Markdown or JSON, and imported again",
+        "3.8",
         true,
     ),
 ];

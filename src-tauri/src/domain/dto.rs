@@ -2348,3 +2348,103 @@ pub struct PageImage {
     pub text: String,
     pub from_cache: bool,
 }
+
+// ------------------------------------------ export and import (Phase 3, 3.8)
+
+/// What an export takes (phase3-spec §5.8): one item, one collection with
+/// what it holds, or everything.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+#[ts(export)]
+pub enum ExportScope {
+    Trail { id: RecordId },
+    Finding { id: RecordId },
+    Collection { id: RecordId },
+    Everything,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "snake_case")]
+#[ts(export)]
+pub enum ExportFormat {
+    /// Notes in `Atlas/Trails`, `Findings`, `Bookmarks`, `Interests`,
+    /// `Projects`.
+    Markdown,
+    /// One `atlas-knowledge-<date>.json`.
+    Json,
+}
+
+/// How Markdown notes link to each other.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize, TS)]
+#[serde(rename_all = "snake_case")]
+#[ts(export)]
+pub enum LinkStyle {
+    /// `[[Trails/2026-11-11 Stoicism]]`.
+    #[default]
+    Obsidian,
+    /// `[Stoicism](../Trails/2026-11-11%20Stoicism.md)`.
+    Markdown,
+}
+
+/// What an export wrote, and where.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct ExportReport {
+    pub format: ExportFormat,
+    /// The `Atlas` folder, for display.
+    pub folder: String,
+    /// Files written under a new name.
+    pub written: u32,
+    /// Atlas's own notes from an earlier export, replaced.
+    pub replaced: u32,
+    /// Files already there that weren't Atlas's: left alone, and the note
+    /// written beside them with a number.
+    pub besides: u32,
+}
+
+/// Per kind: how an import compares with what is here.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct ImportCounts {
+    /// Not here yet: added.
+    pub new: u32,
+    /// Here, and the file's copy is newer: updated.
+    pub newer: u32,
+    /// Here already, as new or newer: left as it is.
+    pub here: u32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct ImportSummary {
+    pub trails: ImportCounts,
+    pub bookmarks: ImportCounts,
+    pub findings: ImportCounts,
+    pub collections: ImportCounts,
+}
+
+/// The dry run of an import (phase3-spec §5.8): nothing is written yet.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct ImportPreview {
+    /// Names the parsed file for `apply_import`; good for 10 minutes.
+    pub token: String,
+    /// The file's name, for display.
+    pub file_name: String,
+    pub exported: String,
+    pub summary: ImportSummary,
+    /// New unpinned trails older than 90 days, which expiry would remove.
+    pub expiring: u32,
+}
+
+/// What an import did.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct ImportReport {
+    pub summary: ImportSummary,
+}

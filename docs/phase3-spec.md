@@ -634,6 +634,48 @@ Do **not** create `knowledge.sqlite`, add a Trails view or record anything befor
   - **Uncited sources of a recorded answer kept as anchors without their excerpts**, to keep a question near 4 KB.
 - **Carried from the Phase 2 close-out and still deferred:** the unexplained miss of an index's first vector on the Linux runner (worked around by the exact search of small indexes); the single Windows failure of a `related` test; the 30k fixture embedded through oMLX overnight (not run); signing and notarization.
 
+**2026-11-11, Slice 3.8** (export and import; [ADR 0019](adr/0019-export-and-import.md)):
+- **A cancelled dialog is `null`:** `export_knowledge` returns
+  `Option<ExportReport>` and `preview_import` returns
+  `Option<ImportPreview>`. `ExportReport` is `{ format, folder, written,
+  replaced, besides }`. `Exporter` returns Atlas's own error type, not a
+  separate `ExportError`.
+- **Scopes:** a trail, a finding, a collection (with its trails, findings
+  and bookmarked documents), or everything. Bookmarks are exported one note
+  per document, so a single bookmark has no Export of its own.
+- **JSON is never replaced:** a second export the same day goes beside the
+  first with a number. It holds no paths and leaves out what can be worked
+  out again.
+- **`export.lastFolder`** is in `config/settings.json`, outside the
+  `Settings` DTO: the renderer never sees or sends it.
+- **Knowledge store version 2** (`0002_updated.sql`) adds `updated_at` to
+  trails and steps. Without it, "keep the newer of the two" couldn't see a
+  rename, a pin or a step's note.
+- **Merging:** a trail's steps are combined and renumbered by time, each
+  from the newer copy. A bookmark is matched by id or by its place. Links
+  and "Not for this" are only added, so a link removed since the export
+  comes back.
+- **Every import takes a snapshot first** and is refused if one can't be
+  taken (`import_no_snapshot`). The dry run counts new unpinned trails that
+  expiry would remove, and says so.
+- **Times** in an import must be UTC to the second, as Atlas writes them.
+  Names in an export use the UTC date.
+- **P3-24's "payload kind mismatch":** the format has no separate kind (it
+  is the payload's own tag), so the test uses an unknown kind and a payload
+  of another version.
+- **P3-23's link cases** run where the account can make symbolic links; a
+  Windows account that can't skips them and says so.
+- **Notes aren't flushed one by one:** each is staged and renamed, and the
+  folders are flushed once (8 s → 0.2 s for 1,000 notes on macOS).
+- **Taken into 3.8 (the product owner's choice):**
+  `scripts/generate-knowledge.mjs` and all of `benches/knowledge.rs`. The
+  generator takes `--documents` (a real catalog's documents, so anchors
+  resolve) rather than a catalog itself.
+- **Found:** a whole-store JSON of the bench's 10,000 trails and 100,000
+  steps is 247.5 MiB, under but near the 256 MiB import cap. A much larger
+  store exports, but its file can't be imported whole. For the close-out.
+- **The smoke** had none of §14's Phase 3 steps; 3.8 adds all six.
+
 **2026-11-11, Slice 3.7** (the PDF page view; [ADR 0018](adr/0018-the-page-view.md)):
 - **Refusals are an answer, not a kill.** Protocol 2 adds
   `RenderFailed { reason }` beside `Rendered`, with reasons

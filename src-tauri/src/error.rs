@@ -109,6 +109,25 @@ pub enum ErrorCode {
     RenderFailed,
     /// A page number or width out of range (Slice 3.7).
     InvalidRender,
+    /// An export folder that is, or is inside, a library folder (Slice 3.8).
+    ExportInsideLibrary,
+    /// An export folder inside the Atlas data folder, other than its
+    /// `exports` folder (Slice 3.8).
+    ExportInsideDataRoot,
+    /// The export folder's `Atlas` folder is a file or a link (Slice 3.8).
+    ExportFolderUnusable,
+    /// An import file over 256 MiB (Slice 3.8).
+    ImportTooLarge,
+    /// An import file that isn't whole JSON (Slice 3.8).
+    ImportUnreadable,
+    /// An import file of another format or a newer version (Slice 3.8).
+    ImportUnknownVersion,
+    /// An import file with a row Atlas won't accept (Slice 3.8).
+    ImportInvalid,
+    /// An import whose preview is gone: too old, or another one since.
+    ImportExpired,
+    /// Atlas couldn't snapshot the store before importing (Slice 3.8).
+    ImportNoSnapshot,
     Internal,
 }
 
@@ -253,6 +272,25 @@ pub enum AtlasError {
     RenderFailed(&'static str),
     #[error("Atlas can't show a page that size.")]
     InvalidRender,
+    #[error("Atlas doesn't write into a library folder.")]
+    ExportInsideLibrary,
+    #[error("Atlas doesn't write into its own data folder, except its exports folder.")]
+    ExportInsideDataRoot,
+    #[error("The Atlas folder there is a file or a link, so Atlas left it alone.")]
+    ExportFolderUnusable,
+    #[error("That file is over 256 MB, too large to import.")]
+    ImportTooLarge,
+    #[error("That file isn't a whole Atlas export.")]
+    ImportUnreadable,
+    #[error("That file isn't an Atlas export this version can read.")]
+    ImportUnknownVersion,
+    /// The reason is a fixed code naming what was wrong: `id`, `time`, …
+    #[error("That file has something Atlas won't import, so nothing was imported.")]
+    ImportInvalid(&'static str),
+    #[error("That import has expired.")]
+    ImportExpired,
+    #[error("Atlas couldn't snapshot your trails and notes first, so nothing was imported.")]
+    ImportNoSnapshot,
     #[error("Atlas hit an internal error: {0}.")]
     Internal(&'static str),
 }
@@ -337,6 +375,15 @@ impl AtlasError {
             Self::InvalidCollection(_) => ErrorCode::InvalidCollection,
             Self::RenderFailed(_) => ErrorCode::RenderFailed,
             Self::InvalidRender => ErrorCode::InvalidRender,
+            Self::ExportInsideLibrary => ErrorCode::ExportInsideLibrary,
+            Self::ExportInsideDataRoot => ErrorCode::ExportInsideDataRoot,
+            Self::ExportFolderUnusable => ErrorCode::ExportFolderUnusable,
+            Self::ImportTooLarge => ErrorCode::ImportTooLarge,
+            Self::ImportUnreadable => ErrorCode::ImportUnreadable,
+            Self::ImportUnknownVersion => ErrorCode::ImportUnknownVersion,
+            Self::ImportInvalid(_) => ErrorCode::ImportInvalid,
+            Self::ImportExpired => ErrorCode::ImportExpired,
+            Self::ImportNoSnapshot => ErrorCode::ImportNoSnapshot,
             Self::Internal(_) => ErrorCode::Internal,
         }
     }
@@ -428,6 +475,17 @@ impl AtlasError {
             Self::InvalidCollection(_) => "Change it, then try again.",
             Self::RenderFailed(_) => "Open the file in its default app instead.",
             Self::InvalidRender => "Choose a page in the document.",
+            Self::ExportInsideLibrary => "Choose a folder outside your library folders.",
+            Self::ExportInsideDataRoot => "Choose another folder, or the exports folder there.",
+            Self::ExportFolderUnusable => {
+                "Choose another folder, or rename what is called Atlas there."
+            }
+            Self::ImportTooLarge | Self::ImportUnreadable | Self::ImportUnknownVersion => {
+                "Choose a file Atlas exported as One JSON file."
+            }
+            Self::ImportInvalid(_) => "Export it again from Atlas, then import that file.",
+            Self::ImportExpired => "Choose the file again.",
+            Self::ImportNoSnapshot => "Free some disk space, then try again.",
         })
     }
 

@@ -33,6 +33,7 @@ use crate::domain::dto::{
     TrailSummary,
 };
 use crate::error::{AtlasError, AtlasResult};
+use crate::infrastructure::clock::rfc3339;
 use crate::services::catalog::reader::CatalogReader;
 
 /// Where the recording status goes (`trail-changed` in the app).
@@ -585,7 +586,7 @@ impl Recorder {
                             )
                             .optional()?
                             .is_some();
-                        belongs && trails::set_step_note(&tx, step, note.as_deref())?
+                        belongs && trails::set_step_note(&tx, step, note.as_deref(), &rfc3339(now))?
                     }
                     (None, None) => true,
                     (None, Some(text)) => {
@@ -651,11 +652,12 @@ impl Recorder {
     pub fn rename(&self, trail_id: &str, title: &str) -> AtlasResult<TrailSummary> {
         let title = trails::checked_title(title)?;
         let id = trail_id.to_owned();
+        let now = self.store.clock().now_rfc3339();
         let summary = self
             .store
             .call(move |c| -> rusqlite::Result<Option<TrailSummary>> {
                 let tx = c.transaction()?;
-                if !trails::rename(&tx, &id, title.as_deref())? {
+                if !trails::rename(&tx, &id, title.as_deref(), &now)? {
                     return Ok(None);
                 }
                 tx.commit()?;
@@ -668,9 +670,10 @@ impl Recorder {
 
     pub fn pin(&self, trail_id: &str, pinned: bool) -> AtlasResult<TrailSummary> {
         let id = trail_id.to_owned();
+        let now = self.store.clock().now_rfc3339();
         self.store
             .call(move |c| -> rusqlite::Result<Option<TrailSummary>> {
-                if !trails::pin(c, &id, pinned)? {
+                if !trails::pin(c, &id, pinned, &now)? {
                     return Ok(None);
                 }
                 trails::summary(c, &id)
@@ -686,7 +689,11 @@ impl Recorder {
 
     pub fn delete_step(&self, step_id: &str) -> AtlasResult<()> {
         let id = step_id.to_owned();
-        self.change(move |tx| trails::delete_step(tx, &id), "delete the step")
+        let now = self.store.clock().now_rfc3339();
+        self.change(
+            move |tx| trails::delete_step(tx, &id, &now),
+            "delete the step",
+        )
     }
 
     /// Every trail; bookmarks and findings are kept. The number deleted.

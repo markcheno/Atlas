@@ -10,6 +10,7 @@
 //                          [--vectors-only] [--embedding-only] [--search-size 30k|1k]
 //                          [--extraction-size 30k|1k] [--vectors-size 100000]
 //                          [--embedding-size 30k|10k|1k] [--max-p95-ms 250] [--reader-only]
+//                          [--knowledge-only] [--knowledge-size 100k|10k]
 //
 // --search-size picks the search fixture: 30k (default; the P1-19 reference
 // measurement, run locally) or 1k (CI: the 30k text fixture takes over 40
@@ -32,6 +33,11 @@
 // --reader-only runs just the page view benchmark (Phase 3, Slice 3.7):
 // pages of the spike corpus's PDFs rendered at 1,200 px in the reader's
 // worker, with and without a passage to outline, plus a cache hit.
+// --knowledge-only runs just the knowledge store benchmark (Phase 3, Slice
+// 3.8): a generated store of --knowledge-size steps (100k by default, the
+// spec's 10,000 trails and 100,000 steps; CI runs 10k) loaded through
+// Import, then the Trails list, a 50-step trail, recording, a snapshot,
+// and export as Markdown and JSON.
 // --max-p95-ms makes it fail above that search p95 while reading (the
 // reference machine's check, P1-19). Fixtures go in <out>/fixtures and are
 // reused.
@@ -56,17 +62,34 @@ const extractionOnly = evidence || args.includes('--extraction-only');
 const vectorsOnly = args.includes('--vectors-only');
 const embeddingOnly = args.includes('--embedding-only');
 const readerOnly = args.includes('--reader-only');
-if ([searchOnly, extractionOnly, vectorsOnly, embeddingOnly, readerOnly].filter(Boolean).length > 1)
+const knowledgeOnly = args.includes('--knowledge-only');
+const onlyFlags = [
+  searchOnly,
+  extractionOnly,
+  vectorsOnly,
+  embeddingOnly,
+  readerOnly,
+  knowledgeOnly,
+];
+if (onlyFlags.filter(Boolean).length > 1)
   throw new Error(
-    '--search-only, --extraction-only, --vectors-only, --embedding-only and --reader-only exclude each other',
+    '--search-only, --extraction-only, --vectors-only, --embedding-only, --reader-only and --knowledge-only exclude each other',
   );
-const runInventory =
-  !searchOnly && !extractionOnly && !vectorsOnly && !embeddingOnly && !readerOnly;
-const runSearch = !extractionOnly && !vectorsOnly && !embeddingOnly && !readerOnly;
-const runExtraction = !searchOnly && !vectorsOnly && !embeddingOnly && !readerOnly;
-const runVectors = !searchOnly && !extractionOnly && !embeddingOnly && !readerOnly;
-const runEmbedding = evidence || (!searchOnly && !extractionOnly && !vectorsOnly && !readerOnly);
-const runReader = !evidence && !searchOnly && !extractionOnly && !vectorsOnly && !embeddingOnly;
+// Without an --X-only flag, everything runs (and --evidence is extraction's).
+const all = !onlyFlags.some(Boolean);
+const runInventory = all;
+const runSearch = all || searchOnly;
+const runExtraction = all || extractionOnly;
+const runVectors = all || vectorsOnly;
+const runEmbedding = all || embeddingOnly || evidence;
+const runReader = (all && !evidence) || readerOnly;
+const runKnowledge = (all && !evidence) || knowledgeOnly;
+const knowledgeSize = opt('knowledge-size', '100k');
+if (!['100k', '10k'].includes(knowledgeSize)) throw new Error('--knowledge-size is 100k or 10k');
+const knowledgeArgs =
+  knowledgeSize === '100k'
+    ? ['--trails', '10000', '--steps', '100000']
+    : ['--trails', '1000', '--steps', '10000'];
 const vectorsSize = Number(opt('vectors-size', '100000'));
 if (!Number.isInteger(vectorsSize) || vectorsSize < 100)
   throw new Error('--vectors-size is a whole number of at least 100');
@@ -171,6 +194,8 @@ execFileSync(
     'embedding',
     '--bench',
     'reader',
+    '--bench',
+    'knowledge',
     '--no-run',
   ],
   { stdio: 'inherit' },
@@ -348,13 +373,39 @@ if (runReader) {
   readerResult = JSON.parse(fs.readFileSync(readerFile, 'utf8'));
 }
 
+let knowledgeResult = null;
+if (runKnowledge) {
+  console.error(`bench: ${knowledgeSize} knowledge store`);
+  const knowledgeFile = path.join(out, `bench-${knowledgeSize}-knowledge.json`);
+  execFileSync(
+    'cargo',
+    [
+      'bench',
+      '--manifest-path',
+      path.join(repo, 'src-tauri', 'Cargo.toml'),
+      '--locked',
+      '--bench',
+      'knowledge',
+      '--',
+      ...knowledgeArgs,
+      '--label',
+      knowledgeSize,
+      '--out',
+      knowledgeFile,
+    ],
+    { stdio: ['ignore', 'ignore', 'inherit'] },
+  );
+  knowledgeResult = JSON.parse(fs.readFileSync(knowledgeFile, 'utf8'));
+}
+
 const md =
   (results.length ? summarize(results) : '') +
   (searchResult ? summarizeSearch(searchResult) : '') +
   (extractionResult ? summarizeExtraction(extractionResult) : '') +
   (vectorsResult ? summarizeVectors(vectorsResult) : '') +
   (embeddingResult ? summarizeEmbedding(embeddingResult) : '') +
-  (readerResult ? summarizeReader(readerResult) : '');
+  (readerResult ? summarizeReader(readerResult) : '') +
+  (knowledgeResult ? summarizeKnowledge(knowledgeResult) : '');
 fs.writeFileSync(path.join(out, `bench-${process.platform}.md`), md);
 console.log(md);
 if (process.env.GITHUB_STEP_SUMMARY) fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, md);
@@ -575,6 +626,24 @@ function summarizeReader(r) {
     '| First render ms | Render p50 / p95 / max ms | With the passage p50 / p95 / max ms | Outlined | Cache hit ms | Worker peak MiB |',
     '| ---: | ---: | ---: | ---: | ---: | ---: |',
     `| ${r.firstRenderMs} | ${t(r.render)} | ${t(r.renderWithFind)} | ${r.found} of ${r.renderWithFind.renders} | ${r.cacheHitMs} | ${mib(r.workerPeakRssBytes)} |`,
+  ];
+  return `${lines.join('\n')}\n`;
+}
+
+function summarizeKnowledge(r) {
+  const mib = (b) => (b / 1048576).toFixed(1);
+  const t = (x) => `${x.p50Ms} / ${x.p95Ms} / ${x.maxMs}`;
+  const lines = [
+    '',
+    `## Knowledge store: ${r.label} (${r.machine.os} ${r.machine.arch}${r.machine.ci ? ', CI runner' : ''})`,
+    '',
+    `${r.generated.trails} trails and ${r.steps} steps, generated and imported (Slice 3.8); anchors on ${r.documents} read documents.`,
+    '',
+    '| Import: dry run / apply ms | Trails list p50 / p95 / max ms | Filtered | 50-step trail p50 / p95 ms | Recording a search p95 ms | An answer p95 ms | Snapshot ms | Bytes per step |',
+    '| ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |',
+    `| ${r.import.previewMs} / ${r.import.applyMs} | ${t(r.list)} | ${t(r.listFiltered)} | ${r.openFifty.times.p50Ms} / ${r.openFifty.times.p95Ms} | ${r.recordSearch.p95Ms} | ${r.recordAnswer.p95Ms} | ${r.snapshot.ms} | ${r.bytesPerStep} |`,
+    '',
+    `Export: ${r.markdown.notes} Markdown notes in ${r.markdown.ms} ms; the whole store as JSON (${mib(r.json.bytes)} MiB) in ${r.json.ms} ms.`,
   ];
   return `${lines.join('\n')}\n`;
 }

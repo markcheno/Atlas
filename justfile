@@ -155,6 +155,14 @@ eval-embed:
 bench-reader out="":
     pnpm bench --reader-only {{ if out == "" { "" } else { "--out " + out } }}
 
+# The knowledge store (Slice 3.8): `size` 100k (10,000 trails, 100,000 steps; the reference measurement) or 10k (CI), imported, then the Trails list, a 50-step trail, recording, a snapshot, and export
+bench-knowledge size="100k" out="":
+    pnpm bench --knowledge-only --knowledge-size {{ size }} {{ if out == "" { "" } else { "--out " + out } }}
+
+# A generated knowledge store as a JSON export, for trying Import: `just generate-knowledge out.json 1000 10000`
+generate-knowledge out trails="1000" steps="10000":
+    node scripts/generate-knowledge.mjs {{ out }} --trails {{ trails }} --steps {{ steps }}
+
 # The vector index alone (Phase 2): build, save, load, rebuild, recall and latency at `size` synthetic 1,024-dimension vectors (CI runs 100000)
 bench-vectors size="300000" out="":
     pnpm bench --vectors-only --vectors-size {{ size }} {{ if out == "" { "" } else { "--out " + out } }}
