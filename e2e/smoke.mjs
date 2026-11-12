@@ -747,12 +747,23 @@ async function run() {
     if (parsed.reportVersion !== 1) throw new Error(`report version ${parsed.reportVersion}`);
     if (!(parsed.library.passages > 0)) throw new Error('the report counts no passages');
     // A small P4-02: nothing the session typed, and no file's name or path.
-    const names = fs
-      .readdirSync(fixture, { recursive: true })
-      .map((n) => path.basename(String(n)))
-      .filter((n) => /\.(pdf|epub)$/i.test(n))
-      .slice(0, 20);
-    for (const word of [VAGUE_QUESTION, fixture, dataRoot, scratch, ...names]) {
+    // The fixture has a folder Atlas can't read, on purpose: skipped here too.
+    const names = [];
+    const walk = (dir) => {
+      let entries = [];
+      try {
+        entries = fs.readdirSync(dir, { withFileTypes: true });
+      } catch {
+        return;
+      }
+      for (const e of entries) {
+        if (e.isDirectory()) walk(path.join(dir, e.name));
+        else if (/\.(pdf|epub)$/i.test(e.name)) names.push(e.name);
+      }
+    };
+    walk(fixture);
+    if (names.length === 0) throw new Error('no fixture names to look for');
+    for (const word of [VAGUE_QUESTION, fixture, dataRoot, scratch, ...names.slice(0, 50)]) {
       if (text.includes(word) || text.includes(JSON.stringify(word).slice(1, -1))) {
         throw new Error(`the report holds ${JSON.stringify(word)}`);
       }
