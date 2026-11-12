@@ -1383,3 +1383,10 @@ left out), 3.1.1 the fusion change, 3.2 the
 3.7 the [page view](#page-view), 3.8 [export and import](#export-and-import),
 and 3.9 the evidence and the [close-out review](phase3-closeout.md)
 (version 0.4.0).
+
+Phase 4 (full-collection readiness: OCR of scanned PDFs, automatic
+rescans, schedules for background work, checks and repairs, backups and
+restore, Move Atlas data, a local log and a diagnostics report, and the
+product owner's run against the real collection) is specified in
+[phase4-spec.md](phase4-spec.md). Nothing of it is built yet; Slice 4.1
+(diagnostics and carry-overs) is first.

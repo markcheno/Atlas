@@ -4,7 +4,7 @@ Atlas is a local-first personal AI librarian for large private collections of
 PDFs, EPUBs, books and papers. *Collect freely. Organize minimally. Retrieve
 intelligently.*
 
-**Status: Phase 3 complete (version 0.4.0, [close-out review](docs/phase3-closeout.md)): research trails, bookmarks and findings, interests and projects, the PDF page view, export and import. Phases 0 to 2 complete ([Phase 2 review](docs/phase2-closeout.md), [Phase 1 review](docs/phase1-closeout.md)).** Atlas asks where to keep its library and
+**Status: Phase 3 complete (version 0.4.0, [close-out review](docs/phase3-closeout.md)): research trails, bookmarks and findings, interests and projects, the PDF page view, export and import. Phases 0 to 2 complete ([Phase 2 review](docs/phase2-closeout.md), [Phase 1 review](docs/phase1-closeout.md)). Next: Phase 4, full-collection readiness ([specification](docs/phase4-spec.md)).** Atlas asks where to keep its library and
 which folders hold your books and papers, then catalogs every PDF and EPUB
 in them in the background, read-only. Cataloging slows on battery, pauses
 when the battery is low or the drive is nearly full, survives quitting and
@@ -149,7 +149,7 @@ with semantic search.
 
 Specifications: [product](docs/product-spec.md), [Phase 0](docs/phase0-spec.md),
 [Phase 1](docs/phase1-spec.md), [Phase 2](docs/phase2-spec.md),
-[Phase 3](docs/phase3-spec.md),
+[Phase 3](docs/phase3-spec.md), [Phase 4](docs/phase4-spec.md),
 [architecture](docs/architecture.md),
 [ADRs](docs/adr/). Evidence:
 [Phase 0 close-out review](docs/phase0-closeout.md),

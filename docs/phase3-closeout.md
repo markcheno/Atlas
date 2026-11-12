@@ -266,6 +266,8 @@ Each one is recorded where it was made: the spec's revision notes and ADRs
 ## Carry into Phase 4
 
 From Phase 3's measurements and decisions, not new requirements:
+(The [Phase 4 specification](phase4-spec.md), written 2026-11-12, takes
+these up and records what it defers.)
 
 - **Phase 4's own scope** (phase3-spec §2): OCR, catalog backups, integrity
   tools, diagnostics, Move Atlas Data, and compressing stored passages.
