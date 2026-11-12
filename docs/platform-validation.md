@@ -1295,7 +1295,14 @@ Diagnostics and the carry-overs (phase4-spec §15; [ADR 0021](adr/0021-diagnosti
     waiting for meaning. An old race in the embedding job, now fixed
     ([ADR 0014](adr/0014-the-embedding-job.md)'s amendment) and held by a
     new test.
-- **The third:** to be recorded.
+- **The third**
+  ([43272535414](https://github.com/markcheno/Atlas/actions/runs/43272535414))
+  is green on three OSes. It includes the new smoke step on Windows and
+  Linux (Linux 312 ms) and P0-21 everywhere.
+  - Its macOS release bundle was assigned no runner and was cancelled
+    after 15 minutes twice. The third attempt built it.
+  - Release bundles: DMG 14.01 MiB, `.exe` 10.07 MiB, AppImage
+    90.47 MiB.
 
 ### The owner's report from the real library
 
