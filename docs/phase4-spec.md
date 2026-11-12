@@ -690,6 +690,11 @@ Do **not** add an OCR engine, an `ocr` job, a rescan timer or any backup code be
   second P3-18 test's first call came back empty once in a full local run
   after the fix, and not in 14 runs since. It now waits, as the first test
   has since 3.9, and prints the index's state if it fails.
+- **Found by CI, fixed: an embedding job could finish with re-read books
+  waiting.** The job walks documents in rowid order; one read again behind
+  it waited again while reading's trigger saw the job still running. It
+  now looks once more from the start for documents the model never tried
+  (ADR 0014's amendment). P3-13 caught it on the macOS runner.
 - **The log is attached when the library's lock is held**, before the
   catalog migrates, so no buffering of early events is needed.
 

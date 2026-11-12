@@ -738,6 +738,10 @@ in [ADR 0013](adr/0013-embeddings-durable-index-disposable.md).
 - **Old catalogs** (`catalog/convert.rs`): a catalog with 4 KiB pages,
   an embedding role and no vectors is rewritten with 16 KiB pages
   (`VACUUM INTO`, then a rename) when its library opens.
+- **Before an embed job finishes** (Slice 4.1) it looks once more from the
+  start if a document behind it was read again and never tried by the
+  model, so a re-read during the job isn't left waiting until the next
+  launch.
 
 ## Related documents
 

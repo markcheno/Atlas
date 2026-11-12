@@ -1278,7 +1278,24 @@ Diagnostics and the carry-overs (phase4-spec §15; [ADR 0021](adr/0021-diagnosti
   the scratch, library or data-root paths.
 - Show in… reveals it (the opener log).
 
-**CI on `slice-41`:** to be recorded.
+**CI on `slice-41`:**
+- **The first full run**
+  ([43262568031](https://github.com/markcheno/Atlas/actions/runs/43262568031))
+  failed in two places:
+  - the new smoke step, on Linux: it listed the fixture's file names with a
+    recursive read, which stopped at the fixture's deliberately unreadable
+    folder;
+  - P0-21 on Windows: closing took 1.65 s against its 1 s bound, as once
+    before in Slice 3.6 (2.28 s). It passes locally in 0.3 s.
+- **The second**
+  ([43267335370](https://github.com/markcheno/Atlas/actions/runs/43267335370))
+  failed in two other places:
+  - lint on the smoke fix;
+  - P3-13 on macOS: after the model switch, three re-read books stayed
+    waiting for meaning. An old race in the embedding job, now fixed
+    ([ADR 0014](adr/0014-the-embedding-job.md)'s amendment) and held by a
+    new test.
+- **The third:** to be recorded.
 
 ### The owner's report from the real library
 

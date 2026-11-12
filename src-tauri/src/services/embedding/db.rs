@@ -436,6 +436,29 @@ const NEEDS_EMBEDDING: &str = "d.state = 'done'
                      WHERE de.document_id = d.id AND de.model_id = :model
                        AND (de.status IN ('done', 'empty') OR de.attempts >= 3))";
 
+/// Whether a document at or before `cursor` waits that the model has never
+/// tried: one read again after the job passed it (Slice 4.1). A document
+/// that failed and may be retried doesn't count; its retry is the next
+/// job's.
+pub fn fresh_behind(
+    conn: &Connection,
+    root_id: &str,
+    model_id: &str,
+    cursor: i64,
+) -> rusqlite::Result<bool> {
+    conn.query_row(
+        "SELECT EXISTS (SELECT 1 FROM documents d
+           WHERE d.rowid <= :cursor AND d.state = 'done'
+             AND NOT EXISTS (SELECT 1 FROM document_embeddings de
+                             WHERE de.document_id = d.id AND de.model_id = :model)
+             AND EXISTS (SELECT 1 FROM file_instances f
+                         WHERE f.document_id = d.id AND f.source_root_id = :root
+                           AND f.availability = 'available'))",
+        rusqlite::named_params! { ":cursor": cursor, ":model": model_id, ":root": root_id },
+        |r| r.get(0),
+    )
+}
+
 /// Up to `limit` documents with an available file in `root_id` that the
 /// model still needs, after `after` (document rowid), in rowid order.
 pub fn next_documents(

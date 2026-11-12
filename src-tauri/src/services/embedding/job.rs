@@ -582,6 +582,21 @@ impl EmbedProcessor {
                 _ => return Flow::Continue,
             };
             if docs.is_empty() {
+                // A document read again behind the cursor waits again, and
+                // the reading job's trigger saw this job still running: look
+                // once more from the start before finishing (Slice 4.1; P3-13
+                // once left three re-read books waiting for good).
+                let (root_id, model_id, behind) =
+                    (job.source_root_id.clone(), model.id.clone(), cursor);
+                let fresh = cursor > 0
+                    && self
+                        .catalog
+                        .call(move |c| db::fresh_behind(c, &root_id, &model_id, behind))
+                        .is_ok_and(|r| r.unwrap_or(false));
+                if fresh {
+                    cursor = 0;
+                    continue;
+                }
                 self.transition(
                     &job.id,
                     JobState::Completed,

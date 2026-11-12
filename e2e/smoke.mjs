@@ -750,7 +750,7 @@ async function run() {
     // The fixture has a folder Atlas can't read, on purpose: skipped here too.
     const names = [];
     const walk = (dir) => {
-      let entries = [];
+      let entries;
       try {
         entries = fs.readdirSync(dir, { withFileTypes: true });
       } catch {
