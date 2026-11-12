@@ -24,6 +24,11 @@ pub const PICK_SOURCES_ENV: &str = "ATLAS_E2E_PICK_SOURCES";
 /// launching the default app or file manager.
 pub const OPENER_LOG_ENV: &str = "ATLAS_E2E_OPENER_LOG";
 
+/// The folder an export's folder dialog returns (Slice 3.8).
+pub const PICK_EXPORT_DIR_ENV: &str = "ATLAS_E2E_PICK_EXPORT_DIR";
+/// The file an import's file dialog returns (Slice 3.8).
+pub const PICK_IMPORT_FILE_ENV: &str = "ATLAS_E2E_PICK_IMPORT_FILE";
+
 /// Prints what each meaning search saw to stderr (Slice 2.7: diagnosing a
 /// smoke failure on Linux). Sizes and similarities only, never text.
 pub const TRACE_MEANING_ENV: &str = "ATLAS_E2E_TRACE_MEANING";
@@ -58,6 +63,16 @@ pub fn webview2_driver_args() -> Option<String> {
 /// The scripted data-root pick, if any.
 pub fn scripted_data_root() -> Option<PathBuf> {
     var(PICK_DATA_ROOT_ENV).map(PathBuf::from)
+}
+
+/// The scripted export folder, if any.
+pub fn scripted_export_dir() -> Option<PathBuf> {
+    var(PICK_EXPORT_DIR_ENV).map(PathBuf::from)
+}
+
+/// The scripted import file, if any.
+pub fn scripted_import_file() -> Option<PathBuf> {
+    var(PICK_IMPORT_FILE_ENV).map(PathBuf::from)
 }
 
 /// The scripted library-folder pick, if any.

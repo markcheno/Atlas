@@ -68,6 +68,7 @@ commands and added the native multi-folder picker.
 | Saved | `save_bookmark`, `save_finding`, `update_saved_note`, `delete_saved`, `list_saved` | **3.5 (working)** |
 | Interests and projects | `list_collections`, `get_collection`, `save_collection`, `delete_collection`, `add_to_collection`, `remove_from_collection`, `get_collection_membership`, `get_suggestions`, `dismiss_suggestion` | **3.6 (working)** |
 | Page view | `render_page` | **3.7 (working)** |
+| Export and import | `export_knowledge` (Rust shows the folder dialog), `preview_import` (the file dialog and a dry run), `apply_import` | **3.8 (working)** |
 
 `get_app_status` returns only facts about the running process, including a
 feature list that marks exactly which capabilities this build provides.
@@ -862,7 +863,8 @@ in [ADR 0016](adr/0016-the-knowledge-store.md); schema in
     byte for byte, and `call`, `handle` and `read` return
     `knowledge_unavailable`.
   - Otherwise it switches to WAL, migrates, and opens two read-only
-    connections.
+    connections. Version 2 (Slice 3.8, `0002_updated.sql`) adds
+    `updated_at` to trails and steps, so an import can keep the newer copy.
 
   The library opens whatever the store's state. `OpenRoot.knowledge` is
   declared before `catalog`, so the store closes first.
@@ -1139,6 +1141,65 @@ Implemented in `src-tauri/src/services/reader/{mod,cache}.rs`,
   rendering (Linux `/proc/self/maps`, macOS dyld). The check is skipped on
   Windows.
 
+## Export and import
+
+Implemented in `src-tauri/src/services/export/{mod,dest,markdown,json,import}.rs`,
+`src-tauri/src/commands/export.rs`, `src/lib/stores/exportDialog.svelte.ts`,
+`src/lib/components/{ExportDialog,ExportPanel}.svelte` (Slice 3.8,
+phase3-spec §5.8, §7.7; [ADR 0019](adr/0019-export-and-import.md)).
+
+- **Commands:** `export_knowledge(scope, format, linkStyle)`,
+  `preview_import()` and `apply_import(token)`. Rust shows the folder and
+  file dialogs, outside the workspace lock. `null` means the dialog was
+  cancelled. `export::Handles` copies the store, the catalog reader, the
+  data root and the library folders out under the lock, and the work runs
+  without it.
+- **Gathering** (`export::gather`) is one read of the knowledge store into
+  the JSON format's types: a trail, a finding, a collection (with its
+  trails, bookmarks, findings and "Not for this"), or everything. For
+  Markdown, `export::places` resolves each document in the catalog for its
+  title and its file's path as text.
+- **The destination** (`dest.rs`, `ExportDest`):
+  - **Refused:** a library folder or inside one, inside the data root but
+    not its `exports`, and an `Atlas` (or subfolder) that is a file or a
+    link.
+  - **`claim`** takes a name: free, Atlas's own note with the same
+    `atlas_id` (replaced), or else numbered beside what holds it.
+  - **`write`** stages each file beside its name, then renames it into
+    place.
+  - **`finish`** flushes each folder once.
+- **Markdown** (`markdown.rs`): every name is taken before anything is
+  written, so links point at real names. Front matter is `atlas_id`,
+  `atlas_kind`, `created`, `updated` and `exported`. Links are Obsidian's
+  `[[Folder/Name]]` or relative Markdown links.
+- **JSON** (`json.rs`): `KnowledgeFile { format, version 1, exported, scope,
+  trails[steps], bookmarks, findings, collections[items],
+  dismissedSuggestions }`, with `deny_unknown_fields` on every row and no
+  paths.
+- **Import** (`import.rs`):
+  1. Read the file: at most 256 MiB, then parsed and checked.
+  2. `merge(dry: true)` is the dry run.
+  3. `Pending` holds one parsed file under a token for 10 minutes.
+  4. `apply` takes a snapshot, then runs `merge(dry: false)` in one
+     transaction, then emits `trail-changed`.
+
+  Merging adds what is new and keeps the newer copy by `updated_at`. Trail
+  steps are combined, then renumbered by time. Links and "Not for this" are
+  only added.
+- **Settings:** `config/settings.json` gains `export.lastFolder`. It is kept
+  outside the `Settings` DTO, so the renderer never sees or sends it, and
+  `settings::write` keeps it when the renderer saves.
+- **The renderer:**
+  - **Export…** on a trail's timeline, a finding in Saved, and a
+    collection's page.
+  - **Settings › Export and import:** Export… (everything) and Import from
+    a file….
+  - **The dialog** (`ExportDialog.svelte`, mounted once in `App.svelte`)
+    asks what, the format, and for Markdown the link style. Choose a folder
+    and export… runs it, and the dialog says where it wrote. Escape closes
+    it and focus returns.
+  - **Import** shows the dry run's sentence, then Import or Cancel.
+
 ## Build, CI and measurement
 
 - **PDFium** (Slice 1.2) is pinned in `tools.lock.json` (bblanchon/pdfium-binaries
@@ -1195,12 +1256,16 @@ Implemented in `src-tauri/src/services/reader/{mod,cache}.rs`,
   outlive the app), pausing and resuming the reading after the relaunch,
   searching a passage from Home on the 1,000-file text fixture
   (`--text-kb 4`) and opening that result, duplicates, settings, and a
-  relaunch. It waits for the native
+  relaunch. Phase 3 (Slice 3.8) adds: the search and question recorded in a
+  trail; after the relaunch, the trail resumed and its citation opened; a
+  bookmark saved; the page view showing a PDF page; and the trail exported
+  to a scratch folder, its note checked on disk. It waits for the native
   driver's port and retries a session the driver refuses once, recording
   the retry (Slice 1.8: msedgedriver sometimes refused the first
   connection on Windows runners). WebDriver can't answer native folder dialogs
   or observe the OS opening a file, so debug builds read
-  `ATLAS_E2E_PICK_DATA_ROOT`, `ATLAS_E2E_PICK_SOURCES` and
+  `ATLAS_E2E_PICK_DATA_ROOT`, `ATLAS_E2E_PICK_SOURCES`,
+  `ATLAS_E2E_PICK_EXPORT_DIR`, `ATLAS_E2E_PICK_IMPORT_FILE` (Slice 3.8) and
   `ATLAS_E2E_OPENER_LOG` (`infrastructure/e2e.rs`), and catalogs at a fixed
   150 entries a second (`ATLAS_INVENTORY_RATE`), so the pause step always
   finds the scan running. Release builds ignore them, as they ignore
@@ -1222,7 +1287,11 @@ Implemented in `src-tauri/src/services/reader/{mod,cache}.rs`,
   the 30k text fixture runs locally (`just bench-search`,
   `just bench-extraction`). `reader.rs` (Slice 3.7) renders the corpus's
   PDF pages in the reader's worker (`just bench-reader`, and in CI's bench
-  job). Method and results: [benchmarks](benchmarks.md).
+  job). `knowledge.rs` (Slice 3.8) loads a store from
+  `scripts/generate-knowledge.mjs` through Import and measures the Trails
+  list, a 50-step trail, recording, a snapshot and export
+  (`just bench-knowledge`; CI runs 10,000 steps). Method and results:
+  [benchmarks](benchmarks.md).
 
 ## Spikes (Slice 0.9)
 

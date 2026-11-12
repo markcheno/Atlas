@@ -1014,3 +1014,54 @@ the real reader worker, as `render_page` does, at 1,200 px (phase3-spec
   ([ADR 0018](adr/0018-the-page-view.md)).
 - **CI runners** record it in the bench job on `main` pushes from this
   slice on. Those numbers arrive with Phase 3's close-out (Slice 3.9).
+
+## Knowledge store and export (Slice 3.8)
+
+**Harness:** `src-tauri/benches/knowledge.rs` (`just bench-knowledge`, and
+in `just bench` and CI's bench job at 10,000 steps).
+
+- **The library:** a small read library of 60 generated books, so the
+  anchors resolve against a real catalog.
+- **The store:** `scripts/generate-knowledge.mjs` writes a store as a JSON
+  export: 10,000 trails and 100,000 steps (search, question, open and note
+  steps in a 4:3:2:1 mix), 10,000 bookmarks, 5,000 findings and 100
+  interests and projects. Its anchors point at those 61 documents. It is
+  loaded through Import, and then measured.
+- **Recorded sizes are Atlas's own:** five results of 300 characters for a
+  search; five sources for a question, two cited with 600 characters each.
+- **Recording** goes through the real `Recorder`: a submitted search with
+  its anchors built from the catalog, and an answer's start and end. Both
+  join the current trail.
+- **Export:** the generator's first project holds 900 trails and 99
+  findings, so with its own page it is 1,000 Markdown notes. The JSON export
+  is everything.
+
+**M5 Pro** (2026-11-11, release build, 100,000 steps):
+
+| Measure | Result | §13 target |
+| --- | ---: | ---: |
+| Import: the dry run | 0.56 s | |
+| Import: applying it, its snapshot included | 12.2 s | |
+| Trails list, p50 / p95 / max | 0.5 / 0.6 / 1.2 ms | p95 under 100 ms |
+| Trails list filtered ("harbour"), p50 / p95 / max | 1.7 / 1.8 / 1.9 ms | |
+| A 50-step trail with its 182 anchors resolved, p50 / p95 | 21.2 / 21.4 ms | under 200 ms |
+| Recording a search, p95 / max | 0.3 / 0.6 ms | under 5 ms |
+| Recording an answer, p95 / max | 0.3 / 12.0 ms | under 5 ms |
+| A snapshot of the whole store | 0.75 s | under 2 s |
+| The store | 379.8 MiB, 3,982 bytes a step | |
+| 1,000 Markdown notes | 0.20 s | |
+| The whole store as JSON | 0.70 s, 247.5 MiB | |
+
+- **Every §13 target is met** with room to spare. The one answer at 12 ms
+  was one run in 50; the others took at most 0.3 ms.
+- **Markdown** was 8.1 s for 1,000 notes when each note was flushed to disk
+  by itself (`F_FULLFSYNC` on macOS). Notes are now staged and renamed, and
+  each folder is flushed once.
+- **The JSON is near the 256 MiB import cap** at 100,000 steps of these
+  sizes. A much larger store exports, but its file can't be imported whole.
+  That is noted for the close-out ([ADR 0019](adr/0019-export-and-import.md)).
+- **At 10,000 steps** (CI's size), the same machine: import 0.06 / 0.82 s,
+  the list p95 0.1 ms, the 50-step trail 21 ms, 1,000 notes 0.20 s, the JSON
+  25.0 MiB in 0.08 s.
+- **CI runners** record it in the bench job on `main` pushes. Those numbers
+  arrive with Phase 3's close-out (Slice 3.9).

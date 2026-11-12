@@ -253,6 +253,9 @@ pub fn run() {
             commands::collections::get_suggestions,
             commands::collections::dismiss_suggestion,
             commands::reader::render_page,
+            commands::export::export_knowledge,
+            commands::export::preview_import,
+            commands::export::apply_import,
         ])
         .build(tauri::generate_context!())
         .expect("error while building Atlas")

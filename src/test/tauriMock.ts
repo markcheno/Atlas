@@ -59,6 +59,9 @@ import type { CollectionDetail } from '../lib/api/bindings/CollectionDetail';
 import type { CollectionInput } from '../lib/api/bindings/CollectionInput';
 import type { Suggestion } from '../lib/api/bindings/Suggestion';
 import type { PageImage } from '../lib/api/bindings/PageImage';
+import type { ExportReport } from '../lib/api/bindings/ExportReport';
+import type { ImportPreview } from '../lib/api/bindings/ImportPreview';
+import type { ImportSummary } from '../lib/api/bindings/ImportSummary';
 
 export const DEFAULT_ROOT = '/Users/test/Library/Application Support/com.altazlabs.atlas/Library';
 
@@ -67,7 +70,7 @@ export const fakeStatus: AppStatus = {
   os: 'macos',
   arch: 'aarch64',
   buildProfile: 'debug',
-  slice: '3.7',
+  slice: '3.8',
   features: [],
 };
 
@@ -672,6 +675,39 @@ export function pageImage(overrides: Partial<PageImage> = {}): PageImage {
   };
 }
 
+export function exportReport(overrides: Partial<ExportReport> = {}): ExportReport {
+  return {
+    format: 'markdown',
+    folder: '/Users/test/Notes/Atlas',
+    written: 12,
+    replaced: 0,
+    besides: 2,
+    ...overrides,
+  };
+}
+
+export function importSummary(overrides: Partial<ImportSummary> = {}): ImportSummary {
+  const none = { new: 0, newer: 0, here: 0 };
+  return {
+    trails: { ...none, new: 3 },
+    bookmarks: { ...none, new: 20, here: 5 },
+    findings: { ...none, new: 14 },
+    collections: none,
+    ...overrides,
+  };
+}
+
+export function importPreview(overrides: Partial<ImportPreview> = {}): ImportPreview {
+  return {
+    token: 'token-1',
+    fileName: 'atlas-knowledge-2026-11-11.json',
+    exported: '2026-11-11T09:00:00Z',
+    summary: importSummary(),
+    expiring: 0,
+    ...overrides,
+  };
+}
+
 export function duplicateGroup(overrides: Partial<DuplicateGroup> = {}): DuplicateGroup {
   return {
     documentId: 'doc-1',
@@ -985,6 +1021,11 @@ function defaults(): Record<string, Handler> {
       const found = Boolean(args?.find) && pageNo === 12;
       return pageImage({ pageNo, found, ...(found ? {} : { rects: [] }) });
     },
+    // Export and import (Slice 3.8): the dialogs answer as chosen.
+    export_knowledge: (args) =>
+      exportReport({ format: (args?.format as ExportReport['format']) ?? 'markdown' }),
+    preview_import: () => importPreview(),
+    apply_import: () => ({ summary: importSummary() }),
     delete_all_trails: () => 0,
   };
 }

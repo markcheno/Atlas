@@ -68,6 +68,12 @@ import type { CollectionStatus } from './bindings/CollectionStatus';
 import type { Membership } from './bindings/Membership';
 import type { Suggestion } from './bindings/Suggestion';
 import type { PageImage } from './bindings/PageImage';
+import type { ExportFormat } from './bindings/ExportFormat';
+import type { ExportReport } from './bindings/ExportReport';
+import type { ExportScope } from './bindings/ExportScope';
+import type { ImportPreview } from './bindings/ImportPreview';
+import type { ImportReport } from './bindings/ImportReport';
+import type { LinkStyle } from './bindings/LinkStyle';
 
 /** Server codes plus two the client itself can produce. */
 export type ApiErrorCode = ErrorCode | 'ipc_unavailable' | 'unexpected';
@@ -285,6 +291,16 @@ export const atlas = {
     find: string | null = null,
     allowDownload = false,
   ) => call<PageImage>('render_page', { fileId, pageNo, widthPx, find, allowDownload }),
+
+  /**
+   * Export (Slice 3.8): Rust shows the folder dialog; `null` when it was
+   * cancelled. The renderer never sends a path.
+   */
+  exportKnowledge: (scope: ExportScope, format: ExportFormat, linkStyle: LinkStyle) =>
+    call<ExportReport | null>('export_knowledge', { scope, format, linkStyle }),
+  /** Rust shows the file dialog and compares the file; nothing is written. */
+  previewImport: () => call<ImportPreview | null>('preview_import'),
+  applyImport: (token: string) => call<ImportReport>('apply_import', { token }),
 } as const;
 
 export type AtlasApi = typeof atlas;

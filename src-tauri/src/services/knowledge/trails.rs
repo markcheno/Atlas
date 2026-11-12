@@ -149,7 +149,11 @@ fn make_current(conn: &Connection, trail_id: &str, now: OffsetDateTime) -> rusql
     meta::set(conn, "current_trail_until", &rfc3339(now + SESSION))
 }
 
-fn set_documents(tx: &Transaction, step_id: &str, payload: &StepPayload) -> rusqlite::Result<()> {
+pub(crate) fn set_documents(
+    tx: &Connection,
+    step_id: &str,
+    payload: &StepPayload,
+) -> rusqlite::Result<()> {
     tx.execute("DELETE FROM step_documents WHERE step_id = ?1", [step_id])?;
     let mut insert = tx.prepare_cached(
         "INSERT OR IGNORE INTO step_documents (step_id, document_id, content_hash)
@@ -163,7 +167,7 @@ fn set_documents(tx: &Transaction, step_id: &str, payload: &StepPayload) -> rusq
 
 /// Rewrites a trail's filter text: its title, questions and searches,
 /// folded.
-fn refresh_search_text(tx: &Transaction, trail_id: &str) -> rusqlite::Result<()> {
+fn refresh_search_text(tx: &Connection, trail_id: &str) -> rusqlite::Result<()> {
     let title: Option<String> =
         tx.query_row("SELECT title FROM trails WHERE id = ?1", [trail_id], |r| {
             r.get(0)
@@ -183,9 +187,19 @@ fn refresh_search_text(tx: &Transaction, trail_id: &str) -> rusqlite::Result<()>
     Ok(())
 }
 
+/// Marks a trail as changed at `at` (RFC 3339), unless it already says
+/// later: an import keeps the newer of two copies by this (ADR 0019).
+pub(crate) fn touch(conn: &Connection, trail_id: &str, at: &str) -> rusqlite::Result<()> {
+    conn.execute(
+        "UPDATE trails SET updated_at = ?2 WHERE id = ?1 AND updated_at < ?2",
+        params![trail_id, at],
+    )?;
+    Ok(())
+}
+
 /// Recounts a trail's steps and its last activity. A trail left with no
 /// steps is deleted.
-fn refresh_trail(tx: &Transaction, trail_id: &str) -> rusqlite::Result<()> {
+pub(crate) fn refresh_trail(tx: &Connection, trail_id: &str) -> rusqlite::Result<()> {
     let (count, last): (u32, Option<String>) = tx.query_row(
         "SELECT count(*), max(at) FROM trail_steps WHERE trail_id = ?1",
         [trail_id],
@@ -222,7 +236,8 @@ pub fn append(
         None => {
             let id = uuid::Uuid::new_v4().to_string();
             tx.execute(
-                "INSERT INTO trails (id, started_at, last_step_at) VALUES (?1, ?2, ?2)",
+                "INSERT INTO trails (id, started_at, last_step_at, updated_at)
+                 VALUES (?1, ?2, ?2, ?2)",
                 params![id, at],
             )?;
             id
@@ -244,7 +259,7 @@ pub fn append(
         Some((step_id, payload)) => {
             let text = serde_json::to_string(&payload).map_err(json_err)?;
             tx.execute(
-                "UPDATE trail_steps SET at = ?2, payload = ?3 WHERE id = ?1",
+                "UPDATE trail_steps SET at = ?2, payload = ?3, updated_at = ?2 WHERE id = ?1",
                 params![step_id, at, text],
             )?;
             set_documents(tx, &step_id, &payload)?;
@@ -254,10 +269,10 @@ pub fn append(
             let step_id = uuid::Uuid::new_v4().to_string();
             let text = serde_json::to_string(payload).map_err(json_err)?;
             tx.execute(
-                "INSERT INTO trail_steps (id, trail_id, seq, kind, at, payload)
+                "INSERT INTO trail_steps (id, trail_id, seq, kind, at, payload, updated_at)
                  VALUES (?1, ?2,
                          (SELECT COALESCE(max(seq), 0) + 1 FROM trail_steps WHERE trail_id = ?2),
-                         ?3, ?4, ?5)",
+                         ?3, ?4, ?5, ?4)",
                 params![step_id, trail_id, kind(payload), at, text],
             )?;
             set_documents(tx, &step_id, payload)?;
@@ -265,6 +280,7 @@ pub fn append(
         }
     };
     refresh_trail(tx, &trail_id)?;
+    touch(tx, &trail_id, &at)?;
     if *target == Target::Current {
         make_current(tx, &trail_id, now)?;
     }
@@ -471,10 +487,15 @@ fn checked(text: &str, what: &'static str, max: usize) -> AtlasResult<Option<Str
     Ok((!text.is_empty()).then(|| text.to_owned()))
 }
 
-pub fn rename(tx: &Transaction, trail_id: &str, title: Option<&str>) -> rusqlite::Result<bool> {
+pub fn rename(
+    tx: &Transaction,
+    trail_id: &str,
+    title: Option<&str>,
+    now: &str,
+) -> rusqlite::Result<bool> {
     let n = tx.execute(
-        "UPDATE trails SET title = ?2 WHERE id = ?1",
-        params![trail_id, title],
+        "UPDATE trails SET title = ?2, updated_at = max(updated_at, ?3) WHERE id = ?1",
+        params![trail_id, title, now],
     )?;
     if n > 0 {
         refresh_search_text(tx, trail_id)?;
@@ -482,10 +503,10 @@ pub fn rename(tx: &Transaction, trail_id: &str, title: Option<&str>) -> rusqlite
     Ok(n > 0)
 }
 
-pub fn pin(conn: &Connection, trail_id: &str, pinned: bool) -> rusqlite::Result<bool> {
+pub fn pin(conn: &Connection, trail_id: &str, pinned: bool, now: &str) -> rusqlite::Result<bool> {
     conn.execute(
-        "UPDATE trails SET pinned = ?2 WHERE id = ?1",
-        params![trail_id, i64::from(pinned)],
+        "UPDATE trails SET pinned = ?2, updated_at = max(updated_at, ?3) WHERE id = ?1",
+        params![trail_id, i64::from(pinned), now],
     )
     .map(|n| n > 0)
 }
@@ -495,17 +516,26 @@ pub fn set_step_note(
     tx: &Transaction,
     step_id: &str,
     note: Option<&str>,
+    now: &str,
 ) -> rusqlite::Result<bool> {
-    tx.execute(
-        "UPDATE trail_steps SET note = ?2 WHERE id = ?1",
-        params![step_id, note],
-    )
-    .map(|n| n > 0)
+    let trail_id: Option<String> = tx
+        .query_row(
+            "UPDATE trail_steps SET note = ?2, updated_at = max(updated_at, ?3) WHERE id = ?1
+             RETURNING trail_id",
+            params![step_id, note, now],
+            |r| r.get(0),
+        )
+        .optional()?;
+    let Some(trail_id) = trail_id else {
+        return Ok(false);
+    };
+    touch(tx, &trail_id, now)?;
+    Ok(true)
 }
 
 /// Deletes a trail, its steps and its place in any collection. Findings
 /// keep their own copies and are untouched.
-pub fn delete(tx: &Transaction, trail_id: &str) -> rusqlite::Result<bool> {
+pub fn delete(tx: &Connection, trail_id: &str) -> rusqlite::Result<bool> {
     tx.execute(
         "DELETE FROM collection_items WHERE item_kind = 'trail' AND item_id = ?1",
         [trail_id],
@@ -518,7 +548,7 @@ pub fn delete(tx: &Transaction, trail_id: &str) -> rusqlite::Result<bool> {
 }
 
 /// Deletes one step; a trail left without steps goes with it.
-pub fn delete_step(tx: &Transaction, step_id: &str) -> rusqlite::Result<bool> {
+pub fn delete_step(tx: &Transaction, step_id: &str, now: &str) -> rusqlite::Result<bool> {
     let trail_id: Option<String> = tx
         .query_row(
             "SELECT trail_id FROM trail_steps WHERE id = ?1",
@@ -531,6 +561,7 @@ pub fn delete_step(tx: &Transaction, step_id: &str) -> rusqlite::Result<bool> {
     };
     tx.execute("DELETE FROM trail_steps WHERE id = ?1", [step_id])?;
     refresh_trail(tx, &trail_id)?;
+    touch(tx, &trail_id, now)?;
     Ok(true)
 }
 

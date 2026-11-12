@@ -10,6 +10,7 @@
   import Library from './views/Library.svelte';
   import Trails from './views/Trails.svelte';
   import PageView from './lib/components/PageView.svelte';
+  import ExportDialog from './lib/components/ExportDialog.svelte';
   import LibraryFolders from './views/LibraryFolders.svelte';
   import RootUnavailable from './views/RootUnavailable.svelte';
   import Search from './views/Search.svelte';
@@ -48,6 +49,7 @@
     {/if}
     <DocumentPanel />
     <PageView />
+    <ExportDialog />
   </AppShell>
 {/if}
 

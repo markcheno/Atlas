@@ -18,6 +18,8 @@
   import { saved, SAVED_PAGE_SIZE } from '../stores/saved.svelte';
   import { charactersLeft, NOTE_MAX, recordedSourceName } from '../trailCopy';
   import { openRecorded } from '../trailOpen';
+  import { EXPORT } from '../exportCopy';
+  import { exportDialog } from '../stores/exportDialog.svelte';
   import AddTo from './AddTo.svelte';
   import AnswerText from './AnswerText.svelte';
   import ProblemNotice from './ProblemNotice.svelte';
@@ -196,6 +198,23 @@
                   : (item.question ?? item.sources[0]?.anchor.title ?? 'this finding')}
                 key={key(item)}
               />
+              {#if item.item === 'finding'}
+                <button
+                  type="button"
+                  class="row-button"
+                  onclick={(e) =>
+                    exportDialog.show(
+                      {
+                        what: 'finding',
+                        id: item.id,
+                        name: item.question ?? item.sources[0]?.anchor.title ?? 'this finding',
+                      },
+                      e.currentTarget,
+                    )}
+                >
+                  {EXPORT}
+                </button>
+              {/if}
               {#if confirming === key(item)}
                 <div class="confirm" role="group" aria-label="Confirm deleting">
                   <span class="small">{deleteSavedQuestion(item.item as SavedKind)}</span>

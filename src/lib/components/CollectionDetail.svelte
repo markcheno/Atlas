@@ -19,6 +19,8 @@
   import { trailView } from '../stores/trailView.svelte';
   import { NOTE_MAX, recordedSourceName, stepsText, TITLE_MAX, trailDates } from '../trailCopy';
   import { openRecorded } from '../trailOpen';
+  import { EXPORT } from '../exportCopy';
+  import { exportDialog } from '../stores/exportDialog.svelte';
   import AnswerText from './AnswerText.svelte';
   import ProblemNotice from './ProblemNotice.svelte';
   import RecordedSource from './RecordedSource.svelte';
@@ -150,6 +152,14 @@
           Archive
         </button>
       {/if}
+      <button
+        type="button"
+        class="button quiet"
+        onclick={(e) =>
+          exportDialog.show({ what: 'collection', id: c.id, name: c.name }, e.currentTarget)}
+      >
+        {EXPORT}
+      </button>
       {#if confirmingDelete}
         <div class="confirm" role="group" aria-label="Confirm deleting this collection">
           <span class="small">{deleteCollectionQuestion(c.kind, c.name)}</span>

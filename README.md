@@ -4,7 +4,7 @@ Atlas is a local-first personal AI librarian for large private collections of
 PDFs, EPUBs, books and papers. *Collect freely. Organize minimally. Retrieve
 intelligently.*
 
-**Status: Phase 3, Slice 3.7 (the PDF page view, after interests, projects and rediscovery, bookmarks and saved findings, the Trails screen, recording trails, the knowledge store and the carry-overs); Phase 2 complete (version 0.3.0, [close-out review](docs/phase2-closeout.md)); Phases 0 and 1 complete ([Phase 1 review](docs/phase1-closeout.md)).** Atlas asks where to keep its library and
+**Status: Phase 3, Slice 3.8 (export and import, after the PDF page view, interests, projects and rediscovery, bookmarks and saved findings, the Trails screen, recording trails, the knowledge store and the carry-overs); Phase 2 complete (version 0.3.0, [close-out review](docs/phase2-closeout.md)); Phases 0 and 1 complete ([Phase 1 review](docs/phase1-closeout.md)).** Atlas asks where to keep its library and
 which folders hold your books and papers, then catalogs every PDF and EPUB
 in them in the background, read-only. Cataloging slows on battery, pauses
 when the battery is low or the drive is nearly full, survives quitting and
@@ -144,7 +144,8 @@ with semantic search.
 | Phase 3, bookmarks and saved findings: Bookmark on results, details, cited passages and sources; Save as a finding on answers and passages; notes; the Saved tab; Bookmarks in this document | Working (Phase 3, Slice 3.5) |
 | Phase 3, interests and projects: Add to… on trails, saved items and documents; each collection's page; finishing and archiving; suggestions from your library on Home, with Not for this | Working (Phase 3, Slice 3.6) |
 | Phase 3, the page view: Show the page on PDF citations, results, bookmarks and trail steps; the page rendered in a separate, killable worker with the passage outlined when found; Previous, Next, a page number, Fit width or Actual size, Bookmark this page; the page's text below for screen readers and copying; pages cached by content (at most 200 MB) | Working (Phase 3, Slice 3.7) |
-| Phase 3, the knowledge workspace: research trails, bookmarks and saved findings, interests and projects, a PDF page view, Markdown and JSON export | Phase 3, in progress ([spec](docs/phase3-spec.md)): Slices 3.1 to 3.7 of 3.9 built |
+| Phase 3, export and import: Export… on a trail, a finding, a collection or everything, as Markdown notes (Obsidian or Markdown links) or one JSON file, into an `Atlas` folder inside a folder you choose; your own notes there are never overwritten; Import from a file… with a dry run first, the newer copy kept, nothing removed | Working (Phase 3, Slice 3.8) |
+| Phase 3, the knowledge workspace: research trails, bookmarks and saved findings, interests and projects, a PDF page view, Markdown and JSON export | Phase 3, in progress ([spec](docs/phase3-spec.md)): Slices 3.1 to 3.8 of 3.9 built |
 
 Specifications: [product](docs/product-spec.md), [Phase 0](docs/phase0-spec.md),
 [Phase 1](docs/phase1-spec.md), [Phase 2](docs/phase2-spec.md),
@@ -225,6 +226,8 @@ just bench-full       # plus the 30k throttle sweep
 just bench-search     # search benchmark on the 30k text fixture (fails above 250 ms p95)
 just bench-extraction # extraction benchmark on the 30k text fixture (`just bench-extraction 1k` adds battery)
 just bench-reader     # page view benchmark: corpus PDF pages rendered at 1,200 px, a cache hit, the worker's memory
+just bench-knowledge  # knowledge store at 100,000 steps: imported, the Trails list, recording, a snapshot, export
+just generate-knowledge out.json   # a generated store as a JSON export, to try Import with
 just eval questions.json ~/AtlasData   # ask a question set against a library, read-only
 just eval-ask         # Ask Atlas against your own embedding and chat models on the corpus (owner-run)
 just e2e              # WebDriver smoke test of the debug build (Windows/Linux; needs tauri-driver)

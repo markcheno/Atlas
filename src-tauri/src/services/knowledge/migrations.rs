@@ -11,11 +11,18 @@ pub struct Migration {
     pub sql: &'static str,
 }
 
-pub const MIGRATIONS: &[Migration] = &[Migration {
-    version: 1,
-    name: "knowledge",
-    sql: include_str!("../../../migrations/knowledge/0001_knowledge.sql"),
-}];
+pub const MIGRATIONS: &[Migration] = &[
+    Migration {
+        version: 1,
+        name: "knowledge",
+        sql: include_str!("../../../migrations/knowledge/0001_knowledge.sql"),
+    },
+    Migration {
+        version: 2,
+        name: "updated",
+        sql: include_str!("../../../migrations/knowledge/0002_updated.sql"),
+    },
+];
 
 /// Highest knowledge store version this build can read and write.
 pub const SUPPORTED_KNOWLEDGE_VERSION: u32 = MIGRATIONS[MIGRATIONS.len() - 1].version;
@@ -112,6 +119,32 @@ mod tests {
             )
             .unwrap();
         assert_eq!(created_rows, 1);
+    }
+
+    #[test]
+    fn version_two_dates_existing_trails_and_steps_from_their_own_times() {
+        let mut conn = Connection::open_in_memory().unwrap();
+        let tx = conn.transaction().unwrap();
+        tx.execute_batch(MIGRATIONS[0].sql).unwrap();
+        tx.execute_batch(
+            "INSERT INTO trails (id, started_at, last_step_at)
+                 VALUES ('t', '2026-01-01T00:00:00Z', '2026-01-02T00:00:00Z');
+             INSERT INTO trail_steps (id, trail_id, seq, kind, at, payload)
+                 VALUES ('s', 't', 1, 'note', '2026-01-02T00:00:00Z', '{}');",
+        )
+        .unwrap();
+        tx.pragma_update(None, "user_version", 1).unwrap();
+        tx.commit().unwrap();
+        assert_eq!(migrate(&mut conn, "now").unwrap(), 2);
+        let (trail, step): (String, String) = conn
+            .query_row(
+                "SELECT t.updated_at, s.updated_at FROM trails t JOIN trail_steps s ON s.trail_id = t.id",
+                [],
+                |r| Ok((r.get(0)?, r.get(1)?)),
+            )
+            .unwrap();
+        assert_eq!(trail, "2026-01-02T00:00:00Z");
+        assert_eq!(step, "2026-01-02T00:00:00Z");
     }
 
     #[test]

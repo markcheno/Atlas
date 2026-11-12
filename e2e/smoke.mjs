@@ -82,6 +82,10 @@ const expected = summary.catalogableFiles + 1;
 const dataRoot = path.join(scratch, 'AtlasData');
 fs.mkdirSync(dataRoot);
 const openerLog = path.join(scratch, 'opened.log');
+// Where "a trail is exported" writes (Slice 3.8): outside the library
+// folder and the data root, as Atlas requires.
+const exportDir = path.join(scratch, 'Exports');
+fs.mkdirSync(exportDir);
 
 const env = {
   ...process.env,
@@ -89,6 +93,7 @@ const env = {
   ATLAS_E2E_PICK_DATA_ROOT: dataRoot,
   ATLAS_E2E_PICK_SOURCES: fixture,
   ATLAS_E2E_OPENER_LOG: openerLog,
+  ATLAS_E2E_PICK_EXPORT_DIR: exportDir,
   // Catalog slowly enough (debug builds only) that "pause and resume
   // cataloging" always finds the scan still running, however fast the runner.
   ATLAS_INVENTORY_RATE: '150',
@@ -610,6 +615,18 @@ async function run() {
     return { answer, sources: sources.length, cited: cited.split('\n').slice(0, 3).join(' / ') };
   });
 
+  // Phase 3 (phase3-spec §14): what was searched and asked is a trail.
+  await step('a search and a question are recorded', async () => {
+    await openNewestTrail();
+    const asked = await wd.waitFor(
+      `//li[@data-testid='trail-step'][@data-kind='ask']//h3[contains(., ${lit(VAGUE_QUESTION)})]`,
+    );
+    const searches = await wd.all("//li[@data-testid='trail-step'][@data-kind='search']");
+    if (searches.length === 0) throw new Error('no search step in the trail');
+    const steps = await wd.all("//li[@data-testid='trail-step']");
+    return { steps: steps.length, searches: searches.length, asked: await wd.text(asked) };
+  });
+
   await step('quit and relaunch reopens the same library', async () => {
     await wd.quit();
     await sleep(1_000);
@@ -622,6 +639,103 @@ async function run() {
     report.timingsMs.relaunchToLibrary = Date.now() - started;
     if ((await wd.all(button('Get Started'))).length > 0) throw new Error('onboarding shown again');
   });
+
+  await step('the trail is resumed and its citation opens', async () => {
+    await openNewestTrail();
+    // The session can outlive a relaunch: then it is already continuing.
+    const resume = await wd.all(button('Continue this trail'));
+    if (resume.length > 0) await wd.click(resume[0]);
+    await wd.waitFor("//*[@data-testid='continuing']");
+    await wd.click(
+      await wd.waitFor(
+        "//li[@data-testid='trail-step'][@data-kind='ask']//article//button[starts-with(@aria-label, 'Source 1: ')]",
+      ),
+    );
+    const cited = await wd.text(
+      await wd.waitFor("//*[@role='dialog']//*[@data-testid='cited-passage']", {
+        timeout: 30_000,
+      }),
+    );
+    await wd.click(await wd.waitFor("//button[@aria-label='Close details']"));
+    return { cited: cited.split('\n').slice(0, 3).join(' / ') };
+  });
+
+  const resultButton = (label) =>
+    `(//li[@data-testid='search-hit']//button[starts-with(@aria-label, ${lit(label)})])[1]`;
+
+  await step('a bookmark is saved', async () => {
+    await wd.click(await wd.waitFor(button('Search')));
+    await wd.waitFor(heading('Search'));
+    await wd.click(await wd.waitFor("//label[normalize-space(.)='Find sources']"));
+    const box = await wd.waitFor("//input[@id='search-input']");
+    await wd.clear(box);
+    // \uE007 is WebDriver's Enter key.
+    await wd.type(box, 'Engineering\uE007');
+    await wd.click(await wd.waitFor(resultButton('Bookmark: '), { timeout: 30_000 }));
+    await wd.waitFor(
+      "//*[starts-with(@data-testid, 'save-status-bookmark-hit-')][normalize-space(.)='Bookmarked']",
+    );
+    await wd.click(await wd.waitFor(button('Trails')));
+    await wd.waitFor(heading('Trails'));
+    await wd.click(await wd.waitFor("//label[normalize-space(.)='Saved']"));
+    const item = await wd.waitFor("//li[@data-testid='saved-item'][@data-kind='bookmark']");
+    return { saved: (await wd.text(item)).split('\n').slice(0, 2).join(' / ') };
+  });
+
+  await step('the page view shows a page', async () => {
+    await wd.click(await wd.waitFor(button('Search')));
+    await wd.waitFor(heading('Search'));
+    const show = await wd.waitFor(resultButton('Show the page: '), { timeout: 30_000 });
+    const label = await wd.execute(
+      "return document.evaluate(arguments[0], document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue?.getAttribute('aria-label') ?? '';",
+      [resultButton('Show the page: ')],
+    );
+    await wd.click(show);
+    await wd.waitFor("//*[@data-testid='page-image']//img", { timeout: 60_000 });
+    const width = await wd.until('the page image decoded', async () => {
+      const w = await wd.execute(
+        'return document.querySelector("[data-testid=\'page-image\'] img")?.naturalWidth ?? 0;',
+      );
+      return w > 0 && w;
+    });
+    await wd.click(await wd.waitFor("//button[@aria-label='Close the page']"));
+    return { page: label, width };
+  });
+
+  await step('a trail is exported to a scratch folder', async () => {
+    await openNewestTrail();
+    await wd.click(await wd.waitFor(button('Export…')));
+    await wd.click(await wd.waitFor(button('Choose a folder and export…'), { enabled: true }));
+    const result = await wd.text(
+      await wd.waitFor("//*[@data-testid='export-result']", { timeout: 30_000 }),
+    );
+    const trails = path.join(exportDir, 'Atlas', 'Trails');
+    const notes = fs.existsSync(trails)
+      ? fs.readdirSync(trails).filter((n) => n.endsWith('.md'))
+      : [];
+    if (notes.length !== 1) throw new Error(`notes written: ${JSON.stringify(notes)}`);
+    const text = fs.readFileSync(path.join(trails, notes[0]), 'utf8');
+    if (!/^---\natlas_id: "[0-9a-f-]{36}"\natlas_kind: "trail"\n/.test(text)) {
+      throw new Error(`front matter: ${text.slice(0, 200)}`);
+    }
+    if (!text.includes(VAGUE_QUESTION)) throw new Error('the note lacks the question');
+    await wd.click(await wd.waitFor(button('Done')));
+    return { result, note: notes[0] };
+  });
+}
+
+/** Opens Trails and its newest trail's timeline. */
+async function openNewestTrail() {
+  await wd.click(await wd.waitFor(button('Trails')));
+  await wd.waitFor(heading('Trails'));
+  const tabs = await wd.all("//label[normalize-space(.)='Trails']");
+  if (tabs.length > 0) await wd.click(tabs[0]);
+  await wd.click(
+    await wd.waitFor(
+      "(//li[@data-testid='trail-row']//button[contains(@class, 'name-button')])[1]",
+    ),
+  );
+  await wd.waitFor("//li[@data-testid='trail-step']", { timeout: 30_000 });
 }
 
 function waitForPort(port, timeout) {

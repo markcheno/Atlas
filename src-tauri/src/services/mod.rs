@@ -7,6 +7,7 @@ pub mod answers;
 pub mod catalog;
 pub mod documents;
 pub mod embedding;
+pub mod export;
 pub mod extraction;
 pub mod inventory;
 pub mod jobs;

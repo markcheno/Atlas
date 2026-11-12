@@ -11,6 +11,7 @@ pub mod app;
 pub mod collections;
 pub mod documents;
 pub mod embedding;
+pub mod export;
 pub mod extraction;
 pub mod inventory;
 pub mod knowledge;
@@ -104,4 +105,7 @@ pub const COMMAND_NAMES: &[&str] = &[
     "get_suggestions",
     "dismiss_suggestion",
     "render_page",
+    "export_knowledge",
+    "preview_import",
+    "apply_import",
 ];

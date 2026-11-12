@@ -4118,3 +4118,206 @@ describe('the page view', () => {
     expect(within(items[1]).queryByRole('button', { name: /Show the page/ })).toBeNull();
   });
 });
+
+describe('export and import', () => {
+  beforeEach(() => {
+    resetAll();
+    libraryStore.reset();
+  });
+
+  const nav = () => within(screen.getByRole('navigation', { name: 'Main' }));
+  const calls = (command: string) =>
+    tauri.invoke.mock.calls.filter(([c]) => c === command).map(([, a]) => a);
+  const exportDialog = () => within(screen.getByRole('dialog', { name: /^Export/ }) as HTMLElement);
+
+  async function openTimeline() {
+    tauri.setHandler('list_trails', () => ({
+      trails: [tauri.trailSummary()],
+      page: 0,
+      pageSize: 25,
+      total: 1,
+    }));
+    const user = await launchOpen();
+    await user.click(nav().getByRole('button', { name: 'Trails' }));
+    await user.click(await screen.findByRole('button', { name: 'harmonic drives' }));
+    await screen.findByRole('heading', { level: 2, name: 'harmonic drives' });
+    return user;
+  }
+
+  it('exports a trail as Markdown notes and says where it wrote them', async () => {
+    const user = await openTimeline();
+    const trigger = screen.getByRole('button', { name: 'Export…' });
+    await user.click(trigger);
+    const d = exportDialog();
+    expect(d.getByRole('heading', { name: 'Export: harmonic drives' })).toBeVisible();
+    expect(d.getByRole('radio', { name: 'This trail' })).toBeChecked();
+    expect(d.getByRole('radio', { name: 'Markdown notes' })).toBeChecked();
+    expect(d.getByRole('radio', { name: 'Obsidian links' })).toBeChecked();
+    expect(d.getByRole('button', { name: 'Choose a folder and export…' })).toHaveFocus();
+    await user.click(d.getByRole('button', { name: 'Choose a folder and export…' }));
+    expect(calls('export_knowledge').at(-1)).toEqual({
+      scope: { kind: 'trail', id: 'trail-1' },
+      format: 'markdown',
+      linkStyle: 'obsidian',
+    });
+    expect(await d.findByTestId('export-result')).toHaveTextContent(
+      '12 notes written to /Users/test/Notes/Atlas. 2 already existed and were left alone.',
+    );
+    await user.click(d.getByRole('button', { name: 'Done' }));
+    expect(screen.queryByRole('dialog', { name: /^Export/ })).toBeNull();
+    await waitFor(() => expect(trigger).toHaveFocus());
+  });
+
+  it('exports everything as one file; link style is for notes only; cancel and errors', async () => {
+    const user = await openTimeline();
+    const trigger = screen.getByRole('button', { name: 'Export…' });
+    await user.click(trigger);
+    const d = exportDialog();
+    await user.click(d.getByRole('radio', { name: 'Everything' }));
+    expect(d.getByRole('heading', { name: 'Export' })).toBeVisible();
+    await user.click(d.getByRole('radio', { name: 'One JSON file' }));
+    expect(d.queryByRole('radio', { name: 'Obsidian links' })).toBeNull();
+
+    // A cancelled folder dialog says nothing.
+    tauri.setHandler('export_knowledge', () => null);
+    await user.click(d.getByRole('button', { name: 'Choose a folder and export…' }));
+    expect(calls('export_knowledge').at(-1)).toEqual({
+      scope: { kind: 'everything' },
+      format: 'json',
+      linkStyle: 'obsidian',
+    });
+    await waitFor(() =>
+      expect(d.getByRole('button', { name: 'Choose a folder and export…' })).toBeEnabled(),
+    );
+    expect(d.queryByTestId('export-result')).toBeNull();
+
+    // A refused folder says why.
+    tauri.setHandler('export_knowledge', () => {
+      throw tauri.apiError(
+        'export_inside_library',
+        "Atlas doesn't write into a library folder.",
+        'Choose a folder outside your library folders.',
+      );
+    });
+    await user.click(d.getByRole('button', { name: 'Choose a folder and export…' }));
+    expect(await d.findByText("Atlas doesn't write into a library folder.")).toBeVisible();
+    expect(d.getByText('Choose a folder outside your library folders.')).toBeVisible();
+
+    // One file written.
+    tauri.setHandler('export_knowledge', () =>
+      tauri.exportReport({ format: 'json', written: 1, besides: 0 }),
+    );
+    await user.click(d.getByRole('button', { name: 'Choose a folder and export…' }));
+    expect(await d.findByTestId('export-result')).toHaveTextContent(
+      '1 file written to /Users/test/Notes/Atlas.',
+    );
+
+    // Escape closes and returns focus.
+    await user.keyboard('{Escape}');
+    expect(screen.queryByRole('dialog', { name: /^Export/ })).toBeNull();
+    await waitFor(() => expect(trigger).toHaveFocus());
+  });
+
+  it('offers Export on a finding and a collection, not on a bookmark', async () => {
+    tauri.setHandler('list_saved', () =>
+      tauri.savedPage({
+        items: [
+          { item: 'finding' as const, ...tauri.finding() },
+          { item: 'bookmark' as const, ...tauri.bookmark({ id: 'bm-1' }) },
+        ],
+        total: 2,
+      }),
+    );
+    tauri.setHandler('list_collections', () => [tauri.collection()]);
+    const user = await launchOpen();
+    await user.click(nav().getByRole('button', { name: 'Trails' }));
+    await user.click(screen.getByRole('radio', { name: 'Saved' }));
+    const items = await screen.findAllByTestId('saved-item');
+    expect(within(items[1]).queryByRole('button', { name: 'Export…' })).toBeNull();
+    await user.click(within(items[0]).getByRole('button', { name: 'Export…' }));
+    let d = exportDialog();
+    expect(d.getByRole('radio', { name: 'This finding' })).toBeChecked();
+    await user.click(d.getByRole('button', { name: 'Choose a folder and export…' }));
+    expect(calls('export_knowledge').at(-1)).toMatchObject({
+      scope: { kind: 'finding', id: 'f-1' },
+    });
+    await user.click(d.getByRole('button', { name: 'Done' }));
+
+    await user.click(screen.getByRole('radio', { name: 'Interests and projects' }));
+    await user.click(await screen.findByRole('button', { name: 'Mechanisms' }));
+    await screen.findByRole('heading', { level: 2, name: 'Mechanisms' });
+    await user.click(screen.getByRole('button', { name: 'Export…' }));
+    d = exportDialog();
+    expect(d.getByRole('heading', { name: 'Export: Mechanisms' })).toBeVisible();
+    expect(d.getByRole('radio', { name: 'This collection' })).toBeChecked();
+    await user.click(d.getByRole('radio', { name: 'Markdown links' }));
+    await user.click(d.getByRole('button', { name: 'Choose a folder and export…' }));
+    expect(calls('export_knowledge').at(-1)).toEqual({
+      scope: { kind: 'collection', id: 'c-1' },
+      format: 'markdown',
+      linkStyle: 'markdown',
+    });
+  });
+
+  it('exports everything from Settings, and imports only after saying what it adds', async () => {
+    const user = await launchOpen();
+    await user.click(nav().getByRole('button', { name: 'Settings' }));
+    const section = within(
+      screen.getByRole('heading', { name: 'Export and import' }).closest('section') as HTMLElement,
+    );
+    await user.click(section.getByRole('button', { name: 'Export…' }));
+    const d = exportDialog();
+    expect(d.queryByRole('radio', { name: 'Everything' })).toBeNull();
+    await user.click(d.getByRole('button', { name: 'Choose a folder and export…' }));
+    expect(calls('export_knowledge').at(-1)).toMatchObject({ scope: { kind: 'everything' } });
+    await user.click(d.getByRole('button', { name: 'Done' }));
+
+    // A cancelled file dialog shows nothing.
+    tauri.setHandler('preview_import', () => null);
+    await user.click(section.getByRole('button', { name: 'Import from a file…' }));
+    await waitFor(() =>
+      expect(section.getByRole('button', { name: 'Import from a file…' })).toBeEnabled(),
+    );
+    expect(section.queryByTestId('import-preview')).toBeNull();
+
+    // The dry run, then Cancel: nothing imported.
+    tauri.setHandler('preview_import', () => tauri.importPreview());
+    await user.click(section.getByRole('button', { name: 'Import from a file…' }));
+    expect(await section.findByTestId('import-preview')).toHaveTextContent(
+      'atlas-knowledge-2026-11-11.json: 3 trails, 14 findings and 20 bookmarks are new; 5 are already here.',
+    );
+    expect(section.getByText('Importing never removes anything.')).toBeVisible();
+    await user.click(section.getByRole('button', { name: 'Cancel' }));
+    expect(section.queryByTestId('import-preview')).toBeNull();
+    expect(calls('apply_import')).toHaveLength(0);
+
+    // Newer copies and trails expiry would take are said too; Import.
+    tauri.setHandler('preview_import', () =>
+      tauri.importPreview({
+        summary: tauri.importSummary({ findings: { new: 0, newer: 1, here: 2 } }),
+        expiring: 2,
+      }),
+    );
+    await user.click(section.getByRole('button', { name: 'Import from a file…' }));
+    const preview = await section.findByTestId('import-preview');
+    expect(preview).toHaveTextContent(
+      '3 trails and 20 bookmarks are new; 7 are already here. 1 here has a newer copy in the file and will be updated. 2 new trails are older than 90 days and will be removed by expiry unless pinned.',
+    );
+    await user.click(section.getByRole('button', { name: 'Import' }));
+    expect(calls('apply_import').at(-1)).toEqual({ token: 'token-1' });
+    expect(await section.findByTestId('import-result')).toHaveTextContent('Imported: 37 added.');
+
+    // A file Atlas won't take says why.
+    tauri.setHandler('preview_import', () => {
+      throw tauri.apiError(
+        'import_unknown_version',
+        "That file isn't an Atlas export this version can read.",
+        'Choose a file Atlas exported as One JSON file.',
+      );
+    });
+    await user.click(section.getByRole('button', { name: 'Import from a file…' }));
+    expect(
+      await section.findByText("That file isn't an Atlas export this version can read."),
+    ).toBeVisible();
+  });
+});

@@ -13,7 +13,7 @@ describe('atlas IPC facade', () => {
 
   it('invokes commands by their Rust names with camelCase arguments', async () => {
     const status = await atlas.getAppStatus();
-    expect(status.slice).toBe('3.7');
+    expect(status.slice).toBe('3.8');
     expect(tauriMock.invoke).toHaveBeenCalledWith('get_app_status', undefined);
 
     await atlas.startInventory('root-1').catch(() => undefined);
