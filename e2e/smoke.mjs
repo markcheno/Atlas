@@ -731,6 +731,50 @@ async function run() {
     await wd.click(await wd.waitFor(button('Done')));
     return { result, note: notes[0] };
   });
+
+  await step('a diagnostics report is saved', async () => {
+    await wd.click(await wd.waitFor(button('Settings')));
+    await wd.waitFor("//h2[normalize-space(.)='Diagnostics']");
+    await wd.click(await wd.waitFor(button('Save a diagnostics report'), { enabled: true }));
+    const saved = await wd.text(
+      await wd.waitFor("//*[@data-testid='report-saved']", { timeout: 30_000 }),
+    );
+    const dir = path.join(dataRoot, 'exports', 'diagnostics');
+    const reports = fs.readdirSync(dir).filter((n) => /^atlas-diagnostics-.*\.json$/.test(n));
+    if (reports.length !== 1) throw new Error(`reports: ${JSON.stringify(reports)}`);
+    const text = fs.readFileSync(path.join(dir, reports[0]), 'utf8');
+    const parsed = JSON.parse(text);
+    if (parsed.reportVersion !== 1) throw new Error(`report version ${parsed.reportVersion}`);
+    if (!(parsed.library.passages > 0)) throw new Error('the report counts no passages');
+    // A small P4-02: nothing the session typed, and no file's name or path.
+    // The fixture has a folder Atlas can't read, on purpose: skipped here too.
+    const names = [];
+    const walk = (dir) => {
+      let entries;
+      try {
+        entries = fs.readdirSync(dir, { withFileTypes: true });
+      } catch {
+        return;
+      }
+      for (const e of entries) {
+        if (e.isDirectory()) walk(path.join(dir, e.name));
+        else if (/\.(pdf|epub)$/i.test(e.name)) names.push(e.name);
+      }
+    };
+    walk(fixture);
+    if (names.length === 0) throw new Error('no fixture names to look for');
+    for (const word of [VAGUE_QUESTION, fixture, dataRoot, scratch, ...names.slice(0, 50)]) {
+      if (text.includes(word) || text.includes(JSON.stringify(word).slice(1, -1))) {
+        throw new Error(`the report holds ${JSON.stringify(word)}`);
+      }
+    }
+    await wd.click(await wd.waitFor("//button[starts-with(normalize-space(.), 'Show in')]"));
+    const revealed = await wd.until('the report revealed', async () => {
+      const log = fs.existsSync(openerLog) ? fs.readFileSync(openerLog, 'utf8') : '';
+      return log.split('\n').find((l) => l.startsWith('reveal ') && l.includes(reports[0]));
+    });
+    return { saved, bytes: text.length, revealed: Boolean(revealed) };
+  });
 }
 
 /** Opens Trails and its newest trail's timeline. */

@@ -9,17 +9,33 @@
 use std::collections::HashMap;
 use std::fs;
 use std::path::Path;
-use std::sync::{Arc, Mutex, MutexGuard};
+use std::sync::{Arc, Mutex, MutexGuard, RwLock};
+use std::time::Instant;
 
 use super::chunk_map::ChunkMap;
 use super::index::{OpenReport, VectorIndex, VectorPaths, open_index};
 use crate::error::AtlasResult;
 use crate::services::catalog::writer::CatalogHandle;
+use crate::services::diagnostics::event::IndexAction;
+use crate::services::diagnostics::{Diagnostics, Event};
 use crate::services::documents::related::RelatedCache;
 
-type Slot = Arc<Mutex<Option<Arc<VectorIndex>>>>;
+/// A model's index, and the lock an open holds. They are apart so that
+/// asking whether the index is loaded never meets someone merely fetching
+/// it: before Slice 4.1 they were one lock, and [`VectorRegistry::loaded`]
+/// answered "not loaded" whenever the embedding job was fetching the index
+/// at that moment, so suggestions came back empty (the P3-18 flake).
+#[derive(Default)]
+struct SlotState {
+    index: RwLock<Option<Arc<VectorIndex>>>,
+    opening: Mutex<()>,
+}
+
+type Slot = Arc<SlotState>;
 
 pub struct VectorRegistry {
+    /// Loads and drops are recorded here (Slice 4.1).
+    diagnostics: Option<Diagnostics>,
     paths: VectorPaths,
     slots: Mutex<HashMap<String, Slot>>,
     /// Chunk id → document, for search's filters (shared by every model).
@@ -35,6 +51,7 @@ impl VectorRegistry {
         let paths = VectorPaths::for_root(data_root);
         let _ = fs::remove_dir_all(&paths.tmp);
         Self {
+            diagnostics: None,
             paths,
             slots: Mutex::new(HashMap::new()),
             chunk_map: Mutex::new(ChunkMap::default()),
@@ -42,8 +59,20 @@ impl VectorRegistry {
         }
     }
 
+    /// Records when an index is loaded and let go in `diagnostics`.
+    pub fn with_diagnostics(mut self, diagnostics: Diagnostics) -> Self {
+        self.diagnostics = Some(diagnostics);
+        self
+    }
+
     pub fn paths(&self) -> &VectorPaths {
         &self.paths
+    }
+
+    fn record(&self, event: Event) {
+        if let Some(d) = &self.diagnostics {
+            d.record(event);
+        }
     }
 
     fn slot(&self, model_id: &str) -> Slot {
@@ -61,27 +90,34 @@ impl VectorRegistry {
         threads: usize,
     ) -> AtlasResult<(Arc<VectorIndex>, Option<OpenReport>)> {
         let slot = self.slot(model_id);
-        let mut held = slot.lock().unwrap_or_else(|p| p.into_inner());
-        if let Some(index) = held.as_ref() {
+        if let Some(index) = read(&slot).as_ref() {
             return Ok((Arc::clone(index), None));
         }
+        let _opening = slot.opening.lock().unwrap_or_else(|p| p.into_inner());
+        if let Some(index) = read(&slot).as_ref() {
+            return Ok((Arc::clone(index), None));
+        }
+        let started = Instant::now();
         let (index, report) = open_index(&self.paths, catalog, model_id, threads)?;
         let index = Arc::new(index);
-        *held = Some(Arc::clone(&index));
+        *slot.index.write().unwrap_or_else(|p| p.into_inner()) = Some(Arc::clone(&index));
+        self.record(Event::MeaningIndex {
+            action: IndexAction::Loaded,
+            ms: started.elapsed().as_millis() as u64,
+            vectors: index.len() as u64,
+        });
         Ok((index, Some(report)))
     }
 
-    /// The model's index if it is open. Never waits: `None` while it is
-    /// being opened.
+    /// The model's index if it is open. Never waits: `None` only while it
+    /// is not loaded yet (or is being opened).
     pub fn loaded(&self, model_id: &str) -> Option<Arc<VectorIndex>> {
-        let slot = self.slot(model_id);
-        let held = slot.try_lock().ok()?;
-        held.as_ref().cloned()
+        read(&self.slot(model_id)).clone()
     }
 
     /// Whether the model's index is being opened right now.
     pub fn opening(&self, model_id: &str) -> bool {
-        self.slot(model_id).try_lock().is_err()
+        self.slot(model_id).opening.try_lock().is_err()
     }
 
     /// Starts opening the model's index on a thread of its own, unless it is
@@ -105,10 +141,18 @@ impl VectorRegistry {
 
     /// Drops a model's index (retired or failed).
     pub fn forget(&self, model_id: &str) {
-        self.slots
+        let gone = self
+            .slots
             .lock()
             .unwrap_or_else(|p| p.into_inner())
             .remove(model_id);
+        if let Some(index) = gone.and_then(|s| read(&s).clone()) {
+            self.record(Event::MeaningIndex {
+                action: IndexAction::Dropped,
+                ms: 0,
+                vectors: index.len() as u64,
+            });
+        }
         self.related_cache().forget(model_id);
     }
 
@@ -121,4 +165,10 @@ impl VectorRegistry {
     pub fn related_cache(&self) -> MutexGuard<'_, RelatedCache> {
         self.related.lock().unwrap_or_else(|p| p.into_inner())
     }
+}
+
+/// The slot's index now. A reader never waits on an open, only on the
+/// moment the opened index is put in place.
+fn read(slot: &SlotState) -> std::sync::RwLockReadGuard<'_, Option<Arc<VectorIndex>>> {
+    slot.index.read().unwrap_or_else(|p| p.into_inner())
 }

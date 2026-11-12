@@ -8,12 +8,14 @@
 //! extracted and committed in one transaction. Policy is re-checked between
 //! files; every write is guarded by the job still running.
 
+use crate::domain::dto::JobKind;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
 use super::db::{self, DocumentResult, QueuedFile};
 use super::engine::hash::HashError;
+use super::locate::Unavailable;
 use super::supervisor::{
     DocumentProcessor, Extraction, StopCheck, Supervisor, SupervisorConfig, WorkerCommand,
     WorkerError, WorkerStats,
@@ -24,6 +26,8 @@ use crate::domain::dto::{
 use crate::infrastructure::clock::now_rfc3339;
 use crate::infrastructure::native_path;
 use crate::services::catalog::writer::CatalogHandle;
+use crate::services::diagnostics::Diagnostics;
+use crate::services::diagnostics::event::WorkerRole;
 use crate::services::embedding;
 use crate::services::jobs::{
     self, Flow, JobProcessor, JobRow, JobWaker, ProcessorContext, ProcessorFactory, Signal,
@@ -93,7 +97,7 @@ pub type ExtractionEvents = Arc<dyn Fn(&ExtractionOverview) + Send + Sync>;
 /// Builds the document processor for one open data root; the stop check is
 /// the runner's.
 pub type DocumentProcessorFactory =
-    Arc<dyn Fn(StopCheck) -> Box<dyn DocumentProcessor> + Send + Sync>;
+    Arc<dyn Fn(StopCheck, Diagnostics) -> Box<dyn DocumentProcessor> + Send + Sync>;
 
 #[derive(Clone)]
 pub struct ExtractionDeps {
@@ -115,13 +119,16 @@ impl ExtractionDeps {
         let stats = Arc::new(WorkerStats::default());
         let supervisor_config = config.supervisor.clone();
         let counters = Arc::clone(&stats);
-        let processor: DocumentProcessorFactory = Arc::new(move |stop| {
-            Box::new(Supervisor::new(
-                command.clone(),
-                supervisor_config.clone(),
-                stop,
-                Arc::clone(&counters),
-            ))
+        let processor: DocumentProcessorFactory = Arc::new(move |stop, diagnostics| {
+            Box::new(
+                Supervisor::new(
+                    command.clone(),
+                    supervisor_config.clone(),
+                    stop,
+                    Arc::clone(&counters),
+                )
+                .with_diagnostics(diagnostics, WorkerRole::Read),
+            )
         });
         Self {
             governor,
@@ -170,6 +177,7 @@ pub struct ExtractProcessor {
     processor: Box<dyn DocumentProcessor>,
     last_emit: Option<Instant>,
     current: Option<String>,
+    diagnostics: Diagnostics,
 }
 
 impl JobProcessor for ExtractProcessor {
@@ -194,7 +202,8 @@ impl ExtractProcessor {
         let stop_signal = Arc::clone(&ctx.signal);
         let stop: StopCheck = Arc::new(move || stop_signal.stopped());
         Self {
-            processor: (deps.processor)(stop),
+            processor: (deps.processor)(stop, ctx.diagnostics.clone()),
+            diagnostics: ctx.diagnostics,
             catalog: ctx.catalog,
             data_root: dunce::canonicalize(&ctx.data_root).unwrap_or(ctx.data_root),
             deps,
@@ -294,6 +303,9 @@ impl ExtractProcessor {
                     Some(reason),
                     None,
                 );
+                if changed {
+                    jobs::record_policy(&self.diagnostics, JobKind::Extract, paused, Some(reason));
+                }
                 self.emit(changed);
                 if self.signal.wait(self.deps.config.policy_wait) {
                     return Some(Flow::Stop);
@@ -314,6 +326,7 @@ impl ExtractProcessor {
                     ) {
                         return Some(Flow::Continue);
                     }
+                    jobs::record_policy(&self.diagnostics, JobKind::Extract, true, None);
                     self.emit(true);
                 }
                 if t != *throttle {
@@ -536,14 +549,14 @@ impl ExtractProcessor {
         }
     }
 
-    fn unavailable(&mut self, job: &str) -> Step {
+    fn unavailable(&mut self, job: &str, reason: Unavailable) -> Step {
         const FROM: &[JobState] = &[JobState::Running, JobState::PausedPolicy];
         self.transition(
             job,
             JobState::FailedTerminal,
             FROM,
             None,
-            Some("extractor_unavailable"),
+            Some(reason.code()),
         );
         Step::Unavailable
     }
@@ -569,7 +582,7 @@ impl ExtractProcessor {
                 return self.blocked(job, &file.id, "hash_failed", Some("read_failed"));
             }
             Err(WorkerError::Stopped) => return Step::Stop,
-            Err(WorkerError::Unavailable(_)) => return self.unavailable(job),
+            Err(WorkerError::Unavailable(reason)) => return self.unavailable(job, reason),
             Err(WorkerError::Crashed(_)) => {
                 if self.crash_attempts(&file.id) >= self.deps.config.max_attempts {
                     let step = match &file.refresh_document {
@@ -611,7 +624,7 @@ impl ExtractProcessor {
         let extraction = match self.processor.extract(&path, file.file_type) {
             Ok(e) => e,
             Err(WorkerError::Stopped) => return Step::Stop,
-            Err(WorkerError::Unavailable(_)) => return self.unavailable(job),
+            Err(WorkerError::Unavailable(reason)) => return self.unavailable(job, reason),
             Err(WorkerError::Crashed(_)) => {
                 if self.crash_attempts(&file.id) >= self.deps.config.max_attempts {
                     // A refresh that keeps crashing keeps the old text.
@@ -631,6 +644,7 @@ impl ExtractProcessor {
                         Extraction::Failed {
                             outcome: super::engine::Outcome::Malformed,
                             reason: String::new(),
+                            pages: None,
                         },
                         Some("worker_crashed"),
                     );
@@ -670,13 +684,22 @@ impl ExtractProcessor {
                 (_, Some(reason)) => DocumentResult::NoText {
                     state: "worker_crashed",
                     reason,
+                    pages: None,
                 },
                 (Extraction::Done { summary, pieces }, None) => {
                     DocumentResult::Text { summary, pieces }
                 }
-                (Extraction::Failed { outcome, reason }, None) => DocumentResult::NoText {
+                (
+                    Extraction::Failed {
+                        outcome,
+                        reason,
+                        pages,
+                    },
+                    None,
+                ) => DocumentResult::NoText {
                     state: db::outcome_state(*outcome),
                     reason,
+                    pages: *pages,
                 },
             };
             db::commit_document(c, &job, &id, &hash, size, mtime, file_type, result, &now)

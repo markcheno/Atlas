@@ -54,4 +54,8 @@ knowledgeBytes: number,
 /**
  * The snapshots in `backups/knowledge/`. Never touched by Clean caches.
  */
-snapshotBytes: number, snapshotCount: number, measuredAt: string, };
+snapshotBytes: number, snapshotCount: number, 
+/**
+ * The log (Slice 4.1). Clean caches leaves it.
+ */
+logBytes: number, measuredAt: string, };

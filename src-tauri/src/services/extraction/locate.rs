@@ -29,6 +29,19 @@ pub enum Unavailable {
     LoadFailed,
     /// PDFium loaded but could not read the built-in self-test PDF.
     SelfTestFailed,
+    /// The worker speaks another protocol than this app (Slice 4.1): a
+    /// mismatched install. Set by the app, never sent by a worker.
+    ProtocolMismatch,
+}
+
+impl Unavailable {
+    /// The job's fixed error code for this reason.
+    pub const fn code(self) -> &'static str {
+        match self {
+            Self::ProtocolMismatch => "worker_protocol",
+            Self::NotFound | Self::LoadFailed | Self::SelfTestFailed => "extractor_unavailable",
+        }
+    }
 }
 
 #[cfg(target_os = "macos")]

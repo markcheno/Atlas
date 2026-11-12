@@ -23,6 +23,7 @@ pub mod prompt;
 pub mod retrieve;
 pub mod stream;
 
+use crate::services::diagnostics::{Diagnostics, Event};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::thread::JoinHandle;
@@ -72,6 +73,9 @@ pub struct AskDeps<'a> {
     /// Records the question into the user's trail (Slice 3.3); `None`
     /// records nothing.
     pub recorder: Option<&'a Arc<Recorder>>,
+    /// Records how long an answer took and how it ended, never its words
+    /// (Slice 4.1); `None` records nothing.
+    pub diagnostics: Option<&'a Diagnostics>,
 }
 
 /// The chat role's service, as stored.
@@ -148,6 +152,15 @@ pub fn ask(deps: &AskDeps<'_>, query: &AskQuery) -> AtlasResult<AskReply> {
 
     let location = (deps.locate)(&role.base_url);
     if sources.is_empty() {
+        if let Some(d) = deps.diagnostics {
+            d.record(Event::AskEnded {
+                ms: 0,
+                sources: 0,
+                cited: 0,
+                dropped: 0,
+                ending: AskEnding::NothingFound,
+            });
+        }
         if let Some(recorder) = deps.recorder {
             recorder.nothing_found(query, retrieval.semantic, &role.model, location);
         }
@@ -211,8 +224,19 @@ pub fn ask(deps: &AskDeps<'_>, query: &AskQuery) -> AtlasResult<AskReply> {
             .map(|record| (Arc::clone(recorder), record))
     });
     let (events, limits, id) = (Arc::clone(&deps.events), deps.limits, answer_id.clone());
+    let diagnostics = deps.diagnostics.cloned();
     deps.answers.start(answer_id.clone(), move |stop| {
+        let started = std::time::Instant::now();
         let outcome = answer(&id, &target, limits, &messages, count, &events, &stop);
+        if let Some(d) = diagnostics {
+            d.record(Event::AskEnded {
+                ms: started.elapsed().as_millis() as u64,
+                sources: count,
+                cited: outcome.cited.len() as u32,
+                dropped: outcome.dropped,
+                ending: outcome.ending,
+            });
+        }
         // After the last event, so the answer never waits on the store.
         if let Some((recorder, record)) = record {
             recorder.ask(record, outcome);

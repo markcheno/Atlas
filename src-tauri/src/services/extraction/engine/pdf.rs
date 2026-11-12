@@ -97,7 +97,11 @@ pub fn extract(pdfium: &Pdfium, file: File, sink: &mut Sink<'_>) -> Result<Summa
         } else {
             "unreadable_text"
         };
-        return Err(Failure::new(Outcome::NeedsOcr, reason));
+        return Err(Failure::needs_ocr(
+            reason,
+            readability.pages,
+            readability.text_pages,
+        ));
     }
     Ok(Summary {
         page_count: pages,

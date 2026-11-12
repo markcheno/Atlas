@@ -441,3 +441,90 @@ fn p3_03_gutenberg_boilerplate_is_left_out_and_only_those_books_are_read_again()
         0
     );
 }
+
+/// P4-04 (Slice 4.1): PDFs marked Needs OCR before page counts were kept
+/// are read once more for them, and nothing else is read again.
+#[test]
+fn p4_04_scanned_pdfs_marked_before_counts_are_read_once_more() {
+    let env = Env::new();
+    let books = env.base.join("Books");
+    fs::create_dir_all(&books).unwrap();
+    let corpus = Path::new(env!("CARGO_MANIFEST_DIR")).join("../spikes/extraction-bench/corpus");
+    for rel in [
+        "pdf/scanned/ia-alice-1894.pdf",
+        "pdf/scanned/synthetic-scan.pdf",
+        "pdf/generated/no-tounicode.pdf",
+        "pdf/generated/book.pdf",
+    ] {
+        let from = corpus.join(rel);
+        fs::copy(&from, books.join(from.file_name().unwrap())).unwrap();
+    }
+
+    // Read now, then made to look as a catalog of version 14 left them.
+    let h = ExtractionHarness::new(fast_extraction(), worker());
+    let mut ws = env.workspace_with_extraction(&h);
+    ws.choose(&env.base.join("AtlasData")).unwrap();
+    let root = ws.require_open().unwrap();
+    let added = sources::add(root, &books).unwrap();
+    inventory::control::enqueue(root, &added.id).unwrap();
+    assert!(
+        wait_until(LONG, || settled(&ws)),
+        "first read never settled"
+    );
+    drop(ws);
+    let c = Connection::open(catalog(&env)).unwrap();
+    assert_eq!(
+        count(
+            &c,
+            "SELECT COUNT(*) FROM documents WHERE state = 'needs_ocr' AND page_count IS NOT NULL"
+        ),
+        3,
+        "counted when read"
+    );
+    c.execute_batch(
+        "UPDATE documents SET page_count = NULL WHERE state = 'needs_ocr';
+         ALTER TABLE documents DROP COLUMN text_pages;
+         DELETE FROM schema_migrations WHERE version = 15;",
+    )
+    .unwrap();
+    drop(c);
+
+    let h = ExtractionHarness::new(fast_extraction(), worker());
+    let mut ws = env.workspace_with_extraction(&h);
+    ws.startup();
+    assert!(
+        wait_until(LONG, || settled(&ws)),
+        "the re-read never settled"
+    );
+    drop(ws);
+    assert_eq!(
+        WorkerStats::get(&h.deps.stats.extracts),
+        3,
+        "only the three scanned PDFs were read again"
+    );
+    let c = Connection::open(catalog(&env)).unwrap();
+    let rows: Vec<(String, Option<i64>, Option<i64>, i64)> = c
+        .prepare(
+            "SELECT f.display_name, d.page_count, d.text_pages, d.refresh
+               FROM documents d JOIN file_instances f ON f.document_id = d.id
+              WHERE d.state = 'needs_ocr' ORDER BY f.display_name",
+        )
+        .unwrap()
+        .query_map([], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?)))
+        .unwrap()
+        .map(Result::unwrap)
+        .collect();
+    assert_eq!(
+        rows,
+        vec![
+            ("ia-alice-1894.pdf".into(), Some(4), Some(0), 0),
+            ("no-tounicode.pdf".into(), Some(3), Some(0), 0),
+            ("synthetic-scan.pdf".into(), Some(3), Some(0), 0),
+        ]
+    );
+    assert_eq!(
+        count(&c, "SELECT COUNT(*) FROM documents WHERE state = 'done'"),
+        1,
+        "the book is still read"
+    );
+}

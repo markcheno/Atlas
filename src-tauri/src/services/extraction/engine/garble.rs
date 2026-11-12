@@ -17,6 +17,18 @@ pub struct Readability {
     /// Non-whitespace characters.
     pub visible: u64,
     pub bad: u64,
+    /// Pages with at least `EMPTY_PAGE_CHARS` visible characters, under a
+    /// tenth of them garbled: pages whose text layer is usable (Slice 4.1).
+    pub text_pages: u32,
+}
+
+/// Whether a page's text counts as empty: what a scanned page leaves.
+pub fn is_empty_page(text: &str) -> bool {
+    text.chars()
+        .filter(|c| !c.is_whitespace())
+        .take(EMPTY_PAGE_CHARS)
+        .count()
+        < EMPTY_PAGE_CHARS
 }
 
 fn is_bad(c: char) -> bool {
@@ -28,16 +40,20 @@ impl Readability {
     /// Adds one PDF page or EPUB spine document.
     pub fn add_page(&mut self, text: &str) {
         let mut visible = 0usize;
+        let mut bad = 0usize;
         for c in text.chars().filter(|c| !c.is_whitespace()) {
             visible += 1;
             if is_bad(c) {
-                self.bad += 1;
+                bad += 1;
             }
         }
         self.pages += 1;
         self.visible += visible as u64;
+        self.bad += bad as u64;
         if visible < EMPTY_PAGE_CHARS {
             self.empty_pages += 1;
+        } else if bad * 10 < visible {
+            self.text_pages += 1;
         }
     }
 
@@ -64,6 +80,18 @@ mod tests {
     }
 
     const PROSE: &str = "Alice was beginning to get very tired of sitting by her sister";
+
+    #[test]
+    fn usable_pages_are_counted() {
+        let mut r = Readability::default();
+        let garbled: String = "\u{E000}".repeat(30);
+        for p in ["", "  short ", PROSE, &garbled, PROSE] {
+            r.add_page(p);
+        }
+        assert_eq!((r.pages, r.empty_pages, r.text_pages), (5, 2, 2));
+        assert!(is_empty_page(" short words "));
+        assert!(!is_empty_page(PROSE));
+    }
 
     #[test]
     fn scans_and_garbled_fonts_need_ocr() {

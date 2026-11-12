@@ -120,9 +120,15 @@ pub enum Frame {
         summary: Summary,
     },
     /// No usable text. Any pages already sent are discarded by the app.
+    /// A PDF that needs OCR says how many pages it has, and how many have
+    /// usable text (Slice 4.1; absent otherwise, and from older workers).
     Failed {
         outcome: Outcome,
         reason: String,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        page_count: Option<u32>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        text_pages: Option<u32>,
     },
     /// A rendered page: the PNG as base64, and where `find` was on it.
     Rendered {
@@ -228,10 +234,35 @@ mod tests {
         assert_eq!(
             Frame::Failed {
                 outcome: Outcome::NeedsOcr,
-                reason: "no_text_layer".into()
+                reason: "no_text_layer".into(),
+                page_count: None,
+                text_pages: None,
             }
             .to_line(),
             "{\"type\":\"failed\",\"outcome\":\"needs_ocr\",\"reason\":\"no_text_layer\"}\n"
+        );
+        let counted = Frame::Failed {
+            outcome: Outcome::NeedsOcr,
+            reason: "no_text_layer".into(),
+            page_count: Some(4),
+            text_pages: Some(0),
+        };
+        assert!(
+            counted
+                .to_line()
+                .contains("\"pageCount\":4,\"textPages\":0")
+        );
+        assert_eq!(
+            serde_json::from_str::<Frame>(
+                "{\"type\":\"failed\",\"outcome\":\"needs_ocr\",\"reason\":\"no_text_layer\"}"
+            )
+            .unwrap(),
+            Frame::Failed {
+                outcome: Outcome::NeedsOcr,
+                reason: "no_text_layer".into(),
+                page_count: None,
+                text_pages: None,
+            }
         );
     }
 

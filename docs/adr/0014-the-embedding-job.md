@@ -198,3 +198,16 @@ chunk, ±25%.
   - **P2-20:** the key only to its host, no redirect followed;
   - `tests/convert.rs` and the unit tests of `job`, `client`, `models`,
     `storage` and migration 0013.
+
+## Amendment (Phase 4, Slice 4.1)
+
+The job walks a folder's documents in rowid order. A document read again
+after the job passed it waits again, and the reading job's "queue
+embedding" trigger sees this job still running and queues nothing. Before
+finishing, the job now looks once more from the start if any document
+behind it has never been tried by the model
+(`embedding::db::fresh_behind`). A document that failed and may be retried
+doesn't count: its retry stays the next job's. Found when P3-13 (the
+resume scenario) left three re-read books waiting on the macOS CI runner;
+`tests/embedding.rs` `a_document_read_again_behind_the_job_is_embedded_before_it_ends`
+holds it.

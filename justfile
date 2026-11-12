@@ -159,6 +159,10 @@ bench-reader out="":
 bench-knowledge size="100k" out="":
     pnpm bench --knowledge-only --knowledge-size {{ size }} {{ if out == "" { "" } else { "--out " + out } }}
 
+# What the log costs (Slice 4.1): 100,000 events recorded and written, per event
+bench-diagnostics:
+    cargo test --manifest-path {{ manifest }} --release --test diagnostics measure_the_cost_of_recording -- --ignored --nocapture
+
 # A generated knowledge store as a JSON export, for trying Import: `just generate-knowledge out.json 1000 10000`
 generate-knowledge out trails="1000" steps="10000":
     node scripts/generate-knowledge.mjs {{ out }} --trails {{ trails }} --steps {{ steps }}

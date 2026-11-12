@@ -16,6 +16,7 @@
 //!   changed fail it for good; a chunk the service refuses fails only its
 //!   document.
 
+use crate::domain::dto::JobKind;
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
@@ -246,6 +247,7 @@ pub struct EmbedProcessor {
     received: HashMap<[u8; 32], Vec<u8>>,
     last_emit: Option<Instant>,
     last_save: Instant,
+    diagnostics: crate::services::diagnostics::Diagnostics,
 }
 
 impl JobProcessor for EmbedProcessor {
@@ -274,6 +276,7 @@ impl EmbedProcessor {
             signal: ctx.signal,
             waker: ctx.waker,
             vectors: ctx.vectors,
+            diagnostics: ctx.diagnostics,
             reader: None,
             received: HashMap::new(),
             last_emit: None,
@@ -382,6 +385,7 @@ impl EmbedProcessor {
                 );
                 if changed {
                     self.save(index, true);
+                    jobs::record_policy(&self.diagnostics, JobKind::Embed, paused, Some(reason));
                 }
                 self.emit(changed);
                 if self.signal.wait(self.deps.config.policy_wait) {
@@ -403,6 +407,7 @@ impl EmbedProcessor {
                     ) {
                         return Some(Flow::Continue);
                     }
+                    jobs::record_policy(&self.diagnostics, JobKind::Embed, true, None);
                     self.emit(true);
                 }
                 if t != *throttle {
@@ -577,6 +582,21 @@ impl EmbedProcessor {
                 _ => return Flow::Continue,
             };
             if docs.is_empty() {
+                // A document read again behind the cursor waits again, and
+                // the reading job's trigger saw this job still running: look
+                // once more from the start before finishing (Slice 4.1; P3-13
+                // once left three re-read books waiting for good).
+                let (root_id, model_id, behind) =
+                    (job.source_root_id.clone(), model.id.clone(), cursor);
+                let fresh = cursor > 0
+                    && self
+                        .catalog
+                        .call(move |c| db::fresh_behind(c, &root_id, &model_id, behind))
+                        .is_ok_and(|r| r.unwrap_or(false));
+                if fresh {
+                    cursor = 0;
+                    continue;
+                }
                 self.transition(
                     &job.id,
                     JobState::Completed,

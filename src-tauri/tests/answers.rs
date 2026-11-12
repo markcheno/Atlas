@@ -158,6 +158,7 @@ impl Ask {
                 answers: root.answers(),
                 // Recording has its own tests (tests/trails.rs).
                 recorder: None,
+                diagnostics: None,
             },
             &AskQuery {
                 question: question.into(),

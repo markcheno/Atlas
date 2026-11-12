@@ -107,6 +107,10 @@
         <dt>{snapshotsLabel(usage.snapshotCount)}</dt>
         <dd data-testid="snapshot-bytes">{formatBytes(usage.snapshotBytes)}</dd>
       </div>
+      <div>
+        <dt>The log</dt>
+        <dd data-testid="log-bytes">{formatBytes(usage.logBytes)}</dd>
+      </div>
     </dl>
     {#if knowledgeText(knowledge)}
       <p data-testid="knowledge-note">{knowledgeText(knowledge)}</p>
@@ -128,8 +132,8 @@
   </div>
   <p class="muted small">
     Clean caches removes only temporary files Atlas can make again. It never removes your catalog,
-    the text Atlas has read, the meaning index, your settings, or your trails and notes and their
-    snapshots.
+    the text Atlas has read, the meaning index, your settings, the log, or your trails and notes and
+    their snapshots.
   </p>
 </div>
 

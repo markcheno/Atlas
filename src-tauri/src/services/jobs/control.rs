@@ -8,6 +8,8 @@ use crate::domain::traits::CatalogRepository;
 use crate::error::{AtlasError, AtlasResult};
 use crate::infrastructure::clock::now_rfc3339;
 use crate::services::catalog::repository::SqliteCatalog;
+use crate::services::diagnostics::Event;
+use crate::services::diagnostics::event::PauseBy;
 use crate::services::workspace::OpenRoot;
 
 /// Schedules a job of `kind` for a source root, or returns the one already
@@ -44,19 +46,31 @@ fn change(
 ) -> AtlasResult<()> {
     let id = job_id.to_owned();
     let changed = root.catalog().call(move |c| {
-        if db::job(c, &id)?.is_none() {
+        let Some(job) = db::job(c, &id)? else {
             return Ok(None);
-        }
+        };
         let changed = db::transition(c, &id, to, from, None, None, &now_rfc3339())?;
         if changed && to == JobState::Cancelled {
             db::drop_frontier(c, &id)?;
         }
-        Ok::<_, rusqlite::Error>(Some(changed))
+        Ok::<_, rusqlite::Error>(Some((changed, job.kind, job.state)))
     })?;
     match changed.map_err(AtlasError::db("update cataloging"))? {
         None => Err(AtlasError::JobNotFound),
-        Some(false) => Err(refused),
-        Some(true) => {
+        Some((false, _, _)) => Err(refused),
+        Some((true, kind, was)) => {
+            let by = PauseBy::User;
+            match to {
+                JobState::PausedUser => root.diagnostics().record(Event::JobPaused {
+                    kind,
+                    by,
+                    reason: None,
+                }),
+                JobState::Queued if was == JobState::PausedUser => {
+                    root.diagnostics().record(Event::JobResumed { kind, by });
+                }
+                _ => {}
+            }
             root.wake_jobs();
             Ok(())
         }

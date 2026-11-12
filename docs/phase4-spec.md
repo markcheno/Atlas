@@ -292,7 +292,7 @@ No schema change. Its snapshots (§6.3 of the Phase 3 spec) are unchanged; Phase
   - snapshots and backups (how many, how large, when);
   - the last check's results;
   - the last 2,000 events.
-- **It never holds** a path, a file or folder name, a title, an author, a search, a question, an answer, a note, an excerpt, a URL or a key. Model names are configuration and are included; service addresses are not.
+- **It never holds** a path, a file or folder name, a title, an author, a search, a question, an answer, a note, an excerpt, a URL or a key. Models are counted by position, never named (Slice 4.1: a service's label is free text the user typed).
 - **Storage** counts the log under its own line. Clean caches leaves it; Clear the log removes it.
 
 ### 7.2 OCR (`services/ocr/`, `extraction/engine/ocr.rs`)
@@ -418,7 +418,7 @@ The policy's order becomes:
 - **The supervisor checks the worker's protocol.** A worker that reports another `protocol` than the app's is refused, with a clear error. Today any `Hello` is accepted.
 - **Needs OCR documents keep their page counts.** The PDF reader reports `page_count` and `text_pages` for a document it marks Needs OCR. Documents marked earlier, which have neither, go back to waiting once and are read again. They aren't searchable, so nothing is lost while they are.
 - **Image-only pages are counted** in documents that pass the rule, for the report.
-- **The P3-18 flake.** The log records when the meaning index is loaded and dropped; the cause of an empty first answer is looked for with it, and recorded whether or not it is found.
+- **The P3-18 flake.** The log records when the meaning index is loaded and dropped; the cause of empty first suggestions is looked for with it, and recorded whether or not it is found (Slice 4.1: one cause found and fixed, one not; see the revision notes).
 
 ## 8. Privacy and security
 
@@ -660,6 +660,43 @@ Do **not** add an OCR engine, an `ocr` job, a rescan timer or any backup code be
 ---
 
 ### Revision notes
+
+**2026-11-12, Slice 4.1** (diagnostics and carry-overs; [ADR 0021](adr/0021-diagnostics.md)):
+- **Errors returned to the window are logged by code, not by command.**
+  Tauri 2.12 gives no hook on a command's response, and naming the command
+  would mean wrapping all 79. They are recorded in `Serialize for
+  AtlasError`, the one place an error meets the window.
+- **`reveal_diagnostics` takes a folder** (`reports`, which shows the newest
+  report, or `log`), so one command serves Show in… and Show the log folder.
+- **Models are counted by position, never named**, in the report: a
+  service's label is free text the user typed.
+- **Image-only pages in documents that pass the rule are counted when the
+  report is written**, from the stored passages, by the reader's own rule
+  (`garble::is_empty_page`). Every document of a library read before 4.1
+  would otherwise be uncounted. The count includes blank pages, and the
+  report says so.
+- **`text_pages`** counts pages with at least 20 visible characters under a
+  tenth garbled: for an `unreadable_text` PDF, a page whose text is garbled
+  doesn't count. The protocol stays 2; the counts ride in the `failed`
+  frame's two optional fields, as `boilerplate_chars` rode in `done`.
+- **A refused worker is `Unavailable`, not a crash**, so it isn't restarted;
+  the job ends `failed_terminal` with `worker_protocol`, and the status
+  line, which had no words for a reader that can't start, now has them.
+- **P3-18 was empty first suggestions, not an answer.** One cause was found
+  while adding the meaning index's events: `VectorRegistry::loaded` used
+  `try_lock` on the lock `get_or_open` takes, so whenever the embedding job
+  fetched its index, suggestions and meaning search saw "not loaded". The
+  index and the lock an open holds are now apart. **Another remains:** the
+  second P3-18 test's first call came back empty once in a full local run
+  after the fix, and not in 14 runs since. It now waits, as the first test
+  has since 3.9, and prints the index's state if it fails.
+- **Found by CI, fixed: an embedding job could finish with re-read books
+  waiting.** The job walks documents in rowid order; one read again behind
+  it waited again while reading's trigger saw the job still running. It
+  now looks once more from the start for documents the model never tried
+  (ADR 0014's amendment). P3-13 caught it on the macOS runner.
+- **The log is attached when the library's lock is held**, before the
+  catalog migrates, so no buffering of early events is needed.
 
 **2026-11-12, v0.1** (written after the Phase 3 close-out review):
 

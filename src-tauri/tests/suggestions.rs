@@ -58,6 +58,26 @@ impl S {
         found
     }
 
+    /// What suggestions depend on, for a failure's message.
+    fn state(&self) -> String {
+        let c = self.lib.catalog();
+        let model = atlas_lib::services::embedding::models::serving(&c).unwrap();
+        let loaded = model
+            .as_ref()
+            .map(|m| self.lib.root().vectors().loaded(&m.id).map(|i| i.len()));
+        let seeds: i64 = self
+            .lib
+            .root()
+            .knowledge()
+            .read(|c| c.query_row("SELECT COUNT(*) FROM step_documents", [], |r| r.get(0)))
+            .unwrap()
+            .unwrap();
+        format!(
+            "model {:?}, index {loaded:?}, seed documents {seeds}",
+            model.map(|m| m.id)
+        )
+    }
+
     fn docs(&self, s: &[Suggestion]) -> Vec<String> {
         s.iter()
             .map(|x| x.hit.document_id.clone().unwrap())
@@ -251,8 +271,19 @@ fn p3_18_recent_trails_seed_suggestions_and_none_without_an_index() {
     let q = Lib::query("Engineering marker 1");
     let page = s.lib.hybrid(&q);
     s.rec().search(&q, SearchIntent::Submit, &page);
-    let found = s.suggest(3);
-    assert!(!found.is_empty());
+    // As in the first test: the first suggestions are waited for. Once in a
+    // full local run (Slice 4.1, after the index's lock was split) this
+    // first call also came back empty; what the library held then is
+    // printed if it ever happens here.
+    let mut found = Vec::new();
+    assert!(
+        common::wait_until(Duration::from_secs(30), || {
+            found = s.suggest(3);
+            !found.is_empty()
+        }),
+        "recent trails seed suggestions: {}",
+        s.state()
+    );
     assert!(
         found
             .iter()

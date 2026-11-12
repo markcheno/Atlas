@@ -34,7 +34,8 @@ Cloud. It is never exposed by default.
 
 **All Atlas-owned persistent data lives under one user-selected Atlas Data
 Root.** That covers the manifest, settings, SQLite catalog, extracted text,
-vector indexes, thumbnails, logs, exports and backups. Source folders are
+vector indexes, thumbnails, logs, exports and backups (the log and
+diagnostics reports since Phase 4, [ADR 0021](0021-diagnostics.md)). Source folders are
 referenced by path and never written to. The documented exceptions are:
 
 - API keys, which live in OS credential storage;

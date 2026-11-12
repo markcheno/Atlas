@@ -25,6 +25,7 @@ use infrastructure::keychain::LazyKeychain;
 use infrastructure::local_source::LocalFsSource;
 use infrastructure::system_probe::{OsResourceMonitor, SimulatedMonitor, Simulation};
 use infrastructure::volume::OsVolumeInspector;
+use services::diagnostics::Diagnostics;
 use services::embedding::job::{self as embedding_job, EmbedConfig, EmbedDeps};
 use services::embedding::query::QueryEmbedder;
 use services::extraction::job::{self as extraction_job, ExtractionConfig, ExtractionDeps};
@@ -110,7 +111,13 @@ pub fn run() {
                 inner: OsResourceMonitor::new(volumes.clone()),
                 simulation: Simulation::from_env(),
             };
-            let governor = Arc::new(Mutex::new(ResourceGovernor::new(Box::new(monitor))));
+            // One log for the app: the open library's, also kept by the
+            // governor (policy changes) and by the panic hook (Slice 4.1).
+            let diagnostics = Diagnostics::new();
+            services::diagnostics::install(diagnostics.clone());
+            let mut governor = ResourceGovernor::new(Box::new(monitor));
+            governor.diagnostics = Some(diagnostics.clone());
+            let governor = Arc::new(Mutex::new(governor));
             let emitter = app.handle().clone();
             let deps = InventoryDeps {
                 governor: governor.clone(),
@@ -148,6 +155,7 @@ pub fn run() {
             };
             let trail_emitter = app.handle().clone();
             let mut workspace = Workspace::new(config, volumes)
+                .with_diagnostics(diagnostics)
                 .with_trail_events(Arc::new(move |status: &RecordingStatus| {
                     let _ = trail_emitter.emit(TRAIL_EVENT, status);
                 }))
@@ -257,6 +265,10 @@ pub fn run() {
             commands::export::preview_import,
             commands::export::apply_import,
             commands::export::reveal_export,
+            commands::diagnostics::get_diagnostics_status,
+            commands::diagnostics::save_diagnostics_report,
+            commands::diagnostics::reveal_diagnostics,
+            commands::diagnostics::clear_log,
         ])
         .build(tauri::generate_context!())
         .expect("error while building Atlas")

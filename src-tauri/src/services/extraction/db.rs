@@ -10,6 +10,7 @@
 use rusqlite::{Connection, OptionalExtension, params};
 
 use super::engine::{Outcome, Piece, Summary, reader_version};
+use super::supervisor::PageCounts;
 use crate::domain::dto::{
     ExtractionCounts, ExtractionOverview, ExtractionState, ExtractionStatus, FileType, JobKind,
     JobState, RootExtractionSummary,
@@ -210,6 +211,8 @@ pub enum DocumentResult<'a> {
     NoText {
         state: &'a str,
         reason: &'a str,
+        /// A PDF that needs OCR: what it is known to hold (Slice 4.1).
+        pages: Option<PageCounts>,
     },
 }
 
@@ -248,8 +251,16 @@ pub fn commit_document(
             (summary.truncated > 0).then_some("passage_truncated"),
             Some(*summary),
         ),
-        DocumentResult::NoText { state, reason } => (*state, Some(*reason), None),
+        DocumentResult::NoText { state, reason, .. } => (*state, Some(*reason), None),
     };
+    let counts = match &result {
+        DocumentResult::NoText { pages, .. } => *pages,
+        DocumentResult::Text { .. } => None,
+    };
+    let page_count = summary
+        .map(|s| s.page_count)
+        .or(counts.map(|p| p.page_count));
+    let text_pages = counts.map(|p| p.text_pages);
     let authors = summary
         .filter(|s| !s.authors.is_empty())
         .map(|s| serde_json::to_string(&s.authors).unwrap_or_default());
@@ -257,15 +268,16 @@ pub fn commit_document(
     let document_id: String = tx.query_row(
         "INSERT INTO documents (id, content_hash, state, reason, extractor_version, page_count,
              char_count, title, authors, language, content_title, refresh, boilerplate_chars,
-             created_at, updated_at)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, 0, ?13, ?12, ?12)
+             text_pages, created_at, updated_at)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, 0, ?13, ?14, ?12, ?12)
          ON CONFLICT (content_hash) DO UPDATE SET
              state = excluded.state, reason = excluded.reason,
              extractor_version = excluded.extractor_version, page_count = excluded.page_count,
              char_count = excluded.char_count, title = excluded.title,
              authors = excluded.authors, language = excluded.language,
              content_title = excluded.content_title, refresh = 0,
-             boilerplate_chars = excluded.boilerplate_chars, updated_at = excluded.updated_at
+             boilerplate_chars = excluded.boilerplate_chars, text_pages = excluded.text_pages,
+             updated_at = excluded.updated_at
          RETURNING id",
         params![
             new_id,
@@ -273,14 +285,15 @@ pub fn commit_document(
             state,
             reason,
             reader_version(file_type),
-            summary.map(|s| s.page_count),
+            page_count,
             summary.map(|s| s.char_count as i64),
             summary.and_then(|s| s.title.as_deref()),
             authors,
             summary.and_then(|s| s.language.as_deref()),
             summary.and_then(|s| s.content_title.as_deref()),
             now,
-            summary.map_or(0, |s| s.boilerplate_chars as i64)
+            summary.map_or(0, |s| s.boilerplate_chars as i64),
+            text_pages
         ],
         |r| r.get(0),
     )?;
@@ -615,7 +628,9 @@ pub fn overview(conn: &Connection, current: Option<&str>) -> rusqlite::Result<Ex
                 (SELECT state FROM jobs WHERE source_root_id = r.id AND kind = 'extract'
                    ORDER BY rowid DESC LIMIT 1),
                 (SELECT id FROM jobs WHERE source_root_id = r.id AND kind = 'extract'
-                   AND state IN ({}) ORDER BY rowid DESC LIMIT 1)
+                   AND state IN ({}) ORDER BY rowid DESC LIMIT 1),
+                (SELECT last_error FROM jobs WHERE source_root_id = r.id AND kind = 'extract'
+                   AND state = 'failed_terminal' ORDER BY rowid DESC LIMIT 1)
          FROM source_roots r ORDER BY r.display_path, r.id",
         state_list(ACTIVE_STATES)
     ))?;
@@ -623,17 +638,24 @@ pub fn overview(conn: &Connection, current: Option<&str>) -> rusqlite::Result<Ex
         .query_map([], |r| {
             let id: String = r.get(0)?;
             let last: Option<String> = r.get(1)?;
-            Ok((id, last, r.get::<_, Option<String>>(2)?))
+            Ok((
+                id,
+                last,
+                r.get::<_, Option<String>>(2)?,
+                r.get::<_, Option<String>>(3)?,
+            ))
         })?
         .collect::<rusqlite::Result<Vec<_>>>()?
         .into_iter()
-        .map(|(id, last, active_job_id)| RootExtractionSummary {
+        .map(|(id, last, active_job_id, failed)| RootExtractionSummary {
             counts: per_root
                 .iter()
                 .find(|(r, _)| *r == id)
                 .map(|(_, c)| c.clone())
                 .unwrap_or_default(),
             source_root_id: id,
+            // Only while that failure is the folder's latest job.
+            failed_because: failed.filter(|_| last.as_deref() == Some("failed_terminal")),
             last_state: last.as_deref().and_then(from_db),
             active_job_id,
         })

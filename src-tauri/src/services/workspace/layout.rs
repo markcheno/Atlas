@@ -29,6 +29,9 @@ pub const DIRECTORIES: &[&str] = &[
     "jobs/checkpoints",
     "models",
     "exports",
+    // Diagnostics reports the user saved (Slice 4.1).
+    "exports/diagnostics",
+    // The log (Slice 4.1). Never cleaned by Clean caches.
     "logs",
     TMP,
     "backups",

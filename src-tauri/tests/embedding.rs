@@ -701,3 +701,55 @@ fn p2_19_the_meaning_index_is_counted_estimated_and_kept_by_clean_caches() {
         vectors
     );
 }
+
+/// Slice 4.1 (found by P3-13 on CI): a document read again after the job
+/// has passed it waits again, and the reading job's trigger sees this job
+/// still running. The job looks once more from the start before finishing,
+/// so the document isn't left waiting until the next launch.
+#[test]
+fn a_document_read_again_behind_the_job_is_embedded_before_it_ends() {
+    let lib = Lib::new();
+    lib.read_books(8, 0);
+    lib.h.script.with(|s| s.delay = Duration::from_millis(150));
+    lib.set_role("http://localhost:9/v1", DIMS);
+    let model = lib.active_model();
+    let c = lib.catalog();
+    let first: String = c
+        .query_row(
+            "SELECT id FROM documents WHERE state = 'done' ORDER BY rowid LIMIT 1",
+            [],
+            |r| r.get(0),
+        )
+        .unwrap();
+    // Once the job is past the first document, it is "read again": its
+    // vectors' record goes, as `commit_document` does.
+    let past = || {
+        lib.catalog()
+            .query_row(
+                "SELECT COUNT(*) FROM document_embeddings WHERE document_id = ?1 AND status = 'done'",
+                [&first],
+                |r| r.get::<_, i64>(0),
+            )
+            .unwrap()
+            == 1
+    };
+    assert!(
+        wait_until(LONG, past),
+        "the job never reached the first book"
+    );
+    assert!(lib.overview().active.is_some(), "the job is still running");
+    let (doc, m) = (first.clone(), model.clone());
+    lib.root()
+        .catalog()
+        .call(move |c| {
+            c.execute(
+                "DELETE FROM document_embeddings WHERE document_id = ?1 AND model_id = ?2",
+                [&doc, &m],
+            )
+        })
+        .unwrap()
+        .unwrap();
+    lib.wait_idle();
+    assert!(past(), "embedded again before the job ended");
+    assert_eq!(lib.overview().counts.waiting, 0);
+}

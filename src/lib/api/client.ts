@@ -69,6 +69,9 @@ import type { Membership } from './bindings/Membership';
 import type { Suggestion } from './bindings/Suggestion';
 import type { PageImage } from './bindings/PageImage';
 import type { ExportFormat } from './bindings/ExportFormat';
+import type { DiagnosticsFolder } from './bindings/DiagnosticsFolder';
+import type { DiagnosticsStatus } from './bindings/DiagnosticsStatus';
+import type { ReportSaved } from './bindings/ReportSaved';
 import type { ExportReport } from './bindings/ExportReport';
 import type { ExportScope } from './bindings/ExportScope';
 import type { ImportPreview } from './bindings/ImportPreview';
@@ -303,6 +306,14 @@ export const atlas = {
   applyImport: (token: string) => call<ImportReport>('apply_import', { token }),
   /** Shows the last export's Atlas folder in the file manager. */
   revealExport: () => call<void>('reveal_export'),
+
+  /** Diagnostics (Slice 4.1): the log's size and the saved reports. */
+  getDiagnosticsStatus: () => call<DiagnosticsStatus>('get_diagnostics_status'),
+  /** Writes a report into the library's exports/diagnostics folder. */
+  saveDiagnosticsReport: () => call<ReportSaved>('save_diagnostics_report'),
+  /** Shows the newest report, or the log's folder, in the file manager. */
+  revealDiagnostics: (folder: DiagnosticsFolder) => call<void>('reveal_diagnostics', { folder }),
+  clearLog: () => call<DiagnosticsStatus>('clear_log'),
 } as const;
 
 export type AtlasApi = typeof atlas;

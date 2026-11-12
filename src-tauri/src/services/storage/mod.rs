@@ -5,6 +5,7 @@
 //! removes only `cache/` and `tmp/` contents, never the meaning index, the
 //! knowledge store or its snapshots.
 
+use crate::services::diagnostics::LOGS_DIR;
 use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
@@ -223,6 +224,7 @@ pub fn usage(root: &Path, volumes: &dyn VolumeInspector) -> AtlasResult<StorageU
         knowledge_bytes: store_bytes(&root.join(KNOWLEDGE)),
         snapshot_bytes: snapshots.iter().map(|s| s.bytes).sum(),
         snapshot_count: snapshots.len() as u32,
+        log_bytes: tree_bytes(&root.join(LOGS_DIR)),
         measured_at: now_rfc3339(),
     })
 }

@@ -19,6 +19,7 @@ pub mod lock;
 pub mod manifest;
 pub mod settings;
 
+use crate::services::diagnostics::{Diagnostics, Event, LogGuard};
 use std::collections::BTreeMap;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -85,11 +86,18 @@ pub struct OpenRoot {
     display: String,
     manifest: Manifest,
     settings: Settings,
+    /// The library's log (Slice 4.1), last: everything above records into
+    /// it as it closes.
+    log: LogGuard,
 }
 
 impl OpenRoot {
     pub fn path(&self) -> &Path {
         &self.path
+    }
+    /// Where this library's events are recorded (Slice 4.1).
+    pub fn diagnostics(&self) -> &Diagnostics {
+        self.log.diagnostics()
     }
     pub fn manifest(&self) -> &Manifest {
         &self.manifest
@@ -170,6 +178,8 @@ pub struct Workspace {
     /// One processor per job kind, started for every root this workspace
     /// opens (ADR 0009).
     processors: BTreeMap<JobKind, ProcessorFactory>,
+    /// Records into the open library's log (Slice 4.1).
+    diagnostics: Diagnostics,
     state: State,
 }
 
@@ -182,8 +192,20 @@ impl Workspace {
             trail_events: None,
             reader: None,
             processors: BTreeMap::new(),
+            diagnostics: Diagnostics::new(),
             state: State::NotConfigured,
         }
+    }
+
+    /// Records into `diagnostics` for every root this workspace opens
+    /// (Slice 4.1; the app shares one with the resource governor).
+    pub fn with_diagnostics(mut self, diagnostics: Diagnostics) -> Self {
+        self.diagnostics = diagnostics;
+        self
+    }
+
+    pub fn diagnostics(&self) -> &Diagnostics {
+        &self.diagnostics
     }
 
     /// The volume inspector, for free-space readings outside the workspace
@@ -439,6 +461,7 @@ impl Workspace {
         self.check_volume(path)?;
 
         let lock = lock::acquire(path)?;
+        let log = self.diagnostics.attach(path);
         let catalog_path = path.join(CATALOG);
         if !catalog_path.is_file() {
             return Err(AtlasError::DataRootInvalid {
@@ -455,7 +478,7 @@ impl Workspace {
                 catalog::convert::to_large_pages(&catalog_path, &path.join(TMP))?;
             }
         }
-        let (catalog, version) = catalog::open(&catalog_path, now_rfc3339())?;
+        let (catalog, found, version) = catalog::open_from(&catalog_path, now_rfc3339())?;
 
         // Layout repair and housekeeping, only after the lock is held.
         for dir in DIRECTORIES {
@@ -494,8 +517,15 @@ impl Workspace {
 
         let settings = settings::read(path);
         let knowledge = self.open_knowledge(path, &settings);
-        let vectors = Arc::new(VectorRegistry::new(path));
+        let vectors =
+            Arc::new(VectorRegistry::new(path).with_diagnostics(self.diagnostics.clone()));
         let reader = Arc::new(CatalogReader::open(&catalog_path)?);
+        self.diagnostics.record(Event::LibraryOpened {
+            catalog_schema: version,
+            migrated_from: (found < version).then_some(found),
+            knowledge: knowledge.state(),
+            created: false,
+        });
         Ok(OpenRoot {
             answers: Arc::default(),
             recorder: self.recorder(&knowledge, &reader),
@@ -512,6 +542,7 @@ impl Workspace {
             display,
             settings,
             manifest,
+            log,
         })
     }
 
@@ -525,13 +556,18 @@ impl Workspace {
             Arc::clone(&self.volumes),
             Arc::new(TrailSettings::new(&settings.privacy)),
         );
+        store.set_diagnostics(self.diagnostics.clone());
         store.snapshot_if_due();
         store.expire_if_due();
         store
     }
 
     fn pages(&self, path: &Path) -> Arc<ReaderService> {
-        Arc::new(ReaderService::new(path, self.reader.clone()))
+        let config = self.reader.clone().map(|mut c| {
+            c.diagnostics = Some(self.diagnostics.clone());
+            c
+        });
+        Arc::new(ReaderService::new(path, config))
     }
 
     fn recorder(&self, knowledge: &KnowledgeStore, reader: &Arc<CatalogReader>) -> Arc<Recorder> {
@@ -548,7 +584,13 @@ impl Workspace {
         path: &Path,
         vectors: &Arc<VectorRegistry>,
     ) -> AtlasResult<JobRunners> {
-        JobRunners::start(&catalog.handle(), path, &self.processors, vectors)
+        JobRunners::start(
+            &catalog.handle(),
+            path,
+            &self.processors,
+            vectors,
+            &self.diagnostics,
+        )
     }
 
     /// Creates a root, or finishes a previously interrupted creation.
@@ -569,6 +611,7 @@ impl Workspace {
             fs::create_dir_all(path.join(dir))
                 .map_err(AtlasError::io("create the library folders"))?;
         }
+        let log = self.diagnostics.attach(path);
         clear_dir(&path.join(TMP)).map_err(AtlasError::io("clean temporary files"))?;
 
         let now = now_rfc3339();
@@ -591,8 +634,15 @@ impl Workspace {
 
         let settings = settings::read(path);
         let knowledge = self.open_knowledge(path, &settings);
-        let vectors = Arc::new(VectorRegistry::new(path));
+        let vectors =
+            Arc::new(VectorRegistry::new(path).with_diagnostics(self.diagnostics.clone()));
         let reader = Arc::new(CatalogReader::open(&path.join(CATALOG))?);
+        self.diagnostics.record(Event::LibraryOpened {
+            catalog_schema: version,
+            migrated_from: None,
+            knowledge: knowledge.state(),
+            created: true,
+        });
         Ok(OpenRoot {
             answers: Arc::default(),
             recorder: self.recorder(&knowledge, &reader),
@@ -609,6 +659,7 @@ impl Workspace {
             display,
             settings,
             manifest,
+            log,
         })
     }
 }

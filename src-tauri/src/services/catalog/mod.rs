@@ -23,6 +23,12 @@ use crate::error::{AtlasError, AtlasResult};
 /// written, then enables WAL and applies pending migrations.
 /// Returns the writer and the resulting schema version.
 pub fn open(path: &Path, now: String) -> AtlasResult<(CatalogWriter, u32)> {
+    open_from(path, now).map(|(writer, _, version)| (writer, version))
+}
+
+/// As [`open`], also returning the version the catalog had before (for the
+/// log, Slice 4.1).
+pub fn open_from(path: &Path, now: String) -> AtlasResult<(CatalogWriter, u32, u32)> {
     let writer = CatalogWriter::open(path)?;
     let found = writer.call(|conn| migrations::current_version(conn))??;
     if found > SUPPORTED_SCHEMA_VERSION {
@@ -37,7 +43,7 @@ pub fn open(path: &Path, now: String) -> AtlasResult<(CatalogWriter, u32)> {
     }
     writer.call(writer::enable_wal)??;
     let version = writer.call(move |conn| migrations::migrate(conn, &now))??;
-    Ok((writer, version))
+    Ok((writer, found, version))
 }
 
 /// Inserts the local workspace row if the catalog has none yet, and returns

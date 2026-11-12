@@ -39,6 +39,7 @@ pub async fn ask_atlas(
                 root.settings().privacy.clone(),
                 Arc::clone(root.answers()),
                 Arc::clone(root.recorder()),
+                root.diagnostics().clone(),
             ))
         })
         .await?;
@@ -47,7 +48,7 @@ pub async fn ask_atlas(
         let _ = app.emit(crate::ANSWER_EVENT, event);
     });
     tauri::async_runtime::spawn_blocking(move || {
-        let (reader, vectors, catalog, privacy_settings, registry, recorder) = handles;
+        let (reader, vectors, catalog, privacy_settings, registry, recorder, diagnostics) = handles;
         answers::ask(
             &AskDeps {
                 reader: &reader,
@@ -65,6 +66,7 @@ pub async fn ask_atlas(
                 events,
                 answers: &registry,
                 recorder: Some(&recorder),
+                diagnostics: Some(&diagnostics),
             },
             &query,
         )

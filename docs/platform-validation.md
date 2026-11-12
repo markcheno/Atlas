@@ -1248,6 +1248,97 @@ merge): full run
 [42943519172](https://github.com/markcheno/Atlas/actions/runs/42943519172),
 all green on three OSes. The smoke passed every step on Windows and Linux.
 
+## Slice 4.1
+
+Diagnostics and the carry-overs (phase4-spec §15; [ADR 0021](adr/0021-diagnostics.md)).
+
+**Verified locally (macOS arm64, M5 Pro):**
+- `just ci`: 49 Rust suites and 233 Vitest tests passed.
+- The new tests:
+  - P4-01 (`tests/diagnostics.rs`): a session logged in order, a pause
+    logged once, a closed library writing nothing, an unwritable log never
+    stopping a rescan;
+  - P4-02 (`tests/recording_privacy.rs`): no marker word, file name, model
+    or service name, address or path in the log or a saved report;
+  - P4-03: the report's counts against SQL, and a report saved with the
+    knowledge store damaged;
+  - P4-04 (`tests/supervisor.rs`, `tests/refresh.rs`,
+    `tests/diagnostics.rs`): a worker of another protocol refused and never
+    restarted; the corpus's three scanned PDFs re-read once for page counts
+    4, 3 and 3, and nothing else re-read;
+  - the 0015 migration test, and Clean caches keeping the log.
+- The cost of recording: `cargo test --release --test diagnostics --
+  --ignored --nocapture` ([benchmarks](benchmarks.md#diagnostics-slice-41)).
+
+**The smoke** (Windows and Linux) gains "a diagnostics report is saved":
+- Settings › Diagnostics › Save writes one report under the data root's
+  `exports/diagnostics`.
+- It reads back as report version 1 with passages counted.
+- It holds none of the session's question, the fixture's file names, or
+  the scratch, library or data-root paths.
+- Show in… reveals it (the opener log).
+
+**CI on `slice-41`:**
+- **The first full run**
+  ([43262568031](https://github.com/markcheno/Atlas/actions/runs/43262568031))
+  failed in two places:
+  - the new smoke step, on Linux: it listed the fixture's file names with a
+    recursive read, which stopped at the fixture's deliberately unreadable
+    folder;
+  - P0-21 on Windows: closing took 1.65 s against its 1 s bound, as once
+    before in Slice 3.6 (2.28 s). It passes locally in 0.3 s.
+- **The second**
+  ([43267335370](https://github.com/markcheno/Atlas/actions/runs/43267335370))
+  failed in two other places:
+  - lint on the smoke fix;
+  - P3-13 on macOS: after the model switch, three re-read books stayed
+    waiting for meaning. An old race in the embedding job, now fixed
+    ([ADR 0014](adr/0014-the-embedding-job.md)'s amendment) and held by a
+    new test.
+- **The third**
+  ([43272535414](https://github.com/markcheno/Atlas/actions/runs/43272535414))
+  is green on three OSes. It includes the new smoke step on Windows and
+  Linux (Linux 312 ms) and P0-21 everywhere.
+  - Its macOS release bundle was assigned no runner and was cancelled
+    after 15 minutes twice. The third attempt built it.
+  - Release bundles: DMG 14.01 MiB, `.exe` 10.07 MiB, AppImage
+    90.47 MiB.
+
+### The owner's report from the real library
+
+The 4.1 build migrates the catalog to version 15, and the 0.4.0 release
+refuses a catalog that new. Copy the catalog first, so you can go back.
+The trails and notes aren't migrated. The coding agent never opens the
+library: the report you share is the evidence.
+
+1. Quit Atlas (Cmd+Q).
+2. In Finder, open the library's folder (Settings › Storage shows where).
+   Copy `library/catalog.sqlite` somewhere outside it, for example to
+   `~/Desktop/catalog-0.4.0.sqlite`. If `catalog.sqlite-wal` or
+   `catalog.sqlite-shm` are there, Atlas didn't quit cleanly: open and
+   quit 0.4.0 once more first.
+3. Open `Atlas_0.4.0_aarch64.dmg` from the `slice-41` full CI run's
+   artifacts and run that Atlas. Its version still says 0.4.0; the status
+   bar says Phase 4 slice 4.1.
+4. Wait while the status line says "Updating text": PDFs marked Needs OCR
+   are read once more to count their pages.
+5. Settings › Diagnostics › **Save a diagnostics report**, then
+   **Show in Finder**.
+6. Read the report (a JSON file), and share it if you are content to.
+   These numbers size Slices 4.3 to 4.5:
+   - `library.filesByFormat`;
+   - `library.documentsByState`;
+   - `library.ocr`: PDFs needing OCR, their pages, and empty pages in
+     read PDFs;
+   - `storage`;
+   - `library.passages` and `library.chunks`.
+7. **To go back to 0.4.0:** quit Atlas. Put the copied file back as
+   `library/catalog.sqlite`, and delete any `catalog.sqlite-wal` and
+   `catalog.sqlite-shm` beside it. Open 0.4.0. The `logs/` and
+   `exports/diagnostics/` folders can stay; 0.4.0 ignores them.
+
+**Result:** to be recorded when the owner reports it.
+
 ## Slice 3.9
 
 The Phase 3 close-out ([review](phase3-closeout.md)).

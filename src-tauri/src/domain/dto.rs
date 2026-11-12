@@ -220,7 +220,7 @@ pub struct DeviceAssessment {
     pub notes: Vec<AssessmentNote>,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, TS)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]
 #[ts(export)]
 pub struct DeviceCheck {
@@ -483,6 +483,10 @@ pub struct RootExtractionSummary {
     pub counts: ExtractionCounts,
     pub last_state: Option<JobState>,
     pub active_job_id: Option<RecordId>,
+    /// The fixed code of the folder's latest job, when it ended for good:
+    /// `extractor_unavailable`, `worker_protocol`, `path_undecodable`
+    /// (Slice 4.1).
+    pub failed_because: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize, TS)]
@@ -646,6 +650,9 @@ pub struct StorageUsage {
     #[ts(type = "number")]
     pub snapshot_bytes: u64,
     pub snapshot_count: u32,
+    /// The log (Slice 4.1). Clean caches leaves it.
+    #[ts(type = "number")]
+    pub log_bytes: u64,
     pub measured_at: String,
 }
 
@@ -2447,4 +2454,45 @@ pub struct ImportPreview {
 #[ts(export)]
 pub struct ImportReport {
     pub summary: ImportSummary,
+}
+
+// ---- diagnostics (Phase 4, 4.1)
+
+/// The log and the saved reports, for Settings › Diagnostics.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct DiagnosticsStatus {
+    #[ts(type = "number")]
+    pub log_bytes: u64,
+    pub log_files: u32,
+    /// Events lost because the writer fell behind, not yet in the log.
+    #[ts(type = "number")]
+    pub dropped_events: u64,
+    /// The log stopped after a failed write; it starts again when the
+    /// library is opened again.
+    pub log_stopped: bool,
+    pub reports: u32,
+    /// When the newest report was saved.
+    pub last_report_at: Option<String>,
+}
+
+/// A report just saved.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct ReportSaved {
+    pub saved_at: String,
+    #[ts(type = "number")]
+    pub bytes: u64,
+    pub status: DiagnosticsStatus,
+}
+
+/// Which folder Show in Finder opens (Slice 4.1).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "snake_case")]
+#[ts(export)]
+pub enum DiagnosticsFolder {
+    Reports,
+    Log,
 }
