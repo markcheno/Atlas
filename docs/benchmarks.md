@@ -473,6 +473,11 @@ Under the 500 ms p95 target by eight times or more everywhere. Windows
 reports the worker's working set, which is smaller than what macOS and
 Linux report as resident.
 
+**After the DMG smoke** (Slice 3.9), the passage is looked for in pieces
+when its start isn't found ([ADR 0018](adr/0018-the-page-view.md),
+amended). On the M5 Pro, 37 of 37 pages are outlined (33 before), at a p95
+of 17.9 ms with the passage. The evidence run above predates it.
+
 **The knowledge store at 100,000 steps** (10,000 trails; [Slice 3.8](#knowledge-store-and-export-slice-38)):
 
 | Runner | Import dry run / apply s | Import peak memory MiB | Trails list p95 ms | Filtered p95 ms | 50-step trail p95 ms | Recording a search / an answer p95 ms | Snapshot s | 1,000 notes s | JSON export s (MiB) |

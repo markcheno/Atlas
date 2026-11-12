@@ -111,6 +111,15 @@ class TrailViewState {
     await this.#loadDetail();
   }
 
+  /**
+   * Fetches the open trail again: its sources are resolved against the
+   * library as it is now, which a rescan or a re-read may have changed
+   * since it was shown (Slice 3.9).
+   */
+  async reload() {
+    await this.#loadDetail();
+  }
+
   /** Back to the list. */
   close() {
     this.#detailSeq++;

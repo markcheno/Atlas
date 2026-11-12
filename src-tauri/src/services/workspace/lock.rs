@@ -13,6 +13,11 @@ use std::path::Path;
 use super::layout::LOCK;
 use crate::error::{AtlasError, AtlasResult};
 
+/// How often, and how long apart, a held lock is tried again: half a
+/// second in all.
+const LOCK_RETRIES: u32 = 10;
+const LOCK_RETRY_WAIT: std::time::Duration = std::time::Duration::from_millis(50);
+
 #[derive(Debug)]
 pub struct RootLock {
     _file: File,
@@ -26,10 +31,21 @@ pub fn acquire(root: &Path) -> AtlasResult<RootLock> {
         .truncate(false)
         .open(root.join(LOCK))
         .map_err(AtlasError::io("open the library lock"))?;
-    match file.try_lock() {
-        Ok(()) => {}
-        Err(TryLockError::WouldBlock) => return Err(AtlasError::DataRootInUse),
-        Err(TryLockError::Error(err)) => return Err(AtlasError::io("lock the library")(err)),
+    // A lock just released can still look held for a moment: a process
+    // this one is starting can share the file until it has started (seen
+    // once in a test run of Slice 3.9, a library reopened while another
+    // test started a worker). Another Atlas holding it is still refused.
+    let mut tries = 0;
+    loop {
+        match file.try_lock() {
+            Ok(()) => break,
+            Err(TryLockError::WouldBlock) if tries < LOCK_RETRIES => {
+                tries += 1;
+                std::thread::sleep(LOCK_RETRY_WAIT);
+            }
+            Err(TryLockError::WouldBlock) => return Err(AtlasError::DataRootInUse),
+            Err(TryLockError::Error(err)) => return Err(AtlasError::io("lock the library")(err)),
+        }
     }
     // Best effort; failure to annotate does not affect locking.
     let _ = file.set_len(0).and_then(|()| {

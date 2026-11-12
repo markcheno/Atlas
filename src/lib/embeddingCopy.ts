@@ -18,7 +18,7 @@ export interface MeaningLine {
 function pausedText(reason: PauseReason | null): string {
   switch (reason) {
     case 'on_battery':
-      return 'Paused indexing meaning · On battery';
+      return 'Paused indexing meaning on battery · Resumes when plugged in';
     case 'battery_low':
       return 'Paused indexing meaning · Resumes at 25% or when plugged in';
     case 'low_disk_space':

@@ -4,17 +4,23 @@
   // Rust's folder dialog, starting at the last folder used. The result says
   // where Atlas wrote and what. Escape closes and returns focus.
   import { tick } from 'svelte';
+  import { atlas, AtlasApiError, toApiError } from '../api/client';
+  import { revealLabel } from '../libraryCopy';
+  import { appInfo } from '../stores/app.svelte';
   import {
     CHOOSE_AND_EXPORT,
     EVERYTHING,
+    EXPORT_EVERYTHING_TITLE,
     EXPORT_NOTE,
     EXPORT_TITLE,
     EXPORTING,
     exportResult,
     MARKDOWN_LINKS,
     MARKDOWN_NOTES,
+    MARKDOWN_NOTES_NOTE,
     OBSIDIAN_LINKS,
     ONE_JSON_FILE,
+    ONE_JSON_FILE_NOTE,
     thisItem,
   } from '../exportCopy';
   import { exportDialog } from '../stores/exportDialog.svelte';
@@ -22,9 +28,24 @@
 
   let dialog = $state<HTMLElement>();
   let exportButton = $state<HTMLButtonElement>();
+  let revealError = $state<AtlasApiError | null>(null);
+  const reveal = $derived(revealLabel(appInfo.status?.os));
+
+  /** Shows the folder the export went to, as Rust remembers it. */
+  async function showFolder() {
+    revealError = null;
+    try {
+      await atlas.revealExport();
+    } catch (err) {
+      revealError = err instanceof AtlasApiError ? err : toApiError('reveal_export', err);
+    }
+  }
 
   $effect(() => {
-    if (exportDialog.open) void tick().then(() => exportButton?.focus());
+    if (exportDialog.open) {
+      revealError = null;
+      void tick().then(() => exportButton?.focus());
+    }
   });
 
   /** Tab stops: buttons and the checked radio of each group. */
@@ -70,8 +91,11 @@
     onkeydown={onKeydown}
   >
     <h2 id="export-title">
-      {EXPORT_TITLE}{#if exportDialog.item && !exportDialog.everything}: {exportDialog.item
-          .name}{/if}
+      {#if exportDialog.item && !exportDialog.everything}
+        {EXPORT_TITLE}: {exportDialog.item.name}
+      {:else}
+        {EXPORT_EVERYTHING_TITLE}
+      {/if}
     </h2>
 
     {#if exportDialog.item}
@@ -109,6 +133,7 @@
         />
         {MARKDOWN_NOTES}
       </label>
+      <p class="muted small hint">{MARKDOWN_NOTES_NOTE}</p>
       <label class="choice">
         <input
           type="radio"
@@ -118,6 +143,7 @@
         />
         {ONE_JSON_FILE}
       </label>
+      <p class="muted small hint">{ONE_JSON_FILE_NOTE}</p>
     </fieldset>
 
     {#if exportDialog.format === 'markdown'}
@@ -150,6 +176,14 @@
       <p class="muted small" role="status">{EXPORTING}</p>
     {:else if exportDialog.report}
       <p role="status" data-testid="export-result">{exportResult(exportDialog.report)}</p>
+      <div>
+        <button type="button" class="button quiet" onclick={() => void showFolder()}>
+          {reveal}
+        </button>
+      </div>
+      {#if revealError}
+        <p class="small" role="alert">{revealError.message}</p>
+      {/if}
     {/if}
     {#if exportDialog.error}
       <ProblemNotice
@@ -218,6 +252,10 @@
     margin: 0;
     padding: 0;
     border: 0;
+  }
+
+  .hint {
+    margin: 0 0 var(--space-1) calc(var(--space-2) + 16px);
   }
 
   .choice {

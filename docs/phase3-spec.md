@@ -649,6 +649,17 @@ Do **not** create `knowledge.sqlite`, add a Trails view or record anything befor
   benchmark.
 - **The snapshot target** (under 2 s at 100,000 steps) is met on the
   reference machine (0.72 s) and missed on the CI runners (3.5 to 5.1 s).
+- **From the release DMG smoke:**
+  - **The outline is an SVG.** Tauri's nonce in `style-src` makes WebKit
+    block inline styles, so the boxes were never drawn.
+  - **The passage is looked for in pieces** when its start isn't found
+    (ADR 0018, amended).
+  - **An open trail is fetched again** when Trails is shown.
+  - **Battery wording:** "Paused indexing meaning on battery · Resumes when
+    plugged in" replaces Phase 2's "Paused indexing meaning · On battery"
+    (phase2-spec §5.2).
+  - **Export everything…** in Settings, and **Show in Finder** after an
+    export: `reveal_export`, added to §9.
 
 **2026-11-11, Slice 3.8** (export and import; [ADR 0019](adr/0019-export-and-import.md)):
 - **A cancelled dialog is `null`:** `export_knowledge` returns

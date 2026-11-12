@@ -12,7 +12,8 @@ use crate::domain::dto::{
 };
 use crate::error::{AtlasError, AtlasResult};
 use crate::infrastructure::e2e;
-use crate::services::export::{self, Handles};
+use crate::services::export::{self, Handles, dest};
+use crate::services::workspace::settings;
 use crate::state::AppState;
 
 async fn handles(state: &State<'_, AppState>) -> AtlasResult<Handles> {
@@ -101,6 +102,23 @@ pub async fn preview_import(
         return Ok(None);
     };
     blocking(move || export::preview(&h, &path)).await.map(Some)
+}
+
+/// Shows the last export's `Atlas` folder in the file manager (Slice 3.9,
+/// after the DMG smoke: "where it goes" wasn't clear). Rust knows the
+/// folder; the renderer sends nothing.
+#[tauri::command]
+pub async fn reveal_export(state: State<'_, AppState>) -> AtlasResult<()> {
+    let opener = state.opener.clone();
+    let h = handles(&state).await?;
+    blocking(move || {
+        let folder = settings::last_export_folder(&h.data_root)
+            .map(|f| f.join(dest::ATLAS))
+            .filter(|f| f.is_dir())
+            .ok_or(AtlasError::FileMissing)?;
+        opener.reveal_original(&folder)
+    })
+    .await
 }
 
 /// Imports the file the dry run named `token` read.

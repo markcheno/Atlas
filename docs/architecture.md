@@ -68,7 +68,7 @@ commands and added the native multi-folder picker.
 | Saved | `save_bookmark`, `save_finding`, `update_saved_note`, `delete_saved`, `list_saved` | **3.5 (working)** |
 | Interests and projects | `list_collections`, `get_collection`, `save_collection`, `delete_collection`, `add_to_collection`, `remove_from_collection`, `get_collection_membership`, `get_suggestions`, `dismiss_suggestion` | **3.6 (working)** |
 | Page view | `render_page` | **3.7 (working)** |
-| Export and import | `export_knowledge` (Rust shows the folder dialog), `preview_import` (the file dialog and a dry run), `apply_import` | **3.8 (working)** |
+| Export and import | `export_knowledge` (Rust shows the folder dialog), `preview_import` (the file dialog and a dry run), `apply_import`; `reveal_export` (3.9: the last export's folder in the file manager) | **3.8 (working)** |
 
 `get_app_status` returns only facts about the running process, including a
 feature list that marks exactly which capabilities this build provides.
@@ -141,6 +141,11 @@ the first adapter lands.
   the Rust side validates every ID and path.
 - A strict Content Security Policy in `tauri.conf.json` allows only bundled
   scripts and IPC connections.
+  - **No inline styles:** Tauri adds a nonce to `style-src`, so WebKit
+    ignores its `'unsafe-inline'` and blocks every `style` attribute. jsdom
+    applies no CSP, so `src/lib/csp.test.ts` checks that no component sets
+    one, and the smoke checks that the page view's outline is drawn (Slice
+    3.9: the DMG smoke found it blocked).
 - Source files are never opened through string-built shell commands.
 - Model requests leave only from Rust, to the resolved profile's own
   address, with its key as a header, through no redirect or proxy. Document
@@ -213,6 +218,7 @@ Implemented in `src-tauri/src/services/workspace/`. Design rationale is in
 ```text
 <root>/atlas.json             manifest: root ID, layout and schema versions (written last)
 <root>/atlas.lock             exclusive OS lock while a process has the root open
+                              (a held lock is retried for 0.5 s first, Slice 3.9)
 <root>/config/settings.json   portable preferences (theme)
 <root>/library/catalog.sqlite SQLite catalog, WAL mode (+ -wal, -shm)
 <root>/library/knowledge.sqlite what the user creates: trails, bookmarks, findings, collections (Slice 3.2; ADR 0016)
@@ -1131,8 +1137,9 @@ Implemented in `src-tauri/src/services/reader/{mod,cache}.rs`,
     the default app and Close. Escape closes it, focus is trapped while it
     is open, and focus returns to the button that opened it.
   - The image is a `data:` URL with alternative text ("Page 12 of 340").
-    The outline is drawn as boxes over it, positioned in percentages so
-    they follow either size. The page's text is shown below it. The
+    The outline is an SVG over it (Slice 3.9): its rectangles are in the
+    image's pixels, with a `viewBox` of the image's size, so they follow
+    either size without inline styles. The page's text is shown below it. The
     passage is looked for only on the page it was cited on.
   - Showing a page records `record_open(…, 'page', {pageNo})` with the
     caller's `via`. A file only in the cloud asks Download and show, as

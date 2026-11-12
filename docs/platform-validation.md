@@ -1281,8 +1281,47 @@ all green on three OSes, smoke included. It built the 0.4.0 bundles.
 ### macOS arm64, Slice 3.9: release DMG smoke
 
 <!-- dmg-smoke-39 -->
-Pending: the product owner's run of the
-[checklist](#release-dmg-smoke-slice-39).
+Run by the product owner from the [checklist](#release-dmg-smoke-slice-39),
+2026-11-12:
+- **The build:** `Atlas_0.4.0_aarch64.dmg` from CI run
+  [43138111316](https://github.com/markcheno/Atlas/actions/runs/43138111316),
+  13.8 MiB.
+- **Started** with a scratch `HOME` and a scratch library, against oMLX.
+
+**What was reported**, and what came of it:
+1. **On battery, indexing meaning paused and couldn't be resumed.**
+   - That is by design: bulk embedding waits for power.
+   - The line said only "Paused indexing meaning · On battery", with no
+     Resume, which read as stuck.
+   - It now says "Paused indexing meaning on battery · Resumes when plugged
+     in". Plugged in again, it carried on as expected.
+2. **Show the page opened the cited page with no outline.** The view
+   didn't say the passage wasn't found, so it was found but not drawn.
+   - **The cause:** the outline was boxes positioned with inline styles.
+     Tauri adds a nonce to the CSP's `style-src`, and WebKit then ignores
+     `'unsafe-inline'` and blocks every `style` attribute.
+   - **Vitest couldn't see it:** jsdom applies no CSP.
+   - **Now:** the outline is an SVG over the image. `src/lib/csp.test.ts`
+     fails on any inline style in a component, and the smoke's page view
+     step requires a drawn outline in WebView2 and WebKitGTK.
+   - **Also found:** the search tried only the passage's start, which a
+     word hyphenated at a line end defeats. It now tries the passage in
+     pieces, and the benchmark outlines 37 of 37 corpus pages (33 before).
+3. **Moving the cited PDF and rescanning seemed not to work.**
+   - On a second look, it did.
+   - It turned up a real bug: coming back to Trails with a trail already
+     open showed its sources as they were before a rescan. Trails now
+     fetches the open trail again whenever it is shown (Vitest).
+4. **Import seemed not to work.**
+   - On a second look, it did.
+   - What wasn't clear was how to export everything, and where the export
+     went. Settings now says **Export everything…**, and the dialog says
+     what each format is for. After an export, **Show in Finder** reveals
+     the folder (`reveal_export`: Rust knows the folder).
+
+No other problems were reported. These fixes came after this build: they
+are covered by the tests above and CI's smoke on Windows and Linux, not by
+a second DMG run.
 
 ## Slice 3.8
 
@@ -1935,8 +1974,9 @@ Choose `~/atlas-smoke/Library` for the library and add
        left alone;
      - your note is unchanged, and Atlas's sits beside it as "… 2.md";
      - open both in a text editor (or Obsidian).
-   - Settings › Export and import › **Export…** › Everything › Markdown
+   - Settings › Export and import › **Export everything…** › Markdown
      links, into the same Vault. Notes there link to each other.
+     **Show in Finder** opens the folder Atlas wrote to.
    - **Export…** › Everything › One JSON file, into the Vault.
 8. **Import into a second library.**
    - Settings › Storage › **Use a different location…** ›
@@ -2212,7 +2252,7 @@ and read:
    it under Models › Embeddings, Test, then Use. The status bar's third
    line reads "Indexing meaning · X of N files", and Home says Atlas is
    still indexing meaning.
-2. Unplug the power (a laptop): "Paused indexing meaning · On battery",
+2. Unplug the power (a laptop): "Paused indexing meaning on battery · Resumes when plugged in" (before Slice 3.9: "Paused indexing meaning · On battery"),
    while reading text, if any, only slows. Plug it back in: indexing
    resumes.
 3. Quit mid-way and relaunch: indexing continues where it stopped.

@@ -25,7 +25,10 @@
   });
 
   onMount(() => {
-    if (!trailView.selectedId) void trailView.load();
+    // An open trail is fetched again: a rescan since may have found its
+    // moved files (Slice 3.9).
+    if (trailView.selectedId) void trailView.reload();
+    else void trailView.load();
   });
 
   // A new trail, or a step on one, shows in the list.

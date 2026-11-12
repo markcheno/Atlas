@@ -1026,6 +1026,7 @@ function defaults(): Record<string, Handler> {
       exportReport({ format: (args?.format as ExportReport['format']) ?? 'markdown' }),
     preview_import: () => importPreview(),
     apply_import: () => ({ summary: importSummary() }),
+    reveal_export: () => null,
     delete_all_trails: () => 0,
   };
 }

@@ -94,7 +94,7 @@ view, the Export dialog, and Settings' privacy and export sections.
 | Requirement | Status |
 | --- | --- |
 | The knowledge store at 10,000 trails and 100,000 steps: the Trails list and its filter, a 50-step trail, recording's cost, a snapshot, size per step | ✅ every runner and the M5 Pro ([Phase 3 summary](benchmarks.md#phase-3-summary-slice-39)): list p95 0.7–5.3 ms, a 50-step trail 21.7–65.0 ms, recording 0.3–1.8 ms, about 3,980 bytes a step |
-| The page view: first render, 1,200 px p50 and p95 with and without the passage, a cache hit, the worker's peak memory | ✅ every runner and the M5 Pro: p95 17.1 ms (M5 Pro) to 58.4 ms (Windows); a cache hit 0.4–1.5 ms; the passage outlined on 33 of 37 pages |
+| The page view: first render, 1,200 px p50 and p95 with and without the passage, a cache hit, the worker's peak memory | ✅ every runner and the M5 Pro: p95 17.1 ms (M5 Pro) to 58.4 ms (Windows); a cache hit 0.4–1.5 ms; the passage outlined on 33 of 37 pages in the evidence run, 37 of 37 after this review's fix (M5 Pro) |
 | Export: 1,000 notes as Markdown, the whole store as JSON, an import | ✅ 1,000 notes in 0.21–1.36 s; 247 MiB of JSON in 0.69–5.86 s; import applied in 11.7–46.1 s, peaking at about 2.4 times the file |
 | The carry-over: the Gutenberg books re-read and re-embedded (how many chunks changed) | ✅ `tests/gutenberg_reread.rs` on every OS: 906 → 788 chunks, 12 embedded again, 776 kept |
 | macOS first; Windows and Linux CI evidence before sign-off | ✅ evidence run [43140187034](https://github.com/markcheno/Atlas/actions/runs/43140187034) |
@@ -108,7 +108,7 @@ view, the Export dialog, and Settings' privacy and export sections.
 | Bundles: the growth since 0.3.0; no new native library | ✅ +0.7 to +1.1 MiB per bundle, +2.9 MB (macOS) and +4.3 MB (Linux) per executable ([packaging](packaging.md)); the page view uses the bundled PDFium |
 | CI: the new tests in the full tier; the bench job adds `benches/knowledge.rs` and `benches/reader.rs` | ✅ every full run; the bench job on `main` since 3.7 (the page view) and 3.8 (the knowledge store at 10k) |
 | Smoke: recorded, relaunch, resumed with its citation, a bookmark, the page view, an export | ✅ Windows and Linux (Slice 3.8; a debug-only hook answers the export folder dialog) |
-| Release evidence: the DMG smoke on macOS against oMLX, with a real session resumed | <!-- dmg-row --> Pending: the product owner's run of the [checklist](platform-validation.md#release-dmg-smoke-slice-39) on the CI-built `Atlas_0.4.0_aarch64.dmg` (run 43138111316) |
+| Release evidence: the DMG smoke on macOS against oMLX, with a real session resumed | ◐ the CI-built `Atlas_0.4.0_aarch64.dmg` (run 43138111316), run by the product owner against oMLX ([result](platform-validation.md#macos-arm64-slice-39-release-dmg-smoke)). The session resumed, the moved file's citation opened, and export and import worked. It found four problems, fixed below. The fixes are verified by tests and CI's smoke, not by a second DMG run |
 | Starts without Python, Docker, a database server, Ollama or an LLM; without AI, trails, bookmarks, interests, the page view and export all work | ✅ the smoke's Phase 1 steps; the Rust tests of trails, saved items, collections, the page view and export run without a model; DMG smoke step 1 |
 
 ## Acceptance checklist (§16): assessment
@@ -122,7 +122,7 @@ view, the Export dialog, and Settings' privacy and export sections.
 | I can bookmark a place and keep an answer or a passage with a note | ✅ | P3-15; the smoke's bookmark step; DMG smoke step 3 |
 | I can group things under an interest or a project, and never have to | ✅ | P3-17; DMG smoke step 3 |
 | Home shows where I left off and suggests things I haven't opened | ✅ | P3-18; Vitest; DMG smoke step 6 |
-| A citation or bookmark in a PDF shows the page, the passage marked | ✅ | P3-19; the smoke; DMG smoke step 3. The outline is missed where PDFium reads the text differently (4 of 37 benchmark pages), and the view says so |
+| A citation or bookmark in a PDF shows the page, the passage marked | ✅ after a fix | P3-19; the smoke, which since Slice 3.9 requires the outline to be drawn; DMG smoke step 3 found the page right but no outline, fixed below. 37 of 37 benchmark pages are outlined |
 | I can export a trail, a finding or everything as Markdown into a folder I choose, and Atlas never overwrites my own notes there | ✅ | P3-22, P3-23; the smoke's export step; DMG smoke step 7 |
 | I can export everything as one file and import it again | ✅ | P3-24; DMG smoke step 8 |
 | Cleaning caches, a crash or a damaged catalog never costs me my trails and notes | ✅ | P3-04 to P3-08; DMG smoke step 9 |
@@ -131,6 +131,30 @@ view, the Export dialog, and Settings' privacy and export sections.
 
 ## Fixed during this review
 
+- **The page view's outline was never drawn in the app** (the DMG smoke).
+  - **The cause:** inline styles. Tauri's nonce in the CSP's `style-src`
+    makes WebKit ignore `'unsafe-inline'`.
+  - **Missed by the tests:** jsdom applies no CSP.
+  - **The fix:** the outline is now an SVG. A Vitest check forbids inline
+    styles in components, and the smoke requires a drawn outline.
+- **The passage was looked for only by its start,** which a word
+  hyphenated at a line end defeats. It is looked for in pieces now: 37 of 37
+  corpus pages are outlined.
+- **An open trail showed its sources as they were before a rescan** (the
+  DMG smoke's move step). Trails fetches the open trail again when shown.
+- **The battery pause read as stuck** (the DMG smoke). The line now says
+  that indexing resumes when plugged in.
+- **A library reopened at once could be refused as "in use".**
+  - **Seen:** once in about six local runs of `tests/knowledge.rs`, whose
+    tests run in parallel and spawn processes.
+  - **The likely cause:** a process this one is starting can share the
+    lock file briefly, until it has started.
+  - **The fix:** the lock is now tried again for up to half a second
+    before a library is called in use. 20 runs in a row then passed, and a
+    real second Atlas is still refused.
+- **How to export everything, and where it went, wasn't clear** (the DMG
+  smoke). Settings now says **Export everything…**, the formats say what
+  they are for, and **Show in Finder** follows an export.
 - **The import cap held only about 100,000 steps.** A whole-store export of
   the benchmark's store was 247.5 MiB against the 256 MiB cap. It is 1 GiB
   now (the product owner's choice), and the benchmark records import's
@@ -208,13 +232,18 @@ Each one is recorded where it was made: the spec's revision notes and ADRs
     so nothing waits on one.
   - An incremental or page-level copy is the fix if real libraries get
     there.
-- **The page view's outline is missed** where PDFium's page text differs
-  from the extracted text. Superscript author marks and hyphens PDFium
-  marks with a control character both do it: 4 of 37 corpus pages. The
-  page shows, with a note, and its text is below it.
+- **The page view's outline can still be missed** where none of a
+  passage's pieces match PDFium's page text. All 37 corpus pages match since
+  this review's fix. The page still shows, with a note, and its text is
+  below it.
 - **Import holds the parsed file in memory:** about 2.4 times its size, so
   about 2.4 GiB at the cap. A streaming import is the way past that, if
   stores grow so large.
+- **P3-18 once found no suggestions on its first call,** in a full local
+  run (Slice 3.9); twelve runs of it alone passed.
+  - Suggestions are empty while the meaning index isn't loaded, by design.
+  - The test now waits for the first ones.
+  - Why the index wasn't loaded at that moment isn't known.
 - **P0-21 failed once on Windows in Slice 3.6** (closing took 2.28 s
   against its 1 s bound). It has passed in every run since, including the
   ones in this slice.
@@ -245,9 +274,7 @@ From Phase 3's measurements and decisions, not new requirements:
 - **Snapshots of large stores:** incremental, or timed against the
   library's real size.
 - **Import past 1 GiB:** streaming, if any library gets there.
-- **The page view:** an outline that survives PDFium's text differences,
-  for example by matching after folding superscripts and control
-  characters. An EPUB renderer is still a later phase's reader.
+- **The page view:** an EPUB renderer is still a later phase's reader.
 - **Still deferred by the spec:** `atlas://` links, the "Check for newer
   recommendations" fetch, sync of trails and bookmarks (Phase 5), signing
   and notarization.

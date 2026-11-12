@@ -21,6 +21,12 @@ pub const MAX_PNG_BYTES: usize = 8 * 1024 * 1024;
 /// [`FALLBACK_CHARS`].
 pub const FIND_CHARS: usize = 200;
 pub const FALLBACK_CHARS: usize = 60;
+/// Then by pieces of about this many characters (Slice 3.9).
+pub const PIECE_CHARS: usize = 60;
+/// A piece shorter than this could match anywhere.
+pub const PIECE_MIN_CHARS: usize = 20;
+/// At most this many pieces are looked for.
+pub const MAX_PIECES: usize = 16;
 
 /// A rendered page.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -36,6 +42,49 @@ pub struct Page {
 /// `text` with runs of whitespace as one space, trimmed.
 pub fn normalized(text: &str) -> String {
     text.split_whitespace().collect::<Vec<_>>().join(" ")
+}
+
+/// Characters PDFium's page search doesn't match as the page's text has
+/// them: the mark it puts where a word is hyphenated across a line end
+/// (U+0002) and other control characters, a soft hyphen, private-use
+/// characters (search's highlight markers), the replacement character and
+/// an ellipsis (a snippet's ends).
+fn breaks_a_piece(c: char) -> bool {
+    (c.is_control() && !c.is_whitespace())
+        || matches!(c, '\u{AD}' | '\u{2026}' | '\u{FFFD}' | '\u{FFFE}')
+        || ('\u{E000}'..='\u{F8FF}').contains(&c)
+}
+
+/// The pieces of `find` to look for when its start isn't found: its runs
+/// between characters PDFium matches differently, cut at spaces into
+/// pieces of about [`PIECE_CHARS`], in order, at most [`MAX_PIECES`].
+pub fn pieces(find: &str) -> Vec<String> {
+    let mut out = Vec::new();
+    for run in find.split(breaks_a_piece) {
+        let words: Vec<&str> = run.split_whitespace().collect();
+        let mut piece = String::new();
+        for w in words {
+            if !piece.is_empty() && piece.chars().count() + 1 + w.chars().count() > PIECE_CHARS {
+                if piece.chars().count() >= PIECE_MIN_CHARS {
+                    out.push(std::mem::take(&mut piece));
+                } else {
+                    piece.clear();
+                }
+            }
+            if !piece.is_empty() {
+                piece.push(' ');
+            }
+            piece.push_str(w);
+        }
+        if piece.chars().count() >= PIECE_MIN_CHARS {
+            out.push(piece);
+        }
+        if out.len() >= MAX_PIECES {
+            out.truncate(MAX_PIECES);
+            break;
+        }
+    }
+    out
 }
 
 fn prefix(text: &str, n: usize) -> &str {
@@ -67,26 +116,30 @@ fn encode_png(width: u32, height: u32, rgba: &[u8]) -> Result<Vec<u8>, &'static 
     Ok(out)
 }
 
-/// Where `find` is on the page, in pixels: its first [`FIND_CHARS`]
-/// characters, else its first [`FALLBACK_CHARS`]. Empty when it isn't
-/// there, or the page has no text (a scan).
+/// Where `find` is on the page, in pixels.
+///
+/// 1. Its first [`FIND_CHARS`] characters, else its first
+///    [`FALLBACK_CHARS`] (Slice 3.7).
+/// 2. Else every one of its [`pieces`] that is on the page (Slice 3.9): an
+///    excerpt that crosses a hyphenated line end, or a search snippet with
+///    its ellipses, is still outlined where its words are.
+///
+/// Empty when none of it is there, or the page has no text (a scan).
 fn locate(page: &PdfPage<'_>, config: &PdfRenderConfig, find: &str) -> Vec<RenderRect> {
     let Ok(text) = page.text() else {
         return Vec::new();
     };
-    let needle = normalized(find);
-    for n in [FIND_CHARS, FALLBACK_CHARS] {
-        let query = prefix(&needle, n);
+    let found = |query: &str| -> Vec<RenderRect> {
         if query.is_empty() {
-            continue;
+            return Vec::new();
         }
         let Ok(search) = text.search(query, &PdfSearchOptions::new()) else {
-            continue;
+            return Vec::new();
         };
         let Some(segments) = search.find_next() else {
-            continue;
+            return Vec::new();
         };
-        let rects: Vec<RenderRect> = segments
+        segments
             .iter()
             .filter_map(|segment| {
                 let b = segment.bounds();
@@ -100,12 +153,24 @@ fn locate(page: &PdfPage<'_>, config: &PdfRenderConfig, find: &str) -> Vec<Rende
                     height: (y1 - y2).unsigned_abs().max(1),
                 })
             })
-            .collect();
+            .collect()
+    };
+    let needle = normalized(find);
+    for n in [FIND_CHARS, FALLBACK_CHARS] {
+        let rects = found(prefix(&needle, n));
         if !rects.is_empty() {
             return rects;
         }
     }
-    Vec::new()
+    let mut rects: Vec<RenderRect> = Vec::new();
+    for piece in pieces(find) {
+        for r in found(&piece) {
+            if !rects.contains(&r) {
+                rects.push(r);
+            }
+        }
+    }
+    rects
 }
 
 /// Renders page `page` (1-based) of `file` `width` pixels wide, and finds
@@ -149,6 +214,27 @@ pub fn render(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn pieces_skip_what_pdfium_reads_differently() {
+        // A hyphenated line end as PDFium writes it, and a snippet's ends.
+        let find = "…the donor pools, alterna\u{2}\r\ntive preperiods, and leave one donor out refits of the synthetic control…";
+        let got = pieces(find);
+        assert!(got.iter().all(|p| !p.contains(['\u{2}', '…'])), "{got:?}");
+        assert!(got.iter().all(|p| p.chars().count() >= PIECE_MIN_CHARS));
+        assert!(got.iter().all(|p| p.chars().count() <= PIECE_CHARS));
+        assert!(
+            got.contains(&"the donor pools, alterna".to_owned()),
+            "{got:?}"
+        );
+        assert!(
+            got[1].starts_with("tive preperiods, and leave one donor"),
+            "{got:?}"
+        );
+        // Short runs are left out; the count is capped.
+        assert!(pieces("a\u{2}b").is_empty());
+        assert!(pieces(&"word ".repeat(2_000)).len() == MAX_PIECES);
+    }
 
     #[test]
     fn the_passage_is_looked_for_by_its_start_with_whitespace_collapsed() {

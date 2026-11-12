@@ -33,6 +33,12 @@ use common::{Env, ExtractionHarness, code, fast_extraction, wait_until, worker};
 
 const LONG: Duration = Duration::from_secs(180);
 
+/// The library reopened; if not, why (seen once under a full local run's
+/// load, Slice 3.9: `NoDataRoot` just after a reopen).
+fn opened(ws: &Workspace) {
+    assert!(ws.require_open().is_ok(), "not reopened: {:?}", ws.status());
+}
+
 fn knowledge_of(ws: &Workspace) -> &atlas_lib::services::knowledge::KnowledgeStore {
     ws.require_open().unwrap().knowledge()
 }
@@ -90,6 +96,7 @@ fn p3_04_created_on_first_open_and_reopened_as_it_was() {
 
     let mut ws = env.workspace();
     ws.startup();
+    opened(&ws);
     assert_eq!(ws.status().state, DataRootState::Open);
     let store = knowledge_of(&ws);
     assert_eq!(store.state(), KnowledgeState::Ready);
@@ -120,6 +127,7 @@ fn p3_04_a_newer_store_is_left_alone_and_the_library_still_opens() {
     {
         let mut ws = env.workspace();
         ws.startup();
+        opened(&ws);
         assert_eq!(ws.status().state, DataRootState::Open, "the library opens");
         let store = knowledge_of(&ws);
         assert_eq!(store.state(), KnowledgeState::Incompatible);
@@ -149,6 +157,7 @@ fn p3_04_a_store_atlas_cannot_read_is_left_alone() {
     {
         let mut ws = env.workspace();
         ws.startup();
+        opened(&ws);
         assert_eq!(ws.status().state, DataRootState::Open);
         assert_eq!(knowledge_of(&ws).state(), KnowledgeState::Damaged);
         assert_eq!(
@@ -168,6 +177,7 @@ fn p3_04_a_store_atlas_cannot_read_is_left_alone() {
     {
         let mut ws = env.workspace();
         ws.startup();
+        opened(&ws);
         assert_eq!(knowledge_of(&ws).state(), KnowledgeState::Damaged);
     }
     assert_eq!(fs::read(&path).unwrap(), foreign);
@@ -229,12 +239,14 @@ fn p3_06_a_snapshot_when_changed_at_most_daily_keeping_fourteen() {
     {
         let mut ws = ws_at(&clock);
         ws.startup();
+        opened(&ws);
         add_collection(&ws, "c3");
     }
     clock.advance(day);
     {
         let mut ws = ws_at(&clock);
         ws.startup();
+        opened(&ws);
         assert_eq!(
             knowledge_of(&ws).status().snapshots.last_outcome,
             Some(SnapshotOutcome::Taken)
@@ -246,6 +258,7 @@ fn p3_06_a_snapshot_when_changed_at_most_daily_keeping_fourteen() {
     // after it is in place.
     let mut ws = ws_at(&clock);
     ws.startup();
+    opened(&ws);
     let first = snapshots(&root)[0].path.clone();
     for n in 0..11 {
         clock.advance(day);
