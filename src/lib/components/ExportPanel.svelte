@@ -6,7 +6,7 @@
   import { atlas, AtlasApiError, toApiError } from '../api/client';
   import type { ImportPreview } from '../api/bindings/ImportPreview';
   import {
-    EXPORT,
+    EXPORT_EVERYTHING,
     EXPORT_IMPORT_NOTE,
     IMPORT,
     IMPORT_FROM_FILE,
@@ -62,7 +62,7 @@
 <p>{EXPORT_IMPORT_NOTE}</p>
 <div class="actions">
   <button type="button" class="button" onclick={(e) => exportDialog.show(null, e.currentTarget)}>
-    {EXPORT}
+    {EXPORT_EVERYTHING}
   </button>
   <button type="button" class="button" disabled={busy} onclick={() => void choose()}>
     {IMPORT_FROM_FILE}

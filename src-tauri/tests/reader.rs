@@ -228,6 +228,38 @@ fn p3_19_a_page_with_its_passage_outlined() {
         .unwrap();
     assert!(scanned.width == 600 && !scanned.found);
 
+    // Slice 3.9 (the owner's DMG smoke): a search snippet, with its
+    // ellipses, is outlined where its words are.
+    let snippet = lib
+        .render(&file, 1, 800, Some("…Engineering marker 1…"))
+        .unwrap();
+    assert!(snippet.found, "a snippet's ellipses don't hide it");
+    // A real paper's passage that crosses a word hyphenated at a line end,
+    // as PDFium writes it (U+0002 and a line break): its start can't be
+    // matched, so its pieces are.
+    let paper = corpus().join("pdf/real/arxiv-2609.04872.pdf");
+    let cited = lib
+        .pages()
+        .render(
+            Prepared {
+                hash: "paper".into(),
+                text: String::new(),
+                path: Ok(paper),
+            },
+            2,
+            800,
+            Some(
+                "\nyear pseudo holdouts, alternative donor pools, alterna\u{2}tive preperiods, \
+                 and leave one donor out refits. The\r\nconceptual",
+            ),
+        )
+        .unwrap();
+    assert!(
+        cited.found && cited.rects.len() > 1,
+        "outlined where its words are: {:?}",
+        cited.rects
+    );
+
     // The last page plus one: a clear refusal, and the worker lives on.
     assert!(matches!(
         lib.render(&file, 3, 800, None),

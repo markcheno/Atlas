@@ -76,8 +76,16 @@ protocol fault, and the supervisor kills the worker.
 
 The text to find has its whitespace collapsed. PDFium's text search looks
 for its first 200 characters on the page, and if they aren't found, for the
-first 60. Each match's segments become rectangles through
-`points_to_pixels`. Not found means no rectangles and `found: false`, never
+first 60.
+
+**Amended in Slice 3.9**, after the release DMG smoke. If neither start is
+found, the search tries the text in pieces of about 60 characters (at most
+16). Pieces break at what PDFium matches differently: the mark it puts on a
+word hyphenated at a line end, other control characters, a snippet's
+ellipses, and private-use characters. Every piece that is on the page is
+outlined. The benchmark's corpus pages went from 33 to 37 of 37 outlined.
+
+Each match's segments become rectangles through `points_to_pixels`. Not found means no rectangles and `found: false`, never
 an error: a scanned page, or text PDFium reads differently, still shows.
 
 `find` is text the screen already shows (an excerpt, a snippet). The
@@ -88,6 +96,9 @@ in the cache key's hash, and never stored.
 
 The worker returns rectangles, not a marked image. The page view draws them
 over the image, scaled to the size shown, in the theme's accent colour.
+Since Slice 3.9 they are an SVG over the image, in the image's pixels.
+Inline-styled boxes were never drawn in the app, because Tauri's nonce in
+`style-src` makes WebKit block `style` attributes.
 That means one cached page serves both themes, and the outline never
 carries meaning alone: the page's text, from the catalog's passages, is
 shown under the image for screen readers and copying.

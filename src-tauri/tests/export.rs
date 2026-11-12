@@ -433,7 +433,13 @@ fn symlink(target: &Path, link: &Path) -> bool {
         } else {
             std::os::windows::fs::symlink_file(target, link)
         };
-        if made.is_err() {
+        if let Err(e) = &made {
+            // CI asks for them (ATLAS_TEST_REQUIRE_SYMLINKS=1): a skip there
+            // would go unseen in the captured output.
+            assert!(
+                std::env::var_os("ATLAS_TEST_REQUIRE_SYMLINKS").is_none_or(|v| v != "1"),
+                "this Windows account can't make symbolic links: {e}"
+            );
             eprintln!("this Windows account can't make symbolic links: that case is skipped");
         }
         made.is_ok()

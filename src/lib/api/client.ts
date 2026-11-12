@@ -301,6 +301,8 @@ export const atlas = {
   /** Rust shows the file dialog and compares the file; nothing is written. */
   previewImport: () => call<ImportPreview | null>('preview_import'),
   applyImport: (token: string) => call<ImportReport>('apply_import', { token }),
+  /** Shows the last export's Atlas folder in the file manager. */
+  revealExport: () => call<void>('reveal_export'),
 } as const;
 
 export type AtlasApi = typeof atlas;

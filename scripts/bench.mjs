@@ -20,9 +20,11 @@
 // --sweep adds the 30k throttle sweep (about 10 minutes) used to choose
 // the cataloging rate. --search-only runs just the search benchmark,
 // --extraction-only just the extraction benchmark; --evidence is the
-// close-outs' run (`just ci-remote evidence`): Phase 1's extraction on the
-// 30k text fixture, unthrottled, failing unless every file is read, and
-// (Phase 2, Slice 2.8) the embedding benchmark on the 10k text fixture;
+// close-out's run (`just ci-remote evidence`; Phase 3, Slice 3.9): the
+// knowledge store at 100k steps and the page view. --evidence-phase2 is
+// the earlier close-outs' run: Phase 1's extraction on the 30k text
+// fixture, unthrottled, failing unless every file is read, and (Slice 2.8)
+// the embedding benchmark on the 10k text fixture;
 // --embedding-only runs just the embedding benchmark (Phase 2, P2-18): the
 // embed job on the text fixture of --embedding-size (default: the search
 // size) with hybrid search timed while it runs; --max-p95-ms then applies
@@ -58,7 +60,8 @@ const out = path.resolve(opt('out', path.join(os.tmpdir(), 'atlas-bench')));
 const sweep = args.includes('--sweep');
 const searchOnly = args.includes('--search-only');
 const evidence = args.includes('--evidence');
-const extractionOnly = evidence || args.includes('--extraction-only');
+const phase2Evidence = args.includes('--evidence-phase2');
+const extractionOnly = phase2Evidence || args.includes('--extraction-only');
 const vectorsOnly = args.includes('--vectors-only');
 const embeddingOnly = args.includes('--embedding-only');
 const readerOnly = args.includes('--reader-only');
@@ -75,16 +78,16 @@ if (onlyFlags.filter(Boolean).length > 1)
   throw new Error(
     '--search-only, --extraction-only, --vectors-only, --embedding-only, --reader-only and --knowledge-only exclude each other',
   );
-// Without an --X-only flag, everything runs (and --evidence is extraction's).
-const all = !onlyFlags.some(Boolean);
+// Without an --X-only or evidence flag, everything runs.
+const all = !onlyFlags.some(Boolean) && !evidence;
 const runInventory = all;
 const runSearch = all || searchOnly;
 const runExtraction = all || extractionOnly;
 const runVectors = all || vectorsOnly;
-const runEmbedding = all || embeddingOnly || evidence;
-const runReader = (all && !evidence) || readerOnly;
-const runKnowledge = (all && !evidence) || knowledgeOnly;
-const knowledgeSize = opt('knowledge-size', '100k');
+const runEmbedding = all || embeddingOnly || phase2Evidence;
+const runReader = all || readerOnly || evidence;
+const runKnowledge = all || knowledgeOnly || evidence;
+const knowledgeSize = evidence ? '100k' : opt('knowledge-size', '100k');
 if (!['100k', '10k'].includes(knowledgeSize)) throw new Error('--knowledge-size is 100k or 10k');
 const knowledgeArgs =
   knowledgeSize === '100k'
@@ -96,7 +99,7 @@ if (!Number.isInteger(vectorsSize) || vectorsSize < 100)
 const maxP95 = opt('max-p95-ms', null);
 const searchSize = opt('search-size', '30k');
 if (!['30k', '1k'].includes(searchSize)) throw new Error('--search-size is 30k or 1k');
-const extractionSize = evidence ? '30k' : opt('extraction-size', searchSize);
+const extractionSize = phase2Evidence ? '30k' : opt('extraction-size', searchSize);
 if (!['30k', '1k'].includes(extractionSize)) throw new Error('--extraction-size is 30k or 1k');
 fs.mkdirSync(path.join(out, 'fixtures'), { recursive: true });
 
@@ -136,7 +139,7 @@ const extractionLabel = `${extractionSize}-text`;
 const extractionFixture = runExtraction ? textFixture(extractionSize) : null;
 // The close-out's embedding evidence is 10k files on every runner: 30k
 // took 69 minutes on the reference machine (Slice 2.4), too long for them.
-const embeddingSize = evidence ? '10k' : opt('embedding-size', searchSize);
+const embeddingSize = phase2Evidence ? '10k' : opt('embedding-size', searchSize);
 if (!['30k', '10k', '1k'].includes(embeddingSize))
   throw new Error('--embedding-size is 30k, 10k or 1k');
 const embeddingLabel = `${embeddingSize}-text`;
@@ -282,12 +285,12 @@ if (runExtraction) {
       '--label',
       extractionLabel,
       '--duty',
-      evidence
+      phase2Evidence
         ? 'unthrottled'
         : extractionSize === '30k'
           ? 'run,unthrottled'
           : 'run,slow,unthrottled',
-      ...(evidence ? ['--require-all-read'] : ['--recovery']),
+      ...(phase2Evidence ? ['--require-all-read'] : ['--recovery']),
       '--expect',
       String(extractionFixture.expect),
       '--out',
@@ -639,9 +642,9 @@ function summarizeKnowledge(r) {
     '',
     `${r.generated.trails} trails and ${r.steps} steps, generated and imported (Slice 3.8); anchors on ${r.documents} read documents.`,
     '',
-    '| Import: dry run / apply ms | Trails list p50 / p95 / max ms | Filtered | 50-step trail p50 / p95 ms | Recording a search p95 ms | An answer p95 ms | Snapshot ms | Bytes per step |',
-    '| ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |',
-    `| ${r.import.previewMs} / ${r.import.applyMs} | ${t(r.list)} | ${t(r.listFiltered)} | ${r.openFifty.times.p50Ms} / ${r.openFifty.times.p95Ms} | ${r.recordSearch.p95Ms} | ${r.recordAnswer.p95Ms} | ${r.snapshot.ms} | ${r.bytesPerStep} |`,
+    '| Import: dry run / apply ms | Import peak memory MiB | Trails list p50 / p95 / max ms | Filtered | 50-step trail p50 / p95 ms | Recording a search p95 ms | An answer p95 ms | Snapshot ms | Bytes per step |',
+    '| ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |',
+    `| ${r.import.previewMs} / ${r.import.applyMs} | ${mib(r.import.peakRssDeltaBytes ?? 0)} | ${t(r.list)} | ${t(r.listFiltered)} | ${r.openFifty.times.p50Ms} / ${r.openFifty.times.p95Ms} | ${r.recordSearch.p95Ms} | ${r.recordAnswer.p95Ms} | ${r.snapshot.ms} | ${r.bytesPerStep} |`,
     '',
     `Export: ${r.markdown.notes} Markdown notes in ${r.markdown.ms} ms; the whole store as JSON (${mib(r.json.bytes)} MiB) in ${r.json.ms} ms.`,
   ];

@@ -104,7 +104,8 @@ native dialog, and only the `Atlas` folder Atlas makes inside one*.
 
 1. **The file** comes only from a native file dialog shown by Rust. It must
    be:
-   - at most 256 MiB, checked from its size and again while reading;
+   - at most 1 GiB (256 MiB until Slice 3.9), checked from its size and
+     again while reading;
    - whole JSON, or `import_unreadable`;
    - a known format and version, or `import_unknown_version`.
 2. **Every row is checked like user input** (`import_invalid`, with a fixed
@@ -164,8 +165,14 @@ It returns Atlas's own error type. Nothing loads exporters at run time.
   runs show the outcome.
 - **Exported Markdown isn't tracked.** Editing a note doesn't come back
   into Atlas, and Atlas doesn't remove a note whose item was deleted.
-- **The 256 MiB import cap** holds about 100,000 steps of the generator's
-  realistic sizes: that export was 247.5 MiB
-  ([benchmarks](../benchmarks.md#knowledge-store-and-export-slice-38)).
-  A much larger store exports whole, but its JSON can't be imported whole.
-  That is flagged for Phase 3's close-out.
+- **The import cap is 1 GiB** (Slice 3.9, the product owner's choice). The
+  first cap, 256 MiB, held only about 100,000 steps of the generator's
+  realistic sizes: that export was 247.5 MiB. The cap now holds about
+  400,000 steps.
+  - **Memory:** import's peak was about 2.4 times the file (575 MiB above
+    the start for a 244 MiB file, on every OS). A file at the cap needs
+    about 2.4 GiB
+    ([benchmarks](../benchmarks.md#phase-3-summary-slice-39)).
+  - **Past the cap,** a store still exports whole, but its JSON can't be
+    imported whole. A streaming import is the way past that, if ever
+    needed.

@@ -6,18 +6,23 @@ import { count } from './inventoryCopy';
 
 export const EXPORT = 'Export…';
 export const EXPORT_TITLE = 'Export';
+export const EXPORT_EVERYTHING = 'Export everything…';
+export const EXPORT_EVERYTHING_TITLE = 'Export everything';
 export const EVERYTHING = 'Everything';
 export const MARKDOWN_NOTES = 'Markdown notes';
 export const ONE_JSON_FILE = 'One JSON file';
+export const MARKDOWN_NOTES_NOTE =
+  'A note for each trail, finding, bookmarked document, interest and project, for a notes app such as Obsidian.';
+export const ONE_JSON_FILE_NOTE = 'A complete copy in one file, which Atlas can import again.';
 export const OBSIDIAN_LINKS = 'Obsidian links';
 export const MARKDOWN_LINKS = 'Markdown links';
 export const CHOOSE_AND_EXPORT = 'Choose a folder and export…';
 export const EXPORTING = 'Exporting…';
 export const EXPORT_NOTE =
-  'Atlas writes into a folder called Atlas inside the folder you choose, and never changes notes of your own there.';
+  'Next, you choose a folder. Atlas writes into a folder called Atlas inside it, and never changes notes of your own there.';
 export const EXPORT_IMPORT_TITLE = 'Export and import';
 export const EXPORT_IMPORT_NOTE =
-  'Take your trails, bookmarks, findings, interests and projects out as Markdown notes or one JSON file. A JSON export can be imported again, here or into another library.';
+  'Export everything takes your trails, bookmarks, findings, interests and projects out of Atlas, into a folder called Atlas inside a folder you choose: as Markdown notes, or as one JSON file that can be imported again, here or into another library. A single trail, finding, interest or project has its own Export… too.';
 export const IMPORT_FROM_FILE = 'Import from a file…';
 export const IMPORT = 'Import';
 export const IMPORTING = 'Importing…';

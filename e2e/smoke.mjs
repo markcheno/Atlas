@@ -698,8 +698,17 @@ async function run() {
       );
       return w > 0 && w;
     });
+    // The passage outlined, and drawn: the webview applies the app's CSP,
+    // which jsdom doesn't (Slice 3.9: the DMG smoke found inline styles
+    // blocked, so the outline had no size).
+    const outline = await wd.execute(
+      'const r = document.querySelector("[data-testid=\'page-outline\']"); if (!r) return null; const b = r.getBoundingClientRect(); return [Math.round(b.width), Math.round(b.height)];',
+    );
+    if (!outline || outline[0] <= 0 || outline[1] <= 0) {
+      throw new Error(`the passage isn't outlined on the page: ${JSON.stringify(outline)}`);
+    }
     await wd.click(await wd.waitFor("//button[@aria-label='Close the page']"));
-    return { page: label, width };
+    return { page: label, width, outline };
   });
 
   await step('a trail is exported to a scratch folder', async () => {

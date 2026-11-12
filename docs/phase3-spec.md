@@ -1,6 +1,6 @@
 # Atlas — Phase 3 Implementation Specification v0.1
 
-**Status:** Ready for coding-agent implementation  
+**Status:** Complete (version 0.4.0). Built in Slices 3.1–3.9; reviewed in the [Phase 3 close-out](phase3-closeout.md) (2026-11-12)  
 **Date:** 2026-11-10 (see Revision notes at the end)  
 **Parent:** [Atlas Product Specification v0.2](product-spec.md) §3, §5, §8, §10, §13; builds on the [Phase 2 Implementation Specification](phase2-spec.md), the [Phase 2 close-out review](phase2-closeout.md), [ADR 0001](adr/0001-local-ipc-no-server-single-data-root.md) (the single data root), [ADR 0009](adr/0009-jobs-and-extraction.md) (the extraction worker), [ADR 0011](adr/0011-re-reading-without-losing-search.md) (re-reading) and [ADR 0015](adr/0015-ask-atlas-answers-citations-injection.md) (answers)  
 **Target platforms:** macOS arm64, Windows x64, Linux x64  
@@ -633,6 +633,33 @@ Do **not** create `knowledge.sqlite`, add a Trails view or record anything befor
   - **Trails as a fifth main view.**
   - **Uncited sources of a recorded answer kept as anchors without their excerpts**, to keep a question near 4 KB.
 - **Carried from the Phase 2 close-out and still deferred:** the unexplained miss of an index's first vector on the Linux runner (worked around by the exact search of small indexes); the single Windows failure of a `related` test; the 30k fixture embedded through oMLX overnight (not run); signing and notarization.
+
+**2026-11-12, Slice 3.9** (evidence and close-out; [review](phase3-closeout.md)):
+- **The import cap is 1 GiB**, not 256 MiB (the product owner's choice).
+  At 100,000 steps the export is 247.5 MiB, and import peaks at about 2.4
+  times the file.
+- **The evidence run is Phase 3's:** `just ci-remote evidence` measures the
+  knowledge store at 100,000 steps and the page view on every OS. Phases 1
+  and 2's (the 30k read, the 10k embedding) is `bench.mjs
+  --evidence-phase2`, recorded for 0.3.0 and not run again.
+- **The carry-over measurement** (§13) reads the Gutenberg books as reader
+  version 2 did, through a debug-only worker knob
+  (`ATLAS_WORKER_TEST_KEEP_BOILERPLATE`), then re-reads them
+  (`tests/gutenberg_reread.rs`). It is a test on every OS rather than a
+  benchmark.
+- **The snapshot target** (under 2 s at 100,000 steps) is met on the
+  reference machine (0.72 s) and missed on the CI runners (3.5 to 5.1 s).
+- **From the release DMG smoke:**
+  - **The outline is an SVG.** Tauri's nonce in `style-src` makes WebKit
+    block inline styles, so the boxes were never drawn.
+  - **The passage is looked for in pieces** when its start isn't found
+    (ADR 0018, amended).
+  - **An open trail is fetched again** when Trails is shown.
+  - **Battery wording:** "Paused indexing meaning on battery · Resumes when
+    plugged in" replaces Phase 2's "Paused indexing meaning · On battery"
+    (phase2-spec §5.2).
+  - **Export everything…** in Settings, and **Show in Finder** after an
+    export: `reveal_export`, added to §9.
 
 **2026-11-11, Slice 3.8** (export and import; [ADR 0019](adr/0019-export-and-import.md)):
 - **A cancelled dialog is `null`:** `export_knowledge` returns

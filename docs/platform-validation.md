@@ -1248,6 +1248,88 @@ merge): full run
 [42943519172](https://github.com/markcheno/Atlas/actions/runs/42943519172),
 all green on three OSes. The smoke passed every step on Windows and Linux.
 
+## Slice 3.9
+
+The Phase 3 close-out ([review](phase3-closeout.md)).
+
+**Evidence run**
+[43140187034](https://github.com/markcheno/Atlas/actions/runs/43140187034)
+(`just ci-remote evidence`, now Phase 3's): the knowledge store at 10,000
+trails and 100,000 steps, loaded through Import, and the page view, on
+every OS. All three passed at the first attempt. The numbers are in the
+[Phase 3 summary](benchmarks.md#phase-3-summary-slice-39).
+
+| Runner | Import apply s | Import peak MiB | Trails list p95 ms | 50-step trail p95 ms | Snapshot s | Page render p95 ms |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| macOS | 22.2 | 578 | 1.1 | 48.3 | 5.10 | 30.9 |
+| Windows | 46.1 | 571 | 5.3 | 65.0 | 3.55 | 58.4 |
+| Linux | 19.9 | 569 | 1.8 | 44.6 | 4.37 | 30.8 |
+
+**New on every OS:**
+- **`tests/gutenberg_reread.rs`** (§13's carry-over): 12 of 788 chunks
+  embedded again after the Gutenberg re-read.
+- **P3-23's link cases are now required on Windows**
+  (`ATLAS_TEST_REQUIRE_SYMLINKS=1` in CI), and they passed in run
+  [43138111316](https://github.com/markcheno/Atlas/actions/runs/43138111316).
+  Slice 3.8 couldn't say whether they ran there.
+- **The bad-file test** refuses a sparse file of 1 GiB + 1 byte.
+
+**CI on `slice-39`:**
+- **Full run**
+  [43138111316](https://github.com/markcheno/Atlas/actions/runs/43138111316):
+  all green on three OSes, smoke included. It built the 0.4.0 bundles the
+  DMG smoke used.
+- **After the DMG smoke's fixes, full run**
+  [43150017832](https://github.com/markcheno/Atlas/actions/runs/43150017832):
+  all green on three OSes. The smoke's page view step now requires a drawn
+  outline, and found it in both webviews: 439 × 18 px in WebKitGTK and
+  430 × 17 px in WebView2, on `book 000457.pdf`'s first page.
+
+### macOS arm64, Slice 3.9: release DMG smoke
+
+<!-- dmg-smoke-39 -->
+Run by the product owner from the [checklist](#release-dmg-smoke-slice-39),
+2026-11-12:
+- **The build:** `Atlas_0.4.0_aarch64.dmg` from CI run
+  [43138111316](https://github.com/markcheno/Atlas/actions/runs/43138111316),
+  13.8 MiB.
+- **Started** with a scratch `HOME` and a scratch library, against oMLX.
+
+**What was reported**, and what came of it:
+1. **On battery, indexing meaning paused and couldn't be resumed.**
+   - That is by design: bulk embedding waits for power.
+   - The line said only "Paused indexing meaning · On battery", with no
+     Resume, which read as stuck.
+   - It now says "Paused indexing meaning on battery · Resumes when plugged
+     in". Plugged in again, it carried on as expected.
+2. **Show the page opened the cited page with no outline.** The view
+   didn't say the passage wasn't found, so it was found but not drawn.
+   - **The cause:** the outline was boxes positioned with inline styles.
+     Tauri adds a nonce to the CSP's `style-src`, and WebKit then ignores
+     `'unsafe-inline'` and blocks every `style` attribute.
+   - **Vitest couldn't see it:** jsdom applies no CSP.
+   - **Now:** the outline is an SVG over the image. `src/lib/csp.test.ts`
+     fails on any inline style in a component, and the smoke's page view
+     step requires a drawn outline in WebView2 and WebKitGTK.
+   - **Also found:** the search tried only the passage's start, which a
+     word hyphenated at a line end defeats. It now tries the passage in
+     pieces, and the benchmark outlines 37 of 37 corpus pages (33 before).
+3. **Moving the cited PDF and rescanning seemed not to work.**
+   - On a second look, it did.
+   - It turned up a real bug: coming back to Trails with a trail already
+     open showed its sources as they were before a rescan. Trails now
+     fetches the open trail again whenever it is shown (Vitest).
+4. **Import seemed not to work.**
+   - On a second look, it did.
+   - What wasn't clear was how to export everything, and where the export
+     went. Settings now says **Export everything…**, and the dialog says
+     what each format is for. After an export, **Show in Finder** reveals
+     the folder (`reveal_export`: Rust knows the folder).
+
+No other problems were reported. These fixes came after this build: they
+are covered by the tests above and CI's smoke on Windows and Linux, not by
+a second DMG run.
+
 ## Slice 3.8
 
 Export and import. On every OS:
@@ -1824,6 +1906,107 @@ env -i HOME="$HOME/atlas-smoke/home" PATH=/usr/bin:/bin \
 11. **Clean up:** Settings › AI Models › Remove the oMLX service, which
     deletes its key. Then `rm -rf ~/atlas-smoke`.
 
+### Release DMG smoke (Slice 3.9)
+
+The Phase 3 close-out's macOS check of the CI-built 0.4.0 DMG against oMLX:
+a real research session, closed, changed and resumed (phase3-spec §14).
+
+**Setup:** as for Slice 2.8, with a fresh `~/atlas-smoke` (remove the old
+one first), plus two scratch folders for export and a second library:
+
+```sh
+mkdir -p ~/atlas-smoke/home ~/atlas-smoke/Library ~/atlas-smoke/Library2 \
+         ~/atlas-smoke/Vault ~/atlas-smoke/Moved
+just fixtures ~/atlas-smoke/Books 100 0 4
+mkdir -p ~/atlas-smoke/Books/from-the-corpus
+cp spikes/extraction-bench/corpus/epub/*.epub \
+   spikes/extraction-bench/corpus/pdf/real/*.pdf \
+   ~/atlas-smoke/Books/from-the-corpus/
+cp -R /Volumes/Atlas/Atlas.app ~/atlas-smoke/
+env -i HOME="$HOME/atlas-smoke/home" PATH=/usr/bin:/bin \
+  "$HOME/atlas-smoke/Atlas.app/Contents/MacOS/atlas"
+```
+
+Choose `~/atlas-smoke/Library` for the library and add
+`~/atlas-smoke/Books`. Keep the Terminal window open.
+
+1. **Recording, without AI.**
+   - Before any search, Trails says what trails are.
+   - Search `"Engineering marker 1"` (quoted), then `harbour`. The status
+     bar shows that the trail is recording. Trails lists one trail with
+     both searches.
+   - **Pause recording trails** (status bar) and search `orbital`: nothing
+     new in the trail. **Resume recording trails**.
+2. **oMLX and both models,** as in Slice 2.8's steps 2 and 3; then
+   "Meaning up to date".
+3. **A research session.**
+   - Ask a question whose sources include a PDF, for example about one of
+     the corpus papers. Open a citation: the details panel shows the cited
+     passage.
+   - **Show the page** on that PDF citation, or on a PDF search result:
+     - the page, with the passage outlined when found, and its text below;
+     - Next and Previous, the page field, Fit width and Actual size;
+     - **Bookmark this page**;
+     - Escape returns to the button.
+   - On a result, **Bookmark**. On the answer, **Save as a finding**. Give
+     the finding a note in Trails › Saved.
+   - Trails › Interests and projects: **New interest…** and **New
+     project…** (with a goal). Use **Add to…** on the trail, the bookmark
+     and the finding.
+4. **Changes while it's closed.**
+   - Note which PDF the answer cited.
+   - Cmd+Q. In Finder, move that PDF into `~/atlas-smoke/Moved`, then
+     move `Moved` into `Books`. Delete one other book the trail shows,
+     for example a search result.
+   - Start Atlas again, then Settings › Library Folders › **Rescan**.
+5. **Resuming.**
+   - Trails › the session: every step in order, and the answer word for
+     word as it was.
+   - The moved PDF's citation opens it at its place; Show the page still
+     works.
+   - The deleted book says it's no longer in the library, and still shows
+     the passage that was seen.
+   - **Continue this trail**, then **Search again** and **Ask again**: the
+     new steps join the same trail.
+6. **Home:** Pick up where you left off, the interest and project, and up to
+   three suggestions with their reason. **Not for this** removes one.
+7. **Export.**
+   - First put a note of your own at
+     `~/atlas-smoke/Vault/Atlas/Trails/<date> <trail's name>.md`, with any
+     text. Use the trail's name as Trails shows it and today's date in UTC,
+     for example `2026-11-12 harbour.md`.
+   - On the trail, **Export…** › Markdown notes › Obsidian links › choose
+     `~/atlas-smoke/Vault`:
+     - the result says where it wrote, and that 1 already existed and was
+       left alone;
+     - your note is unchanged, and Atlas's sits beside it as "… 2.md";
+     - open both in a text editor (or Obsidian).
+   - Settings › Export and import › **Export everything…** › Markdown
+     links, into the same Vault. Notes there link to each other.
+     **Show in Finder** opens the folder Atlas wrote to.
+   - **Export…** › Everything › One JSON file, into the Vault.
+8. **Import into a second library.**
+   - Settings › Storage › **Use a different location…** ›
+     `~/atlas-smoke/Library2`, and add the same Books folder.
+   - Settings › Export and import › **Import from a file…** › the JSON:
+     - the sentence says how many trails, findings, bookmarks, and
+       interests and projects are new, and that importing never removes
+       anything;
+     - **Import**: Trails, Saved and Interests and projects show them.
+   - Import the same file again: everything is already here.
+9. **Your data is kept.**
+   - Settings › Storage shows Your trails and notes and Snapshots (at least
+     one, from the import). **Clean caches**: trails, bookmarks and findings
+     all stay.
+   - Settings › Privacy › **Delete all trails…**: the confirmation names
+     the count. Bookmarks and findings stay.
+10. **VoiceOver** (⌘F5) on the page view (it reads "Page n of N" and the
+    page's text) and on a trail's timeline. Then light and dark.
+11. **Optional, with iCloud Drive:** a book offloaded to iCloud ("Remove
+    Download"), downloaded again, is read at the next rescan.
+12. **Clean up:** remove the oMLX service in Settings › AI Models, then
+    `rm -rf ~/atlas-smoke`.
+
 ### Installers (Slice 0.8)
 
 1. Download the release artifact for the OS from a green CI run.
@@ -2076,7 +2259,7 @@ and read:
    it under Models › Embeddings, Test, then Use. The status bar's third
    line reads "Indexing meaning · X of N files", and Home says Atlas is
    still indexing meaning.
-2. Unplug the power (a laptop): "Paused indexing meaning · On battery",
+2. Unplug the power (a laptop): "Paused indexing meaning on battery · Resumes when plugged in" (before Slice 3.9: "Paused indexing meaning · On battery"),
    while reading text, if any, only slows. Plug it back in: indexing
    resumes.
 3. Quit mid-way and relaunch: indexing continues where it stopped.

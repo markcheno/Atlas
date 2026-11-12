@@ -92,7 +92,26 @@ fn chars(s: &str) -> u64 {
     s.chars().count() as u64
 }
 
+/// Debug builds only: a worker started with this set to `1` reads EPUBs
+/// as reader version 2 did, header and licence included, so the re-read's
+/// effect can be measured (Slice 3.9, phase3-spec §13). Release builds
+/// ignore it.
+pub const TEST_KEEP_ENV: &str = "ATLAS_WORKER_TEST_KEEP_BOILERPLATE";
+
 impl Cutter {
+    /// The cutter for this worker: off only in a debug build with
+    /// [`TEST_KEEP_ENV`] set.
+    pub fn for_worker() -> Self {
+        if cfg!(debug_assertions) && std::env::var_os(TEST_KEEP_ENV).is_some_and(|v| v == "1") {
+            Self {
+                state: State::Off,
+                ..Self::default()
+            }
+        } else {
+            Self::default()
+        }
+    }
+
     /// Characters left out so far.
     pub fn dropped(&self) -> u64 {
         self.dropped

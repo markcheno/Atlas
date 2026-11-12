@@ -108,4 +108,5 @@ pub const COMMAND_NAMES: &[&str] = &[
     "export_knowledge",
     "preview_import",
     "apply_import",
+    "reveal_export",
 ];

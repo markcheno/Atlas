@@ -1,6 +1,7 @@
 //! Import of a JSON export (Slice 3.8, phase3-spec §7.7, ADR 0019).
 //!
-//! The file is untrusted: at most [`MAX_BYTES`], a known format and
+//! The file is untrusted: at most [`MAX_BYTES`] (1 GiB since Slice 3.9: a
+//! store of 100,000 steps exports at about 250 MiB), a known format and
 //! version, every row checked like user input. A bad file is refused
 //! whole and nothing is written. A dry run ([`merge`] with `dry`) reports
 //! what would change; applying runs the same code in one transaction,
@@ -39,7 +40,7 @@ use crate::services::knowledge::trails::{
 use crate::services::knowledge::{collections, snapshot};
 
 /// The largest file Atlas imports.
-pub const MAX_BYTES: u64 = 256 * 1024 * 1024;
+pub const MAX_BYTES: u64 = 1024 * 1024 * 1024;
 /// Rows of every kind, together.
 pub const MAX_ROWS: usize = 1_000_000;
 /// How long a dry run's file is kept for `apply_import`.

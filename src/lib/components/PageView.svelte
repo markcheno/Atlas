@@ -3,6 +3,11 @@
   // rendered it, the passage outlined over the image when found (drawn by
   // the app, so it follows the theme), and the page's text below it for
   // reading aloud and copying. Escape closes and returns focus.
+  //
+  // The outline is an SVG over the image, its rectangles in the image's
+  // pixels: inline styles are blocked in the app, because Tauri adds a
+  // nonce to the CSP's style-src and WebKit then ignores 'unsafe-inline'
+  // (Slice 3.9, found by the release DMG smoke).
   import { tick } from 'svelte';
   import {
     ACTUAL_SIZE,
@@ -186,7 +191,7 @@
         </div>
       {:else if image && !pageView.loading}
         <figure class="page" class:actual={pageView.fit === 'actual'} data-testid="page-image">
-          <div class="frame" style:aspect-ratio={`${image.width} / ${image.height}`}>
+          <div class="frame">
             <img
               src={`data:image/png;base64,${image.png}`}
               alt={pageOf(image.pageNo, image.pageCount)}
@@ -194,16 +199,26 @@
               height={image.height}
               draggable="false"
             />
-            {#each image.rects as r, i (i)}
-              <span
-                class="outline"
-                data-testid="page-outline"
-                style:left={`${(r.x / image.width) * 100}%`}
-                style:top={`${(r.y / image.height) * 100}%`}
-                style:width={`${(r.width / image.width) * 100}%`}
-                style:height={`${(r.height / image.height) * 100}%`}
-              ></span>
-            {/each}
+            {#if image.rects.length > 0}
+              <svg
+                class="outlines"
+                viewBox={`0 0 ${image.width} ${image.height}`}
+                preserveAspectRatio="none"
+                aria-hidden="true"
+              >
+                {#each image.rects as r, i (i)}
+                  <rect
+                    class="outline"
+                    data-testid="page-outline"
+                    x={r.x - 2}
+                    y={r.y - 2}
+                    width={r.width + 4}
+                    height={r.height + 4}
+                    rx="2"
+                  />
+                {/each}
+              </svg>
+            {/if}
           </div>
           <figcaption class="muted small">
             {pageOf(image.pageNo, image.pageCount)}
@@ -314,12 +329,13 @@
   }
 
   .page.actual .frame {
-    width: auto;
+    width: fit-content;
     max-width: none;
   }
 
   .page.actual .frame img {
     width: auto;
+    max-width: none;
   }
 
   img {
@@ -329,12 +345,19 @@
     user-select: none;
   }
 
-  .outline {
+  .outlines {
     position: absolute;
-    border: 2px solid var(--accent);
-    border-radius: 2px;
-    background: color-mix(in srgb, var(--accent) 15%, transparent);
+    inset: 0;
+    width: 100%;
+    height: 100%;
     pointer-events: none;
+  }
+
+  .outline {
+    fill: color-mix(in srgb, var(--accent) 18%, transparent);
+    stroke: var(--accent);
+    stroke-width: 2px;
+    vector-effect: non-scaling-stroke;
   }
 
   .notice {

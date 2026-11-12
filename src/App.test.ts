@@ -2208,7 +2208,7 @@ describe('indexing meaning', () => {
     [
       { state: 'paused_policy', pauseReason: 'on_battery' },
       {},
-      'Paused indexing meaning · On battery',
+      'Paused indexing meaning on battery · Resumes when plugged in',
     ],
     [
       { state: 'paused_policy', pauseReason: 'battery_low' },
@@ -3206,6 +3206,34 @@ describe('the Trails screen', () => {
     expect(within(steps[3]).getByText('Compare with cycloidal drives.')).toBeVisible();
   });
 
+  it('resolves an open trail again when Trails is shown again, after a rescan', async () => {
+    const user = await openTimeline();
+    const source = () =>
+      within(
+        within(screen.getAllByTestId('trail-step')[1])
+          .getByRole('region', { name: 'Sources then (3)' })
+          .querySelectorAll<HTMLElement>('[data-testid="trail-source"]')[1],
+      );
+    expect(source().getByTestId('anchor-note')).toHaveTextContent(
+      "This file isn't in your library any more.",
+    );
+    // A rescan in Settings found the moved file; back in Trails it opens.
+    await user.click(nav().getByRole('button', { name: 'Settings' }));
+    const detail = tauri.trailDetail();
+    const ask = detail.steps[1];
+    ask.anchors[1] = {
+      ...ask.anchors[1],
+      state: 'found',
+      documentId: ask.anchors[1].documentId ?? 'doc-9',
+      fileInstanceId: 'file-moved',
+      excerptFound: true,
+    };
+    tauri.setHandler('get_trail', () => detail);
+    await user.click(nav().getByRole('button', { name: 'Trails' }));
+    await waitFor(() => expect(source().queryByTestId('anchor-note')).toBeNull());
+    expect(source().getByRole('button', { name: /^Details for / })).toBeVisible();
+  });
+
   it('opens a cited source with the passage that was sent, recorded as from a trail', async () => {
     const user = await openTimeline();
     const ask = within(screen.getAllByTestId('trail-step')[1]);
@@ -3973,7 +4001,18 @@ describe('the page view', () => {
       'src',
       'data:image/png;base64,iVBORw0KGgo=',
     );
-    expect(view.getAllByTestId('page-outline')).toHaveLength(1);
+    // Drawn as SVG in the image's pixels, never with inline styles, which
+    // the app's CSP blocks (Slice 3.9).
+    const outlines = view.getAllByTestId('page-outline');
+    expect(outlines).toHaveLength(1);
+    expect(outlines[0].closest('svg')).toHaveAttribute('viewBox', '0 0 1200 1553');
+    expect(['x', 'y', 'width', 'height'].map((k) => outlines[0].getAttribute(k))).toEqual([
+      '139',
+      '118',
+      '604',
+      '22',
+    ]);
+    expect(figure.querySelector('[style]')).toBeNull();
     expect(view.getByRole('heading', { name: "The page's text, as Atlas read it" })).toBeVisible();
     expect(view.getByText(/rigid circular spline/)).toBeVisible();
     await waitFor(() =>
@@ -4174,7 +4213,8 @@ describe('export and import', () => {
     await user.click(trigger);
     const d = exportDialog();
     await user.click(d.getByRole('radio', { name: 'Everything' }));
-    expect(d.getByRole('heading', { name: 'Export' })).toBeVisible();
+    expect(d.getByRole('heading', { name: 'Export everything' })).toBeVisible();
+    expect(d.getByText('A complete copy in one file, which Atlas can import again.')).toBeVisible();
     await user.click(d.getByRole('radio', { name: 'One JSON file' }));
     expect(d.queryByRole('radio', { name: 'Obsidian links' })).toBeNull();
 
@@ -4265,11 +4305,15 @@ describe('export and import', () => {
     const section = within(
       screen.getByRole('heading', { name: 'Export and import' }).closest('section') as HTMLElement,
     );
-    await user.click(section.getByRole('button', { name: 'Export…' }));
+    await user.click(section.getByRole('button', { name: 'Export everything…' }));
     const d = exportDialog();
+    expect(d.getByRole('heading', { name: 'Export everything' })).toBeVisible();
     expect(d.queryByRole('radio', { name: 'Everything' })).toBeNull();
     await user.click(d.getByRole('button', { name: 'Choose a folder and export…' }));
     expect(calls('export_knowledge').at(-1)).toMatchObject({ scope: { kind: 'everything' } });
+    // Where it went: Rust shows the folder; the renderer sends nothing.
+    await user.click(await d.findByRole('button', { name: /^Show in / }));
+    expect(calls('reveal_export')).toEqual([undefined]);
     await user.click(d.getByRole('button', { name: 'Done' }));
 
     // A cancelled file dialog shows nothing.

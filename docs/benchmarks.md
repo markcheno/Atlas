@@ -449,6 +449,76 @@ Duplicates' first page takes 33 ms at p95 over 2,001 groups, and Settings
 › Storage 122 ms. Cataloging is unchanged since Phase 0: 483 files/s at
 the policy rate on 30k, browse p95 under 37 ms while scanning.
 
+## Phase 3 summary (Slice 3.9)
+
+Phase 3's measurements (phase3-spec §13) on the reference machine and the
+three CI runners.
+- **Runners:** the 100k numbers are the close-out's evidence run
+  [43140187034](https://github.com/markcheno/Atlas/actions/runs/43140187034)
+  (`just ci-remote evidence`). The 10k numbers come from the bench job on
+  `main` after Slice 3.8
+  ([43136225698](https://github.com/markcheno/Atlas/actions/runs/43136225698)).
+- **Reference machine:** M5 Pro, release build, 2026-11-11 and 2026-11-12.
+
+**The page view** (37 pages of 14 corpus PDFs at 1,200 px; [Slice 3.7](#page-view-slice-37)):
+
+| Runner | First render ms | Render p50 / p95 / max ms | With the passage p95 ms | Outlined | Cache hit ms | Worker peak MiB |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| M5 Pro | 29.7 | 10.8 / 17.1 / 17.8 | 17.2 | 33 of 37 | 0.4 | 62.2 |
+| CI macOS | 53.5 | 21.5 / 30.9 / 33.3 | 33.1 | 33 of 37 | 0.7 | 60.7 |
+| CI Windows | 57.2 | 41.7 / 58.4 / 168.1 | 61.2 | 33 of 37 | 1.5 | 17.1 |
+| CI Linux | 56.8 | 23.9 / 30.8 / 35.3 | 31.6 | 33 of 37 | 0.6 | 69.6 |
+
+Under the 500 ms p95 target by eight times or more everywhere. Windows
+reports the worker's working set, which is smaller than what macOS and
+Linux report as resident.
+
+**After the DMG smoke** (Slice 3.9), the passage is looked for in pieces
+when its start isn't found ([ADR 0018](adr/0018-the-page-view.md),
+amended). On the M5 Pro, 37 of 37 pages are outlined (33 before), at a p95
+of 17.9 ms with the passage. The evidence run above predates it.
+
+**The knowledge store at 100,000 steps** (10,000 trails; [Slice 3.8](#knowledge-store-and-export-slice-38)):
+
+| Runner | Import dry run / apply s | Import peak memory MiB | Trails list p95 ms | Filtered p95 ms | 50-step trail p95 ms | Recording a search / an answer p95 ms | Snapshot s | 1,000 notes s | JSON export s (MiB) |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| M5 Pro | 0.55 / 11.7 | 578.6 | 0.7 | 1.8 | 21.7 | 0.3 / 0.3 | 0.72 | 0.21 | 0.69 (247.5) |
+| CI macOS | 1.18 / 22.2 | 578.4 | 1.1 | 4.1 | 48.3 | 1.8 / 0.9 | 5.10 | 0.50 | 2.28 (247.5) |
+| CI Windows | 2.24 / 46.1 | 570.7 | 5.3 | 10.6 | 65.0 | 1.6 / 1.1 | 3.55 | 1.36 | 5.86 (247.0) |
+| CI Linux | 1.69 / 19.9 | 569.4 | 1.8 | 2.7 | 44.6 | 0.5 / 0.7 | 4.37 | 0.28 | 1.63 (247.3) |
+
+**Against §13's targets** (provisional, reported against the reference
+machine):
+- **Recording:** under 5 ms on every runner (at most 1.8 ms p95).
+- **The Trails list:** under 100 ms p95 (at most 5.3 ms).
+- **A 50-step trail:** under 200 ms (at most 65 ms).
+- **A snapshot:** under 2 s on the reference machine (0.72 s). It is
+  missed on the shared CI runners, at 3.5 to 5.1 s for a 380 MiB store:
+  `VACUUM INTO` and its integrity check are disk-bound there. Snapshots
+  run in the background (at most daily, and before an import), so nothing
+  waits on one; the close-out notes it.
+
+**At 10,000 steps** (CI's bench job), the runners' Trails list p95 is
+0.2 to 0.3 ms and their snapshots 0.17 to 0.99 s.
+
+**Import's memory and the 1 GiB cap** (Slice 3.9): a 244 MiB export peaked
+at about 575 MiB above the process's memory before, on every OS: about 2.4
+times the file. At the new 1 GiB cap that is about 2.4 GiB, for a store of
+roughly 400,000 steps.
+
+**The carry-over** (`tests/gutenberg_reread.rs`, every OS; the numbers are
+the same everywhere): the corpus's five Project Gutenberg EPUBs were read
+as reader version 2 did, with header and licence, then embedded with the
+scripted backend. They were then re-read by reader version 3 and embedded
+again:
+
+| Passages | Characters | Chunks | Chunks embedded again | Chunks kept |
+| ---: | ---: | ---: | ---: | ---: |
+| 257 → 221 | 747,937 → 653,125 (94,864 cut) | 906 → 788 | 12 | 776 |
+
+Only the chunks that held or touched the cut text were sent again; 98.5%
+of the books' chunks kept their vectors (ADR 0011).
+
 ## Phase 2 summary (Slice 2.8)
 
 Phase 2's measures against phase2-spec §13's provisional targets.

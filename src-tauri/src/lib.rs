@@ -256,6 +256,7 @@ pub fn run() {
             commands::export::export_knowledge,
             commands::export::preview_import,
             commands::export::apply_import,
+            commands::export::reveal_export,
         ])
         .build(tauri::generate_context!())
         .expect("error while building Atlas")

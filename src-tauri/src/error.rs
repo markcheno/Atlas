@@ -116,7 +116,7 @@ pub enum ErrorCode {
     ExportInsideDataRoot,
     /// The export folder's `Atlas` folder is a file or a link (Slice 3.8).
     ExportFolderUnusable,
-    /// An import file over 256 MiB (Slice 3.8).
+    /// An import file over 1 GiB (Slice 3.8; 256 MiB until 3.9).
     ImportTooLarge,
     /// An import file that isn't whole JSON (Slice 3.8).
     ImportUnreadable,
@@ -278,7 +278,7 @@ pub enum AtlasError {
     ExportInsideDataRoot,
     #[error("The Atlas folder there is a file or a link, so Atlas left it alone.")]
     ExportFolderUnusable,
-    #[error("That file is over 256 MB, too large to import.")]
+    #[error("That file is over 1 GB, too large to import.")]
     ImportTooLarge,
     #[error("That file isn't a whole Atlas export.")]
     ImportUnreadable,

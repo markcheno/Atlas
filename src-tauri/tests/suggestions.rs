@@ -158,8 +158,17 @@ fn p3_18_suggestions_leave_out_what_they_should_and_keep_the_days_order() {
     let seed_file = s.file("book 000001.pdf");
     let seed_doc = s.document(&seed_file);
     let first = s.interest("Mechanisms", &seed_file);
-    let found = s.suggest(6);
-    assert!(!found.is_empty(), "an interest's neighbours are suggested");
+    // Suggestions are empty while the meaning index isn't loaded, by
+    // design. Under a full local run's load the first call once came back
+    // empty (Slice 3.9), so the test waits for them.
+    let mut found = Vec::new();
+    assert!(
+        common::wait_until(Duration::from_secs(30), || {
+            found = s.suggest(6);
+            !found.is_empty()
+        }),
+        "an interest's neighbours are suggested"
+    );
     assert!(
         !s.docs(&found).contains(&seed_doc),
         "never its own document"

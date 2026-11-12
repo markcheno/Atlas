@@ -217,7 +217,7 @@ spike-builds out="":
 spike-licenses:
     pnpm spike:licenses
 
-# Run CI on GitHub for the pushed current branch: `full` (every OS, smoke, benchmarks, bundles), `quick` (Linux checks and tests) or `evidence` (30k text extraction on every OS, every file read, then the 10k text fixture embedded with the scripted backend). Pushes to slice-* run quick by themselves
+# Run CI on GitHub for the pushed current branch: `full` (every OS, smoke, benchmarks, bundles), `quick` (Linux checks and tests) or `evidence` (the knowledge store at 100,000 steps and the page view on every OS). Pushes to slice-* run quick by themselves
 ci-remote scope="full":
     gh workflow run ci.yml --ref "$(git branch --show-current)" -f scope={{ scope }}
 
