@@ -1274,9 +1274,16 @@ every OS. All three passed at the first attempt. The numbers are in the
   Slice 3.8 couldn't say whether they ran there.
 - **The bad-file test** refuses a sparse file of 1 GiB + 1 byte.
 
-**CI on `slice-39`:** full run
-[43138111316](https://github.com/markcheno/Atlas/actions/runs/43138111316),
-all green on three OSes, smoke included. It built the 0.4.0 bundles.
+**CI on `slice-39`:**
+- **Full run**
+  [43138111316](https://github.com/markcheno/Atlas/actions/runs/43138111316):
+  all green on three OSes, smoke included. It built the 0.4.0 bundles the
+  DMG smoke used.
+- **After the DMG smoke's fixes, full run**
+  [43150017832](https://github.com/markcheno/Atlas/actions/runs/43150017832):
+  all green on three OSes. The smoke's page view step now requires a drawn
+  outline, and found it in both webviews: 439 × 18 px in WebKitGTK and
+  430 × 17 px in WebView2, on `book 000457.pdf`'s first page.
 
 ### macOS arm64, Slice 3.9: release DMG smoke
 
