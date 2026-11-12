@@ -801,6 +801,25 @@ describe('reading text', () => {
     );
   });
 
+  it('says when the document reader can’t start (Slice 4.1)', async () => {
+    const root = (failedBecause: string) => ({
+      sourceRootId: 'root-books',
+      counts,
+      lastState: 'failed_terminal' as const,
+      activeJobId: null,
+      failedBecause,
+    });
+    await launchWith(tauri.extractionOverview({ counts, roots: [root('worker_protocol')] }));
+    expect(line()).toHaveTextContent(
+      "Atlas couldn't start its document reader · Reinstall Atlas to fix it",
+    );
+    events.emit(
+      'extraction-status',
+      tauri.extractionOverview({ counts, roots: [root('path_undecodable')] }),
+    );
+    await waitFor(() => expect(line()).toHaveTextContent('Text waiting · 3 of 10 files read'));
+  });
+
   it('is up to date when every file has a status', async () => {
     await launchWith(
       tauri.extractionOverview({
@@ -846,6 +865,7 @@ describe('reading text', () => {
             counts,
             lastState: 'paused_user',
             activeJobId: 'extract-1',
+            failedBecause: null,
           },
         ],
       }),
@@ -2120,6 +2140,9 @@ describe('storage', () => {
     expect(section.getByTestId('snapshot-bytes')).toHaveTextContent(/KB/);
     expect(section.queryByTestId('knowledge-note')).not.toBeInTheDocument();
     expect(section.getByText(/your trails and notes and their\s+snapshots/)).toBeInTheDocument();
+    expect(section.getByText('The log')).toBeInTheDocument();
+    expect(section.getByTestId('log-bytes')).toHaveTextContent('48.0 KB');
+    expect(section.getByText(/the log, or your trails/)).toBeInTheDocument();
   });
 
   it.each([
@@ -4363,5 +4386,73 @@ describe('export and import', () => {
     expect(
       await section.findByText("That file isn't an Atlas export this version can read."),
     ).toBeVisible();
+  });
+});
+
+describe('diagnostics (Slice 4.1)', () => {
+  beforeEach(resetAll);
+
+  const calls = (cmd: string) =>
+    tauri.invoke.mock.calls.filter(([c]) => c === cmd).map(([, args]) => args);
+
+  async function openDiagnostics() {
+    const user = await launchOpen();
+    await user.click(screen.getByRole('button', { name: 'Settings' }));
+    const heading = await screen.findByRole('heading', { level: 2, name: 'Diagnostics' });
+    return { user, section: within(heading.closest('section')!) };
+  }
+
+  it('says what a report holds and never holds, and that nothing is sent', async () => {
+    const { section } = await openDiagnostics();
+    expect(section.getByText(/Nothing is sent anywhere\./)).toBeInTheDocument();
+    expect(section.getByRole('heading', { level: 3, name: 'A report holds' })).toBeVisible();
+    expect(section.getByRole('heading', { level: 3, name: 'It never holds' })).toBeVisible();
+    expect(
+      section.getByText('What you searched for or asked, answers, or your notes'),
+    ).toBeInTheDocument();
+    expect(await section.findByTestId('log-size')).toHaveTextContent(
+      'The log: 48.0 KB in 2 files.',
+    );
+  });
+
+  it('saves a report, then shows it in the file manager', async () => {
+    const { user, section } = await openDiagnostics();
+    await user.click(section.getByRole('button', { name: 'Save a diagnostics report' }));
+    expect(await section.findByTestId('report-saved')).toHaveTextContent('Report saved (52.0 KB).');
+    await user.click(section.getByRole('button', { name: /^Show in / }));
+    expect(calls('reveal_diagnostics')).toEqual([{ folder: 'reports' }]);
+    await user.click(section.getByRole('button', { name: 'Show the log folder' }));
+    expect(calls('reveal_diagnostics')).toEqual([{ folder: 'reports' }, { folder: 'log' }]);
+  });
+
+  it('says it is saving while it saves', async () => {
+    tauri.setHandler('save_diagnostics_report', () => new Promise(() => {}));
+    const { user, section } = await openDiagnostics();
+    await user.click(section.getByRole('button', { name: 'Save a diagnostics report' }));
+    expect(section.getByRole('button', { name: 'Saving…' })).toBeDisabled();
+  });
+
+  it('clears the log', async () => {
+    const { user, section } = await openDiagnostics();
+    await section.findByTestId('log-size');
+    await user.click(section.getByRole('button', { name: 'Clear the log' }));
+    expect(calls('clear_log')).toEqual([undefined]);
+    expect(await section.findByText('The log: 120 bytes in 1 file.')).toBeInTheDocument();
+  });
+
+  it('shows a report that failed, and a log that stopped', async () => {
+    tauri.setHandler('get_diagnostics_status', () => tauri.diagnosticsStatus({ logStopped: true }));
+    tauri.setHandler('save_diagnostics_report', () => {
+      throw tauri.apiError(
+        'diagnostics_unavailable',
+        "Atlas couldn't save the diagnostics report.",
+        'Check that the library’s drive has space and is connected, then try again.',
+      );
+    });
+    const { user, section } = await openDiagnostics();
+    expect(await section.findByText(/stopped writing its log/)).toBeInTheDocument();
+    await user.click(section.getByRole('button', { name: 'Save a diagnostics report' }));
+    expect(await section.findByText('Atlas couldn’t save the report')).toBeInTheDocument();
+    expect(section.queryByTestId('report-saved')).not.toBeInTheDocument();
   });
 });

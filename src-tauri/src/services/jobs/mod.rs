@@ -52,7 +52,33 @@ pub struct ProcessorContext {
     pub waker: JobWaker,
     /// The library's vector indexes (Slice 2.3).
     pub vectors: Arc<VectorRegistry>,
+    /// The library's log (Slice 4.1).
+    pub diagnostics: crate::services::diagnostics::Diagnostics,
 }
 
 /// Builds a kind's processor for each data root the workspace opens.
 pub type ProcessorFactory = Arc<dyn Fn(ProcessorContext) -> Box<dyn JobProcessor> + Send + Sync>;
+
+/// Records a job's policy pause or resume, once per change: the processors
+/// re-pause every few seconds while the reason lasts (Slice 4.1).
+pub fn record_policy(
+    diagnostics: &crate::services::diagnostics::Diagnostics,
+    kind: crate::domain::dto::JobKind,
+    was_paused: bool,
+    pause: Option<crate::domain::dto::PauseReason>,
+) {
+    use crate::services::diagnostics::Event;
+    use crate::services::diagnostics::event::PauseBy;
+    match (was_paused, pause) {
+        (false, Some(reason)) => diagnostics.record(Event::JobPaused {
+            kind,
+            by: PauseBy::Policy,
+            reason: Some(reason),
+        }),
+        (true, None) => diagnostics.record(Event::JobResumed {
+            kind,
+            by: PauseBy::Policy,
+        }),
+        _ => {}
+    }
+}

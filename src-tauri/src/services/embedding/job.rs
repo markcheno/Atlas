@@ -16,6 +16,7 @@
 //!   changed fail it for good; a chunk the service refuses fails only its
 //!   document.
 
+use crate::domain::dto::JobKind;
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
@@ -246,6 +247,7 @@ pub struct EmbedProcessor {
     received: HashMap<[u8; 32], Vec<u8>>,
     last_emit: Option<Instant>,
     last_save: Instant,
+    diagnostics: crate::services::diagnostics::Diagnostics,
 }
 
 impl JobProcessor for EmbedProcessor {
@@ -274,6 +276,7 @@ impl EmbedProcessor {
             signal: ctx.signal,
             waker: ctx.waker,
             vectors: ctx.vectors,
+            diagnostics: ctx.diagnostics,
             reader: None,
             received: HashMap::new(),
             last_emit: None,
@@ -382,6 +385,7 @@ impl EmbedProcessor {
                 );
                 if changed {
                     self.save(index, true);
+                    jobs::record_policy(&self.diagnostics, JobKind::Embed, paused, Some(reason));
                 }
                 self.emit(changed);
                 if self.signal.wait(self.deps.config.policy_wait) {
@@ -403,6 +407,7 @@ impl EmbedProcessor {
                     ) {
                         return Some(Flow::Continue);
                     }
+                    jobs::record_policy(&self.diagnostics, JobKind::Embed, true, None);
                     self.emit(true);
                 }
                 if t != *throttle {

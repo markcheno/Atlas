@@ -11,11 +11,12 @@ use atlas_lib::domain::dto::FileType;
 use atlas_lib::services::extraction::engine::Outcome;
 use atlas_lib::services::extraction::engine::hash::HashError;
 use atlas_lib::services::extraction::locate::{LIBRARY_ENV, Unavailable};
+use atlas_lib::services::extraction::supervisor::PageCounts;
 use atlas_lib::services::extraction::supervisor::{
     Crash, DocumentProcessor, Extraction, Supervisor, SupervisorConfig, WorkerCommand, WorkerError,
     WorkerStats,
 };
-use atlas_lib::services::extraction::worker_main::TEST_FAULT_ENV;
+use atlas_lib::services::extraction::worker_main::{TEST_FAULT_ENV, TEST_PROTOCOL_ENV};
 
 fn corpus(rel: &str) -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -65,7 +66,8 @@ fn hashes_and_extracts_through_the_worker() {
         drm,
         Extraction::Failed {
             outcome: Outcome::Encrypted,
-            reason: "drm".into()
+            reason: "drm".into(),
+            pages: None,
         }
     );
     let missing = s.hash(Path::new("/no/such/file.pdf")).unwrap();
@@ -161,5 +163,76 @@ fn a_missing_pdfium_is_reported_as_unavailable() {
     assert_eq!(
         s.hash(&corpus("pdf/generated/book.pdf")),
         Err(WorkerError::Unavailable(Unavailable::NotFound))
+    );
+}
+
+/// P4-04: a worker that speaks another protocol is a mismatched install.
+/// It is refused at hello and not restarted: every request says so at once.
+#[test]
+fn p4_04_a_worker_with_another_protocol_is_refused() {
+    let (mut s, stats) = supervisor(
+        command().env(TEST_PROTOCOL_ENV, "1"),
+        SupervisorConfig::default(),
+    );
+    let book = corpus("pdf/generated/book.pdf");
+    for _ in 0..3 {
+        assert_eq!(
+            s.extract(&book, FileType::Pdf),
+            Err(WorkerError::Unavailable(Unavailable::ProtocolMismatch))
+        );
+        assert!(!s.is_running());
+    }
+    assert_eq!(s.refused_protocol(), Some(1));
+    assert_eq!(
+        WorkerStats::get(&stats.extracts),
+        0,
+        "nothing was asked of it"
+    );
+}
+
+/// P4-04: a PDF that needs OCR says how many pages it has, and how many
+/// have usable text. The two scans have none; their pages are known.
+#[test]
+fn p4_04_scanned_pdfs_report_their_pages() {
+    let (mut s, _) = supervisor(command(), SupervisorConfig::default());
+    for (rel, page_count) in [
+        ("pdf/scanned/ia-alice-1894.pdf", 4),
+        ("pdf/scanned/synthetic-scan.pdf", 3),
+    ] {
+        let Extraction::Failed {
+            outcome,
+            reason,
+            pages,
+        } = s.extract(&corpus(rel), FileType::Pdf).unwrap()
+        else {
+            panic!("{rel} needs OCR");
+        };
+        assert_eq!(
+            (outcome, reason.as_str()),
+            (Outcome::NeedsOcr, "no_text_layer")
+        );
+        assert_eq!(
+            pages,
+            Some(PageCounts {
+                page_count,
+                text_pages: 0
+            }),
+            "{rel}"
+        );
+    }
+    let Extraction::Failed { pages, reason, .. } = s
+        .extract(&corpus("pdf/generated/no-tounicode.pdf"), FileType::Pdf)
+        .unwrap()
+    else {
+        panic!("no-tounicode.pdf needs OCR");
+    };
+    assert_eq!(reason, "unreadable_text");
+    assert_eq!(
+        pages,
+        Some(PageCounts {
+            page_count: 3,
+            text_pages: 0
+        }),
+        "its text is garbled on every page"
     );
 }

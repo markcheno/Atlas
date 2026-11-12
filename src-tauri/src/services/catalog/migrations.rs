@@ -81,6 +81,11 @@ pub const MIGRATIONS: &[Migration] = &[
         name: "boilerplate",
         sql: include_str!("../../../migrations/0014_boilerplate.sql"),
     },
+    Migration {
+        version: 15,
+        name: "ocr_pages",
+        sql: include_str!("../../../migrations/0015_ocr_pages.sql"),
+    },
 ];
 
 /// Highest catalog schema version this build can read and write.
@@ -459,7 +464,7 @@ mod tests {
                          VALUES ('d', x'01', 'done', 't', 't');",
                 )
                 .unwrap();
-                assert_eq!(migrate(c, "t2").unwrap(), 14);
+                assert_eq!(migrate_to(c, 14, "t2").unwrap(), 14);
                 let n: i64 = c
                     .query_row(
                         "SELECT boilerplate_chars FROM documents WHERE id = 'd'",
@@ -468,6 +473,56 @@ mod tests {
                     )
                     .unwrap();
                 assert_eq!(n, 0, "documents read before start at zero");
+            })
+            .unwrap();
+    }
+
+    #[test]
+    fn version_15_sends_uncounted_scanned_pdfs_back_once() {
+        use crate::services::catalog::writer::CatalogWriter;
+
+        let dir = tempfile::tempdir().unwrap();
+        let writer = CatalogWriter::open(&dir.path().join("catalog.sqlite")).unwrap();
+        writer
+            .call(|c| {
+                assert_eq!(migrate_to(c, 14, "t").unwrap(), 14);
+                c.execute_batch(
+                    "INSERT INTO workspace (id, name, created_at) VALUES ('w', 'W', 't');
+                     INSERT INTO source_roots (id, workspace_id, path_bytes, display_path, created_at)
+                         VALUES ('r', 'w', x'00', '/b', 't');
+                     INSERT INTO documents (id, content_hash, state, page_count, created_at, updated_at)
+                         VALUES ('done', x'01', 'done', 3, 't', 't'),
+                                ('scan', x'02', 'needs_ocr', NULL, 't', 't'),
+                                ('book', x'03', 'needs_ocr', NULL, 't', 't');",
+                )
+                .unwrap();
+                for (id, doc, kind) in [("f1", "done", "pdf"), ("f2", "scan", "pdf"), ("f3", "book", "epub")] {
+                    c.execute(
+                        "INSERT INTO file_instances (id, source_root_id, rel_path, display_path,
+                             display_name, extension, file_type, availability, document_id,
+                             created_at, updated_at)
+                         VALUES (?1, 'r', CAST(?1 AS BLOB), ?1, ?1, ?3, ?3, 'available', ?2, 't', 't')",
+                        rusqlite::params![id, doc, kind],
+                    )
+                    .unwrap();
+                }
+                assert_eq!(migrate(c, "t2").unwrap(), 15);
+                let rows: Vec<(String, i64, Option<i64>)> = c
+                    .prepare("SELECT id, refresh, text_pages FROM documents ORDER BY id")
+                    .unwrap()
+                    .query_map([], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)))
+                    .unwrap()
+                    .map(Result::unwrap)
+                    .collect();
+                assert_eq!(
+                    rows,
+                    vec![
+                        ("book".into(), 0, None),
+                        ("done".into(), 0, None),
+                        ("scan".into(), 1, None),
+                    ],
+                    "only the scanned PDF is read again"
+                );
             })
             .unwrap();
     }

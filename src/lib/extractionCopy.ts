@@ -108,6 +108,15 @@ function pausedText(reason: PauseReason | null, folder: string): string {
 
 const readable = (c: ExtractionCounts) => c.done;
 
+/** Why reading stopped for good, when the reader itself can't run (Slice 4.1). */
+export const READER_UNAVAILABLE =
+  "Atlas couldn't start its document reader · Reinstall Atlas to fix it";
+const UNAVAILABLE_CODES = ['extractor_unavailable', 'worker_protocol'];
+
+/** Whether a folder's reading ended because the reader can't run. */
+const readerUnavailable = (ov: ExtractionOverview) =>
+  ov.roots.some((r) => r.failedBecause !== null && UNAVAILABLE_CODES.includes(r.failedBecause));
+
 /** The status bar's second line (phase1-spec §5.4). */
 export function extractionLine(ov: ExtractionOverview | null): string | null {
   if (!ov || ov.counts.total === 0) return null;
@@ -121,6 +130,7 @@ export function extractionLine(ov: ExtractionOverview | null): string | null {
   const updating = ov.counts.pending === 0 && ov.counts.updating > 0;
   const toUpdate = `${count(ov.counts.updating, 'file')} to go`;
   if (!a) {
+    if ((ov.counts.pending > 0 || updating) && readerUnavailable(ov)) return READER_UNAVAILABLE;
     if (ov.counts.pending > 0) return `Text waiting · ${progress} read`;
     if (updating) return `Text waiting to be updated · ${toUpdate}`;
     if (ov.scanning) return `Text read so far · ${count(processed, 'file')}`;

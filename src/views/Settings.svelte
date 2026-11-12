@@ -4,6 +4,7 @@
   import type { DataRootCandidate } from '../lib/api/bindings/DataRootCandidate';
   import type { DeviceCheck } from '../lib/api/bindings/DeviceCheck';
   import DeviceReadings from '../lib/components/DeviceReadings.svelte';
+  import DiagnosticsPanel from '../lib/components/DiagnosticsPanel.svelte';
   import ExportPanel from '../lib/components/ExportPanel.svelte';
   import LibraryFoldersPanel from '../lib/components/LibraryFoldersPanel.svelte';
   import AiModelsPanel from '../lib/components/AiModelsPanel.svelte';
@@ -154,6 +155,15 @@
     <h2 id="settings-export">Export and import</h2>
     {#if workspace.isOpen}
       <ExportPanel />
+    {:else}
+      <p class="muted">No Atlas library is open.</p>
+    {/if}
+  </section>
+
+  <section aria-labelledby="settings-diagnostics">
+    <h2 id="settings-diagnostics">Diagnostics</h2>
+    {#if workspace.isOpen}
+      <DiagnosticsPanel />
     {:else}
       <p class="muted">No Atlas library is open.</p>
     {/if}

@@ -137,6 +137,7 @@ impl Chat {
                 events,
                 answers: root.answers(),
                 recorder: Some(root.recorder()),
+                diagnostics: None,
             },
             &AskQuery {
                 question: question.into(),

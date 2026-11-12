@@ -176,8 +176,27 @@ fn clean_caches_empties_only_the_caches() {
         .unwrap_or(0);
     let keep = |p: &str| fs::read(root.join(p)).unwrap();
     let (manifest, settings) = (keep("atlas.json"), keep("config/settings.json"));
+    // The log (Slice 4.1) and a saved report are measured apart, and kept.
+    ws.require_open().unwrap().diagnostics().flush();
+    fs::write(
+        root.join("exports/diagnostics/atlas-diagnostics-x.json"),
+        b"{}",
+    )
+    .unwrap();
+    let logs: Vec<_> = fs::read_dir(root.join("logs"))
+        .unwrap()
+        .flatten()
+        .map(|e| e.path())
+        .collect();
+    assert!(!logs.is_empty(), "the session was logged");
     let before = storage::usage(&root, local().as_ref()).unwrap();
     assert_eq!(before.cache_bytes, 1_700 + link_bytes);
+    assert_eq!(
+        before.log_bytes,
+        logs.iter()
+            .map(|p| fs::metadata(p).unwrap().len())
+            .sum::<u64>()
+    );
 
     let freed = storage::clean_caches(&root).unwrap();
     assert_eq!(freed, 1_700 + link_bytes);
@@ -190,6 +209,11 @@ fn clean_caches_empties_only_the_caches() {
     );
     assert!(!root.join("cache/old").exists());
     assert!(root.join("tmp").is_dir());
+    assert!(logs.iter().all(|p| p.is_file()), "the log is kept");
+    assert!(
+        root.join("exports/diagnostics/atlas-diagnostics-x.json")
+            .is_file()
+    );
     assert_eq!(fs::read(&outside).unwrap(), b"never removed");
     assert_eq!(
         (keep("atlas.json"), keep("config/settings.json")),

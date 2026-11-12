@@ -3,6 +3,10 @@
 //! but the knowledge store: not in the process's output, not in any other
 //! file of the library or its config, not in the catalog's job tables.
 //!
+//! Slice 4.1, P4-02 (phase4-spec §8, §12): the log and a saved
+//! diagnostics report hold none of it either, nor a file's name or a
+//! document's words.
+//!
 //! The session runs in a child (this binary again, `--ignored`) so its
 //! stdout and stderr can be read whole; it leaves its library behind for
 //! the parent to search, byte by byte.
@@ -18,8 +22,12 @@ use atlas_lib::domain::dto::{
 };
 use atlas_lib::services::answers::stream::ChatLimits;
 use atlas_lib::services::answers::{self, AnswerEvents, AskDeps};
+use atlas_lib::services::diagnostics::Event;
+use atlas_lib::services::diagnostics::event::MeaningUse;
+use atlas_lib::services::diagnostics::report::{self, Inputs, KnowledgeSummary};
 use atlas_lib::services::providers::{privacy, profiles, url_policy};
 use atlas_lib::services::search::MeaningContext;
+use atlas_lib::services::storage;
 use rusqlite::Connection;
 use rusqlite::types::Value;
 use serde_json::json;
@@ -37,6 +45,10 @@ const TITLE_MARK: &str = "quokkatitleword";
 /// Words of the cited passage: an excerpt the store keeps.
 const EXCERPT: &str = "distant comets and glowing nebulae";
 const ROOT_LINE: &str = "ATLAS_P3_16_BASE=";
+/// In a file's name, and in a document's text (Slice 4.1): the catalog
+/// holds them, the log and the report never.
+const FILE_MARK: &str = "quokkafilenameword";
+const TEXT_MARK: &str = "quokkadocumentword";
 
 /// Every word the session typed or received, and what the model wrote.
 const MARKS: [&str; 5] = [
@@ -126,6 +138,24 @@ fn p3_16_nothing_recorded_is_anywhere_but_the_knowledge_store() {
         }
     }
     assert!(checked > 3, "the library's files were looked at");
+
+    // P4-02: the log and the report exist, and hold nothing the user
+    // wrote, read or named.
+    let logs = files(&data.join("logs"));
+    let reports = files(&data.join("exports").join("diagnostics"));
+    assert!(!logs.is_empty(), "the session was logged");
+    assert_eq!(reports.len(), 1, "the child saved a report");
+    for path in logs.iter().chain(&reports) {
+        let bytes = fs::read(path).unwrap();
+        for mark in MARKS.iter().chain([&EXCERPT, &FILE_MARK, &TEXT_MARK]) {
+            assert!(!contains(&bytes, mark), "{} holds {mark}", path.display());
+        }
+        let text = String::from_utf8_lossy(&bytes);
+        assert!(!text.contains("Chat service"), "a service's name");
+        assert!(!text.contains("test-chat"), "a model's name");
+        assert!(!text.contains("127.0.0.1"), "a service's address");
+        assert!(!text.contains(&*base.to_string_lossy()), "a path");
+    }
     // The store holds them all: the scan would have seen them.
     for mark in MARKS.iter().chain([&EXCERPT]) {
         assert!(contains(&in_store, mark), "the store keeps {mark}");
@@ -187,7 +217,22 @@ fn p3_16_nothing_recorded_is_anywhere_but_the_knowledge_store() {
 fn p3_16_child_process() {
     const NEAR_SKY: &str =
         "Distant comets and glowing nebulae drifted past the starship on its long voyage.";
-    let mut lib = Lib::with_texts(&[SKY, NEAR_SKY, BREAD], false);
+    let named = tempfile::tempdir().unwrap();
+    let extra = named.path().join(format!("{FILE_MARK}.pdf"));
+    fs::copy(
+        Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../spikes/extraction-bench/corpus/pdf/generated/book.pdf"),
+        &extra,
+    )
+    .unwrap();
+    let marked = format!("A loaf of rye bread and a {TEXT_MARK} rose slowly in the warm oven.");
+    let mut lib = Lib::custom(
+        &[SKY, NEAR_SKY, BREAD, &marked],
+        false,
+        2,
+        &[extra.as_path()],
+        |ws| ws,
+    );
     let answer = format!("The starship passed comets {ANSWER_MARK} [1].");
     let pieces = [
         format!(
@@ -232,8 +277,15 @@ fn p3_16_child_process() {
 
     // A search, as `search_documents` runs it.
     let q = Lib::query(&format!("glowing comets {SEARCH_MARK}"));
+    let started_at = std::time::Instant::now();
     let page = lib.hybrid(&q);
     assert!(!page.hits.is_empty());
+    root.diagnostics().record(Event::Search {
+        ms: started_at.elapsed().as_millis() as u64,
+        hits: page.hits.len() as u32,
+        matched: page.matched_documents,
+        meaning: MeaningUse::from(&page.semantic),
+    });
     recorder.search(&q, SearchIntent::Submit, &page);
 
     // A question, answered.
@@ -256,6 +308,7 @@ fn p3_16_child_process() {
             events,
             answers: root.answers(),
             recorder: Some(recorder),
+            diagnostics: Some(root.diagnostics()),
         },
         &AskQuery {
             question: format!("comets and glowing nebulae {QUESTION_MARK}"),
@@ -287,6 +340,23 @@ fn p3_16_child_process() {
         .rename(&trail, &format!("Comets {TITLE_MARK}"))
         .unwrap();
     assert_eq!(recorder.status().step_count, 4);
+
+    // A diagnostics report, as Settings saves one.
+    let store = root.knowledge();
+    root.diagnostics().flush();
+    report::save(&Inputs {
+        root: root.path().to_path_buf(),
+        device: None,
+        settings: root.settings().clone(),
+        storage: storage::usage(root.path(), lib.ws.volumes().as_ref()).ok(),
+        knowledge: KnowledgeSummary {
+            state: store.state(),
+            status: Some(store.status()),
+        },
+        dropped: 0,
+        saved_at: "2026-11-12T10:00:00Z".into(),
+    })
+    .unwrap();
 
     let base = lib.env.base.clone();
     lib.ws.shutdown();

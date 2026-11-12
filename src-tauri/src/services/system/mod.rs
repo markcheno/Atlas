@@ -9,8 +9,9 @@ pub mod assessment;
 
 use std::path::Path;
 
-use crate::domain::dto::DeviceCheck;
+use crate::domain::dto::{DeviceCheck, PolicyDecision};
 use crate::domain::traits::ResourceMonitor;
+use crate::services::diagnostics::{Diagnostics, Event};
 use crate::services::scheduler::policy::ResourcePolicy;
 
 const GIB: u64 = 1024 * 1024 * 1024;
@@ -21,6 +22,9 @@ const GIB: u64 = 1024 * 1024 * 1024;
 pub struct ResourceGovernor {
     pub monitor: Box<dyn ResourceMonitor>,
     pub policy: ResourcePolicy,
+    /// Where the policy's changes are recorded (Slice 4.1).
+    pub diagnostics: Option<Diagnostics>,
+    last: Option<PolicyDecision>,
 }
 
 impl ResourceGovernor {
@@ -28,11 +32,28 @@ impl ResourceGovernor {
         Self {
             monitor,
             policy: ResourcePolicy::new(),
+            diagnostics: None,
+            last: None,
         }
     }
 
     pub fn check(&mut self, data_root: Option<&Path>) -> DeviceCheck {
-        device_check(self.monitor.as_ref(), &mut self.policy, data_root)
+        let check = device_check(self.monitor.as_ref(), &mut self.policy, data_root);
+        let decision = PolicyDecision {
+            max_metadata_ops_per_second: None,
+            ..check.policy
+        };
+        if self.last != Some(decision) {
+            self.last = Some(decision);
+            if let Some(d) = &self.diagnostics {
+                d.record(Event::PolicyChanged {
+                    mode: decision.mode,
+                    pause: decision.pause_reason,
+                    throttle: decision.throttle_reason,
+                });
+            }
+        }
+        check
     }
 }
 

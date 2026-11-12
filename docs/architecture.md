@@ -69,6 +69,7 @@ commands and added the native multi-folder picker.
 | Interests and projects | `list_collections`, `get_collection`, `save_collection`, `delete_collection`, `add_to_collection`, `remove_from_collection`, `get_collection_membership`, `get_suggestions`, `dismiss_suggestion` | **3.6 (working)** |
 | Page view | `render_page` | **3.7 (working)** |
 | Export and import | `export_knowledge` (Rust shows the folder dialog), `preview_import` (the file dialog and a dry run), `apply_import`; `reveal_export` (3.9: the last export's folder in the file manager) | **3.8 (working)** |
+| Diagnostics | `get_diagnostics_status`, `save_diagnostics_report`, `reveal_diagnostics` (the newest report or the log's folder), `clear_log` | **4.1 (working)** |
 
 `get_app_status` returns only facts about the running process, including a
 feature list that marks exactly which capabilities this build provides.
@@ -227,7 +228,9 @@ Implemented in `src-tauri/src/services/workspace/`. Design rationale is in
 <root>/tmp/                   staging for atomic writes; emptied on open and by Clean caches
 <root>/cache/                 rebuildable caches (empty so far); emptied by Clean caches
 <root>/indexes/vectors/        the vector index per embedding model, <model>-<generation>.usearch (Slice 2.2); derived, rebuilt when needed
-<root>/content/ assets/ jobs/ models/ exports/ logs/   reserved, empty
+<root>/logs/                  the log, atlas-<UTC date>[-n].jsonl, at most 50 MiB (Slice 4.1; ADR 0021); never cleaned by Clean caches
+<root>/exports/diagnostics/   diagnostics reports the user saved (Slice 4.1); exports/ is also the export dialog's first folder
+<root>/content/ assets/ jobs/ models/   reserved, empty
 ```
 
 - **Default location:** the OS per-user app-data folder. On macOS that is
@@ -510,7 +513,9 @@ Implemented in `src-tauri/src/services/extraction/` (the worker in Slice
   version 3, Slice 3.1; counted in `documents.boilerplate_chars`); and the
   unreadable-text rule (half the pages under 20 visible characters, or 10%
   control, private-use or replacement characters → `needs_ocr`, no text
-  stored). Files are opened read-only, never recalling cloud content
+  stored; since Slice 4.1 such a PDF keeps its `page_count` and
+  `text_pages`, the pages with at least 20 visible characters under a
+  tenth garbled, sent in the `failed` frame's two optional fields). Files are opened read-only, never recalling cloud content
   (`FILE_FLAG_OPEN_NO_RECALL` on Windows; dataless files refused).
 - **Output hygiene.** Before PDFium loads, the worker keeps a duplicate of
   stdout for the protocol and points descriptor 1 (and on Windows the
@@ -630,7 +635,9 @@ Slice 1.6, in `src-tauri/src/services/documents/` and `services/storage/`.
   Since Slice 3.2 Storage also shows "Your trails and notes" (the knowledge
   store with its log) and "Snapshots (N)", apart from the catalog, and a
   sentence when the store can't be used or the last snapshot didn't happen
-  (`get_knowledge_status`). Clean caches never touches either.
+  (`get_knowledge_status`). Clean caches never touches either. Since Slice
+  4.1 "The log" (`logs/`) is measured apart too, and Clean caches leaves
+  it.
 
 ## Search
 
@@ -1208,6 +1215,48 @@ phase3-spec §5.8, §7.7; [ADR 0019](adr/0019-export-and-import.md)).
     it and focus returns.
   - **Import** shows the dry run's sentence, then Import or Cancel.
 
+## Diagnostics
+
+Implemented in `src-tauri/src/services/diagnostics/` (Slice 4.1);
+rationale in [ADR 0021](adr/0021-diagnostics.md).
+
+- **Events** (`event.rs`): a closed enum of codes and numbers, with no
+  field that can hold text made at run time. A panic's file is kept only
+  as Atlas's own `src/…`, never a build machine's path.
+- **The handle** (`Diagnostics`): one per workspace, shared in the app
+  with the resource governor (policy changes) and the panic hook. It is
+  attached when a library's lock is held, so migrations at open are
+  logged, and detached by a guard that is the open library's last field.
+  With no library open, nothing is written.
+- **The writer** (`log.rs`): a thread behind a bounded queue (1,024).
+  Drops are counted and written as one line. JSON lines go in
+  `logs/atlas-<UTC date>.jsonl`, rolling at 5 MiB, the folder kept under
+  50 MiB. A failed write stops the log until the library opens again.
+- **What records:**
+  - the job runner (start and end, with items and errors);
+  - user and policy pauses, once per change;
+  - the supervisors, tagged `read` or `render` (start, crash, refusal);
+  - the governor (policy changes);
+  - snapshots;
+  - `Serialize for AtlasError` (every error returned to the window, by
+    code);
+  - the search command, the answer thread, and the vector registry (index
+    loaded and let go).
+- **The report** (`report.rs`): versions, the device check, settings
+  modes, storage, counts (files, documents, pages needing OCR, passages,
+  chunks, vectors per model by position, jobs), the knowledge store's
+  counts or only its state, and the log's last 2,000 events. It is written
+  to `exports/diagnostics/`, off the workspace lock, and works with the
+  knowledge store damaged.
+- **The renderer:** Settings › Diagnostics (`DiagnosticsPanel.svelte`,
+  `diagnosticsCopy.ts`) says what a report holds and never holds, then
+  offers Save a diagnostics report, Show in…, Show the log folder and
+  Clear the log. It sends only which folder to show.
+- **The worker's hello** (Slice 4.1): a worker of another protocol is
+  refused as `Unavailable(ProtocolMismatch)`. Reading ends with
+  `worker_protocol`, which `RootExtractionSummary.failedBecause` carries
+  to the status line.
+
 ## Build, CI and measurement
 
 - **PDFium** (Slice 1.2) is pinned in `tools.lock.json` (bblanchon/pdfium-binaries
@@ -1388,5 +1437,8 @@ Phase 4 (full-collection readiness: OCR of scanned PDFs, automatic
 rescans, schedules for background work, checks and repairs, backups and
 restore, Move Atlas data, a local log and a diagnostics report, and the
 product owner's run against the real collection) is specified in
-[phase4-spec.md](phase4-spec.md). Nothing of it is built yet; Slice 4.1
-(diagnostics and carry-overs) is first.
+[phase4-spec.md](phase4-spec.md). Slice 4.1 built
+[diagnostics](#diagnostics) and the carry-overs: the worker's protocol
+checked, page counts kept for PDFs that need OCR (migration 0015), and the
+meaning index's lock split (one cause of the P3-18 flake; another is
+still unexplained).

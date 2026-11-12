@@ -38,6 +38,7 @@ Rules:
 | 12 | `0012_embeddings.sql` | `embedding_models`, `chunks`, `embeddings` (f16 BLOBs by text hash), `document_embeddings`, `vector_tombstones` and its trigger (Phase 2) |
 | 13 | `0013_embed_jobs.sql` | the embedding job's counters on `jobs`: chunks and characters sent, time waiting on the service (Phase 2) |
 | 14 | `0014_boilerplate.sql` | `documents.boilerplate_chars`: Project Gutenberg header and licence text the EPUB reader left out (Phase 3) |
+| 15 | `0015_ocr_pages.sql` | `documents.text_pages`: a Needs OCR PDF's pages with usable text; PDFs marked Needs OCR before it are read once more for their counts (Phase 4) |
 
 ## Knowledge store migrations
 

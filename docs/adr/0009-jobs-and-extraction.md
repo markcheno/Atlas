@@ -210,3 +210,13 @@ queues one for every root with pending files.
 - Verified by P1-03 … P1-14 (`tests/extraction.rs`,
   `tests/extraction_crash.rs`) and `tests/supervisor.rs`, against the real
   worker.
+
+## Amendment (Phase 4, Slice 4.1)
+
+The supervisor checks the worker's hello: a `protocol` other than the
+app's is a mismatched install, refused as `Unavailable(ProtocolMismatch)`
+rather than restarted as a crash. The extraction job ends with the code
+`worker_protocol`, and the status line says Atlas couldn't start its
+document reader ([ADR 0021](0021-diagnostics.md)). A PDF that needs OCR
+now also reports its page count and its pages with usable text, in two
+optional fields of the `failed` frame; the protocol stays 2.

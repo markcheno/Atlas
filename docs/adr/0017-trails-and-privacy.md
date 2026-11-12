@@ -27,7 +27,8 @@ recording works:
 - **The answer thread never kept the full answer.** It drains text into
   `answer-stream` events every 50 ms.
 - **Atlas has no log.** No logging framework exists; `logs/` is reserved
-  and empty.
+  and empty. (Until Slice 4.1: [ADR 0021](0021-diagnostics.md) adds a log
+  of typed events that can't hold any of what this ADR keeps private.)
 
 ## Decision
 
@@ -106,7 +107,9 @@ A step is one transaction. If it can't be written, the search or answer
 goes on, and `RecordingStatus.failed` is set until a step is saved again.
 The `trail-changed` event carries the change once, and the status bar says
 "Atlas couldn't save this step". Atlas has no log, so the failure is
-written nowhere. Diagnostics are Phase 4's.
+written nowhere. Diagnostics are Phase 4's. (Since Slice 4.1 the failed
+write's error code reaches the log, [ADR 0021](0021-diagnostics.md), never
+its content.)
 
 ### Privacy (amending ADR 0015)
 

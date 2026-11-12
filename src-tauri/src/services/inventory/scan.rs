@@ -1,6 +1,7 @@
 //! The scan job processor: Phase 0's inventory worker (phase0-spec §7.1–7.3,
 //! ADR 0005), run by the generic job runner (ADR 0009).
 
+use crate::domain::dto::JobKind;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::{Duration, Instant, UNIX_EPOCH};
@@ -71,6 +72,7 @@ pub struct ScanProcessor {
     /// Wakes the extraction runner when a finished scan queues reading.
     waker: JobWaker,
     last_emit: Option<Instant>,
+    diagnostics: crate::services::diagnostics::Diagnostics,
 }
 
 impl JobProcessor for ScanProcessor {
@@ -98,6 +100,7 @@ impl ScanProcessor {
             deps,
             signal: ctx.signal,
             waker: ctx.waker,
+            diagnostics: ctx.diagnostics,
             last_emit: None,
         }
     }
@@ -256,7 +259,7 @@ impl ScanProcessor {
                 DirOutcome::Done | DirOutcome::Failed | DirOutcome::Interrupted => {}
                 DirOutcome::Stop => return Flow::Stop,
                 DirOutcome::RootVanished => {
-                    self.pause_for(&s, PauseReason::SourceRootMissing);
+                    self.pause_for(&s, PauseReason::SourceRootMissing, false);
                     s.last_sample = Some(Instant::now());
                     if self.signal.wait(self.deps.config.policy_wait) {
                         return Flow::Stop;
@@ -266,7 +269,7 @@ impl ScanProcessor {
         }
     }
 
-    fn pause_for(&mut self, s: &Session, reason: PauseReason) {
+    fn pause_for(&mut self, s: &Session, reason: PauseReason, was_paused: bool) {
         let changed = self.transition(
             &s.id,
             JobState::PausedPolicy,
@@ -274,6 +277,14 @@ impl ScanProcessor {
             Some(reason),
             None,
         );
+        if changed {
+            crate::services::jobs::record_policy(
+                &self.diagnostics,
+                JobKind::Scan,
+                was_paused,
+                Some(reason),
+            );
+        }
         self.emit(changed);
     }
 
@@ -283,7 +294,7 @@ impl ScanProcessor {
         s.last_sample = Some(Instant::now());
         match self.gate(&s.root) {
             Gate::Pause(reason) => {
-                self.pause_for(s, reason);
+                self.pause_for(s, reason, state == Some(JobState::PausedPolicy));
                 if self.signal.wait(self.deps.config.policy_wait) {
                     return Some(Flow::Stop);
                 }
@@ -302,6 +313,12 @@ impl ScanProcessor {
                     if !resumed {
                         return Some(Flow::Continue);
                     }
+                    crate::services::jobs::record_policy(
+                        &self.diagnostics,
+                        JobKind::Scan,
+                        true,
+                        None,
+                    );
                     s.clock = Instant::now();
                     self.emit(true);
                 }
@@ -499,7 +516,7 @@ impl ScanProcessor {
                     return Some(DirOutcome::RootVanished);
                 }
                 Gate::Pause(reason) => {
-                    self.pause_for(s, reason);
+                    self.pause_for(s, reason, false);
                     return Some(DirOutcome::Interrupted);
                 }
                 Gate::Go { rate, throttle } => {
@@ -530,7 +547,7 @@ impl ScanProcessor {
     fn finish(&mut self, s: &Session) -> Flow {
         let reachable = s.root.is_dir();
         if !reachable {
-            self.pause_for(s, PauseReason::SourceRootMissing);
+            self.pause_for(s, PauseReason::SourceRootMissing, false);
             return if self.signal.wait(self.deps.config.policy_wait) {
                 Flow::Stop
             } else {

@@ -12,13 +12,15 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::mpsc::{self, Receiver, RecvTimeoutError};
 use std::time::{Duration, Instant};
 
-use super::WORKER_ARG;
 use super::engine::hash::{HashError, Hashed};
 use super::engine::{Outcome, Piece, Summary};
 use super::lifetime;
 use super::locate::Unavailable;
 use super::protocol::{Frame, RenderRect, Request, encode_path};
+use super::{PROTOCOL_VERSION, WORKER_ARG};
 use crate::domain::dto::FileType;
+use crate::services::diagnostics::event::WorkerRole;
+use crate::services::diagnostics::{Diagnostics, Event};
 
 /// How to start the worker. The app uses its own executable; tests and
 /// benches pass the `atlas` binary Cargo built (under `cargo test`,
@@ -119,7 +121,8 @@ pub enum WorkerError {
     Stopped,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub enum Crash {
     Timeout,
     Memory,
@@ -137,7 +140,17 @@ pub enum Extraction {
     Failed {
         outcome: Outcome,
         reason: String,
+        /// For a PDF that needs OCR: its pages, and those with usable text
+        /// (Slice 4.1). `None` otherwise.
+        pages: Option<PageCounts>,
     },
+}
+
+/// What a document that needs OCR is known to hold (Slice 4.1).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PageCounts {
+    pub page_count: u32,
+    pub text_pages: u32,
 }
 
 /// A page the worker rendered (Slice 3.7): the PNG's bytes, and where the
@@ -179,6 +192,10 @@ pub struct Supervisor {
     /// `None` when the process probe is unavailable; the memory cap is then
     /// not enforced (the inactivity timeout still is).
     sys: Option<sysinfo::System>,
+    /// The protocol a refused worker reported, for the log.
+    refused: Option<u32>,
+    /// Where starts, crashes and refusals are recorded (Slice 4.1).
+    diagnostics: Option<(Diagnostics, WorkerRole)>,
 }
 
 impl Supervisor {
@@ -195,6 +212,20 @@ impl Supervisor {
             stats,
             running: None,
             sys: sysinfo::System::new().ok(),
+            refused: None,
+            diagnostics: None,
+        }
+    }
+
+    /// Records this worker's starts, crashes and refusals as `role`.
+    pub fn with_diagnostics(mut self, diagnostics: Diagnostics, role: WorkerRole) -> Self {
+        self.diagnostics = Some((diagnostics, role));
+        self
+    }
+
+    fn record(&self, event: impl FnOnce(WorkerRole) -> Event) {
+        if let Some((d, role)) = &self.diagnostics {
+            d.record(event(*role));
         }
     }
 
@@ -247,7 +278,18 @@ impl Supervisor {
             pid,
         });
         match self.next_frame(self.config.start_timeout) {
-            Ok(Frame::Hello { .. }) => Ok(()),
+            Ok(Frame::Hello { protocol, .. }) if protocol == PROTOCOL_VERSION => {
+                self.record(|role| Event::WorkerStarted { role });
+                Ok(())
+            }
+            // Another protocol is a mismatched install, not a crash:
+            // restarting would only meet it again (Slice 4.1).
+            Ok(Frame::Hello { protocol, .. }) => {
+                self.kill();
+                self.refused = Some(protocol);
+                self.record(|role| Event::WorkerRefused { role, protocol });
+                Err(WorkerError::Unavailable(Unavailable::ProtocolMismatch))
+            }
             Ok(Frame::Unavailable { reason }) => {
                 self.kill();
                 Err(WorkerError::Unavailable(reason))
@@ -339,6 +381,17 @@ impl Supervisor {
         width: u32,
         find: Option<&str>,
     ) -> Result<Result<RenderedPage, String>, WorkerError> {
+        let r = self.render_inner(path, page, width, find);
+        self.noted(r)
+    }
+
+    fn render_inner(
+        &mut self,
+        path: &Path,
+        page: u32,
+        width: u32,
+        find: Option<&str>,
+    ) -> Result<Result<RenderedPage, String>, WorkerError> {
         use base64::prelude::{BASE64_STANDARD, Engine as _};
         self.send(&Request::Render {
             path: encode_path(path),
@@ -390,10 +443,36 @@ impl Supervisor {
     pub fn is_running(&self) -> bool {
         self.running.is_some()
     }
+
+    /// The protocol the last refused worker reported (Slice 4.1).
+    pub fn refused_protocol(&self) -> Option<u32> {
+        self.refused
+    }
 }
 
 impl DocumentProcessor for Supervisor {
     fn hash(&mut self, path: &Path) -> Result<Result<Hashed, HashError>, WorkerError> {
+        let r = self.hash_inner(path);
+        self.noted(r)
+    }
+
+    fn extract(&mut self, path: &Path, kind: FileType) -> Result<Extraction, WorkerError> {
+        let r = self.extract_inner(path, kind);
+        self.noted(r)
+    }
+}
+
+impl Supervisor {
+    /// Records a crash in the log on its way to the caller.
+    fn noted<T>(&self, r: Result<T, WorkerError>) -> Result<T, WorkerError> {
+        if let Err(WorkerError::Crashed(crash)) = &r {
+            let crash = *crash;
+            self.record(|role| Event::WorkerCrashed { role, crash });
+        }
+        r
+    }
+
+    fn hash_inner(&mut self, path: &Path) -> Result<Result<Hashed, HashError>, WorkerError> {
         self.send(&Request::Hash {
             path: encode_path(path),
         })?;
@@ -416,7 +495,7 @@ impl DocumentProcessor for Supervisor {
         }
     }
 
-    fn extract(&mut self, path: &Path, kind: FileType) -> Result<Extraction, WorkerError> {
+    fn extract_inner(&mut self, path: &Path, kind: FileType) -> Result<Extraction, WorkerError> {
         self.send(&Request::Extract {
             path: encode_path(path),
             kind,
@@ -437,8 +516,24 @@ impl DocumentProcessor for Supervisor {
                     text,
                 }),
                 Frame::Done { summary } => return Ok(Extraction::Done { summary, pieces }),
-                Frame::Failed { outcome, reason } => {
-                    return Ok(Extraction::Failed { outcome, reason });
+                Frame::Failed {
+                    outcome,
+                    reason,
+                    page_count,
+                    text_pages,
+                } => {
+                    let pages = match (page_count, text_pages) {
+                        (Some(page_count), Some(text_pages)) => Some(PageCounts {
+                            page_count,
+                            text_pages: text_pages.min(page_count),
+                        }),
+                        _ => None,
+                    };
+                    return Ok(Extraction::Failed {
+                        outcome,
+                        reason,
+                        pages,
+                    });
                 }
                 _ => {
                     self.kill();

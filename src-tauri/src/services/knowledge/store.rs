@@ -7,6 +7,7 @@
 //! byte for byte as it is, and every use of it is refused with
 //! [`AtlasError::Knowledge`].
 
+use crate::services::diagnostics::Diagnostics;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
@@ -50,6 +51,9 @@ pub struct Inner {
     pub(super) last: Mutex<Option<SnapshotOutcome>>,
     /// One snapshot at a time (the open check and the hourly one).
     pub(super) snapshotting: Mutex<()>,
+    /// Where snapshots taken, failed or skipped for space are recorded
+    /// (Slice 4.1).
+    pub(super) diagnostics: std::sync::OnceLock<Diagnostics>,
 }
 
 impl Inner {
@@ -130,6 +134,7 @@ impl KnowledgeStore {
             trails,
             last: Mutex::new(None),
             snapshotting: Mutex::new(()),
+            diagnostics: std::sync::OnceLock::new(),
         });
         snapshot::clean_staging(&inner.staging_dir());
         let ticker = (state == KnowledgeState::Ready)
@@ -153,6 +158,12 @@ impl KnowledgeStore {
 
     /// The store, for what outlives a borrow of it: the recorder, and an
     /// answer's thread through it.
+    /// Records this store's snapshots in `diagnostics` (Slice 4.1). Set
+    /// once, before the first snapshot.
+    pub fn set_diagnostics(&self, diagnostics: Diagnostics) {
+        let _ = self.inner.diagnostics.set(diagnostics);
+    }
+
     pub fn shared(&self) -> Arc<Inner> {
         Arc::clone(&self.inner)
     }

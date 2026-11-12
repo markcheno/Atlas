@@ -44,6 +44,8 @@ import type { SourceUsed } from '../lib/api/bindings/SourceUsed';
 import type { RelatedHit } from '../lib/api/bindings/RelatedHit';
 import type { RelatedPage } from '../lib/api/bindings/RelatedPage';
 import type { StorageUsage } from '../lib/api/bindings/StorageUsage';
+import type { DiagnosticsStatus } from '../lib/api/bindings/DiagnosticsStatus';
+import type { ReportSaved } from '../lib/api/bindings/ReportSaved';
 import type { RecordingStatus } from '../lib/api/bindings/RecordingStatus';
 import type { TrailPage } from '../lib/api/bindings/TrailPage';
 import type { Anchor } from '../lib/api/bindings/Anchor';
@@ -70,7 +72,7 @@ export const fakeStatus: AppStatus = {
   os: 'macos',
   arch: 'aarch64',
   buildProfile: 'debug',
-  slice: '3.9',
+  slice: '4.1',
   features: [],
 };
 
@@ -422,7 +424,29 @@ export function storageUsage(overrides: Partial<StorageUsage> = {}): StorageUsag
     knowledgeBytes: 98_304,
     snapshotBytes: 196_608,
     snapshotCount: 2,
+    logBytes: 48_000,
     measuredAt: '2026-11-09T00:00:00Z',
+    ...overrides,
+  };
+}
+
+export function diagnosticsStatus(overrides: Partial<DiagnosticsStatus> = {}): DiagnosticsStatus {
+  return {
+    logBytes: 48_000,
+    logFiles: 2,
+    droppedEvents: 0,
+    logStopped: false,
+    reports: 0,
+    lastReportAt: null,
+    ...overrides,
+  };
+}
+
+export function reportSaved(overrides: Partial<ReportSaved> = {}): ReportSaved {
+  return {
+    savedAt: '2026-11-12T10:00:00Z',
+    bytes: 52_000,
+    status: diagnosticsStatus({ reports: 1, lastReportAt: '2026-11-12T10:00:00Z' }),
     ...overrides,
   };
 }
@@ -1027,6 +1051,14 @@ function defaults(): Record<string, Handler> {
     preview_import: () => importPreview(),
     apply_import: () => ({ summary: importSummary() }),
     reveal_export: () => null,
+    // Diagnostics (Slice 4.1).
+    get_diagnostics_status: () => diagnosticsStatus(),
+    save_diagnostics_report: () =>
+      reportSaved({
+        status: diagnosticsStatus({ reports: 1, lastReportAt: '2026-11-12T10:00:00Z' }),
+      }),
+    reveal_diagnostics: () => null,
+    clear_log: () => diagnosticsStatus({ logBytes: 120, logFiles: 1 }),
     delete_all_trails: () => 0,
   };
 }

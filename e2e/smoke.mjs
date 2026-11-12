@@ -731,6 +731,39 @@ async function run() {
     await wd.click(await wd.waitFor(button('Done')));
     return { result, note: notes[0] };
   });
+
+  await step('a diagnostics report is saved', async () => {
+    await wd.click(await wd.waitFor(button('Settings')));
+    await wd.waitFor("//h2[normalize-space(.)='Diagnostics']");
+    await wd.click(await wd.waitFor(button('Save a diagnostics report'), { enabled: true }));
+    const saved = await wd.text(
+      await wd.waitFor("//*[@data-testid='report-saved']", { timeout: 30_000 }),
+    );
+    const dir = path.join(dataRoot, 'exports', 'diagnostics');
+    const reports = fs.readdirSync(dir).filter((n) => /^atlas-diagnostics-.*\.json$/.test(n));
+    if (reports.length !== 1) throw new Error(`reports: ${JSON.stringify(reports)}`);
+    const text = fs.readFileSync(path.join(dir, reports[0]), 'utf8');
+    const parsed = JSON.parse(text);
+    if (parsed.reportVersion !== 1) throw new Error(`report version ${parsed.reportVersion}`);
+    if (!(parsed.library.passages > 0)) throw new Error('the report counts no passages');
+    // A small P4-02: nothing the session typed, and no file's name or path.
+    const names = fs
+      .readdirSync(fixture, { recursive: true })
+      .map((n) => path.basename(String(n)))
+      .filter((n) => /\.(pdf|epub)$/i.test(n))
+      .slice(0, 20);
+    for (const word of [VAGUE_QUESTION, fixture, dataRoot, scratch, ...names]) {
+      if (text.includes(word) || text.includes(JSON.stringify(word).slice(1, -1))) {
+        throw new Error(`the report holds ${JSON.stringify(word)}`);
+      }
+    }
+    await wd.click(await wd.waitFor("//button[starts-with(normalize-space(.), 'Show in')]"));
+    const revealed = await wd.until('the report revealed', async () => {
+      const log = fs.existsSync(openerLog) ? fs.readFileSync(openerLog, 'utf8') : '';
+      return log.split('\n').find((l) => l.startsWith('reveal ') && l.includes(reports[0]));
+    });
+    return { saved, bytes: text.length, revealed: Boolean(revealed) };
+  });
 }
 
 /** Opens Trails and its newest trail's timeline. */

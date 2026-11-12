@@ -9,6 +9,7 @@
 pub mod answers;
 pub mod app;
 pub mod collections;
+pub mod diagnostics;
 pub mod documents;
 pub mod embedding;
 pub mod export;
@@ -109,4 +110,8 @@ pub const COMMAND_NAMES: &[&str] = &[
     "preview_import",
     "apply_import",
     "reveal_export",
+    "get_diagnostics_status",
+    "save_diagnostics_report",
+    "reveal_diagnostics",
+    "clear_log",
 ];

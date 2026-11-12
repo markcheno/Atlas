@@ -5,14 +5,15 @@ use std::path::Path;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Condvar, Mutex};
 use std::thread::{self, JoinHandle};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use super::db;
 use super::{Flow, ProcessorContext, ProcessorFactory};
-use crate::domain::dto::JobKind;
+use crate::domain::dto::{JobKind, JobState};
 use crate::error::{AtlasError, AtlasResult};
 use crate::services::catalog::codec::to_db;
 use crate::services::catalog::writer::CatalogHandle;
+use crate::services::diagnostics::{Diagnostics, Event};
 use crate::services::embedding::registry::VectorRegistry;
 
 /// Wakes a runner early (user commands) and tells it to stop (shutdown).
@@ -84,6 +85,7 @@ impl JobRunner {
     /// Starts the runner for `kind` with its own `signal`. The processor is
     /// built on the runner's own thread, so it is also dropped there before
     /// the thread ends.
+    #[allow(clippy::too_many_arguments)]
     fn start(
         kind: JobKind,
         catalog: CatalogHandle,
@@ -92,6 +94,7 @@ impl JobRunner {
         signal: Arc<Signal>,
         waker: JobWaker,
         vectors: Arc<VectorRegistry>,
+        diagnostics: Diagnostics,
     ) -> AtlasResult<Self> {
         let ctx = ProcessorContext {
             catalog: catalog.clone(),
@@ -99,11 +102,12 @@ impl JobRunner {
             signal: Arc::clone(&signal),
             waker,
             vectors,
+            diagnostics: diagnostics.clone(),
         };
         let loop_signal = Arc::clone(&signal);
         let thread = thread::Builder::new()
             .name(format!("atlas-job-{}", to_db(&kind)))
-            .spawn(move || run(kind, catalog, &loop_signal, factory(ctx)))
+            .spawn(move || run(kind, catalog, &loop_signal, factory(ctx), &diagnostics))
             .map_err(AtlasError::io("start background work"))?;
         Ok(Self {
             signal,
@@ -135,6 +139,7 @@ fn run(
     catalog: CatalogHandle,
     signal: &Signal,
     mut processor: Box<dyn super::JobProcessor>,
+    diagnostics: &Diagnostics,
 ) {
     processor.started();
     let mut db_failures = 0u32;
@@ -142,7 +147,31 @@ fn run(
         match catalog.call(move |c| db::next_runnable(c, kind)) {
             Ok(Ok(Some(job))) => {
                 db_failures = 0;
-                if let Flow::Stop = processor.run(job) {
+                let (id, before) = (job.id.clone(), items(&catalog, &job.id));
+                // A job resumed after a policy pause is the same job going
+                // on; only a fresh start is logged as one.
+                let fresh = job.state == JobState::Queued;
+                if fresh {
+                    diagnostics.record(Event::JobStarted { kind });
+                }
+                let started = Instant::now();
+                let flow = processor.run(job);
+                let after = catalog
+                    .call({
+                        let id = id.clone();
+                        move |c| db::job(c, &id)
+                    })
+                    .ok()
+                    .and_then(Result::ok)
+                    .flatten();
+                diagnostics.record(Event::JobEnded {
+                    kind,
+                    state: after.as_ref().map(|j| j.state),
+                    ms: started.elapsed().as_millis() as u64,
+                    items: items(&catalog, &id).saturating_sub(before),
+                    errors: after.map_or(0, |j| u64::from(j.error_count)),
+                });
+                if let Flow::Stop = flow {
                     break;
                 }
             }
@@ -164,6 +193,28 @@ fn run(
     }
 }
 
+/// What a job has done so far: files found (scan), files read (read),
+/// chunks embedded (embed).
+fn items(catalog: &CatalogHandle, id: &str) -> u64 {
+    let id = id.to_owned();
+    catalog
+        .call(move |c| {
+            c.query_row(
+                "SELECT CASE kind WHEN 'scan' THEN discovered_files
+                                  WHEN 'embed' THEN embedded_chunks
+                                  ELSE (SELECT COUNT(*) FROM file_instances f
+                                         WHERE f.source_root_id = jobs.source_root_id
+                                           AND f.extract_state = 'linked') END
+                   FROM jobs WHERE id = ?1",
+                [&id],
+                |r| r.get::<_, i64>(0),
+            )
+        })
+        .ok()
+        .and_then(Result::ok)
+        .map_or(0, |n| n.max(0) as u64)
+}
+
 /// The runners of one open data root, at most one per kind (two runners of
 /// one kind would both run the same job).
 #[derive(Default)]
@@ -177,6 +228,7 @@ impl JobRunners {
         data_root: &Path,
         factories: &BTreeMap<JobKind, ProcessorFactory>,
         vectors: &Arc<VectorRegistry>,
+        diagnostics: &Diagnostics,
     ) -> AtlasResult<Self> {
         // Every signal exists before any runner starts, so each processor's
         // waker reaches all of them.
@@ -200,6 +252,7 @@ impl JobRunners {
                     signal,
                     waker.clone(),
                     Arc::clone(vectors),
+                    diagnostics.clone(),
                 )?,
             );
         }

@@ -10,7 +10,7 @@ use serde::{Serialize, Serializer};
 use ts_rs::TS;
 
 /// Stable error codes. Renaming a variant is a breaking IPC change.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, TS)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, serde::Deserialize, TS)]
 #[serde(rename_all = "snake_case")]
 #[ts(export)]
 pub enum ErrorCode {
@@ -128,6 +128,10 @@ pub enum ErrorCode {
     ImportExpired,
     /// Atlas couldn't snapshot the store before importing (Slice 3.8).
     ImportNoSnapshot,
+    /// Show the reports, with none saved yet (Slice 4.1).
+    NoDiagnosticsReport,
+    /// A diagnostics report couldn't be written (Slice 4.1).
+    DiagnosticsUnavailable,
     Internal,
 }
 
@@ -291,6 +295,10 @@ pub enum AtlasError {
     ImportExpired,
     #[error("Atlas couldn't snapshot your trails and notes first, so nothing was imported.")]
     ImportNoSnapshot,
+    #[error("No diagnostics report has been saved yet.")]
+    NoDiagnosticsReport,
+    #[error("Atlas couldn't save the diagnostics report.")]
+    DiagnosticsUnavailable,
     #[error("Atlas hit an internal error: {0}.")]
     Internal(&'static str),
 }
@@ -384,6 +392,8 @@ impl AtlasError {
             Self::ImportInvalid(_) => ErrorCode::ImportInvalid,
             Self::ImportExpired => ErrorCode::ImportExpired,
             Self::ImportNoSnapshot => ErrorCode::ImportNoSnapshot,
+            Self::NoDiagnosticsReport => ErrorCode::NoDiagnosticsReport,
+            Self::DiagnosticsUnavailable => ErrorCode::DiagnosticsUnavailable,
             Self::Internal(_) => ErrorCode::Internal,
         }
     }
@@ -486,6 +496,10 @@ impl AtlasError {
             Self::ImportInvalid(_) => "Export it again from Atlas, then import that file.",
             Self::ImportExpired => "Choose the file again.",
             Self::ImportNoSnapshot => "Free some disk space, then try again.",
+            Self::NoDiagnosticsReport => "Save a diagnostics report first.",
+            Self::DiagnosticsUnavailable => {
+                "Check that the library's drive has space and is connected, then try again."
+            }
         })
     }
 
@@ -510,8 +524,14 @@ impl AtlasError {
     }
 }
 
+/// An error is serialized only to answer a command, so this is where each
+/// error returned to the window is recorded: by its code alone (Slice
+/// 4.1; the command's name isn't known here).
 impl Serialize for AtlasError {
     fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        crate::services::diagnostics::record_app(
+            crate::services::diagnostics::Event::ErrorReturned { code: self.code() },
+        );
         self.payload().serialize(serializer)
     }
 }

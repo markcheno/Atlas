@@ -13,6 +13,7 @@
 //! - **Low space** stops new snapshots and says so. Nothing is ever
 //!   deleted to make room.
 
+use crate::services::diagnostics::Event;
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -174,6 +175,18 @@ fn low_space(inner: &Inner) -> bool {
 /// `before_check` runs on the staged copy before it is checked: tests use
 /// it to damage the copy.
 fn take_locked(inner: &Inner, before_check: &dyn Fn(&Path)) -> SnapshotOutcome {
+    let started = std::time::Instant::now();
+    let outcome = take_timed(inner, before_check);
+    if let Some(d) = inner.diagnostics.get() {
+        d.record(Event::Snapshot {
+            outcome,
+            ms: started.elapsed().as_millis() as u64,
+        });
+    }
+    outcome
+}
+
+fn take_timed(inner: &Inner, before_check: &dyn Fn(&Path)) -> SnapshotOutcome {
     if low_space(inner) {
         return record(inner, SnapshotOutcome::LowSpace);
     }

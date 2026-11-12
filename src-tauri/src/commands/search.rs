@@ -2,6 +2,8 @@ use tauri::State;
 
 use crate::domain::dto::{SearchIntent, SearchPage, SearchQuery};
 use crate::error::{AtlasError, AtlasResult};
+use crate::services::diagnostics::Event;
+use crate::services::diagnostics::event::MeaningUse;
 use crate::services::search::{self, MeaningContext};
 use crate::state::AppState;
 
@@ -30,12 +32,14 @@ pub async fn search_documents(
                 root.catalog().handle(),
                 crate::services::providers::privacy::remote_embedding(&root.settings().privacy),
                 std::sync::Arc::clone(root.recorder()),
+                root.diagnostics().clone(),
             ))
         })
         .await?;
     let (vault, embedder) = (state.vault.clone(), state.query.clone());
     tauri::async_runtime::spawn_blocking(move || {
-        let (reader, roots, vectors, catalog, allow_remote, recorder) = handles;
+        let (reader, roots, vectors, catalog, allow_remote, recorder, diagnostics) = handles;
+        let started = std::time::Instant::now();
         let page = search::run_hybrid(
             &reader,
             &roots,
@@ -48,6 +52,12 @@ pub async fn search_documents(
             },
             &query,
         )?;
+        diagnostics.record(Event::Search {
+            ms: started.elapsed().as_millis() as u64,
+            hits: page.hits.len() as u32,
+            matched: page.matched_documents,
+            meaning: MeaningUse::from(&page.semantic),
+        });
         recorder.search(&query, intent.unwrap_or_default(), &page);
         Ok(page)
     })

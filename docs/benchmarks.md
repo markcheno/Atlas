@@ -449,6 +449,30 @@ Duplicates' first page takes 33 ms at p95 over 2,001 groups, and Settings
 › Storage 122 ms. Cataloging is unchanged since Phase 0: 483 files/s at
 the policy rate on 30k, browse p95 under 37 ms while scanning.
 
+## Diagnostics (Slice 4.1)
+
+What recording costs: `measure_the_cost_of_recording`
+(`cargo test --release --test diagnostics -- --ignored --nocapture`),
+M5 Pro, 2026-11-12. 100,000 events went through the queue to the file in
+bursts the queue holds (512, then a flush).
+
+| Measure | Result |
+| --- | --- |
+| On the caller (`record`: serialize, then queue) | 0.20 µs an event |
+| Written (one line, appended and flushed) | 1.6 µs an event |
+| Size | 122 bytes an event |
+| Dropped | 0 of 100,000 |
+
+- **A burst of 100,000 events with no pause overflows the queue** (1,024).
+  About 11,600 were written and the rest were dropped, counted and logged
+  as one `events_dropped` line. That is the bound doing its job: nothing
+  in Atlas records that fast.
+- **Events are per job, per worker start or crash, and per change of
+  policy or pause, never per file.** A reading session of thousands of
+  files writes tens of lines. The log's cost to reading throughput is
+  under measurement noise by construction, so it wasn't timed against a
+  1k read.
+
 ## Phase 3 summary (Slice 3.9)
 
 Phase 3's measurements (phase3-spec §13) on the reference machine and the

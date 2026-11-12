@@ -4,7 +4,7 @@ Atlas is a local-first personal AI librarian for large private collections of
 PDFs, EPUBs, books and papers. *Collect freely. Organize minimally. Retrieve
 intelligently.*
 
-**Status: Phase 3 complete (version 0.4.0, [close-out review](docs/phase3-closeout.md)): research trails, bookmarks and findings, interests and projects, the PDF page view, export and import. Phases 0 to 2 complete ([Phase 2 review](docs/phase2-closeout.md), [Phase 1 review](docs/phase1-closeout.md)). Next: Phase 4, full-collection readiness ([specification](docs/phase4-spec.md)).** Atlas asks where to keep its library and
+**Status: Phase 3 complete (version 0.4.0, [close-out review](docs/phase3-closeout.md)): research trails, bookmarks and findings, interests and projects, the PDF page view, export and import. Phases 0 to 2 complete ([Phase 2 review](docs/phase2-closeout.md), [Phase 1 review](docs/phase1-closeout.md)). Phase 4, full-collection readiness, is under way ([specification](docs/phase4-spec.md)): Slice 4.1 adds a local log and a diagnostics report.** Atlas asks where to keep its library and
 which folders hold your books and papers, then catalogs every PDF and EPUB
 in them in the background, read-only. Cataloging slows on battery, pauses
 when the battery is low or the drive is nearly full, survives quitting and
@@ -80,6 +80,9 @@ shows a document's bookmarks. Interests and projects group trails,
 bookmarks, findings and documents (Add to… wherever they are shown), and
 Home suggests documents from your library near them and your recent trails,
 from the vectors Atlas already has: no model is asked.
+Since Phase 4, Atlas keeps a log of what it did, in counts and timings
+only, inside the library, and Settings › Diagnostics saves a report you
+can read and share if you choose: it names no file, title, search or note.
 
 Every push to `main`, every release tag and every pull request is built
 and tested on macOS (Apple silicon), Windows x64, and Linux x64; pushes to
@@ -146,6 +149,7 @@ with semantic search.
 | Phase 3, the page view: Show the page on PDF citations, results, bookmarks and trail steps; the page rendered in a separate, killable worker with the passage outlined when found; Previous, Next, a page number, Fit width or Actual size, Bookmark this page; the page's text below for screen readers and copying; pages cached by content (at most 200 MB) | Working (Phase 3, Slice 3.7) |
 | Phase 3, export and import: Export… on a trail, a finding, a collection or everything, as Markdown notes (Obsidian or Markdown links) or one JSON file, into an `Atlas` folder inside a folder you choose; your own notes there are never overwritten; Import from a file… with a dry run first, the newer copy kept, nothing removed | Working (Phase 3, Slice 3.8) |
 | Phase 3 close-out: evidence on three OSes, version 0.4.0 | Done ([review](docs/phase3-closeout.md)); Windows and Linux verified in CI with a scripted model service, with documented gaps |
+| Phase 4, diagnostics: a local log of what Atlas did, in counts and timings only (`logs/`, at most 50 MB, never sent anywhere); Settings › Diagnostics saves a report that says what it holds and never holds; scanned PDFs keep their page counts; a mismatched document reader is reported instead of retried | Working (Phase 4, Slice 4.1) |
 
 Specifications: [product](docs/product-spec.md), [Phase 0](docs/phase0-spec.md),
 [Phase 1](docs/phase1-spec.md), [Phase 2](docs/phase2-spec.md),

@@ -1002,6 +1002,7 @@ fn ask_atlas_against_real_models() {
                 events: Arc::clone(&events),
                 answers: root.answers(),
                 recorder: None,
+                diagnostics: None,
             },
             &AskQuery {
                 question: question.into(),

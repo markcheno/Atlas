@@ -2,4 +2,10 @@
 import type { ExtractionCounts } from "./ExtractionCounts";
 import type { JobState } from "./JobState";
 
-export type RootExtractionSummary = { sourceRootId: string, counts: ExtractionCounts, lastState: JobState | null, activeJobId: string | null, };
+export type RootExtractionSummary = { sourceRootId: string, counts: ExtractionCounts, lastState: JobState | null, activeJobId: string | null, 
+/**
+ * The fixed code of the folder's latest job, when it ended for good:
+ * `extractor_unavailable`, `worker_protocol`, `path_undecodable`
+ * (Slice 4.1).
+ */
+failedBecause: string | null, };

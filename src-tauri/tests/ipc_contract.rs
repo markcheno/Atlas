@@ -13,7 +13,7 @@ use tauri::async_runtime::block_on;
 fn app_status_reports_only_true_facts() {
     let status = block_on(commands::app::get_app_status()).unwrap();
     assert_eq!(status.app_version, env!("CARGO_PKG_VERSION"));
-    assert_eq!(status.slice, "3.9");
+    assert_eq!(status.slice, "4.1");
     assert_eq!(status.arch, std::env::consts::ARCH);
     if cfg!(target_os = "macos") {
         assert_eq!(status.os, OsKind::Macos);
@@ -51,7 +51,8 @@ fn app_status_reports_only_true_facts() {
             "saved",
             "collections",
             "page_view",
-            "export_import"
+            "export_import",
+            "diagnostics"
         ]
     );
     assert!(
@@ -88,6 +89,7 @@ fn no_command_is_a_stub() {
         include_str!("../src/commands/collections.rs"),
         include_str!("../src/commands/reader.rs"),
         include_str!("../src/commands/export.rs"),
+        include_str!("../src/commands/diagnostics.rs"),
     ];
     for source in sources {
         assert!(!source.contains("not_implemented("));

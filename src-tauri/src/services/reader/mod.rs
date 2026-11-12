@@ -14,6 +14,8 @@
 
 pub mod cache;
 
+use crate::services::diagnostics::Diagnostics;
+use crate::services::diagnostics::event::WorkerRole;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
@@ -48,6 +50,8 @@ pub struct ReaderConfig {
     pub idle: Duration,
     /// The cache's most, in bytes.
     pub cache_cap_bytes: u64,
+    /// The library's log; the workspace sets it (Slice 4.1).
+    pub diagnostics: Option<Diagnostics>,
 }
 
 impl ReaderConfig {
@@ -57,6 +61,7 @@ impl ReaderConfig {
             supervisor: SupervisorConfig::default(),
             idle: Duration::from_secs(60),
             cache_cap_bytes: 200 * 1024 * 1024,
+            diagnostics: None,
         }
     }
 }
@@ -279,12 +284,16 @@ impl ReaderService {
                 .map_err(|_| AtlasError::Internal("the page renderer"))?;
             let supervisor = worker.get_or_insert_with(|| {
                 let stop = Arc::clone(&self.shared.stop);
-                Supervisor::new(
+                let s = Supervisor::new(
                     config.command.clone(),
                     config.supervisor.clone(),
                     Arc::new(move || stop.load(Ordering::SeqCst)),
                     Arc::clone(&self.shared.stats),
-                )
+                );
+                match &config.diagnostics {
+                    Some(d) => s.with_diagnostics(d.clone(), WorkerRole::Render),
+                    None => s,
+                }
             });
             let result = supervisor.render(&path, page, width, find);
             if let Ok(mut t) = self.shared.last_used.lock() {

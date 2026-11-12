@@ -31,6 +31,10 @@ pub const TEST_STDOUT_NOISE_ENV: &str = "ATLAS_WORKER_TEST_STDOUT_NOISE";
 /// `<file-name substring>:<hang|exit|bloat>`, separated by commas.
 pub const TEST_FAULT_ENV: &str = "ATLAS_WORKER_TEST_FAULT";
 
+/// Debug builds only: say hello with this protocol number instead of the
+/// real one, so tests can prove a mismatched worker is refused (Slice 4.1).
+pub const TEST_PROTOCOL_ENV: &str = "ATLAS_WORKER_TEST_PROTOCOL";
+
 pub const EXIT_OK: i32 = 0;
 pub const EXIT_UNAVAILABLE: i32 = 3;
 pub const EXIT_NO_PROTOCOL: i32 = 4;
@@ -80,8 +84,16 @@ fn serve() -> i32 {
             return EXIT_UNAVAILABLE;
         }
     };
+    let protocol = if cfg!(debug_assertions) {
+        std::env::var(TEST_PROTOCOL_ENV)
+            .ok()
+            .and_then(|v| v.parse().ok())
+            .unwrap_or(PROTOCOL_VERSION)
+    } else {
+        PROTOCOL_VERSION
+    };
     send(&Frame::Hello {
-        protocol: PROTOCOL_VERSION,
+        protocol,
         extractor_version: env!("CARGO_PKG_VERSION").to_owned(),
         pdfium_version: PDFIUM_VERSION.to_owned(),
         self_test,
@@ -216,6 +228,8 @@ fn failed(f: Failure) -> Frame {
     Frame::Failed {
         outcome: f.outcome,
         reason: f.reason.to_owned(),
+        page_count: f.pages.map(|(pages, _)| pages),
+        text_pages: f.pages.map(|(_, text)| text),
     }
 }
 

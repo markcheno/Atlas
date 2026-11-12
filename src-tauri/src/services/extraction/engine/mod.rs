@@ -57,11 +57,26 @@ pub enum Outcome {
 pub struct Failure {
     pub outcome: Outcome,
     pub reason: &'static str,
+    /// A PDF that needs OCR: its pages, and those with usable text.
+    pub pages: Option<(u32, u32)>,
 }
 
 impl Failure {
     pub const fn new(outcome: Outcome, reason: &'static str) -> Self {
-        Self { outcome, reason }
+        Self {
+            outcome,
+            reason,
+            pages: None,
+        }
+    }
+
+    /// A PDF that needs OCR, with what it is known to hold (Slice 4.1).
+    pub const fn needs_ocr(reason: &'static str, page_count: u32, text_pages: u32) -> Self {
+        Self {
+            outcome: Outcome::NeedsOcr,
+            reason,
+            pages: Some((page_count, text_pages)),
+        }
     }
 }
 
