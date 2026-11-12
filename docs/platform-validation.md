@@ -1321,7 +1321,18 @@ YAML quoting, the bad-file kinds, UTC times, the one-time token, migration
 5. the page view shows a page;
 6. a trail is exported to a scratch folder, its note checked on disk.
 
-**CI on `slice-38`:** full run pending.
+**CI on `slice-38`:** full run
+[43134406571](https://github.com/markcheno/Atlas/actions/runs/43134406571),
+all green on three OSes, all six new smoke steps included on Windows and
+Linux (the Windows job took 14 minutes).
+- **The first run**
+  ([43132767095](https://github.com/markcheno/Atlas/actions/runs/43132767095))
+  passed five of the new steps on Linux and failed the export step: the
+  Trails tab still showed the trail opened two steps before, so the smoke
+  found no list to pick from. It now goes back to the list first.
+- **Not shown in the log:** whether the Windows runner's account could make
+  symbolic links. P3-23 prints its skip note only to the test's captured
+  output, so the log doesn't say whether those cases ran.
 
 ## Slice 3.7
 
