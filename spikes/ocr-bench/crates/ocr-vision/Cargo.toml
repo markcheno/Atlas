@@ -1,0 +1,19 @@
+[package]
+name = "ocr-vision"
+version = "0.1.0"
+edition.workspace = true
+publish.workspace = true
+
+# Apple's Vision framework (macOS only; nothing ships with it). On other
+# OSes the binary builds and reports every page `unsupported`, so the
+# workspace builds everywhere.
+[dependencies]
+ocrbench.workspace = true
+serde_json.workspace = true
+
+[target.'cfg(target_os = "macos")'.dependencies]
+objc2 = "0.6"
+objc2-core-foundation = { version = "0.3", default-features = false, features = ["std", "CFData", "CFCGTypes"] }
+objc2-foundation = { version = "0.3", default-features = false, features = ["std", "NSArray", "NSString", "NSDictionary", "NSError", "NSObject", "NSData", "NSValue", "NSGeometry", "NSEnumerator"] }
+objc2-core-graphics = { version = "0.3", default-features = false, features = ["std", "CGImage", "CGColorSpace", "CGDataProvider", "objc2"] }
+objc2-vision = { version = "=0.3.2", default-features = false, features = ["std", "objc2-core-graphics", "VNRequest", "VNRequestHandler", "VNRecognizeTextRequest", "VNObservation", "VNTypes", "objc2-core-foundation"] }

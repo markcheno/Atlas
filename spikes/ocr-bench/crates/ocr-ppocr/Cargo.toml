@@ -1,0 +1,17 @@
+[package]
+name = "ocr-ppocr"
+version = "0.1.0"
+edition.workspace = true
+publish.workspace = true
+
+# PP-OCR through ONNX Runtime. oar-ocr pins ort 2.0.0-rc.13; with its
+# defaults off and `load-dynamic` on, ONNX Runtime is Microsoft's official
+# build, loaded at run time from the path the harness gives
+# (ORT_DYLIB_PATH), as the worker would load it beside PDFium. Nothing is
+# downloaded by a build script.
+[dependencies]
+ocrbench.workspace = true
+serde_json.workspace = true
+oar-ocr = { version = "=0.10.2", default-features = false }
+ort = { version = "=2.0.0-rc.13", default-features = false, features = ["std", "load-dynamic"] }
+image = { version = "0.25", default-features = false }
