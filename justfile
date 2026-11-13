@@ -229,6 +229,26 @@ spike-builds out="":
 spike-licenses:
     pnpm spike:licenses
 
+# The OCR spike's tools and models (Slice 4.2): PDFium, ONNX Runtime, cmake, the PP-OCR models and Tesseract's English models, each checked by SHA-256
+spike-ocr-tools:
+    pnpm spike:tools pdfium onnxruntime cmake ppocr-models tessdata typst
+
+# The OCR spike's corpus (about 50 pages with reference text): fetched from Wikisource and Commons by the pinned manifest, then built into spikes/ocr-bench/build/corpus (needs uv and spike-ocr-tools)
+spike-ocr-corpus:
+    cd spikes/ocr-bench/generator && uv sync --locked --python 3.12 && uv run python -m unittest && uv run corpus.py make && uv run corpus.py check
+
+# The OCR spike (Slice 4.2, ADR 0020): every engine over the corpus at 300 and 200 DPI, scored; results to `out` (default the system temp folder)
+spike-ocr out="":
+    pnpm spike:ocr {{ if out == "" { "" } else { "--out " + out } }}
+
+# Each OCR engine in Atlas's real installers for this OS, and its check from the installed place (slow: one release bundle per engine)
+spike-ocr-installers out="":
+    pnpm spike:ocr-installers {{ if out == "" { "" } else { "--out " + out } }}
+
+# The OCR engines on your own scans, run by the library's owner: up to 10 PDFs from `folder`, timed, with a page showing each scanned page beside each engine's text (written to spikes/ocr-bench/target/mine unless `out` says otherwise; never inside the folder or the repository). Prints numbers only
+spike-ocr-mine folder out="":
+    pnpm spike:ocr-mine "{{ folder }}" {{ if out == "" { "" } else { "--out " + out } }}
+
 # Run CI on GitHub for the pushed current branch: `full` (every OS, smoke, benchmarks, bundles), `quick` (Linux checks and tests) or `evidence` (the knowledge store at 100,000 steps and the page view on every OS). Pushes to slice-* run quick by themselves
 ci-remote scope="full":
     gh workflow run ci.yml --ref "$(git branch --show-current)" -f scope={{ scope }}

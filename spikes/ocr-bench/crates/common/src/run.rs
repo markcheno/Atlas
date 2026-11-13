@@ -141,6 +141,13 @@ pub fn png(page: &Grey) -> Vec<u8> {
 
 /// Runs the jobs through `engine`, made by `init` (which is timed).
 pub fn main_with<E: Engine>(name: &str, init: impl FnOnce(&Args) -> Result<E, String>) {
+    if std::env::args().nth(1).as_deref() == Some("--self-check") {
+        std::process::exit(crate::installed::self_check(name, init));
+    }
+    if std::env::args().nth(1).as_deref() == Some("--pages") {
+        list_pages(std::env::args().skip(2));
+        return;
+    }
     std::panic::set_hook(Box::new(|_| {}));
     let args = args();
     let mut out: Box<dyn Write> = match std::env::var_os("XBENCH_OUT") {
@@ -180,6 +187,15 @@ pub fn main_with<E: Engine>(name: &str, init: impl FnOnce(&Args) -> Result<E, St
             }
         };
         let render_ms = t.elapsed().as_secs_f64() * 1e3;
+        // The reference row: the PDF's own text, not OCR.
+        if args.variant == "text-layer" {
+            let line = match page_text(&pdfium, &job.pdf, job.page) {
+                Ok(text) => json!({ "id": job.id, "outcome": "ok", "text": text }),
+                Err(why) => json!({ "id": job.id, "outcome": "failed", "error": why }),
+            };
+            writeln!(out, "{line}").expect("write");
+            continue;
+        }
         if let Some(dir) = &args.dump {
             std::fs::create_dir_all(dir).expect("the dump folder");
             std::fs::write(dir.join(format!("{}.png", job.id)), png(&page)).expect("dump");
@@ -225,5 +241,42 @@ pub fn file_sha256(path: &Path) -> String {
     match std::fs::read(path) {
         Ok(bytes) => format!("{:x}", Sha256::digest(bytes)),
         Err(e) => format!("unreadable: {e}"),
+    }
+}
+
+/// The text layer of page `page` (from 1) of `pdf`.
+pub fn page_text(pdfium: &Pdfium, pdf: &Path, page: u16) -> Result<String, String> {
+    let doc = pdfium
+        .load_pdf_from_file(pdf, None)
+        .map_err(|e| format!("open: {e:?}"))?;
+    let p = doc
+        .pages()
+        .get(i32::from(page.checked_sub(1).ok_or("pages count from 1")?))
+        .map_err(|e| format!("page: {e:?}"))?;
+    Ok(p.text().map_err(|e| format!("text: {e:?}"))?.all())
+}
+
+/// `--pages <pdf>…`: one JSON line per file with each page's count of
+/// visible characters in its text layer (Atlas's rule: under 20 is an
+/// image-only page), or why it couldn't be opened.
+fn list_pages(files: impl Iterator<Item = String>) {
+    let pdfium = pdfium();
+    for file in files {
+        let line = match pdfium.load_pdf_from_file(&file, None) {
+            Ok(doc) => {
+                let chars: Vec<usize> = doc
+                    .pages()
+                    .iter()
+                    .map(|p| {
+                        p.text()
+                            .map(|t| t.all().chars().filter(|c| !c.is_whitespace()).count())
+                            .unwrap_or(0)
+                    })
+                    .collect();
+                json!({ "pdf": file, "visibleChars": chars })
+            }
+            Err(e) => json!({ "pdf": file, "error": format!("{e:?}") }),
+        };
+        println!("{line}");
     }
 }

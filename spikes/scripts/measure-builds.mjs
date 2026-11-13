@@ -6,6 +6,12 @@
 // which links what the app already links.
 //
 //   node spikes/scripts/measure-builds.mjs [--out <dir>] [--only vec-lancedb,…]
+//                                          [--workspace ocr-bench]
+//
+// The OCR engines (Slice 4.2): Tesseract and Leptonica are built from
+// source by xberg-tesseract, whose build script downloads them; they are
+// fetched once into a cache outside the timed build (TESSERACT_RS_CACHE_DIR)
+// so download time doesn't count. cmake is the pinned one from spike-tools.
 //
 // Nothing else should be running. Writes builds-<platform>.json and .md.
 
@@ -23,6 +29,7 @@ const opt = (name, fallback) => {
 };
 const out = path.resolve(opt('out', path.join(os.tmpdir(), 'atlas-spikes')));
 const only = opt('only', null)?.split(',');
+const onlyWorkspace = opt('workspace', null);
 // Short paths on Windows (LanceDB's build tree is deep).
 const scratch =
   process.platform === 'win32' ? 'C:\\b' : path.join(os.tmpdir(), 'atlas-spike-builds');
@@ -37,6 +44,10 @@ const TARGETS = [
   { workspace: 'vector-bench', pkg: 'vec-sqlite-simd', bin: 'vec-sqlite-simd' },
   { workspace: 'vector-bench', pkg: 'vec-usearch', bin: 'vec-usearch' },
   { workspace: 'vector-bench', pkg: 'vec-lancedb', bin: 'vec-lancedb' },
+  { workspace: 'ocr-bench', pkg: 'baseline', bin: 'baseline', role: 'baseline' },
+  { workspace: 'ocr-bench', pkg: 'ocr-tesseract', bin: 'ocr-tesseract' },
+  { workspace: 'ocr-bench', pkg: 'ocr-ppocr', bin: 'ocr-ppocr' },
+  { workspace: 'ocr-bench', pkg: 'ocr-vision', bin: 'ocr-vision', os: 'darwin' },
 ];
 
 const env = { ...process.env, CARGO_INCREMENTAL: '0' };
@@ -44,9 +55,15 @@ delete env.RUSTC_WRAPPER;
 try {
   const p = JSON.parse(fs.readFileSync(path.join(spikes, '.tools', 'paths.json'), 'utf8'));
   if (p.protoc) env.PROTOC = p.protoc.bin;
+  if (p.cmake) {
+    env.CMAKE = p.cmake.bin;
+    env.PATH = `${path.dirname(p.cmake.bin)}${path.delimiter}${env.PATH}`;
+  }
 } catch {
-  // protoc is only needed for LanceDB
+  // protoc is only needed for LanceDB, cmake for Tesseract
 }
+// Tesseract's and Leptonica's sources, fetched once, outside the timing.
+env.TESSERACT_RS_CACHE_DIR = path.join(scratch, 'tesseract-sources');
 
 function strip(file) {
   if (process.platform === 'win32') return fs.statSync(file).size; // debug info lives in the .pdb
@@ -85,8 +102,20 @@ fs.mkdirSync(out, { recursive: true });
 const results = [];
 for (const t of TARGETS) {
   if (only && !only.includes(t.pkg) && t.role !== 'baseline') continue;
+  if (onlyWorkspace && t.workspace !== onlyWorkspace) continue;
+  if (t.os && t.os !== process.platform) continue;
   const cwd = path.join(spikes, t.workspace);
   spawnSync('cargo', ['fetch', '--locked'], { cwd, env, stdio: 'inherit' });
+  if (t.pkg === 'ocr-tesseract' && !fs.existsSync(env.TESSERACT_RS_CACHE_DIR)) {
+    // A throwaway build that downloads the sources into the cache.
+    console.log('builds: fetching the Tesseract and Leptonica sources (not timed)…');
+    spawnSync('cargo', ['build', '--release', '--locked', '-p', t.pkg], {
+      cwd,
+      env: { ...env, CARGO_TARGET_DIR: path.join(scratch, 'tesseract-warm') },
+      stdio: 'inherit',
+    });
+    fs.rmSync(path.join(scratch, 'tesseract-warm'), { recursive: true, force: true });
+  }
   const target = path.join(scratch, `${t.workspace}-${t.pkg}`);
   fs.rmSync(target, { recursive: true, force: true });
   console.log(`builds: ${t.workspace}/${t.pkg}…`);

@@ -217,13 +217,42 @@ function nativeComponents() {
       'compiled into the binary',
       'MIT OR Apache-2.0',
     ],
+    // The OCR spike (Slice 4.2, ADR 0020).
+    [
+      'Tesseract 5.5 (built from source by xberg-tesseract)',
+      'linked into the OCR engine binary',
+      'Apache-2.0',
+    ],
+    ['Leptonica 1.87 (built from source)', 'linked into the OCR engine binary', 'BSD-2-Clause'],
+    [
+      'tessdata_fast and tessdata_best eng.traineddata',
+      'model files shipped beside the engine',
+      'Apache-2.0',
+    ],
+    [
+      'ONNX Runtime 1.28.0 (Microsoft, official build)',
+      'shared library shipped beside the engine (PP-OCR)',
+      'MIT, with ThirdPartyNotices.txt (includes Eigen, MPL-2.0)',
+    ],
+    [
+      'PP-OCRv5 and PP-OCRv6 ONNX models (PaddlePaddle on Hugging Face)',
+      'model files shipped beside the engine (PP-OCR)',
+      'Apache-2.0',
+    ],
+    ['Apple Vision framework', 'part of macOS (nothing shipped)', 'system framework'],
+    ['cmake 4.5.0', 'build tool for Tesseract only (not shipped)', 'BSD-3-Clause'],
+    [
+      'Wikisource page transcriptions',
+      'reference text for the OCR corpus (fetched at build time, never committed or shipped)',
+      'CC BY-SA 4.0',
+    ],
   ];
 }
 
 function spikeReport() {
   const sections = [];
   const allFlagged = [];
-  for (const ws of ['extraction-bench', 'vector-bench']) {
+  for (const ws of ['extraction-bench', 'vector-bench', 'ocr-bench']) {
     const meta = JSON.parse(
       run('cargo', [
         'metadata',

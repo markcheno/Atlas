@@ -1,6 +1,7 @@
 name: Spikes
 
-# Slice 0.9 extraction and vector-engine spike (docs/spike-0.9.md).
+# Slice 0.9 extraction and vector-engine spike (docs/spike-0.9.md), and
+# the Slice 4.2 OCR spike (docs/spike-ocr.md, ADR 0020).
 # Manual only (Actions › Spikes › Run workflow, or
 # `gh workflow run spikes.yml -f suite=all`), so app CI stays fast.
 on:
@@ -9,7 +10,7 @@ on:
       suite:
         description: Which part to run
         type: choice
-        options: [all, vectors, extraction, docling, builds]
+        options: [all, vectors, extraction, docling, builds, ocr, ocr-builds, ocr-installers]
         default: all
       n:
         description: Vectors per data set
@@ -19,7 +20,8 @@ permissions:
   contents: read
 
 concurrency:
-  group: spikes-${{ github.ref }}
+  # One run per suite and branch: dispatching one suite doesn't cancel another.
+  group: spikes-${{ github.ref }}-${{ inputs.suite }}
   cancel-in-progress: true
 
 jobs:
@@ -214,8 +216,8 @@ jobs:
           app: 'false'
           rust-cache: 'false'
 
-      - name: Pinned tools (protoc)
-        run: node spikes/scripts/fetch-tools.mjs protoc
+      - name: Pinned tools (protoc, cmake)
+        run: node spikes/scripts/fetch-tools.mjs protoc cmake
 
       - name: Clean build of each candidate
         shell: bash
@@ -225,6 +227,192 @@ jobs:
         if: always()
         with:
           name: spike-builds-${{ runner.os }}
+          path: |
+            ${{ runner.temp }}/spikes/*.json
+            ${{ runner.temp }}/spikes/*.md
+          if-no-files-found: warn
+          retention-days: 90
+
+  # ---------------------------------------------------------- the OCR spike
+
+  # The corpus is built once, on Linux, and read by every OS's job, so the
+  # pages are identical everywhere (resampling may differ across platforms).
+  ocr-corpus:
+    name: OCR corpus
+    if: inputs.suite == 'all' || inputs.suite == 'ocr'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+
+      - name: Pinned tools (typst)
+        run: node spikes/scripts/fetch-tools.mjs typst
+
+      - name: Cached downloads (Wikisource, Commons)
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: spikes/ocr-bench/build/cache
+          key: ocr-corpus-${{ hashFiles('spikes/ocr-bench/corpus/manifest.json') }}
+
+      - name: Build and check the corpus
+        working-directory: spikes/ocr-bench/generator
+        run: |
+          uv sync --locked --python 3.12
+          uv run python -m unittest
+          uv run corpus.py make
+          uv run corpus.py check
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: ocr-corpus
+          path: spikes/ocr-bench/build/corpus
+          retention-days: 7
+
+  ocr:
+    name: OCR ${{ matrix.name }}
+    needs: ocr-corpus
+    if: inputs.suite == 'all' || inputs.suite == 'ocr'
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { name: macOS arm64, os: macos-latest }
+          - { name: Windows x64, os: windows-latest }
+          - { name: Linux x64, os: ubuntu-24.04 }
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 180
+    steps:
+      - name: Long paths and a short target dir (Windows)
+        if: runner.os == 'Windows'
+        shell: bash
+        run: |
+          git config --system core.longpaths true
+          echo 'CARGO_TARGET_DIR=C:\o' >> "$GITHUB_ENV"
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: ./.github/actions/setup
+        with:
+          app: 'false'
+          rust-cache: 'false'
+
+      - name: Pinned tools and models
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: spikes/.tools
+          key: ocr-tools-${{ runner.os }}-${{ hashFiles('spikes/tools.lock.json', 'tools.lock.json') }}
+
+      - name: Fetch what the cache doesn't hold
+        run: node spikes/scripts/fetch-tools.mjs pdfium onnxruntime cmake ppocr-models tessdata
+
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: ocr-corpus
+          path: spikes/ocr-bench/build/corpus
+
+      - name: Build and run the engines
+        shell: bash
+        run: node spikes/scripts/run-ocr.mjs --out "$RUNNER_TEMP/spikes"
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: always()
+        with:
+          name: spike-ocr-${{ runner.os }}
+          path: |
+            ${{ runner.temp }}/spikes/*.json
+            ${{ runner.temp }}/spikes/*.md
+          if-no-files-found: warn
+          retention-days: 90
+
+  ocr-builds:
+    name: OCR build cost ${{ matrix.name }}
+    if: inputs.suite == 'ocr-builds'
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { name: macOS arm64, os: macos-latest }
+          - { name: Windows x64, os: windows-latest }
+          - { name: Linux x64, os: ubuntu-24.04 }
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 120
+    steps:
+      - name: Long paths (Windows)
+        if: runner.os == 'Windows'
+        run: git config --system core.longpaths true
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: ./.github/actions/setup
+        with:
+          app: 'false'
+          rust-cache: 'false'
+
+      - name: Pinned tools (cmake)
+        run: node spikes/scripts/fetch-tools.mjs cmake
+
+      - name: Clean build of each engine
+        shell: bash
+        run: node spikes/scripts/measure-builds.mjs --workspace ocr-bench --out "$RUNNER_TEMP/spikes"
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: always()
+        with:
+          name: spike-ocr-builds-${{ runner.os }}
+          path: |
+            ${{ runner.temp }}/spikes/*.json
+            ${{ runner.temp }}/spikes/*.md
+          if-no-files-found: warn
+          retention-days: 90
+
+  # Each engine in Atlas's real installers, and its check from where they
+  # install it (ADR 0020's stand-in for the worker check).
+  ocr-installers:
+    name: OCR installers ${{ matrix.name }}
+    if: inputs.suite == 'ocr-installers'
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { name: macOS arm64, os: macos-latest }
+          - { name: Windows x64, os: windows-latest }
+          - { name: Linux x64, os: ubuntu-24.04 }
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 150
+    steps:
+      - name: Long paths (Windows)
+        if: runner.os == 'Windows'
+        run: git config --system core.longpaths true
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: ./.github/actions/setup
+        with:
+          cache-key: ocr-installers
+
+      - name: Pinned tools and models
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: spikes/.tools
+          key: ocr-tools-${{ runner.os }}-${{ hashFiles('spikes/tools.lock.json', 'tools.lock.json') }}
+
+      - name: Fetch what the cache doesn't hold
+        run: node spikes/scripts/fetch-tools.mjs pdfium onnxruntime cmake ppocr-models tessdata
+
+      - name: Build the engines
+        shell: bash
+        run: node spikes/scripts/run-ocr.mjs --build-only
+
+      - name: Installers with each engine, and the check from each layout
+        shell: bash
+        run: node spikes/scripts/ocr-installed.mjs --out "$RUNNER_TEMP/spikes"
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: always()
+        with:
+          name: spike-ocr-installers-${{ runner.os }}
           path: |
             ${{ runner.temp }}/spikes/*.json
             ${{ runner.temp }}/spikes/*.md
