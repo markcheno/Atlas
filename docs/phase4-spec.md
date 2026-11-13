@@ -661,6 +661,28 @@ Do **not** add an OCR engine, an `ocr` job, a rescan timer or any backup code be
 
 ### Revision notes
 
+**2026-11-12, Slice 4.1.2** (the Explore spike; [results](spike-explore.md)):
+- **The product owner asked for visual ways to browse**: a semantic
+  explorer, with books clustered by meaning into named areas on a map and
+  in a list, and a view of what the library is made of. The Phase 3 spec
+  deferred "graph views, tags and inferred topics"; the product spec lists
+  browsing by inferred topics for the Library.
+- **Decided by the owner:** a measured spike first, run on the real
+  collection by its owner, then a decision. Area names come from the
+  books' own words, computed locally; names from the chat model are
+  optional and later. Search and trails on the map, a walk from one book
+  and bridges between areas were not chosen for now.
+- **The spike is inserted before the OCR spike** and changes nothing in
+  the app: a module of pure functions (`services/explore`) and a harness
+  the owner runs. Building the feature is not Phase 4 scope until the
+  spike's rule says go and a specification is written; §17's "don't
+  overbuild future phases" stands.
+- **Hand-written, with no new dependency**, where the guideline prefers
+  maintained libraries: the reason is in the spike's write-up.
+- **`catalog::reader::open_offline`** is new: a catalog opened from
+  outside Atlas to read only, never migrated, refused at any schema but
+  the build's.
+
 **2026-11-12, Slice 4.1.1** (found by the owner on the real library):
 - **A meaning job that stopped for good says why.** Such a job isn't
   active, so the status line read "Meaning waiting" and offered nothing.

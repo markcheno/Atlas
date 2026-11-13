@@ -473,6 +473,32 @@ bursts the queue holds (512, then a flush).
   under measurement noise by construction, so it wasn't timed against a
   1k read.
 
+## Explore spike (Slice 4.1.2)
+
+What laying out a library by meaning costs: `just bench-explore`
+(`measure_explore_at_5k_and_30k`), M5 Pro, 18 threads, 2026-11-12. Books
+are drawn around 40 planted centres at 512 dimensions and grouped into 16
+areas; no library is read, so loading and naming aren't in it. The method
+and the rule are in the [spike's write-up](spike-explore.md).
+
+| Stage | 5,000 books | 30,000 books |
+| --- | --- | --- |
+| Neighbours (exact, 15 each) | 0.14 s | 6.8 s |
+| Areas and sub-areas | 0.21 s | 1.6 s |
+| The map (PCA start, then 500 or 200 passes) | 2.2 s | 5.9 s |
+| Measures (trustworthiness on 2,000 rows, agreement, preservation) | 1.7 s | 12.3 s |
+| All, after loading | 4.3 s | 26.6 s |
+| Vectors in memory | 9.8 MiB | 58.6 MiB |
+
+- **Planted centres are far easier than books**: trustworthiness 0.99
+  against 0.69 to 0.71 for PCA alone, and every area a region on the map.
+  This is what the method costs, not how well it will do on a library.
+- **The measures are there to judge the spike.** A feature would compute
+  neighbours, areas and the map: 2.6 s at 5,000 books and 14.3 s at
+  30,000.
+- **Loading the vectors** (64 lookups a book) isn't measured here: it
+  needs a real catalog, and the owner's run records it.
+
 ## Phase 3 summary (Slice 3.9)
 
 Phase 3's measurements (phase3-spec §13) on the reference machine and the
