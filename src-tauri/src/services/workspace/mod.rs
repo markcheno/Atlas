@@ -64,6 +64,8 @@ pub struct OpenRoot {
     /// The folder check (Slice 4.5), stopped first: it queues scans.
     _checker: Option<inventory::auto::Checker>,
     check_setting: inventory::auto::CheckSetting,
+    /// The workspace's clock, for the jobs queued in this library.
+    clock: Arc<dyn Clock>,
     /// The answer in progress (Slice 2.6), ended first, so an answer
     /// stopped by closing is still recorded.
     answers: Arc<AnswerRegistry>,
@@ -107,6 +109,10 @@ impl OpenRoot {
     }
     pub fn catalog(&self) -> &CatalogWriter {
         &self.catalog
+    }
+    /// The workspace's clock (Slice 4.5).
+    pub fn clock(&self) -> &dyn Clock {
+        &*self.clock
     }
     /// The library's knowledge store (Slice 3.2, ADR 0016).
     pub fn knowledge(&self) -> &KnowledgeStore {
@@ -541,6 +547,7 @@ impl Workspace {
         let check_setting = Arc::new(std::sync::Mutex::new(settings.background.check_folders));
         Ok(OpenRoot {
             _checker: self.start_checker(&catalog, &jobs, &check_setting),
+            clock: Arc::clone(&self.clock),
             check_setting,
             answers: Arc::default(),
             recorder: self.recorder(&knowledge, &reader),
@@ -623,6 +630,7 @@ impl Workspace {
             &self.processors,
             vectors,
             &self.diagnostics,
+            &self.clock,
         )
     }
 
@@ -680,6 +688,7 @@ impl Workspace {
         let check_setting = Arc::new(std::sync::Mutex::new(settings.background.check_folders));
         Ok(OpenRoot {
             _checker: self.start_checker(&catalog, &jobs, &check_setting),
+            clock: Arc::clone(&self.clock),
             check_setting,
             answers: Arc::default(),
             recorder: self.recorder(&knowledge, &reader),

@@ -13,7 +13,6 @@ use super::rate::TokenBucket;
 use super::{InventoryDeps, classify};
 use crate::domain::dto::{JobState, PauseReason, PolicyMode, SourceRootStatus, ThrottleReason};
 use crate::domain::traits::{CatalogRepository, DirEntryInfo, EntryKind};
-use crate::infrastructure::clock::now_rfc3339;
 use crate::infrastructure::native_path;
 use crate::services::catalog::codec::to_db;
 use crate::services::catalog::repository::SqliteCatalog;
@@ -105,6 +104,7 @@ pub struct ScanProcessor {
     waker: JobWaker,
     last_emit: Option<Instant>,
     diagnostics: crate::services::diagnostics::Diagnostics,
+    clock: Arc<dyn crate::infrastructure::clock::Clock>,
 }
 
 impl JobProcessor for ScanProcessor {
@@ -133,12 +133,14 @@ impl ScanProcessor {
             signal: ctx.signal,
             waker: ctx.waker,
             diagnostics: ctx.diagnostics,
+            clock: ctx.clock,
             last_emit: None,
         }
     }
 
+    /// On the workspace's clock, which the folder check reads (Slice 4.5).
     fn now(&self) -> String {
-        now_rfc3339()
+        self.clock.now_rfc3339()
     }
 
     /// Sends an overview to the UI, at most every `event_interval` unless

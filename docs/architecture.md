@@ -376,6 +376,9 @@ Implemented in `src-tauri/src/services/jobs/` (Slice 1.1); rationale in
   skips such scans, so one unplugged drive doesn't hold every other
   folder's scan. The folder checker queues it again when the folder is
   back. `JobRunners::waker()` lets the checker wake the runners.
+- **One clock.** `ProcessorContext.clock` and `OpenRoot::clock()` are the
+  workspace's `Clock`, so a scan's times and its job row are on the clock
+  the folder checker reads (a `TestClock` in tests).
 - **Status.** The `inventory-status` overview, the per-folder lines and the
   Library's "scanning" flag count scan jobs only. Extraction reports its
   own status from Slice 1.3.

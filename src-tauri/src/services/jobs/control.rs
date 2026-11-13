@@ -33,13 +33,13 @@ pub fn enqueue_from(
     if !exists {
         return Err(AtlasError::SourceNotFound);
     }
-    let root_id = source_root_id.to_owned();
+    let (root_id, now) = (source_root_id.to_owned(), root.clock().now_rfc3339());
     let id = root.catalog().call(move |c| {
         if let Some(active) = db::active_for_root(c, &root_id, kind)? {
             return Ok(active.id);
         }
         let id = uuid::Uuid::new_v4().to_string();
-        db::insert_job_from(c, &id, &root_id, kind, origin, &now_rfc3339())?;
+        db::insert_job_from(c, &id, &root_id, kind, origin, &now)?;
         Ok::<_, rusqlite::Error>(id)
     })?;
     let id = id.map_err(AtlasError::db("schedule cataloging"))?;

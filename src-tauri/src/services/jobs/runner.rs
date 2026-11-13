@@ -11,6 +11,7 @@ use super::db;
 use super::{Flow, ProcessorContext, ProcessorFactory};
 use crate::domain::dto::{JobKind, JobState};
 use crate::error::{AtlasError, AtlasResult};
+use crate::infrastructure::clock::Clock;
 use crate::services::catalog::codec::to_db;
 use crate::services::catalog::writer::CatalogHandle;
 use crate::services::diagnostics::{Diagnostics, Event, FailureReason};
@@ -95,6 +96,7 @@ impl JobRunner {
         waker: JobWaker,
         vectors: Arc<VectorRegistry>,
         diagnostics: Diagnostics,
+        clock: Arc<dyn Clock>,
     ) -> AtlasResult<Self> {
         let ctx = ProcessorContext {
             catalog: catalog.clone(),
@@ -103,6 +105,7 @@ impl JobRunner {
             waker,
             vectors,
             diagnostics: diagnostics.clone(),
+            clock,
         };
         let loop_signal = Arc::clone(&signal);
         let thread = thread::Builder::new()
@@ -243,6 +246,7 @@ impl JobRunners {
         factories: &BTreeMap<JobKind, ProcessorFactory>,
         vectors: &Arc<VectorRegistry>,
         diagnostics: &Diagnostics,
+        clock: &Arc<dyn Clock>,
     ) -> AtlasResult<Self> {
         // Every signal exists before any runner starts, so each processor's
         // waker reaches all of them.
@@ -267,6 +271,7 @@ impl JobRunners {
                     waker.clone(),
                     Arc::clone(vectors),
                     diagnostics.clone(),
+                    Arc::clone(clock),
                 )?,
             );
         }

@@ -89,6 +89,8 @@ counts `discovered_files`, `new_files`, `changed_files` and
 library, owned by `OpenRoot` and stopped on drop. It ticks once a minute,
 and the first tick runs at open. `check_if_due` reads the workspace `Clock`
 and is tested with a `TestClock`, as the knowledge store's ticker is.
+Scans and the jobs queued for them are stamped by the same clock, so
+"Checked … ago" and due-ness agree.
 
 Each tick probes every folder. It queues an automatic scan for a reachable,
 non-nested folder with no active scan when the setting isn't "Only when I
