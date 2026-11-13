@@ -507,6 +507,11 @@ describe('cataloging status', () => {
       { state: 'running', throttleReason: 'on_battery' },
       'Cataloged 1,204 files · Scanning Books · Slowed on battery',
     ],
+    // Slice 4.1.3: a busy computer was not mentioned at all here.
+    [
+      { state: 'running', throttleReason: 'system_busy' },
+      'Cataloged 1,204 files · Scanning Books · Going slowly · The computer is busy',
+    ],
     [{ state: 'queued' }, 'Waiting to catalog Books'],
     [{ state: 'paused_user' }, 'Paused by you · 1,204 files so far'],
     [
@@ -773,6 +778,11 @@ describe('reading text', () => {
       { state: 'running', throttleReason: 'on_battery' },
       false,
       'Reading text · 3 of 10 files · Slowed on battery',
+    ],
+    [
+      { state: 'running', throttleReason: 'power_unknown' },
+      false,
+      'Reading text · 3 of 10 files · Going slowly · Can’t tell if it’s plugged in',
     ],
     [
       { state: 'paused_policy', pauseReason: 'battery_low' },
@@ -2222,6 +2232,17 @@ describe('indexing meaning', () => {
 
   it.each([
     [{ state: 'running' }, {}, 'Indexing meaning · 3 of 10 files'],
+    // Slice 4.1.3: "Going slowly" says why.
+    [
+      { state: 'running', throttleReason: 'system_busy' },
+      {},
+      'Indexing meaning · 3 of 10 files · Going slowly · The computer is busy',
+    ],
+    [
+      { state: 'running', throttleReason: 'on_battery' },
+      { rebuilding: true },
+      'Rebuilding meaning index · 3 of 10 files · Slowed on battery · search uses the previous index',
+    ],
     [{ state: 'running' }, { reading: true }, 'Indexing meaning · 3 files so far'],
     [
       { state: 'running' },

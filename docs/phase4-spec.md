@@ -661,6 +661,16 @@ Do **not** add an OCR engine, an `ocr` job, a rescan timer or any backup code be
 
 ### Revision notes
 
+**2026-11-12, Slice 4.1.3** (asked by the owner while indexing the real
+library):
+- **"Going slowly" says why.** The status lines for cataloging, reading
+  and indexing meaning name the reason, as their pauses already did:
+  "Slowed on battery", "Going slowly · Can't tell if it's plugged in" or
+  "Going slowly · The computer is busy" (elevated memory pressure or
+  heat). The cataloging line said nothing at all when the computer was
+  busy, and the meaning line never named the battery. One function,
+  `slowedText`, gives all three their words.
+
 **2026-11-12, Slice 4.1.2** (the Explore spike; [results](spike-explore.md)):
 - **The product owner asked for visual ways to browse**: a semantic
   explorer, with books clustered by meaning into named areas on a map and
