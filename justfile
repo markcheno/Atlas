@@ -167,6 +167,10 @@ bench-knowledge size="100k" out="":
 bench-diagnostics:
     cargo test --manifest-path {{ manifest }} --release --test diagnostics measure_the_cost_of_recording -- --ignored --nocapture
 
+# What the text check for a book in two formats costs (Slice 4.5.1): 20 generated pairs of about 400 KiB of text, each check timed on the catalog writer
+bench-formats:
+    cargo test --manifest-path {{ manifest }} --release --test formats measure_the_text_check -- --ignored --nocapture
+
 # The Explore spike (Slice 4.1.2), run by the library's owner: reads the library at `data_root` read-only (best with Atlas quit) and writes atlas-explore.html, a map of the books by meaning with the areas to tick, into `out` (default src-tauri/target/tmp/explore; never inside the library or the repository). Prints numbers only. Options: ATLAS_EXPLORE_SAMPLING=all, ATLAS_EXPLORE_CENTRED=1, ATLAS_EXPLORE_AREAS=<n>, ATLAS_EXPLORE_MODEL=<position>
 spike-explore $ATLAS_EXPLORE_DATA_ROOT $ATLAS_EXPLORE_OUT="":
     cargo test --manifest-path {{ manifest }} --locked --release --test explore -- --ignored --nocapture the_owners_library

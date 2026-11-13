@@ -34,6 +34,7 @@ use crate::services::catalog::writer::CatalogHandle;
 use crate::services::documents::metadata;
 use crate::services::embedding::query::{NoTarget, QueryEmbedder};
 use crate::services::embedding::registry::VectorRegistry;
+use crate::services::formats::{self, db::BookMap};
 use crate::services::jobs::db::{ACTIVE_STATES, state_list};
 use crate::services::library::RootStatusCache;
 use crate::services::library::fold::{fold, like_escape};
@@ -51,6 +52,9 @@ struct Filters {
     params: Vec<Value>,
     /// A folder or file type is chosen (not only "available").
     narrowed: bool,
+    /// Books in two formats (Slice 4.5.1): their matches are grouped as
+    /// one, and the copy kept out has no meaning matches.
+    books: BookMap,
 }
 
 fn filters(q: &SearchQuery) -> Filters {
@@ -72,12 +76,24 @@ fn filters(q: &SearchQuery) -> Filters {
         sql,
         params,
         narrowed,
+        books: BookMap::default(),
     }
+}
+
+/// [`filters`], with the library's books in two formats.
+fn filters_in(conn: &Connection, q: &SearchQuery) -> rusqlite::Result<Filters> {
+    let mut f = filters(q);
+    f.books = BookMap::load(conn)?;
+    Ok(f)
 }
 
 #[derive(Debug, Clone)]
 struct Entry {
     document: Option<String>,
+    /// The book the document belongs to: itself, or for a copy kept out
+    /// of a book in two formats, the copy shown (Slice 4.5.1). Matches are
+    /// grouped by it.
+    book: Option<String>,
     instance: Option<String>,
     passage: Option<i64>,
     /// bm25: lower is better.
@@ -118,7 +134,7 @@ fn text_matches(
     let mut seen = HashSet::new();
     let grouped = rows
         .into_iter()
-        .filter(|(doc, _, _)| seen.insert(doc.clone()))
+        .filter(|(doc, _, _)| seen.insert(f.books.book(doc).to_owned()))
         .collect();
     Ok((grouped, capped))
 }
@@ -216,6 +232,10 @@ fn hit(
     let Some((id, name, path, file_type, root, availability, storage)) = file else {
         return Ok(None);
     };
+    let other_format = match &e.document {
+        Some(doc) => formats::db::other_format(conn, &f.books, doc, Some(&id))?,
+        None => None,
+    };
     let (title, content_title, copies) = match &e.document {
         Some(doc) => conn.query_row(
             "SELECT d.title, d.content_title,
@@ -297,6 +317,7 @@ fn hit(
         why: e.why,
         all_words: e.all_words,
         other_locations: copies.saturating_sub(1),
+        other_format,
         // The passage the snippet came from, if it came from one.
         passage: e.passage.filter(|_| e.expr.is_some() || e.span.is_some()),
     }))
@@ -321,9 +342,11 @@ fn rank_text(
     let mut by_document: HashMap<String, usize> = HashMap::new();
     let (all, mut capped) = text_matches(conn, &built.all, f)?;
     for (doc, passage, score) in all {
-        by_document.insert(doc.clone(), entries.len());
+        let book = f.books.book(&doc).to_owned();
+        by_document.insert(book.clone(), entries.len());
         entries.push(Entry {
             document: Some(doc),
+            book: Some(book),
             instance: None,
             passage: Some(passage),
             score,
@@ -339,12 +362,14 @@ fn rank_text(
         let (more, more_capped) = text_matches(conn, any, f)?;
         capped |= more_capped;
         for (doc, passage, score) in more {
-            if by_document.contains_key(&doc) {
+            let book = f.books.book(&doc).to_owned();
+            if by_document.contains_key(&book) {
                 continue;
             }
-            by_document.insert(doc.clone(), entries.len());
+            by_document.insert(book.clone(), entries.len());
             entries.push(Entry {
                 document: Some(doc),
+                book: Some(book),
                 instance: None,
                 passage: Some(passage),
                 score,
@@ -359,7 +384,8 @@ fn rank_text(
     let mut names_only: Vec<Entry> = Vec::new();
     let mut seen_names: HashSet<String> = HashSet::new();
     for (instance, document) in name_matches(conn, &query::name_terms(built), f)? {
-        match document.as_ref().and_then(|d| by_document.get(d)) {
+        let book = document.as_deref().map(|d| f.books.book(d).to_owned());
+        match book.as_ref().and_then(|d| by_document.get(d)) {
             Some(&i) => {
                 if entries[i].why != MatchReason::Both {
                     entries[i].why = MatchReason::Both;
@@ -367,10 +393,11 @@ fn rank_text(
                 }
             }
             None => {
-                let key = document.clone().unwrap_or_else(|| instance.clone());
+                let key = book.clone().unwrap_or_else(|| instance.clone());
                 if seen_names.insert(key) {
                     names_only.push(Entry {
                         document,
+                        book,
                         instance: Some(instance),
                         passage: None,
                         score: 0.0,
@@ -438,7 +465,7 @@ pub fn search_with(
     let Some(built) = query::build(&q.text) else {
         return Ok(page);
     };
-    let f = filters(q);
+    let f = filters_in(conn, q)?;
     let ranked = rank_text(conn, &built, &f, page_size)?;
     page.capped = ranked.capped;
     let near = match semantic {
@@ -465,7 +492,7 @@ pub fn meaning_ranking(
     q: &SearchQuery,
     semantic: hybrid::Semantic<'_>,
 ) -> rusqlite::Result<Vec<String>> {
-    let f = filters(q);
+    let f = filters_in(conn, q)?;
     Ok(hybrid::nearest(conn, semantic, &f)?
         .into_iter()
         .map(|n| n.document)
@@ -485,9 +512,11 @@ pub(crate) fn meaning_hit(
         sql: " AND f.availability = 'available'".to_owned(),
         params: Vec::new(),
         narrowed: false,
+        books: BookMap::load(conn)?,
     };
     let e = Entry {
         document: Some(document.to_owned()),
+        book: Some(document.to_owned()),
         instance: None,
         passage: Some(passage),
         score: 0.0,
@@ -663,6 +692,9 @@ pub struct Found {
     pub text: Option<(i64, String)>,
     /// The best chunks by meaning, best first: passage and character span.
     pub meaning: Vec<ChunkAt>,
+    /// The file the meaning chunks are in, when it isn't `hit`'s: a book in
+    /// two formats whose words matched in the copy kept out (Slice 4.5.1).
+    pub meaning_hit: Option<SearchHit>,
 }
 
 /// What Ask Atlas retrieval found, best first (public for `just eval-ask`).
@@ -691,7 +723,7 @@ pub fn retrieve(
         let Some(built) = query::build(&q.text) else {
             return Ok((Vec::new(), None));
         };
-        let f = filters(q);
+        let f = filters_in(c, q)?;
         let ranked = rank_text(c, &built, &f, limit as u32)?;
         let near = match semantic {
             Some(s) => {
@@ -721,12 +753,24 @@ pub fn retrieve(
                 (Some(p), Some(expr)) => Some((p, expr.clone())),
                 _ => None,
             };
-            let meaning = meaning.get(&document).cloned().unwrap_or_default();
+            let book = e.book.clone().unwrap_or_else(|| document.clone());
+            let meaning = meaning.get(&book).cloned().unwrap_or_default();
             if text.is_none() && meaning.is_empty() {
                 continue;
             }
+            // The meaning chunks are the book's indexed copy's; cite them
+            // as that file, not the one the words matched in.
+            let meaning_hit = match (book != document, meaning.first()) {
+                (true, Some(&(passage, span))) => meaning_hit(c, &book, passage, span)?,
+                _ => None,
+            };
             if let Some(hit) = hit(c, &e, &f, &[])? {
-                found.push(Found { hit, text, meaning });
+                found.push(Found {
+                    hit,
+                    text,
+                    meaning,
+                    meaning_hit,
+                });
             }
         }
         Ok((found, best))
@@ -740,12 +784,18 @@ pub fn retrieve(
     })
 }
 
-/// The share of documents with text that the model has finished with.
+/// The share of documents with text that the model has finished with; a
+/// copy kept out of a book in two formats (Slice 4.5.1) counts on neither
+/// side.
 fn coverage(c: &Connection, model_id: &str) -> rusqlite::Result<u8> {
     let (done, total): (i64, i64) = c.query_row(
-        "SELECT (SELECT COUNT(*) FROM document_embeddings
-                 WHERE model_id = ?1 AND status IN ('done', 'empty')),
-                (SELECT COUNT(*) FROM documents WHERE state = 'done')",
+        "SELECT (SELECT COUNT(*) FROM document_embeddings de
+                 WHERE de.model_id = ?1 AND de.status IN ('done', 'empty')
+                   AND NOT EXISTS (SELECT 1 FROM book_pairs bp
+                                   WHERE bp.hidden_document_id = de.document_id)),
+                (SELECT COUNT(*) FROM documents d WHERE d.state = 'done'
+                   AND NOT EXISTS (SELECT 1 FROM book_pairs bp
+                                   WHERE bp.hidden_document_id = d.id))",
         [model_id],
         |r| Ok((r.get(0)?, r.get(1)?)),
     )?;

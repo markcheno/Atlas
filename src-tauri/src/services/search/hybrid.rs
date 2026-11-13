@@ -85,9 +85,13 @@ pub(super) fn nearest(
         f.sql
     ))?;
     let params: Vec<Value> = f.params.clone();
+    // A copy kept out of a book in two formats has no meaning matches,
+    // though an older index may hold its vectors (Slice 4.5.1).
     let allowed: HashSet<u32> = stmt
         .query_map(params_from_iter(params.iter()), |r| r.get::<_, String>(0))?
-        .filter_map(|d| d.ok().and_then(|d| s.chunk_map.number_of(&d)))
+        .filter_map(|d| d.ok())
+        .filter(|d| !f.books.is_hidden(d))
+        .filter_map(|d| s.chunk_map.number_of(&d))
         .collect();
     if allowed.is_empty() {
         return Ok(Vec::new());
@@ -97,7 +101,9 @@ pub(super) fn nearest(
     };
     let map = &*s.chunk_map;
     let keep = |chunk: u64| map.document_of(chunk).is_some_and(|d| allowed.contains(&d));
-    let found = if f.narrowed {
+    // With copies kept out, search only what's allowed, so their vectors
+    // never take the nearest places.
+    let found = if f.narrowed || !f.books.is_empty() {
         s.index.filtered_search(&vector, NEIGHBOURS, keep)
     } else {
         s.index.search(&vector, NEIGHBOURS)
@@ -198,7 +204,8 @@ pub(super) fn fuse(text: Vec<Entry>, mut names_only: Vec<Entry>, near: Vec<Near>
         .enumerate()
         .map(|(i, n)| (n.document.as_str(), i))
         .collect();
-    let in_text: HashSet<String> = text.iter().filter_map(|e| e.document.clone()).collect();
+    // By book: a book in two formats is one result (Slice 4.5.1).
+    let in_text: HashSet<String> = text.iter().filter_map(|e| e.book.clone()).collect();
 
     struct Scored {
         /// 0: every word matched; 1: some words, or meaning alone.
@@ -210,10 +217,7 @@ pub(super) fn fuse(text: Vec<Entry>, mut names_only: Vec<Entry>, near: Vec<Near>
     }
     let mut scored: Vec<Scored> = Vec::new();
     for (t, mut e) in text.into_iter().enumerate() {
-        let m = e
-            .document
-            .as_deref()
-            .and_then(|d| near_rank.get(d).copied());
+        let m = e.book.as_deref().and_then(|d| near_rank.get(d).copied());
         let mut score = rrf(t) + m.map_or(0.0, meaning_rrf);
         if e.why == MatchReason::Both {
             score *= NAME_BOOST;
@@ -244,7 +248,7 @@ pub(super) fn fuse(text: Vec<Entry>, mut names_only: Vec<Entry>, near: Vec<Near>
         // A file that also matches by name: one result, strengthened.
         let named = names_only
             .iter()
-            .position(|e| e.document.as_deref() == Some(n.document.as_str()));
+            .position(|e| e.book.as_deref() == Some(n.document.as_str()));
         if let Some(i) = named {
             names_only.remove(i);
             score *= NAME_BOOST;
@@ -256,6 +260,7 @@ pub(super) fn fuse(text: Vec<Entry>, mut names_only: Vec<Entry>, near: Vec<Near>
             meaning_rank: m,
             entry: Entry {
                 document: Some(n.document.clone()),
+                book: Some(n.document.clone()),
                 instance: None,
                 passage: Some(n.passage),
                 score: 0.0,
@@ -285,6 +290,7 @@ mod tests {
     fn text(doc: &str, why: MatchReason) -> Entry {
         Entry {
             document: Some(doc.into()),
+            book: Some(doc.into()),
             instance: None,
             passage: Some(1),
             score: -1.0,

@@ -15,6 +15,8 @@
   import { fromHit, originals } from '../stores/originals.svelte';
   import { folderName, sources } from '../stores/sources.svelte';
   import OriginalActions from './OriginalActions.svelte';
+  import OtherFormat from './OtherFormat.svelte';
+  import { typesText } from '../formatsCopy';
   import OriginalNotice from './OriginalNotice.svelte';
   import ProblemNotice from './ProblemNotice.svelte';
 
@@ -115,7 +117,7 @@
             <div class="related">
               <span class="name">{hit.title}</span>
               <span class="muted small">
-                {hit.fileType.toUpperCase()} · {rootName(hit)}
+                {typesText(hit.fileType, hit.otherFormat)} · {rootName(hit)}
               </span>
               <span class="small">{relatedBy(hit.location)}</span>
             </div>
@@ -132,6 +134,7 @@
                 Details
               </button>
               <OriginalActions item={fromHit(hit, FROM_RELATED)} />
+              {#if hit.otherFormat}<OtherFormat other={hit.otherFormat} via={FROM_RELATED} />{/if}
             </div>
             {#if originals.hasNotice(hit.fileInstanceId)}
               <OriginalNotice item={fromHit(hit, FROM_RELATED)} />

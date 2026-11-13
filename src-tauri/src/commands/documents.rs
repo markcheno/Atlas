@@ -20,6 +20,24 @@ pub async fn get_document_detail(
         .await
 }
 
+/// Whether a file and the other format beside it, with the same name, are
+/// one book (Slice 4.5.1): the owner's choice, kept over Atlas's own check.
+/// Returns the file's details as they now stand.
+#[tauri::command]
+pub async fn set_same_book(
+    state: State<'_, AppState>,
+    file_id: String,
+    same: bool,
+) -> AtlasResult<DocumentDetail> {
+    state
+        .with_workspace(move |ws| {
+            let root = ws.require_open()?;
+            crate::services::formats::set_same_book(root, &file_id, same)?;
+            documents::detail(root.reader(), root.root_status(), &file_id)
+        })
+        .await
+}
+
 /// Groups of files with identical content, most extra space first.
 #[tauri::command]
 pub async fn list_duplicates(

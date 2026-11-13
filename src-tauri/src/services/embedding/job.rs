@@ -38,6 +38,7 @@ use crate::infrastructure::clock::now_rfc3339;
 use crate::infrastructure::http_probe::{MAX_RETRY_AFTER, ProbeConfig};
 use crate::services::catalog::reader;
 use crate::services::catalog::writer::CatalogHandle;
+use crate::services::formats;
 use crate::services::jobs::ProcessorFactory;
 use crate::services::jobs::{self, Flow, JobProcessor, JobRow, JobWaker, ProcessorContext, Signal};
 use crate::services::providers::profiles::{self, Prepared};
@@ -447,6 +448,22 @@ impl EmbedProcessor {
             return Flow::Continue;
         }
         self.emit(true);
+
+        // A folder whose books in two formats this build hasn't paired yet
+        // pairs them first, so neither copy of a pair waits to be indexed
+        // twice (Slice 4.5.1). The library opening queues a reading job that
+        // does the same; whichever runs first does the work.
+        let root_id = job.source_root_id.clone();
+        if self
+            .catalog
+            .call(move |c| formats::db::behind(c, &root_id))
+            .is_ok_and(|b| b.unwrap_or(false))
+        {
+            let signal = Arc::clone(&self.signal);
+            formats::catch_up(&self.catalog, &job.source_root_id, &now_rfc3339(), || {
+                signal.stopped()
+            });
+        }
 
         // The model, its role's service, and whether it may be used.
         let allow = self.allow_remote();

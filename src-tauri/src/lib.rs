@@ -215,6 +215,7 @@ pub fn run() {
             commands::embedding::get_embedding_status,
             commands::search::search_documents,
             commands::documents::get_document_detail,
+            commands::documents::set_same_book,
             commands::documents::list_duplicates,
             commands::documents::get_related_documents,
             commands::storage::get_storage_usage,

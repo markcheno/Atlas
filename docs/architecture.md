@@ -464,6 +464,44 @@ folder checker, [ADR 0022](adr/0022-automatic-rescans.md).
   tree outside the repository (`fixtures/README.md`). `just dev-unthrottled`
   removes the rate limit in debug builds.
 
+## Formats of one book
+
+Implemented in `src-tauri/src/services/formats/` (Slice 4.5.1); rationale in
+[ADR 0023](adr/0023-one-book-two-formats.md).
+
+- **What counts as one book:** a PDF and an EPUB in one folder, whose names
+  fold to the same text apart from the extension (`names.rs`), and whose
+  texts match (`compare.rs`). The check uses 5-word shingles, a fixed eighth
+  sampled, and needs half the smaller sample contained and lengths within
+  two times. A scan beside its EPUB is paired by name alone.
+- **Schema** (migration 0017):
+  - `format_pairs`: file pairs by name, rebuilt; `folded_file_id` is the
+    Library's hidden row;
+  - `book_pairs`: document pairs with the verdict, its basis
+    (text/name/owner), the format indexed, and `index_document_id` /
+    `hidden_document_id` while active;
+  - `source_roots.formats_version`.
+- **Passes:**
+  - `formats::catch_up` (names, text checks in calls of four, `apply`) runs
+    at a reading job's end and at a meaning job's start on a folder behind;
+  - a scan's finish reconciles names, and queues meaning for a copy shown
+    again;
+  - opening queues a reading job for each folder behind;
+  - `set_same_book` records the owner's choice.
+- **Which copy is used:** the owner's choice, else a copy already indexed,
+  else the EPUB with text, else the PDF.
+- **Consumers ask `BookMap`** (hidden ↔ index):
+  - the meaning queue, counts, coverage and the estimate leave hidden
+    copies out;
+  - search groups by book (`Entry.book`) and fills `otherFormat`; meaning
+    search filters hidden vectors;
+  - Ask Atlas cites meaning excerpts from `Found.meaning_hit`;
+  - Related and rediscovery resolve and exclude book copies, and Related's
+    cache key carries the pairs' stamp;
+  - the Library folds rows unless a type or text status is chosen;
+  - the detail panel gets `formats`;
+  - the Explore spike draws one point a book.
+
 ## Library, search and opening
 
 Implemented in `services/library/` and `services/source_open/`; rationale

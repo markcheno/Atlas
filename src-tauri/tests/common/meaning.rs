@@ -72,6 +72,24 @@ impl Lib {
         extra: &[&Path],
         configure: impl FnOnce(Workspace) -> Workspace,
     ) -> Self {
+        let copies = copies.to_string();
+        Self::with_fixture(
+            &["--files", "10", "--text-kb", "2", "--copies", &copies],
+            texts,
+            copies_first,
+            extra,
+            configure,
+        )
+    }
+
+    /// As [`Lib::custom`], with the fixture generator's own arguments.
+    pub fn with_fixture(
+        fixture: &[&str],
+        texts: &[&str],
+        copies_first: bool,
+        extra: &[&Path],
+        configure: impl FnOnce(Workspace) -> Workspace,
+    ) -> Self {
         let texts: Vec<String> = texts.iter().map(|t| (*t).to_owned()).collect();
         let order = if copies_first {
             "(SELECT COUNT(*) FROM file_instances f WHERE f.document_id = d.id) DESC, d.id"
@@ -87,8 +105,7 @@ impl Lib {
         let out = Command::new("node")
             .arg(Path::new(env!("CARGO_MANIFEST_DIR")).join("../scripts/generate-fixtures.mjs"))
             .arg(&books)
-            .args(["--files", "10", "--text-kb", "2", "--copies"])
-            .arg(copies.to_string())
+            .args(fixture)
             .output()
             .unwrap();
         assert!(out.status.success());
@@ -207,9 +224,13 @@ impl Lib {
         };
         let waiting: i64 = c
             .query_row(
+                // A copy kept out of a book in two formats is never indexed
+                // (Slice 4.5.1).
                 "SELECT COUNT(*) FROM documents d WHERE d.state = 'done' AND NOT EXISTS
                      (SELECT 1 FROM document_embeddings de
-                      WHERE de.document_id = d.id AND de.model_id = ?1)",
+                      WHERE de.document_id = d.id AND de.model_id = ?1)
+                   AND NOT EXISTS (SELECT 1 FROM book_pairs bp
+                                   WHERE bp.hidden_document_id = d.id)",
                 [&model.id],
                 |r| r.get(0),
             )

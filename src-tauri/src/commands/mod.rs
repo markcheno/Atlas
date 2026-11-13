@@ -60,6 +60,7 @@ pub const COMMAND_NAMES: &[&str] = &[
     "get_embedding_status",
     "search_documents",
     "get_document_detail",
+    "set_same_book",
     "list_duplicates",
     "get_related_documents",
     "get_storage_usage",

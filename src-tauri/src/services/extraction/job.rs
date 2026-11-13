@@ -29,6 +29,7 @@ use crate::services::catalog::writer::CatalogHandle;
 use crate::services::diagnostics::Diagnostics;
 use crate::services::diagnostics::event::WorkerRole;
 use crate::services::embedding;
+use crate::services::formats;
 use crate::services::jobs::{
     self, Flow, JobProcessor, JobRow, JobWaker, ProcessorContext, ProcessorFactory, Signal,
 };
@@ -429,6 +430,13 @@ impl ExtractProcessor {
                     cursor = pending_end;
                     continue;
                 }
+                // Books in two formats: the folder's pairs, checked by their
+                // text now both are read (Slice 4.5.1). Before the meaning
+                // job is queued, so it skips the copy kept out.
+                let signal = Arc::clone(&self.signal);
+                formats::catch_up(&self.catalog, &job.source_root_id, &now_rfc3339(), || {
+                    signal.stopped()
+                });
                 // Tidy the text index for search before reporting done.
                 let _ = self.catalog.call(|c| db::merge_index(c, 20));
                 if self.transition(

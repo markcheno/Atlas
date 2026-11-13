@@ -2,6 +2,7 @@
 import type { Availability } from "./Availability";
 import type { FileStorage } from "./FileStorage";
 import type { FileType } from "./FileType";
+import type { FormatFile } from "./FormatFile";
 import type { TitleSource } from "./TitleSource";
 
 /**
@@ -15,4 +16,8 @@ fileInstanceId: string, title: string, titleSource: TitleSource, displayName: st
 /**
  * Where the best matching passage is: "Page 12", "Chapter 3, part 2".
  */
-location: string | null, pageNo: number | null, };
+location: string | null, pageNo: number | null, 
+/**
+ * The same book in its other format (Slice 4.5.1).
+ */
+otherFormat: FormatFile | null, };

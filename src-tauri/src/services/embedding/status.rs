@@ -12,7 +12,9 @@ use crate::domain::dto::{
 use crate::services::catalog::codec::from_db;
 use crate::services::providers::url_policy;
 
-/// Counts per folder for `model_id` (or every file waiting, with none).
+/// Counts per folder for `model_id` (or every file waiting, with none). A
+/// file whose document is kept out of a book in two formats (Slice 4.5.1)
+/// stands as its book does, so it never waits.
 fn root_counts(
     conn: &Connection,
     model_id: Option<&str>,
@@ -24,7 +26,9 @@ fn root_counts(
                 COUNT(*)
          FROM file_instances f
          JOIN documents d ON d.id = f.document_id AND d.state = 'done'
-         LEFT JOIN document_embeddings de ON de.document_id = d.id AND de.model_id = ?1
+         LEFT JOIN book_pairs bp ON bp.hidden_document_id = d.id
+         LEFT JOIN document_embeddings de
+                ON de.document_id = COALESCE(bp.index_document_id, d.id) AND de.model_id = ?1
          WHERE f.availability = 'available'
          GROUP BY f.source_root_id",
     )?;

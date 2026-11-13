@@ -122,10 +122,23 @@ pub fn suggest(
     order.sort_by_key(|s| day_order(day, &s.id));
 
     let none = HashSet::new();
+    // Books in two formats (Slice 4.5.1): a copy kept out reads as the
+    // book's copy shown, and is never suggested; a book opened in either
+    // format counts as opened.
+    let books = crate::services::formats::db::BookMap::load(conn)?;
+    let opened: HashSet<String> = opened
+        .iter()
+        .flat_map(|d| [d.clone(), books.book(d).to_owned()])
+        .collect();
+    let opened = &opened;
     let mut queues: Vec<(&SeedDocuments, VecDeque<Candidate>)> = Vec::new();
     for seed in order {
-        let means: Vec<Vec<f32>> = seed
+        let seeded: Vec<String> = seed
             .documents
+            .iter()
+            .map(|d| books.book(d).to_owned())
+            .collect();
+        let means: Vec<Vec<f32>> = seeded
             .iter()
             .map(|d| {
                 let own: Vec<Vec<f32>> = edb::document_vectors(conn, &model.id, model.dims, d)?
@@ -141,7 +154,13 @@ pub fn suggest(
         let Some(vector) = mean_vector(&means) else {
             continue;
         };
-        let exclude: HashSet<&str> = seed.documents.iter().map(String::as_str).collect();
+        let exclude: HashSet<&str> = seed
+            .documents
+            .iter()
+            .chain(&seeded)
+            .map(String::as_str)
+            .chain(books.index_of.keys().map(String::as_str))
+            .collect();
         let not_for_this = dismissed.get(&seed.id).unwrap_or(&none);
         let found: VecDeque<Candidate> = nearest(conn, vectors, &index, &vector, &exclude, floor)?
             .into_iter()

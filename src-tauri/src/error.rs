@@ -57,6 +57,10 @@ pub enum ErrorCode {
     JobNotResumable,
     /// No cataloged file has that ID.
     FileNotFound,
+    /// The file has no other format beside it to pair with (Slice 4.5.1).
+    NoOtherFormat,
+    /// A file of the pair hasn't been read yet (Slice 4.5.1).
+    NotReadYet,
     /// The file is no longer where it was cataloged.
     FileMissing,
     /// The cataloged path is now a link or something other than a file.
@@ -214,6 +218,10 @@ pub enum AtlasError {
     JobNotResumable,
     #[error("Atlas can't find that file in its catalog.")]
     FileNotFound,
+    #[error("That file has no other format beside it.")]
+    NoOtherFormat,
+    #[error("Atlas hasn't read both formats yet.")]
+    NotReadYet,
     #[error("That file is no longer where Atlas found it.")]
     FileMissing,
     #[error("That item is no longer an ordinary file, so Atlas won't open it.")]
@@ -357,6 +365,8 @@ impl AtlasError {
             Self::JobNotPausable => ErrorCode::JobNotPausable,
             Self::JobNotResumable => ErrorCode::JobNotResumable,
             Self::FileNotFound => ErrorCode::FileNotFound,
+            Self::NoOtherFormat => ErrorCode::NoOtherFormat,
+            Self::NotReadYet => ErrorCode::NotReadYet,
             Self::FileMissing => ErrorCode::FileMissing,
             Self::FileNotRegular => ErrorCode::FileNotRegular,
             Self::FileOutsideFolder => ErrorCode::FileOutsideFolder,
@@ -441,6 +451,8 @@ impl AtlasError {
                 "Refresh to see the current cataloging status."
             }
             Self::FileNotFound => "Refresh the library list.",
+            Self::NoOtherFormat => "Refresh the library list.",
+            Self::NotReadYet => "Try again once Atlas has read both files.",
             Self::FileMissing => {
                 "It may have been moved, renamed, or deleted. Rescan its folder to update the library."
             }

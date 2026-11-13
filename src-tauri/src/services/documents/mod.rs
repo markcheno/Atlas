@@ -9,7 +9,7 @@ pub mod related;
 
 use rusqlite::{Connection, OptionalExtension};
 
-use crate::domain::dto::DocumentDetail;
+use crate::domain::dto::{DocumentDetail, FileType, FormatPair, FormatPairBasis, FormatPairState};
 use crate::error::{AtlasError, AtlasResult};
 use crate::services::catalog::reader::CatalogReader;
 use crate::services::library::RootStatusCache;
@@ -48,6 +48,7 @@ fn load(conn: &Connection, file_id: &str) -> rusqlite::Result<Option<(DocumentDe
         page_count: None,
         char_count: None,
         also_at: Vec::new(),
+        formats: None,
         file,
     };
     if let Some(doc) = detail.document_id.clone() {
@@ -86,7 +87,89 @@ fn load(conn: &Connection, file_id: &str) -> rusqlite::Result<Option<(DocumentDe
             detail.also_at.push(copy);
         }
     }
+    detail.formats = formats(conn, &detail.file, &mut roots)?;
     Ok(Some((detail, roots)))
+}
+
+/// The other format beside a file, and whether the two are one book
+/// (Slice 4.5.1).
+fn formats(
+    conn: &Connection,
+    file: &crate::domain::dto::FileInstance,
+    roots: &mut Roots,
+) -> rusqlite::Result<Option<FormatPair>> {
+    let partner_id: Option<String> = conn
+        .query_row(
+            "SELECT epub_file_id FROM format_pairs WHERE pdf_file_id = ?1
+             UNION ALL
+             SELECT pdf_file_id FROM format_pairs WHERE epub_file_id = ?1",
+            [&file.id],
+            |r| r.get(0),
+        )
+        .optional()?;
+    let Some(partner_id) = partner_id else {
+        return Ok(None);
+    };
+    let from = rows::FILE_FROM;
+    let Some((partner, path)) = conn
+        .query_row(
+            &format!("SELECT {} {from} WHERE f.id = ?1", rows::file_columns()),
+            [&partner_id],
+            rows::file_from_row,
+        )
+        .optional()?
+    else {
+        return Ok(None);
+    };
+    roots.add(&partner, path);
+    let (pdf, epub) = if file.file_type == FileType::Pdf {
+        (file, &partner)
+    } else {
+        (&partner, file)
+    };
+    let verdict: Option<(String, String, Option<String>)> =
+        match (&pdf.document_id, &epub.document_id) {
+            (Some(p), Some(e)) => conn
+                .query_row(
+                    "SELECT verdict, basis, index_format FROM book_pairs
+                     WHERE pdf_document_id = ?1 AND epub_document_id = ?2",
+                    [p, e],
+                    |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
+                )
+                .optional()?,
+            _ => None,
+        };
+    let (state, basis, indexed_as) = match verdict {
+        None => (FormatPairState::Waiting, None, None),
+        Some((verdict, basis, index)) => {
+            let same = verdict == "same";
+            (
+                if same {
+                    FormatPairState::Same
+                } else {
+                    FormatPairState::Different
+                },
+                Some(match basis.as_str() {
+                    "text" => FormatPairBasis::Text,
+                    "name" => FormatPairBasis::Name,
+                    _ => FormatPairBasis::Owner,
+                }),
+                index.filter(|_| same).map(|i| {
+                    if i == "pdf" {
+                        FileType::Pdf
+                    } else {
+                        FileType::Epub
+                    }
+                }),
+            )
+        }
+    };
+    Ok(Some(FormatPair {
+        partner,
+        state,
+        basis,
+        indexed_as,
+    }))
 }
 
 /// The detail panel's data for one file. Files whose folder is not
@@ -103,6 +186,9 @@ pub fn detail(
     let reach = folders.probe(roots);
     reach.mark(&mut detail.file);
     detail.also_at.iter_mut().for_each(|f| reach.mark(f));
+    if let Some(pair) = &mut detail.formats {
+        reach.mark(&mut pair.partner);
+    }
     Ok(detail)
 }
 

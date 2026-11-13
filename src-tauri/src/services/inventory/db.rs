@@ -552,6 +552,7 @@ pub const SCANS_WITH_PROBLEMS: u32 = 10;
 /// noted folder by folder as each was listed; a scan begun before 4.5
 /// (`legacy`) finds them by the marker on the rows it wrote, as Phase 0
 /// did. The folders it couldn't read are kept as the scan's problems.
+#[allow(clippy::too_many_arguments)]
 pub fn finish(
     conn: &mut Connection,
     session_id: &str,
@@ -559,6 +560,7 @@ pub fn finish(
     root_display: &str,
     root_reachable: bool,
     legacy: bool,
+    allow_remote: bool,
     now: &str,
 ) -> rusqlite::Result<()> {
     let tx = conn.transaction()?;
@@ -635,6 +637,15 @@ pub fn finish(
     )?;
     // New or changed files are read next (phase1-spec §7.1).
     crate::services::extraction::db::enqueue_if_pending(&tx, root_id, now)?;
+    // Books in two formats (Slice 4.5.1), in the same transaction, so the
+    // scan is never seen finished with its pairs out of date: files gone or
+    // moved end their pairs, and a copy kept out is shown again and queued
+    // for its meaning. New files are paired once read.
+    crate::services::formats::db::reconcile_root(&tx, root_id, now)?;
+    let changes = crate::services::formats::db::apply(&tx, now)?;
+    if !changes.unhidden.is_empty() {
+        crate::services::embedding::triggers::queue_root(&tx, root_id, allow_remote, now)?;
+    }
     tx.commit()
 }
 

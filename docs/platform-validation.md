@@ -1368,6 +1368,81 @@ Memory shows yellow), it reads "… · Going slowly · The computer is busy".
 ([43351102234](https://github.com/markcheno/Atlas/actions/runs/43351102234))
 is green on three OSes at the first attempt.
 
+## Slice 4.5.1
+
+One book in two formats ([ADR 0023](adr/0023-one-book-two-formats.md)).
+The catalog migrates to version 17 (`book_pairs`).
+
+**Verified locally (macOS arm64, M5 Pro):**
+
+- **P4-27** (`tests/formats.rs`, fixture `--pairs 3`): the verdicts.
+  - Three books in both formats and `Café.PDF`/`cafe.epub` are the same book
+    by text.
+  - `notes` (one name, two texts) and `Sampler` (a chapter beside its book)
+    are not.
+  - `A/Atlas.pdf` and `B/Atlas.epub` never pair.
+- **P4-28:**
+  - each book's EPUB is indexed and its PDF never sent, with nothing
+    waiting;
+  - an upgraded library that had indexed both copies pairs them once it
+    opens, sends nothing to be indexed again, and keeps every vector.
+- **P4-29:**
+  - search, with and without meaning, gives one result a book with its other
+    format;
+  - a PDF filter shows the PDF;
+  - the Library shows one row ("EPUB · PDF"), and a type filter each file;
+  - Related, from either copy, never offers the other copy or any copy kept
+    out;
+  - the detail panel says "same", by text, searched through the EPUB.
+- **P4-30:**
+  - Not the same book shows both and indexes the PDF, and the choice
+    survives a rescan and a re-read;
+  - Same book pairs `notes`;
+  - deleting an EPUB brings its PDF back and indexes it.
+- **Unit tests:**
+  - the text check (pages against chapters, hyphenation, ligatures,
+    unspaced scripts, a chapter against its book, short texts);
+  - names (case, accents, decomposed names, ambiguity, folders);
+  - `apply` (a copy already indexed stays the one used, the owner's choice,
+    a copy gone);
+  - migration 17.
+- **Earlier suites:** all pass. The re-read test also undoes migration 17,
+  and the Phase 0 upgrade test drops the new column it keeps.
+- **Vitest:**
+  - a result's "EPUB · PDF" and "Also as PDF", with each copy's Open;
+  - the Library row;
+  - the panel's note, Not the same book and Same book;
+  - a pair not yet read.
+- **The text check's cost:** 26 ms a pair at p50
+  ([benchmarks](benchmarks.md#one-book-two-formats-slice-451)).
+
+**CI on `slice-451`:** the full run
+([43486282381](https://github.com/markcheno/Atlas/actions/runs/43486282381))
+is green on three OSes, smoke tests and release bundles included.
+
+- **Windows rerun:** Windows passed when rerun. Its first attempt failed
+  `p2_11` (meaning search reported "off" for a moment), which passed in the
+  run before and on the other OSes.
+- **An earlier run's Windows failures**, both fixed:
+  - the formats test found its files by a path with `/` in it;
+  - a scan's finish updated the pairs in a second transaction, so a reader
+    could see the scan finished with a pair out of date. They now share
+    the scan's transaction.
+
+**For the product owner, on the installed build:**
+
+1. **First opening:** Atlas reads nothing new and indexes nothing again.
+   For a minute or two the status bar may say it is reading while it pairs
+   the books.
+2. **The Library:** a book you have in both formats is one row, "EPUB ·
+   PDF", with "Also as PDF" and its own Open.
+3. **Search:** the book appears once, with both formats.
+4. **The detail panel:** a book in both formats says "The same book as the
+   PDF beside it. Atlas compared their text. Searched by meaning through the
+   EPUB." Not the same book makes them two again.
+5. **Meaning indexing:** the number still waiting drops by the PDFs of
+   books whose EPUB is indexed.
+
 ## Slice 4.5
 
 Automatic rescans and the scan UI ([ADR 0022](adr/0022-automatic-rescans.md)).

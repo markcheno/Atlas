@@ -18,6 +18,7 @@
   import { fromFile, originals } from '../stores/originals.svelte';
   import { folderName, sources } from '../stores/sources.svelte';
   import OriginalActions from './OriginalActions.svelte';
+  import FormatPairSection from './FormatPairSection.svelte';
   import OriginalNotice from './OriginalNotice.svelte';
   import ProblemNotice from './ProblemNotice.svelte';
   import RelatedList from './RelatedList.svelte';
@@ -250,6 +251,10 @@
           {/if}
         </dd>
       </dl>
+
+      {#if d.formats}
+        <FormatPairSection pair={d.formats} />
+      {/if}
 
       {#if d.alsoAt.length > 0}
         <section aria-labelledby="details-also-at">

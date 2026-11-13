@@ -449,6 +449,24 @@ Duplicates' first page takes 33 ms at p95 over 2,001 groups, and Settings
 › Storage 122 ms. Cataloging is unchanged since Phase 0: 483 files/s at
 the policy rate on 30k, browse p95 under 37 ms while scanning.
 
+## One book, two formats (Slice 4.5.1)
+
+`just bench-formats`, M5 Pro (release), 2026-11-13. It generates 23 name
+pairs (`generate-fixtures.mjs --pairs 20` plus its three edge cases), each
+about 406,000 characters a book, reads them, then times each pair's text
+check on the catalog writer.
+
+| Per pair | p50 | p95 | max |
+| --- | ---: | ---: | ---: |
+| Text check (both books' passages read, sketched, compared, written) | 25.6 ms | 27.6 ms | 30.7 ms |
+
+- **Short holds:** the checks run four to a catalog call, so other writes
+  wait at most about 0.1 s behind them.
+- **Library size:** a library with 1,000 pairs pairs in under 30 s of
+  writer time, once.
+- **Under the plan's bound:** the 50 ms per check that would have moved the
+  check to a read-only connection.
+
 ## Rescans (Slice 4.5)
 
 `just bench-rescan <fixture>` (`benches/inventory.rs --rescan`), M5 Pro,

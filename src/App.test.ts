@@ -4763,3 +4763,133 @@ describe('folder checks (Slice 4.5)', () => {
     );
   });
 });
+
+describe('one book, two formats (Slice 4.5.1)', () => {
+  beforeEach(resetAll);
+
+  const pdf = {
+    fileInstanceId: 'file-pdf',
+    fileType: 'pdf' as const,
+    displayName: 'Dune.pdf',
+    displayPath: '/Users/test/Books/Dune.pdf',
+    sourceRootId: 'root-books',
+    availability: 'available' as const,
+    storage: 'local' as const,
+  };
+
+  it('a search result names both formats, each with its own Open', async () => {
+    tauri.setHandler('list_source_roots', () => [tauri.sourceRoot()]);
+    tauri.setHandler('search_documents', () =>
+      tauri.searchPage({
+        hits: [
+          tauri.searchHit({
+            fileInstanceId: 'file-epub',
+            fileType: 'epub',
+            displayName: 'Dune.epub',
+            otherFormat: pdf,
+          }),
+        ],
+        matchedDocuments: 1,
+      }),
+    );
+    const user = await launchOpen();
+    await user.type(screen.getByLabelText('Search your library'), 'spice{Enter}');
+    await h1('Search');
+    const hit = await screen.findByTestId('search-hit');
+    expect(hit).toHaveTextContent('EPUB · PDF');
+    expect(within(hit).getByTestId('other-format')).toHaveTextContent('Also as PDF');
+    expect(within(hit).getByRole('button', { name: 'Open Dune.epub' })).toBeInTheDocument();
+    await user.click(within(hit).getByRole('button', { name: 'Open Dune.pdf' }));
+    expect(tauri.invoke).toHaveBeenCalledWith(
+      'open_original',
+      expect.objectContaining({ fileId: 'file-pdf' }),
+    );
+  });
+
+  it('the Library lists the book once, as EPUB · PDF', async () => {
+    tauri.setHandler('list_source_roots', () => [tauri.sourceRoot()]);
+    tauri.setHandler('list_documents', () =>
+      tauri.documentPage({
+        items: [
+          tauri.fileInstance({
+            id: 'file-epub',
+            displayName: 'Dune.epub',
+            fileType: 'epub',
+            extension: 'epub',
+            otherFormat: pdf,
+          }),
+        ],
+        matchedSoFar: 1,
+      }),
+    );
+    const user = await launchOpen();
+    await user.click(screen.getByRole('button', { name: 'Library' }));
+    const rows = within(await screen.findByRole('table')).getAllByRole('row');
+    expect(rows).toHaveLength(2);
+    expect(rows[1]).toHaveTextContent('EPUB · PDF');
+    expect(within(rows[1]).getByTestId('other-format')).toHaveTextContent('Also as PDF');
+  });
+
+  it('the panel says why, and Not the same book keeps them apart', async () => {
+    const epubFile = tauri.fileInstance({
+      id: 'file-epub',
+      displayName: 'Dune.epub',
+      fileType: 'epub',
+      extension: 'epub',
+      documentId: 'doc-epub',
+      extraction: { state: 'done', reason: null },
+    });
+    const partner = tauri.fileInstance({
+      id: 'file-pdf',
+      displayName: 'Dune.pdf',
+      documentId: 'doc-pdf',
+      extraction: { state: 'done', reason: null },
+    });
+    const detail = (state: 'same' | 'different', basis: 'text' | 'owner') =>
+      tauri.documentDetail({
+        file: epubFile,
+        documentId: 'doc-epub',
+        formats: { partner, state, basis, indexedAs: state === 'same' ? 'epub' : null },
+      });
+    tauri.setHandler('get_document_detail', () => detail('same', 'text'));
+    tauri.setHandler('set_same_book', (args) => detail(args?.same ? 'same' : 'different', 'owner'));
+    tauri.setHandler('list_source_roots', () => [tauri.sourceRoot()]);
+    tauri.setHandler('list_documents', () =>
+      tauri.documentPage({ items: [epubFile], matchedSoFar: 1 }),
+    );
+    const user = await launchOpen();
+    await user.click(screen.getByRole('button', { name: 'Library' }));
+    await user.click(await screen.findByRole('button', { name: 'Details for Dune.epub' }));
+    const section = await screen.findByTestId('format-pair');
+    expect(within(section).getByTestId('format-note')).toHaveTextContent(
+      'The same book as the PDF beside it. Atlas compared their text. Searched by meaning through the EPUB.',
+    );
+    await user.click(within(section).getByRole('button', { name: 'Not the same book' }));
+    expect(tauri.invoke).toHaveBeenCalledWith('set_same_book', {
+      fileId: 'file-epub',
+      same: false,
+    });
+    expect(await screen.findByText(/You said they are different books/)).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Same book' }));
+    expect(tauri.invoke).toHaveBeenCalledWith('set_same_book', { fileId: 'file-epub', same: true });
+  });
+
+  it('a pair not yet read says it waits, with nothing to choose', async () => {
+    const partner = tauri.fileInstance({ id: 'file-pdf', displayName: 'Dune.pdf' });
+    tauri.setHandler('get_document_detail', () =>
+      tauri.documentDetail({
+        formats: { partner, state: 'waiting', basis: null, indexedAs: null },
+      }),
+    );
+    tauri.setHandler('list_source_roots', () => [tauri.sourceRoot()]);
+    tauri.setHandler('list_documents', () =>
+      tauri.documentPage({ items: [tauri.fileInstance()], matchedSoFar: 1 }),
+    );
+    const user = await launchOpen();
+    await user.click(screen.getByRole('button', { name: 'Library' }));
+    await user.click(await screen.findByRole('button', { name: 'Details for book.pdf' }));
+    const section = await screen.findByTestId('format-pair');
+    expect(section).toHaveTextContent('Atlas will compare them once it has read both.');
+    expect(within(section).queryByRole('button', { name: /same book/i })).not.toBeInTheDocument();
+  });
+});

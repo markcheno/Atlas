@@ -93,6 +93,8 @@ pub fn book_vectors(
          LEFT JOIN document_embeddings e ON e.document_id = d.id AND e.model_id = ?1
          WHERE d.state = 'done'
            AND EXISTS (SELECT 1 FROM file_instances f WHERE f.document_id = d.id)
+           -- One point a book: a copy kept out of it isn't drawn (Slice 4.5.1).
+           AND NOT EXISTS (SELECT 1 FROM book_pairs bp WHERE bp.hidden_document_id = d.id)
          ORDER BY d.id",
     )?;
     let rows: Vec<(String, Option<String>, Option<i64>)> = stmt

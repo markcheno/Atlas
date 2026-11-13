@@ -91,6 +91,15 @@ fn filter(q: &DocumentQuery) -> Filter {
         conditions.push(format!("({EFFECTIVE_STATE_SQL}) = ?"));
         params.push(Value::Text(to_db(&status)));
     }
+    // A book in two formats is one row, unless the type or text status is
+    // asked for, when each file stands alone (Slice 4.5.1).
+    if q.file_type.is_none() && q.text_status.is_none() {
+        conditions.push(
+            "f.id NOT IN (SELECT folded_file_id FROM format_pairs
+                          WHERE folded_file_id IS NOT NULL)"
+                .to_owned(),
+        );
+    }
     if let Some(text) = &q.text {
         for term in fold(text).split_whitespace() {
             conditions.push("f.search_key LIKE ? ESCAPE '\\'".to_owned());
@@ -152,6 +161,11 @@ fn query_page(conn: &Connection, q: &DocumentQuery) -> rusqlite::Result<(Vec<Row
             })
         })?
         .collect::<rusqlite::Result<Vec<_>>>()?;
+    let mut rows = rows;
+    for row in &mut rows {
+        row.instance.other_format =
+            crate::services::formats::db::folded_partner(conn, &row.instance.id)?;
+    }
 
     let active = state_list(ACTIVE_STATES);
     let scanning: bool = conn.query_row(

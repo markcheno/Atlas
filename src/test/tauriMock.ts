@@ -74,7 +74,7 @@ export const fakeStatus: AppStatus = {
   os: 'macos',
   arch: 'aarch64',
   buildProfile: 'debug',
-  slice: '4.5',
+  slice: '4.5.1',
   features: [],
 };
 
@@ -238,6 +238,7 @@ export function fileInstance(overrides: Partial<FileInstance> = {}): FileInstanc
     storage: 'local',
     documentId: null,
     extraction: { state: 'pending', reason: null },
+    otherFormat: null,
     ...overrides,
   };
 }
@@ -347,6 +348,7 @@ export function searchHit(overrides: Partial<SearchHit> = {}): SearchHit {
     why: 'text',
     allWords: true,
     otherLocations: 0,
+    otherFormat: null,
     ...overrides,
   };
 }
@@ -377,6 +379,7 @@ export function documentDetail(overrides: Partial<DocumentDetail> = {}): Documen
     pageCount: 312,
     charCount: 640_000,
     alsoAt: [],
+    formats: null,
     ...overrides,
   };
 }
@@ -395,6 +398,7 @@ export function relatedHit(overrides: Partial<RelatedHit> = {}): RelatedHit {
     storage: 'local',
     location: 'Page 40',
     pageNo: 40,
+    otherFormat: null,
     ...overrides,
   };
 }
@@ -993,6 +997,7 @@ function defaults(): Record<string, Handler> {
     get_related_documents: () => relatedPage(),
     get_storage_usage: () => storageUsage(),
     clean_caches: () => ({ freedBytes: 0, usage: storageUsage() }),
+    set_same_book: (args) => documentDetail({ file: fileInstance({ id: String(args?.fileId) }) }),
     get_document_detail: (args) =>
       documentDetail({ file: fileInstance({ id: String(args?.fileId) }) }),
     open_original: () => null,

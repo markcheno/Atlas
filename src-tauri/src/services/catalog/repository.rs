@@ -45,9 +45,12 @@ impl CatalogRepository for SqliteCatalog<'_> {
     fn insert_source_root(&self, record: SourceRootRecord) -> AtlasResult<()> {
         self.writer.call(move |conn| {
             conn.execute(
+                // A new folder's books are paired as it is first read, so it
+                // needs no catch-up (Slice 4.5.1).
                 "INSERT INTO source_roots
-                     (id, workspace_id, path_bytes, display_path, created_at, last_scan_at)
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+                     (id, workspace_id, path_bytes, display_path, created_at, last_scan_at,
+                      formats_version)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
                 params![
                     record.id,
                     record.workspace_id,
@@ -55,6 +58,7 @@ impl CatalogRepository for SqliteCatalog<'_> {
                     record.display_path,
                     record.created_at,
                     record.last_scan_at,
+                    crate::services::formats::db::FORMATS_VERSION,
                 ],
             )
             .map(|_| ())

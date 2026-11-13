@@ -679,9 +679,14 @@ impl ScanProcessor {
         }
         let (id, root_id, now) = (s.id.clone(), s.root_id.clone(), self.now());
         let (display, legacy) = (s.root_display.clone(), s.legacy);
+        // Whether a copy shown again may be indexed through an internet
+        // service (Slice 4.5.1: the finish updates books in two formats).
+        let allow = crate::services::providers::privacy::remote_embedding(
+            &crate::services::workspace::settings::read(&self.data_root).privacy,
+        );
         match self
             .catalog
-            .call(move |c| db::finish(c, &id, &root_id, &display, reachable, legacy, &now))
+            .call(move |c| db::finish(c, &id, &root_id, &display, reachable, legacy, allow, &now))
         {
             Ok(Ok(())) => {
                 self.emit(true);

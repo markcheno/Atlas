@@ -45,6 +45,9 @@ pub const FEW_SOURCES: usize = 3;
 struct Place {
     passage: i64,
     span: Span,
+    /// Found by meaning: in the file of `Found::meaning_hit` when there is
+    /// one (a book in two formats, Slice 4.5.1).
+    by_meaning: bool,
 }
 
 /// The excerpts for `found`, numbered from 1, within the budget.
@@ -104,7 +107,12 @@ pub(crate) fn excerpts(conn: &Connection, found: &[Found]) -> rusqlite::Result<V
             let Some(text) = without_boilerplate(&text).map(str::to_owned) else {
                 continue;
             };
-            let document_id = f.hit.document_id.clone().unwrap_or_default();
+            // A meaning excerpt cites the file it is in.
+            let shown = match (&f.meaning_hit, place.by_meaning) {
+                (Some(h), true) => h,
+                _ => &f.hit,
+            };
+            let document_id = shown.document_id.clone().unwrap_or_default();
             if out
                 .iter()
                 .any(|s| s.document_id == document_id && s.excerpt == text)
@@ -115,10 +123,10 @@ pub(crate) fn excerpts(conn: &Connection, found: &[Found]) -> rusqlite::Result<V
             out.push(SourceUsed {
                 n: 0,
                 document_id,
-                file_instance_id: f.hit.file_instance_id.clone(),
-                title: f.hit.title.clone(),
-                display_name: f.hit.display_name.clone(),
-                file_type: f.hit.file_type,
+                file_instance_id: shown.file_instance_id.clone(),
+                title: shown.title.clone(),
+                display_name: shown.display_name.clone(),
+                file_type: shown.file_type,
                 location,
                 page_no,
                 excerpt: text,
@@ -190,7 +198,11 @@ fn meaning_place(conn: &Connection, passage: i64, span: Span) -> rusqlite::Resul
         },
         None => span,
     };
-    Ok(Place { passage, span })
+    Ok(Place {
+        passage,
+        span,
+        by_meaning: true,
+    })
 }
 
 /// The text of one chunk, as embedded.
@@ -236,6 +248,7 @@ fn word_place(conn: &Connection, passage: i64, expr: &str) -> rusqlite::Result<O
     Ok(Some(Place {
         passage,
         span: Span { start, end },
+        by_meaning: false,
     }))
 }
 
@@ -358,6 +371,7 @@ mod tests {
         let p = |passage, start, end| Place {
             passage,
             span: Span { start, end },
+            by_meaning: false,
         };
         assert!(overlaps(&p(1, 0, 10), &p(1, 5, 20)));
         assert!(!overlaps(&p(1, 0, 10), &p(1, 10, 20)));
