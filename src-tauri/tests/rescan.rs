@@ -79,13 +79,21 @@ impl Lib {
 
     /// (new, changed, missing, discovered) as the scan counted them.
     fn counts(&self, job: &str) -> (u32, u32, u32, u32) {
-        let scans = control::scans(self.ws.require_open().unwrap(), &self.root_of(job), 50).unwrap();
+        let scans =
+            control::scans(self.ws.require_open().unwrap(), &self.root_of(job), 50).unwrap();
         let s = scans.into_iter().find(|s| s.job_id == job).unwrap();
-        (s.new_files, s.changed_files, s.missing_files, s.discovered_files)
+        (
+            s.new_files,
+            s.changed_files,
+            s.missing_files,
+            s.discovered_files,
+        )
     }
 
     fn root_of(&self, job: &str) -> String {
-        self.sql(&format!("SELECT source_root_id FROM jobs WHERE id = '{job}'"))
+        self.sql(&format!(
+            "SELECT source_root_id FROM jobs WHERE id = '{job}'"
+        ))
     }
 
     fn availability(&self, rel: &str) -> String {
@@ -111,7 +119,14 @@ fn write(path: &Path, bytes: &[u8]) {
 fn p4_11_an_unchanged_rescan_writes_nothing_and_changes_are_found_as_before() {
     let lib = Lib::new();
     let books = lib.env.base.join("Books");
-    for rel in ["a.pdf", "b.epub", "sub/c.pdf", "sub/deep/d.pdf", "keep/e.pdf", "keep/f.pdf"] {
+    for rel in [
+        "a.pdf",
+        "b.epub",
+        "sub/c.pdf",
+        "sub/deep/d.pdf",
+        "keep/e.pdf",
+        "keep/f.pdf",
+    ] {
         write(&books.join(rel), b"%PDF-1.7 first");
     }
     let (root_id, first) = lib.add(&books);
@@ -162,14 +177,12 @@ fn p4_11_an_unchanged_rescan_writes_nothing_and_changes_are_found_as_before() {
     ] {
         assert_eq!(lib.availability(rel), want, "{rel}");
     }
-    let storage: String = lib.sql(
-        "SELECT storage FROM file_instances WHERE display_name = 'c.pdf'",
-    );
+    let storage: String =
+        lib.sql("SELECT storage FROM file_instances WHERE display_name = 'c.pdf'");
     assert_eq!(storage, "cloud_only");
     // a.pdf is read again, the moved file links by content when read.
-    let a_state: String = lib.sql(
-        "SELECT extract_state FROM file_instances WHERE display_name = 'a.pdf'",
-    );
+    let a_state: String =
+        lib.sql("SELECT extract_state FROM file_instances WHERE display_name = 'a.pdf'");
     assert_eq!(a_state, "pending");
 
     // A file back from the missing is written again (it is available).

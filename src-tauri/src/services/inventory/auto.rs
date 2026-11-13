@@ -192,10 +192,10 @@ impl Checker {
                     let setting = *deps.setting.lock().unwrap_or_else(|p| p.into_inner());
                     if let Ok(done) = check_if_due(&deps.catalog, &*deps.clock, setting, &mut state)
                     {
-                        if !(done.queued.is_empty() && done.resumed.is_empty()) {
-                            if let Some(waker) = &deps.waker {
-                                waker.wake();
-                            }
+                        if !(done.queued.is_empty() && done.resumed.is_empty())
+                            && let Some(waker) = &deps.waker
+                        {
+                            waker.wake();
                         }
                         // A folder coming or going shows in the folder list.
                         if !(done.changed.is_empty()

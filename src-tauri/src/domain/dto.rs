@@ -1153,6 +1153,8 @@ pub struct InventoryStatus {
     pub elapsed_ms: u64,
     pub started_at: Option<String>,
     pub finished_at: Option<String>,
+    /// Why the scan was made (Slice 4.5); `None` before 4.5.
+    pub origin: Option<ScanOrigin>,
     /// Stable code of the most recent problem, if any.
     pub last_error: Option<String>,
 }

@@ -9,9 +9,13 @@
 //! ```text
 //! cargo bench --bench inventory -- --fixture <dir> [--label 1k]
 //!     [--rates policy,100,250,unthrottled] [--power ac|battery:50]
-//!     [--browse <queries per second>] [--pause] [--recovery]
+//!     [--browse <queries per second>] [--pause] [--recovery] [--rescan]
 //!     [--expect <files>] [--out results.json]
 //! ```
+//!
+//! `--rescan` (Slice 4.5) rescans the finished library twice: once with
+//! nothing changed, then with 1% of the files' modification times moved
+//! forward (restored afterwards, so the fixture is left as it was).
 
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -72,6 +76,7 @@ struct Args {
     browse_per_sec: u32,
     pause: bool,
     recovery: bool,
+    rescan: bool,
     expect: Option<u64>,
     out: Option<PathBuf>,
     child_config: Option<PathBuf>,
@@ -92,6 +97,7 @@ fn parse_args() -> Args {
         browse_per_sec: 0,
         pause: false,
         recovery: false,
+        rescan: false,
         expect: None,
         out: None,
         child_config: None,
@@ -116,6 +122,7 @@ fn parse_args() -> Args {
             "--browse" => a.browse_per_sec = value().parse().unwrap_or_else(|_| fail("--browse")),
             "--pause" => a.pause = true,
             "--recovery" => a.recovery = true,
+            "--rescan" => a.rescan = true,
             "--expect" => a.expect = Some(value().parse().unwrap_or_else(|_| fail("--expect"))),
             "--out" => a.out = Some(PathBuf::from(value())),
             "--child-scan" => a.child_config = Some(PathBuf::from(value())),
@@ -615,6 +622,10 @@ fn scan_run(args: &Args, rate: Rate) -> Value {
         })
         .collect();
 
+    let rescans = args
+        .rescan
+        .then(|| rescan_runs(&ws, &s.data, &args.fixture, &root_id));
+
     // Cold: close everything, reopen the library, time the first page.
     ws.lock().unwrap().shutdown();
     drop(ws);
@@ -659,6 +670,152 @@ fn scan_run(args: &Args, rate: Rate) -> Value {
         "catalogScanned": scanned,
         "catalogClosed": closed,
         "pauseResume": pause,
+        "rescans": rescans,
+    })
+}
+
+// ---------------------------------------------------------------- rescans
+
+/// A rescan with nothing changed, then one with 1% of the files changed
+/// (Slice 4.5, phase4-spec §13: a no-change rescan of 30,000 files,
+/// provisional target under 10 s and under 1 MiB written).
+fn rescan_runs(ws: &Mutex<Workspace>, data: &Path, fixture: &Path, root_id: &str) -> Value {
+    let unchanged = one_rescan(ws, data, root_id);
+
+    let mut files = Vec::new();
+    list_files(fixture, &mut files);
+    files.sort();
+    let touched: Vec<(PathBuf, std::time::SystemTime)> = files
+        .into_iter()
+        .step_by(100)
+        .map(|p| {
+            let was = fs::metadata(&p).and_then(|m| m.modified()).unwrap();
+            (p, was)
+        })
+        .collect();
+    let set = |p: &Path, t: std::time::SystemTime| {
+        fs::File::options()
+            .write(true)
+            .open(p)
+            .and_then(|f| f.set_modified(t))
+            .unwrap_or_else(|e| fail(&format!("set the time of {}: {e}", p.display())));
+    };
+    for (p, was) in &touched {
+        set(p, *was + Duration::from_secs(5));
+    }
+    let mut one_percent = one_rescan(ws, data, root_id);
+    for (p, was) in &touched {
+        set(p, *was);
+    }
+    one_percent["filesTouched"] = json!(touched.len());
+    json!({ "unchanged": unchanged, "onePercentChanged": one_percent })
+}
+
+/// Every file the scan can read (the fixture's locked folder is skipped).
+fn list_files(dir: &Path, out: &mut Vec<PathBuf>) {
+    let Ok(entries) = fs::read_dir(dir) else {
+        return;
+    };
+    for e in entries.flatten() {
+        match e.file_type() {
+            Ok(t) if t.is_dir() => list_files(&e.path(), out),
+            Ok(t) if t.is_file() => out.push(e.path()),
+            _ => {}
+        }
+    }
+}
+
+fn bytes_written(sys: &mut System, pid: Pid) -> u64 {
+    sys.refresh_processes_specifics(
+        ProcessesToUpdate::Some(&[pid]),
+        false,
+        ProcessRefreshKind::nothing().with_disk_usage(),
+    );
+    sys.process(pid)
+        .map(|p| p.disk_usage().total_written_bytes)
+        .unwrap_or(0)
+}
+
+fn one_rescan(ws: &Mutex<Workspace>, data: &Path, root_id: &str) -> Value {
+    let pid = sysinfo::get_current_pid().unwrap();
+    let mut sys = new_system();
+    let db = data.join(layout::CATALOG);
+    // Empty the WAL first, so the frames in it afterwards are exactly what
+    // the rescan wrote to the catalog (the OS's count of the process's
+    // writes also holds the first scan's delayed writeback).
+    let side = rusqlite::Connection::open(&db).unwrap();
+    side.busy_timeout(Duration::from_secs(5)).unwrap();
+    let page_size: i64 = side
+        .query_row("PRAGMA page_size", [], |r| r.get(0))
+        .unwrap();
+    let truncated: i64 = side
+        .query_row("PRAGMA wal_checkpoint(TRUNCATE)", [], |r| r.get(0))
+        .unwrap();
+    // A snapshot held open stops the writer restarting the WAL after its
+    // automatic checkpoints, so every frame the rescan writes stays counted.
+    side.execute_batch("BEGIN; SELECT COUNT(*) FROM jobs;")
+        .unwrap();
+    let before = catalog_sizes(data);
+    let written_before = bytes_written(&mut sys, pid);
+    let started = Instant::now();
+    let job = {
+        let w = ws.lock().unwrap();
+        control::rescan(w.require_open().unwrap(), root_id).unwrap()
+    };
+    loop {
+        std::thread::sleep(Duration::from_millis(20));
+        if idle(&ws.lock().unwrap()) {
+            break;
+        }
+        if started.elapsed() > DEADLINE {
+            fail("rescan timed out");
+        }
+    }
+    let wall = started.elapsed().as_secs_f64();
+    let written = bytes_written(&mut sys, pid).saturating_sub(written_before);
+    let after = catalog_sizes(data);
+    // (busy, frames in the WAL, frames checkpointed); PASSIVE copies what
+    // it can without waiting, which changes neither count.
+    side.execute_batch("COMMIT").unwrap();
+    let (_, frames): (i64, i64) = side
+        .query_row("PRAGMA wal_checkpoint(PASSIVE)", [], |r| {
+            Ok((r.get(0)?, r.get(1)?))
+        })
+        .unwrap();
+    drop(side);
+    let c = rusqlite::Connection::open_with_flags(&db, rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY)
+        .unwrap();
+    c.busy_timeout(Duration::from_secs(5)).unwrap();
+    let (state, found, new, changed, missing): (String, i64, i64, i64, i64) = c
+        .query_row(
+            "SELECT state, discovered_files, new_files, changed_files, missing_files
+             FROM jobs WHERE id = ?1",
+            [&job],
+            |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?, r.get(4)?)),
+        )
+        .unwrap();
+    // Rows the rescan wrote: each one it upserts carries its session.
+    let rows_written: i64 = c
+        .query_row(
+            "SELECT COUNT(*) FROM file_instances WHERE last_seen_session_id = ?1",
+            [&job],
+            |r| r.get(0),
+        )
+        .unwrap();
+    json!({
+        "state": state,
+        "wallSeconds": round(wall, 3),
+        "filesFound": found,
+        "newFiles": new,
+        "changedFiles": changed,
+        "missingFiles": missing,
+        "rowsWritten": rows_written,
+        "walTruncatedFirst": truncated == 0,
+        "walFrames": frames,
+        "catalogBytesWritten": frames * (page_size + 24),
+        "processBytesWrittenOs": written,
+        "catalogBefore": before,
+        "catalogAfter": after,
     })
 }
 

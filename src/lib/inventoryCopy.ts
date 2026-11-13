@@ -4,7 +4,12 @@
  */
 import type { InventoryOverview } from './api/bindings/InventoryOverview';
 import type { InventoryStatus } from './api/bindings/InventoryStatus';
+import type { JobState } from './api/bindings/JobState';
+import type { OsKind } from './api/bindings/OsKind';
 import type { RootInventorySummary } from './api/bindings/RootInventorySummary';
+import type { ScanOrigin } from './api/bindings/ScanOrigin';
+import type { ScanRecord } from './api/bindings/ScanRecord';
+import type { SourceRootStatus } from './api/bindings/SourceRootStatus';
 import type { ThrottleReason } from './api/bindings/ThrottleReason';
 import { folderName } from './stores/sources.svelte';
 
@@ -57,13 +62,17 @@ export function statusLine(ov: InventoryOverview | null): string {
     return `Up to date · ${count(ov.catalogedFiles, 'file')}`;
   }
   const name = folderName(a.sourceRootDisplayPath);
+  const automatic = a.origin === 'automatic';
   switch (a.state) {
     case 'running': {
       const slowed = a.throttleReason ? ` · ${slowedText(a.throttleReason)}` : '';
+      // Atlas's own check says less: "a check that finds nothing says
+      // nothing" (phase4-spec §5.3).
+      if (automatic) return `Checking ${name} for changes${slowed}`;
       return `Cataloged ${count(a.discoveredFiles, 'file')} · Scanning ${name}${slowed}`;
     }
     case 'queued':
-      return `Waiting to catalog ${name}`;
+      return automatic ? `Waiting to check ${name}` : `Waiting to catalog ${name}`;
     case 'paused_user':
       return `Paused by you · ${count(a.discoveredFiles, 'file')} so far`;
     case 'paused_policy':
@@ -94,23 +103,166 @@ export function relativeTime(iso: string, now = Date.now()): string {
   return new Date(then).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 }
 
-/** One line per library folder. */
+/** One line per library folder: what it holds and when it was checked. */
 export function rootLine(
   summary: RootInventorySummary | undefined,
   ov: InventoryOverview | null,
+  now = Date.now(),
 ): string {
   if (!summary) return 'Not cataloged yet';
-  const active = ov?.active?.sourceRootId === summary.sourceRootId ? ov.active : null;
-  if (active?.state === 'running') return 'Cataloging…';
-  if (active?.state === 'queued' || summary.lastState === 'queued') return 'Waiting to catalog';
-  if (active && (active.state === 'paused_user' || active.state === 'paused_policy')) {
-    return 'Cataloging paused';
-  }
+  const active = ov?.activeJobs.find((j) => j.sourceRootId === summary.sourceRootId) ?? null;
+  const automatic = active?.origin === 'automatic';
+  if (active?.state === 'running') return automatic ? 'Checking for changes…' : 'Cataloging…';
+  if (active?.state === 'queued' || (!active && summary.lastState === 'queued'))
+    return automatic ? 'Waiting to check' : 'Waiting to catalog';
+  if (active?.state === 'paused_user') return 'Cataloging paused by you';
+  if (active?.state === 'paused_policy')
+    return active.pauseReason === 'source_root_missing'
+      ? 'Waiting for the folder to come back'
+      : 'Cataloging paused';
   if (!summary.lastScanAt) return summary.activeJobId ? 'Waiting to catalog' : 'Not cataloged yet';
-  const parts = [count(summary.fileCount, 'file'), `Updated ${relativeTime(summary.lastScanAt)}`];
+  const parts = [
+    count(summary.fileCount, 'file'),
+    `Checked ${relativeTime(summary.lastScanAt, now)}`,
+  ];
   if (summary.cloudOnlyCount > 0)
     parts.push(`${summary.cloudOnlyCount.toLocaleString('en-US')} only in the cloud`);
   if (summary.missingCount > 0)
     parts.push(`${summary.missingCount.toLocaleString('en-US')} missing`);
   return parts.join(' · ');
+}
+
+/** What a scan found: "No changes", "3 new · 1 changed · 2 missing". */
+export function foundText(r: ScanRecord): string {
+  const parts: string[] = [];
+  if (r.newFiles) parts.push(`${r.newFiles.toLocaleString('en-US')} new`);
+  if (r.changedFiles) parts.push(`${r.changedFiles.toLocaleString('en-US')} changed`);
+  if (r.missingFiles) parts.push(`${r.missingFiles.toLocaleString('en-US')} missing`);
+  return parts.length ? parts.join(' · ') : 'No changes';
+}
+
+const FAILED: Record<string, string> = {
+  path_undecodable: "Atlas can't read this folder's name",
+  nested_root: "It's inside another library folder",
+  database: "Atlas couldn't save what it found",
+};
+
+/**
+ * How the folder's last check ended, or null when there is nothing to
+ * add (a scan from before Slice 4.5 counted nothing).
+ */
+export function lastCheckLine(summary: RootInventorySummary | undefined): string | null {
+  const r = summary?.lastScan;
+  if (!r) return null;
+  if (r.state === 'cancelled') return 'Last check stopped by you';
+  if (r.state === 'failed_terminal')
+    return `Last check didn't finish · ${FAILED[r.lastError ?? ''] ?? 'Try Rescan'}`;
+  const parts = r.origin === null ? [] : [foundText(r)];
+  if (r.problems) parts.push(`Couldn't read ${count(r.problems, 'folder')}`);
+  return parts.length ? parts.join(' · ') : null;
+}
+
+const ORIGIN: Record<ScanOrigin, string> = {
+  added: 'when you added it',
+  launch: 'when Atlas opened',
+  user: 'by you',
+  automatic: 'automatically',
+};
+
+/** One line of a folder's recent checks. */
+export function scanRecordText(r: ScanRecord, now = Date.now()): string {
+  const at = r.finishedAt ?? r.startedAt;
+  const parts = [at ? relativeTime(at, now) : 'Earlier'];
+  if (r.origin) parts.push(ORIGIN[r.origin]);
+  if (r.state === 'completed') {
+    parts.push(elapsedText(r.elapsedMs));
+    if (r.origin) parts.push(foundText(r));
+    if (r.problems) parts.push(`couldn't read ${count(r.problems, 'folder')}`);
+  } else if (r.state === 'cancelled') {
+    parts.push('stopped by you');
+  } else {
+    parts.push(`didn't finish · ${FAILED[r.lastError ?? ''] ?? 'something went wrong'}`);
+  }
+  return parts.join(' · ');
+}
+
+/** Why Atlas couldn't read a folder, and what to do about it. */
+export function problemText(code: string, os: OsKind | undefined): { why: string; fix: string } {
+  switch (code) {
+    case 'permission_denied':
+      return {
+        why: "Atlas isn't allowed to read it",
+        fix:
+          os === 'macos'
+            ? 'Give Atlas access in System Settings › Privacy & Security › Files and Folders, then Rescan.'
+            : os === 'windows'
+              ? "Check the folder's Security settings in its Properties, then Rescan."
+              : "Check the folder's permissions, then Rescan.",
+      };
+    case 'cloud_listing_timed_out':
+      return {
+        why: "The cloud service didn't list it in time",
+        fix: 'Make the folder available offline, or Rescan later.',
+      };
+    case 'not_found':
+      return {
+        why: 'It was moved or deleted while Atlas was looking',
+        fix: 'Rescan to check the folder again.',
+      };
+    case 'path_undecodable':
+      return {
+        why: "Its name can't be read on this computer",
+        fix: 'Rename the folder, then Rescan.',
+      };
+    default:
+      return {
+        why: "Atlas couldn't list it",
+        fix: 'Check that the drive is connected, then Rescan.',
+      };
+  }
+}
+
+/** For a folder that isn't reachable: what it means and what happens. */
+export function awayText(status: SourceRootStatus, os: OsKind | undefined): string | null {
+  if (status === 'unavailable') return "Not connected · Atlas checks it when it's back";
+  if (status === 'no_access')
+    return os === 'macos'
+      ? 'Give Atlas access in System Settings › Privacy & Security › Files and Folders'
+      : "Check the folder's permissions so Atlas can read it";
+  return null;
+}
+
+type Pipeline = 'catalog' | 'read' | 'meaning';
+const DOING: Record<Pipeline, [string, string, string]> = {
+  // running, waiting, paused
+  catalog: ['Cataloging', 'Waiting to catalog', 'Cataloging paused'],
+  read: ['Reading text', 'Waiting to read text', 'Reading paused'],
+  meaning: ['Indexing meaning', 'Waiting to index meaning', 'Indexing meaning paused'],
+};
+
+/**
+ * One pipeline's state for a folder, in words, for the status bar's list
+ * of every folder's activity (Slice 4.5).
+ */
+export function activityText(
+  pipeline: Pipeline,
+  state: JobState,
+  extra: { origin?: ScanOrigin | null; pauseReason?: string | null } = {},
+): string {
+  const [running, waiting, paused] = DOING[pipeline];
+  const automatic = pipeline === 'catalog' && extra.origin === 'automatic';
+  switch (state) {
+    case 'running':
+      return automatic ? 'Checking for changes' : running;
+    case 'queued':
+      return automatic ? 'Waiting to check' : waiting;
+    case 'paused_user':
+      return `${paused} by you`;
+    case 'paused_policy':
+      return extra.pauseReason === 'source_root_missing' ? 'Waiting for the folder' : paused;
+    case 'failed_retryable':
+      return `${running} · retrying`;
+    default:
+      return running;
+  }
 }

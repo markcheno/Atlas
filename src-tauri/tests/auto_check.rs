@@ -59,7 +59,7 @@ impl Lib {
 
     fn check(&self, setting: CheckFolders, state: &mut CheckState) -> (Vec<String>, Vec<String>) {
         let root = self.ws.require_open().unwrap();
-        let done = check_if_due(&root.catalog().clone(), &*self.clock, setting, state).unwrap();
+        let done = check_if_due(root.catalog(), &*self.clock, setting, state).unwrap();
         root.wake_jobs();
         (done.queued, done.resumed)
     }
@@ -146,12 +146,18 @@ fn p4_12_a_folder_is_checked_when_its_interval_has_passed_and_not_before() {
     let mut state = CheckState::default();
 
     // Just scanned: nothing is due.
-    assert_eq!(lib.check(CheckFolders::SixHours, &mut state).0, Vec::<String>::new());
+    assert_eq!(
+        lib.check(CheckFolders::SixHours, &mut state).0,
+        Vec::<String>::new()
+    );
     lib.clock.advance(hours(5));
     assert!(lib.check(CheckFolders::SixHours, &mut state).0.is_empty());
     // Past six hours: one automatic check.
     lib.clock.advance(hours(2));
-    assert_eq!(lib.check(CheckFolders::SixHours, &mut state).0, vec![root_id.clone()]);
+    assert_eq!(
+        lib.check(CheckFolders::SixHours, &mut state).0,
+        vec![root_id.clone()]
+    );
     // Never two scans of one folder.
     assert!(lib.check(CheckFolders::SixHours, &mut state).0.is_empty());
     let auto = lib.latest_scan(&root_id);
@@ -210,7 +216,10 @@ fn p4_12_a_returning_drive_is_checked_and_a_folder_away_never_is() {
     fs::rename(lib.env.base.join("Unplugged"), &drive).unwrap();
     lib.clock.advance(hours(0));
     // Back: checked at once.
-    assert_eq!(lib.check(CheckFolders::SixHours, &mut state).0, vec![root_id.clone()]);
+    assert_eq!(
+        lib.check(CheckFolders::SixHours, &mut state).0,
+        vec![root_id.clone()]
+    );
     let back = lib.latest_scan(&root_id);
     lib.wait(&back, "completed");
 

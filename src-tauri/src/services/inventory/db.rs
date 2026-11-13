@@ -65,11 +65,21 @@ pub fn next_dir(
     conn: &Connection,
     session_id: &str,
     max_attempts: u32,
+    listed: &[i64],
 ) -> rusqlite::Result<Option<DirRow>> {
+    // Folders listed whose completion is held (Slice 4.5) are skipped.
+    let skip = if listed.is_empty() {
+        String::new()
+    } else {
+        let ids: Vec<String> = listed.iter().map(i64::to_string).collect();
+        format!(" AND id NOT IN ({})", ids.join(","))
+    };
     conn.query_row(
-        "SELECT id, rel_path, attempts FROM scan_directories
-         WHERE session_id = ?1 AND state = 'pending' AND attempts < ?2
-         ORDER BY attempts, id LIMIT 1",
+        &format!(
+            "SELECT id, rel_path, attempts FROM scan_directories
+             WHERE session_id = ?1 AND state = 'pending' AND attempts < ?2{skip}
+             ORDER BY attempts, id LIMIT 1"
+        ),
         params![session_id, max_attempts],
         |r| {
             Ok(DirRow {
@@ -159,62 +169,204 @@ impl Batch {
 }
 
 /// Whether a batch was written.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Committed {
     /// Written. `replayed` counts entries that changed nothing: already in
     /// the catalog exactly as listed (Slice 4.5), or, for a scan begun
     /// before 4.5, already written by this session (a folder listed again
     /// after a pause). The scan charges them less (P1-20, ADR 0005).
     Yes { replayed: usize },
+    /// No new files: not written, for the caller to hold (Slice 4.5),
+    /// with the batch's files to write (by index) and its missing
+    /// candidates.
+    Deferred {
+        replayed: usize,
+        write: Vec<usize>,
+        missing: Vec<String>,
+    },
     /// The session left `running` (paused, cancelled, or removed) while the
     /// batch was being listed. Nothing was written; the directory stays
     /// pending and is listed again on resume.
     NotRunning,
 }
 
-/// Writes one batch atomically: new frontier rows, file upserts, counters,
-/// and (for the last batch of a directory) its completion.
+/// What the catalog holds for a listed file: size, mtime, availability,
+/// storage and extract state.
+type Stored = (Option<i64>, Option<i64>, String, String, String);
+
+/// Work a rescan holds back from the catalog (Slice 4.5): folders listed
+/// with nothing new in them, so only the frontier, the counters, changed
+/// files and missing candidates to write. Held work goes in with the next
+/// commit that adds a file, or when enough is held, so a rescan of a
+/// little-changed library commits a few times instead of once a batch. If
+/// Atlas stops first it is lost, which costs only listing those folders
+/// again: they are still pending in the catalog.
+#[derive(Debug, Default)]
+pub struct Deferred {
+    /// Files listed that differ from their rows, to write.
+    pub files: Vec<FileRecord>,
+    /// Rows found missing under the held folders.
+    pub missing: Vec<String>,
+    /// Subfolders found, to add to the frontier.
+    pub dirs: Vec<Vec<u8>>,
+    /// Folders listed in full, to mark done.
+    pub done_dirs: Vec<i64>,
+    pub skipped_symlinks: u32,
+    pub skipped_entries: u32,
+    pub entry_errors: u32,
+    pub elapsed_ms: u64,
+    /// Catalogable files the held folders listed.
+    pub discovered: u32,
+}
+
+impl Deferred {
+    pub fn is_empty(&self) -> bool {
+        self.files.is_empty()
+            && self.missing.is_empty()
+            && self.dirs.is_empty()
+            && self.done_dirs.is_empty()
+            && self.skipped_symlinks + self.skipped_entries + self.entry_errors == 0
+            && self.elapsed_ms == 0
+            && self.discovered == 0
+    }
+
+    /// Takes on a batch [`commit_batch`] returned as
+    /// [`Committed::Deferred`]: the files it named to write, the missing
+    /// candidates it found, and the rest of the batch.
+    pub fn absorb(&mut self, mut batch: Batch, write: &[usize], missing: Vec<String>) {
+        for &i in write.iter().rev() {
+            self.files.push(batch.files.swap_remove(i));
+        }
+        self.missing.extend(missing);
+        self.dirs.extend(batch.dirs);
+        self.done_dirs.extend(batch.done_dir);
+        self.skipped_symlinks += batch.skipped_symlinks;
+        self.skipped_entries += batch.skipped_entries;
+        self.entry_errors += batch.entry_errors;
+        self.elapsed_ms += batch.elapsed_ms;
+        self.discovered += batch.listing.map_or(0, |l| l.files);
+    }
+}
+
+/// Writes one batch atomically, with any held work: new frontier rows, file
+/// upserts, counters, and (for the last batch of a directory) its
+/// completion.
+///
+/// With `may_defer` (a scan begun in Slice 4.5 or later), a batch with no
+/// new files writes nothing and returns [`Committed::Deferred`]: the
+/// caller holds it in its [`Deferred`]. New files are written at once, so a
+/// first scan shows its rows as it goes.
 ///
 /// The batch is written only while the session is still `running`, so a
 /// pause or cancel takes effect at the batch boundary with no late writes.
 /// State changes and commits share the single writer connection, so the
 /// check and the writes cannot interleave with a transition.
+#[allow(clippy::too_many_arguments)]
 pub fn commit_batch(
     conn: &mut Connection,
     session_id: &str,
     root_id: &str,
     batch: &Batch,
+    held: &Deferred,
     legacy: bool,
+    may_defer: bool,
     now: &str,
 ) -> rusqlite::Result<Committed> {
     let tx = conn.transaction()?;
+    let running: bool = tx
+        .query_row(
+            "SELECT state = 'running' FROM jobs WHERE id = ?1",
+            [session_id],
+            |r| r.get(0),
+        )
+        .optional()?
+        .unwrap_or(false);
+    if !running {
+        return Ok(Committed::NotRunning);
+    }
     let mut replayed = 0;
-    {
-        let running = tx.execute(
-            "UPDATE jobs SET
-                 skipped_symlinks = skipped_symlinks + ?2,
-                 skipped_entries = skipped_entries + ?3,
-                 error_count = error_count + ?4,
-                 elapsed_ms = elapsed_ms + ?5,
-                 updated_at = ?6
-             WHERE id = ?1 AND state = 'running'",
-            params![
-                session_id,
-                batch.skipped_symlinks,
-                batch.skipped_entries,
-                batch.entry_errors,
-                batch.elapsed_ms as i64,
-                now
-            ],
+    let (mut new_files, mut changed_files) = (0u32, 0u32);
+    let mut writes: Vec<&FileRecord> = Vec::with_capacity(batch.files.len());
+    // Which of the batch's own files are to be written.
+    let mut write = Vec::new();
+    if legacy {
+        writes.extend(held.files.iter().chain(&batch.files));
+    } else {
+        // Slice 4.5: a row that already says what was listed is left
+        // alone, so a rescan of an unchanged folder writes nothing.
+        let mut lookup = tx.prepare_cached(
+            "SELECT size_bytes, mtime_secs, availability, storage, extract_state
+             FROM file_instances WHERE source_root_id = ?1 AND rel_path = ?2",
         )?;
-        if running == 0 {
-            return Ok(Committed::NotRunning);
+        let held_files = held.files.iter().map(|f| (None, f));
+        let batch_files = batch.files.iter().enumerate().map(|(i, f)| (Some(i), f));
+        for (index, f) in held_files.chain(batch_files) {
+            let storage = if f.cloud_only { "cloud_only" } else { "local" };
+            let row: Option<Stored> = lookup
+                .query_row(params![root_id, f.rel_path], |r| {
+                    Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?, r.get(4)?))
+                })
+                .optional()?;
+            match &row {
+                Some((size, mtime, availability, stored, extract))
+                    if *size == f.size_bytes.map(|s| s as i64)
+                        && *mtime == f.mtime_secs
+                        && availability == "available"
+                        && stored == storage
+                        // Back from the cloud: still to be read (P3-01).
+                        && !(extract == "skipped_cloud_only" && storage == "local") =>
+                {
+                    // A held file written meanwhile isn't a replay.
+                    if index.is_some() {
+                        replayed += 1;
+                    }
+                    continue;
+                }
+                Some(_) => changed_files += 1,
+                None => new_files += 1,
+            }
+            write.extend(index);
+            writes.push(f);
         }
+    }
+    let missing = match (&batch.listing, legacy) {
+        (Some(listing), false) => missing_under(&tx, root_id, listing)?,
+        _ => Vec::new(),
+    };
+    if may_defer && !legacy && new_files == 0 {
+        // The transaction only read; the caller holds the rest.
+        return Ok(Committed::Deferred {
+            replayed,
+            write,
+            missing,
+        });
+    }
 
+    tx.execute(
+        "UPDATE jobs SET
+             skipped_symlinks = skipped_symlinks + ?2,
+             skipped_entries = skipped_entries + ?3,
+             error_count = error_count + ?4,
+             elapsed_ms = elapsed_ms + ?5,
+             updated_at = ?6
+         WHERE id = ?1",
+        params![
+            session_id,
+            held.skipped_symlinks + batch.skipped_symlinks,
+            held.skipped_entries + batch.skipped_entries,
+            held.entry_errors + batch.entry_errors,
+            (held.elapsed_ms + batch.elapsed_ms) as i64,
+            now
+        ],
+    )?;
+    {
         let mut add_dir = tx.prepare_cached(
             "INSERT OR IGNORE INTO scan_directories (session_id, rel_path, state)
              VALUES (?1, ?2, 'pending')",
         )?;
+        for rel in &held.dirs {
+            add_dir.execute(params![session_id, rel])?;
+        }
         for rel in &batch.dirs {
             if add_dir.execute(params![session_id, rel])? == 0 {
                 replayed += 1;
@@ -272,37 +424,8 @@ pub fn commit_batch(
                 OR availability <> 'available'
                 OR storage <> excluded.storage",
         )?;
-        let mut lookup = tx.prepare_cached(
-            "SELECT size_bytes, mtime_secs, availability, storage, extract_state
-             FROM file_instances WHERE source_root_id = ?1 AND rel_path = ?2",
-        )?;
-        let (mut new_files, mut changed_files) = (0u32, 0u32);
-        for f in &batch.files {
+        for f in writes {
             let storage = if f.cloud_only { "cloud_only" } else { "local" };
-            if !legacy {
-                // Slice 4.5: a row that already says what was listed is left
-                // alone, so a rescan of an unchanged folder writes nothing.
-                let row: Option<(Option<i64>, Option<i64>, String, String, String)> = lookup
-                    .query_row(params![root_id, f.rel_path], |r| {
-                        Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?, r.get(4)?))
-                    })
-                    .optional()?;
-                match &row {
-                    Some((size, mtime, availability, stored, extract))
-                        if *size == f.size_bytes.map(|s| s as i64)
-                            && *mtime == f.mtime_secs
-                            && availability == "available"
-                            && stored == storage
-                            // Back from the cloud: still to be read (P3-01).
-                            && !(extract == "skipped_cloud_only" && storage == "local") =>
-                    {
-                        replayed += 1;
-                        continue;
-                    }
-                    Some(_) => changed_files += 1,
-                    None => new_files += 1,
-                }
-            }
             let changed = upsert.execute(params![
                 uuid::Uuid::new_v4().to_string(),
                 root_id,
@@ -330,18 +453,25 @@ pub fn commit_batch(
                 "UPDATE jobs SET new_files = new_files + ?2, changed_files = changed_files + ?3,
                      discovered_files = discovered_files + ?4
                  WHERE id = ?1",
-                params![session_id, new_files, changed_files, listed],
+                params![
+                    session_id,
+                    new_files,
+                    changed_files,
+                    held.discovered + listed
+                ],
             )?;
-            if let Some(listing) = &batch.listing {
-                note_missing(&tx, session_id, root_id, listing)?;
+            let mut note = tx.prepare_cached(
+                "INSERT OR IGNORE INTO scan_missing (session_id, file_id) VALUES (?1, ?2)",
+            )?;
+            for id in held.missing.iter().chain(&missing) {
+                note.execute(params![session_id, id])?;
             }
         }
 
-        if let Some(dir_id) = batch.done_dir {
-            tx.execute(
-                "UPDATE scan_directories SET state = 'done' WHERE id = ?1",
-                [dir_id],
-            )?;
+        let mut done =
+            tx.prepare_cached("UPDATE scan_directories SET state = 'done' WHERE id = ?1")?;
+        for dir_id in held.done_dirs.iter().chain(batch.done_dir.as_ref()) {
+            done.execute([dir_id])?;
         }
     }
     tx.commit()?;
@@ -369,14 +499,13 @@ fn child_range(dir: &Path) -> (Vec<u8>, Option<Vec<u8>>) {
 /// Rows under a directory just listed whose first name below it wasn't in
 /// the listing: deleted, moved away, or under a folder that is gone. They
 /// become missing when the scan completes (Slice 4.5).
-fn note_missing(
+fn missing_under(
     tx: &Connection,
-    session_id: &str,
     root_id: &str,
     listing: &Listing,
-) -> rusqlite::Result<()> {
+) -> rusqlite::Result<Vec<String>> {
     let Some(dir) = native_path::decode(&listing.dir_rel) else {
-        return Ok(());
+        return Ok(Vec::new());
     };
     let (start, end) = child_range(&dir);
     let rows: Vec<(String, Vec<u8>)> = {
@@ -388,9 +517,7 @@ fn note_missing(
         stmt.query_map(params![root_id, start, end], |r| Ok((r.get(0)?, r.get(1)?)))?
             .collect::<rusqlite::Result<_>>()?
     };
-    let mut note = tx.prepare_cached(
-        "INSERT OR IGNORE INTO scan_missing (session_id, file_id) VALUES (?1, ?2)",
-    )?;
+    let mut missing = Vec::new();
     for (id, rel) in rows {
         // Undecodable: leave it alone rather than guess.
         let Some(rel) = native_path::decode(&rel) else {
@@ -403,10 +530,10 @@ fn note_missing(
             continue;
         };
         if !listing.names.contains(first.as_os_str()) {
-            note.execute(params![session_id, id])?;
+            missing.push(id);
         }
     }
-    Ok(())
+    Ok(missing)
 }
 
 /// Problems kept a scan, and how many of a folder's scans keep theirs.
@@ -502,7 +629,10 @@ pub fn finish(
         "DELETE FROM scan_directories WHERE session_id = ?1",
         [session_id],
     )?;
-    tx.execute("DELETE FROM scan_missing WHERE session_id = ?1", [session_id])?;
+    tx.execute(
+        "DELETE FROM scan_missing WHERE session_id = ?1",
+        [session_id],
+    )?;
     // New or changed files are read next (phase1-spec §7.1).
     crate::services::extraction::db::enqueue_if_pending(&tx, root_id, now)?;
     tx.commit()
@@ -590,6 +720,7 @@ pub fn status(conn: &Connection, s: &JobRow) -> rusqlite::Result<InventoryStatus
         elapsed_ms: s.elapsed_ms,
         started_at: s.started_at.clone(),
         finished_at: s.finished_at.clone(),
+        origin: s.origin,
         last_error: s.last_error.clone(),
     })
 }
@@ -776,7 +907,17 @@ mod tests {
         };
 
         assert_eq!(
-            commit_batch(&mut conn, "s1", "r1", &batch(b"a"), false, "t").unwrap(),
+            commit_batch(
+                &mut conn,
+                "s1",
+                "r1",
+                &batch(b"a"),
+                &Deferred::default(),
+                false,
+                false,
+                "t"
+            )
+            .unwrap(),
             Committed::Yes { replayed: 0 }
         );
         assert_eq!(dirs(&conn), 1);
@@ -792,7 +933,17 @@ mod tests {
         )
         .unwrap();
         assert_eq!(
-            commit_batch(&mut conn, "s1", "r1", &batch(b"b"), false, "t").unwrap(),
+            commit_batch(
+                &mut conn,
+                "s1",
+                "r1",
+                &batch(b"b"),
+                &Deferred::default(),
+                false,
+                false,
+                "t"
+            )
+            .unwrap(),
             Committed::NotRunning
         );
         assert_eq!(dirs(&conn), 1, "the late batch must not land");
@@ -863,6 +1014,8 @@ mod tests {
             "s1",
             "r1",
             &batch(vec![file("a.pdf", 1), file("b.pdf", 2)]),
+            &Deferred::default(),
+            false,
             false,
             "t1",
         );
@@ -874,6 +1027,8 @@ mod tests {
             "s1",
             "r1",
             &batch(vec![file("a.pdf", 1), file("b.pdf", 2)]),
+            &Deferred::default(),
+            false,
             false,
             "t2",
         );
@@ -886,6 +1041,8 @@ mod tests {
             "s1",
             "r1",
             &batch(vec![file("a.pdf", 9), file("b.pdf", 2)]),
+            &Deferred::default(),
+            false,
             false,
             "t3",
         );
@@ -900,6 +1057,8 @@ mod tests {
             "s2",
             "r1",
             &batch(vec![file("a.pdf", 9), file("b.pdf", 2)]),
+            &Deferred::default(),
+            false,
             false,
             "t4",
         );
@@ -932,7 +1091,9 @@ mod tests {
             "s3",
             "r1",
             &batch(vec![file("a.pdf", 9), file("b.pdf", 2)]),
+            &Deferred::default(),
             true,
+            false,
             "t5",
         );
         assert_eq!(legacy.unwrap(), Committed::Yes { replayed: 0 });
@@ -947,11 +1108,190 @@ mod tests {
     }
 
     #[test]
+    fn a_rescan_holds_unchanged_folders_and_writes_them_with_later_work() {
+        let mut conn = Connection::open_in_memory().unwrap();
+        crate::services::catalog::migrations::migrate(&mut conn, "t").unwrap();
+        conn.execute_batch("PRAGMA foreign_keys = OFF").unwrap();
+        running_session(&conn, "s1");
+        seed_frontier(&conn, "s1", b"").unwrap();
+        let root: i64 = conn
+            .query_row("SELECT id FROM scan_directories", [], |r| r.get(0))
+            .unwrap();
+        let listed = |files: Vec<FileRecord>, done: Option<i64>| Batch {
+            dirs: vec![b"sub".to_vec()],
+            files,
+            done_dir: done,
+            listing: Some(Listing {
+                dir_rel: native_path::encode(Path::new("")),
+                names: ["a.pdf", "sub"].map(OsString::from).into_iter().collect(),
+                files: 1,
+            }),
+            skipped_entries: 1,
+            ..Batch::default()
+        };
+        // Encoded as the scan encodes paths, so the folder's range holds it.
+        let stored = |name: &str| FileRecord {
+            rel_path: native_path::encode(Path::new(name)),
+            ..file(name, 1)
+        };
+        let commit = |conn: &mut Connection, id: &str, b: &Batch, held: &Deferred| {
+            commit_batch(conn, id, "r1", b, held, false, true, "t").unwrap()
+        };
+        let count =
+            |c: &Connection, sql: &str| -> i64 { c.query_row(sql, [], |r| r.get(0)).unwrap() };
+
+        // A first scan has something to write, so it is never held.
+        let first = listed(vec![stored("a.pdf")], Some(root));
+        assert_eq!(
+            commit(&mut conn, "s1", &first, &Deferred::default()),
+            Committed::Yes { replayed: 0 }
+        );
+
+        // A rescan of the same folder: nothing to write, so nothing written.
+        running_session(&conn, "s2");
+        seed_frontier(&conn, "s2", b"").unwrap();
+        let root2: i64 = conn
+            .query_row(
+                "SELECT id FROM scan_directories WHERE session_id = 's2'",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        let quiet = listed(vec![stored("a.pdf")], Some(root2));
+        let before = count(&conn, "SELECT total_changes()");
+        assert_eq!(
+            commit(&mut conn, "s2", &quiet, &Deferred::default()),
+            Committed::Deferred {
+                replayed: 1,
+                write: vec![],
+                missing: vec![]
+            }
+        );
+        assert_eq!(
+            count(&conn, "SELECT total_changes()"),
+            before,
+            "nothing written"
+        );
+        // The held folder is skipped when choosing the next one.
+        assert!(next_dir(&conn, "s2", 3, &[root2]).unwrap().is_none());
+
+        // Held work goes in with the next commit, which marks the folder
+        // done, adds its subfolder and counts what it listed.
+        let mut held = Deferred::default();
+        held.absorb(quiet, &[], vec![]);
+        let flushed = commit_batch(
+            &mut conn,
+            "s2",
+            "r1",
+            &Batch::default(),
+            &held,
+            false,
+            false,
+            "t",
+        );
+        assert_eq!(flushed.unwrap(), Committed::Yes { replayed: 0 });
+        assert_eq!(
+            count(
+                &conn,
+                "SELECT COUNT(*) FROM scan_directories WHERE session_id = 's2' AND state = 'done'"
+            ),
+            1
+        );
+        assert_eq!(
+            next_dir(&conn, "s2", 3, &[]).unwrap().unwrap().rel_path,
+            b"sub".to_vec()
+        );
+        let (found, skipped): (i64, i64) = conn
+            .query_row(
+                "SELECT discovered_files, skipped_entries FROM jobs WHERE id = 's2'",
+                [],
+                |r| Ok((r.get(0)?, r.get(1)?)),
+            )
+            .unwrap();
+        assert_eq!((found, skipped), (1, 1));
+
+        // A file changed and a file gone are held too, and written with
+        // the held work; a new file is written at once, with what is held.
+        running_session(&conn, "s3");
+        let mut gone = listed(vec![], None);
+        gone.listing
+            .as_mut()
+            .unwrap()
+            .names
+            .remove(std::ffi::OsStr::new("a.pdf"));
+        let missing_id: String = conn
+            .query_row("SELECT id FROM file_instances", [], |r| r.get(0))
+            .unwrap();
+        let before = count(&conn, "SELECT total_changes()");
+        let Committed::Deferred { missing, .. } =
+            commit(&mut conn, "s3", &gone, &Deferred::default())
+        else {
+            panic!("a missing file alone is held");
+        };
+        assert_eq!(missing, vec![missing_id]);
+        let changed = Batch {
+            files: vec![FileRecord {
+                size_bytes: Some(7),
+                ..stored("a.pdf")
+            }],
+            ..Batch::default()
+        };
+        let Committed::Deferred { write, .. } =
+            commit(&mut conn, "s3", &changed, &Deferred::default())
+        else {
+            panic!("a changed file is held");
+        };
+        assert_eq!(write, vec![0]);
+        assert_eq!(
+            count(&conn, "SELECT total_changes()"),
+            before,
+            "nothing written"
+        );
+
+        let mut held = Deferred::default();
+        held.absorb(gone, &[], missing);
+        held.absorb(changed, &write, vec![]);
+        let new = Batch {
+            files: vec![stored("b.pdf")],
+            ..Batch::default()
+        };
+        assert_eq!(
+            commit(&mut conn, "s3", &new, &held),
+            Committed::Yes { replayed: 0 }
+        );
+        assert_eq!(
+            count(
+                &conn,
+                "SELECT COUNT(*) FROM scan_missing WHERE session_id = 's3'"
+            ),
+            1
+        );
+        assert_eq!(
+            count(
+                &conn,
+                "SELECT size_bytes FROM file_instances WHERE name_key = 'a.pdf'"
+            ),
+            7
+        );
+        let (new, changed): (i64, i64) = conn
+            .query_row(
+                "SELECT new_files, changed_files FROM jobs WHERE id = 's3'",
+                [],
+                |r| Ok((r.get(0)?, r.get(1)?)),
+            )
+            .unwrap();
+        assert_eq!((new, changed), (1, 1));
+    }
+
+    #[test]
     fn the_range_under_a_folder_holds_its_subtree_only() {
         // Built with `join`, as the scan builds them, so the separator is
         // the platform's.
         let rel = |p: &str| {
-            native_path::encode(&p.split('/').fold(PathBuf::new(), |acc, part| acc.join(part)))
+            native_path::encode(
+                &p.split('/')
+                    .fold(PathBuf::new(), |acc, part| acc.join(part)),
+            )
         };
         let (start, end) = child_range(Path::new("a"));
         let end = end.unwrap();

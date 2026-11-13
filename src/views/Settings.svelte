@@ -1,4 +1,5 @@
 <script lang="ts">
+  import BackgroundWorkPanel from '../lib/components/BackgroundWorkPanel.svelte';
   import { onMount } from 'svelte';
   import { atlas } from '../lib/api/client';
   import type { DataRootCandidate } from '../lib/api/bindings/DataRootCandidate';
@@ -139,6 +140,9 @@
       </p>
     {:else}
       <p class="muted" role="status">Checking this computer…</p>
+    {/if}
+    {#if workspace.isOpen}
+      <BackgroundWorkPanel />
     {/if}
   </section>
 

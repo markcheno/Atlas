@@ -154,7 +154,7 @@ const scenarios = !runInventory
         label: '1k',
         rates: 'policy,unthrottled',
         power: 'ac',
-        extra: ['--browse', '5', '--pause', '--recovery'],
+        extra: ['--browse', '5', '--pause', '--recovery', '--rescan'],
       },
       { id: '1k-battery', f: small, label: '1k', rates: 'policy', power: 'battery:50', extra: [] },
       {
@@ -163,7 +163,7 @@ const scenarios = !runInventory
         label: '30k',
         rates: 'policy,unthrottled',
         power: 'ac',
-        extra: ['--browse', '5', '--pause', '--recovery'],
+        extra: ['--browse', '5', '--pause', '--recovery', '--rescan'],
       },
     ];
 if (sweep && runInventory) {
@@ -445,6 +445,24 @@ function summarize(all) {
         `| ${r.id} | ${r.recovery.filesAtKill} | ${r.recovery.resumeToCompleteSeconds} | ${r.recovery.duplicateRows} |`,
       );
     }
+  }
+  const rescanned = all.flatMap((r) =>
+    r.runs.filter((x) => x.rescans).map((x) => ({ id: r.id, rate: x.rate, ...x.rescans })),
+  );
+  if (rescanned.length) {
+    lines.push(
+      '',
+      '| Rescan (Slice 4.5) | Rate | Changed | Wall s | Rows written | Catalog KiB written | New / changed / missing |',
+      '| --- | --- | --- | ---: | ---: | ---: | --- |',
+    );
+    for (const x of rescanned)
+      for (const [what, k] of [
+        ['nothing', x.unchanged],
+        ['1% of files', x.onePercentChanged],
+      ])
+        lines.push(
+          `| ${x.id} | ${x.rate} | ${what} | ${k.wallSeconds} | ${k.rowsWritten} | ${(k.catalogBytesWritten / 1024).toFixed(0)} | ${k.newFiles} / ${k.changedFiles} / ${k.missingFiles} |`,
+        );
   }
   const paused = all.flatMap((r) =>
     r.runs.filter((x) => x.pauseResume).map((x) => ({ id: r.id, rate: x.rate, ...x.pauseResume })),

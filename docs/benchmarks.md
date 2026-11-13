@@ -449,6 +449,51 @@ Duplicates' first page takes 33 ms at p95 over 2,001 groups, and Settings
 › Storage 122 ms. Cataloging is unchanged since Phase 0: 483 files/s at
 the policy rate on 30k, browse p95 under 37 ms while scanning.
 
+## Rescans (Slice 4.5)
+
+`just bench-rescan <fixture>` (`benches/inventory.rs --rescan`), M5 Pro,
+2026-11-13, on the 30k fixture (30,006 files in 354 folders, one of them
+holding 20,000). The bench catalogs the fixture, then rescans it twice.
+First nothing changed, then 301 files (1%) had their modification times
+moved forward, which the bench restores afterwards.
+
+To count what a rescan writes, the bench empties the WAL first and holds a
+read snapshot open while the rescan runs, so the writer can't restart the
+WAL. Every frame the rescan writes is then counted, at 16 KiB pages plus 24
+bytes each. The OS's count of the process's writes is recorded too, but it
+includes the first scan's delayed writeback.
+
+| Rescan | Rate | Wall | File rows written | Catalog written | New / changed / missing |
+| --- | --- | ---: | ---: | ---: | --- |
+| Nothing changed | policy (500/s) | 4.14 s | 0 | 1.06 MiB (68 frames) | 0 / 0 / 0 |
+| 1% changed | policy | 4.74 s | 301 | 21.1 MiB (1,351 frames) | 0 / 301 / 0 |
+| Nothing changed | unthrottled | 0.42 s | 0 | 1.06 MiB | 0 / 0 / 0 |
+| 1% changed | unthrottled | 0.49 s | 301 | 21.1 MiB | 0 / 301 / 0 |
+
+- **Before 4.5,** a rescan wrote every row and cost what a first scan does:
+  79 s at this rate on this machine (61 to 91 s in these runs, depending
+  on load).
+- **Comparing alone isn't enough.** With rows compared but every batch
+  still committed, a no-change rescan wrote no file row but 1,604 frames
+  (25.1 MiB): one small commit per batch and per folder, about 650 in all.
+  Holding unchanged work and committing it together brought that to 68.
+  Holding changed files as well halved the 1% case, from 3,581 frames to
+  1,351.
+- **Against §13's provisional targets,** the time is met (4.1 s against
+  10 s). The writes are just over (1.06 MiB against 1 MiB). The rest is a
+  scan's fixed start and finish: queueing, the frontier and its clean-up,
+  the job's end. Holding up to 1,024 folders instead of 256 changed
+  nothing.
+- **A changed file costs about 72 KiB:** its row and the index pages it
+  touches, scattered across a 33 MB catalog.
+- **The time is the rate limit,** each folder a full operation and each
+  unchanged file a twentieth. Unthrottled, the same rescan takes 0.42 s.
+- **First rows of a first scan are unchanged** (17 ms unthrottled), because
+  new files are never held.
+- **Not yet measured:** the 100,000-file fixture (phase4-spec §11), and
+  CI's three OSes, whose 1k and 30k scenarios now include `--rescan`
+  (results in the full run's bench artifact).
+
 ## Diagnostics (Slice 4.1)
 
 What recording costs: `measure_the_cost_of_recording`

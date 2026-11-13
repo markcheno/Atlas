@@ -72,6 +72,25 @@ struct Session {
     clock: Instant,
     /// Sub-millisecond remainder carried between batches.
     carry: Duration,
+    /// Folders listed with nothing to write, not yet committed (Slice 4.5),
+    /// and since when.
+    deferred: db::Deferred,
+    deferred_since: Option<Instant>,
+}
+
+/// How much listed-but-unchanged work a scan holds before committing it:
+/// a few commits for an unchanged library, and little to list again if
+/// Atlas stops first (Slice 4.5).
+const DEFER_DIRS: usize = 256;
+const DEFER_FILES: usize = 1_000;
+const DEFER_FOR: Duration = Duration::from_secs(5);
+
+/// Whether held work was written.
+enum Flushed {
+    Yes,
+    /// The session left `running`; the held work was dropped.
+    NotRunning,
+    Failed,
 }
 
 /// Walks one source root per job, in bounded batches, under the resource
@@ -233,6 +252,8 @@ impl ScanProcessor {
             throttle: row.throttle_reason,
             clock: Instant::now(),
             carry: Duration::ZERO,
+            deferred: db::Deferred::default(),
+            deferred_since: None,
         };
 
         loop {
@@ -264,11 +285,22 @@ impl ScanProcessor {
 
             let id = s.id.clone();
             let max = self.deps.config.max_dir_attempts;
-            let next = match self.catalog.call(move |c| db::next_dir(c, &id, max)) {
+            let listed = s.deferred.done_dirs.clone();
+            let next = match self
+                .catalog
+                .call(move |c| db::next_dir(c, &id, max, &listed))
+            {
                 Ok(Ok(next)) => next,
                 _ => return self.database_failure(&s.id),
             };
             let Some(dir) = next else {
+                // What is held may hold the rest of the frontier.
+                if !s.deferred.is_empty() {
+                    match self.flush_deferred(&mut s) {
+                        Flushed::Yes | Flushed::NotRunning => continue,
+                        Flushed::Failed => return self.database_failure(&s.id),
+                    }
+                }
                 return self.finish(&s);
             };
             match self.process_dir(&mut s, dir) {
@@ -507,15 +539,42 @@ impl ScanProcessor {
         s.clock = now;
 
         let committed = std::mem::take(batch);
+        let held = std::mem::take(&mut s.deferred);
         let (id, root_id, ts, legacy) = (s.id.clone(), s.root_id.clone(), self.now(), s.legacy);
-        let replayed = match self
-            .catalog
-            .call(move |c| db::commit_batch(c, &id, &root_id, &committed, legacy, &ts))
-        {
-            Ok(Ok(db::Committed::Yes { replayed })) => replayed as u32,
+        let result = self.catalog.call(move |c| {
+            let r = db::commit_batch(c, &id, &root_id, &committed, &held, legacy, !legacy, &ts);
+            (r, committed, held)
+        });
+        let replayed = match result {
+            Ok((Ok(db::Committed::Yes { replayed }), _, _)) => {
+                s.deferred_since = None;
+                replayed as u32
+            }
+            // Nothing to write yet: held, and committed with later work.
+            Ok((
+                Ok(db::Committed::Deferred {
+                    replayed,
+                    write,
+                    missing,
+                }),
+                committed,
+                mut held,
+            )) => {
+                held.absorb(committed, &write, missing);
+                s.deferred = held;
+                let since = *s.deferred_since.get_or_insert(now);
+                if (s.deferred.done_dirs.len() >= DEFER_DIRS
+                    || s.deferred.files.len() + s.deferred.missing.len() >= DEFER_FILES
+                    || since.elapsed() >= DEFER_FOR)
+                    && !matches!(self.flush_deferred(s), Flushed::Yes)
+                {
+                    return Some(DirOutcome::Interrupted);
+                }
+                replayed as u32
+            }
             // Paused or cancelled while this batch was listed: drop it. The
             // directory stays pending and is listed again on resume.
-            Ok(Ok(db::Committed::NotRunning)) => return Some(DirOutcome::Interrupted),
+            Ok((Ok(db::Committed::NotRunning), _, _)) => return Some(DirOutcome::Interrupted),
             // Most likely the folder was removed while scanning (cascade).
             _ => {
                 if self.state_of(&s.id).is_some()
@@ -568,6 +627,36 @@ impl ScanProcessor {
             }
         }
         None
+    }
+
+    /// Commits held work on its own.
+    fn flush_deferred(&mut self, s: &mut Session) -> Flushed {
+        s.deferred_since = None;
+        let held = std::mem::take(&mut s.deferred);
+        if held.is_empty() {
+            return Flushed::Yes;
+        }
+        let (id, root_id, ts, legacy) = (s.id.clone(), s.root_id.clone(), self.now(), s.legacy);
+        let result = self.catalog.call(move |c| {
+            db::commit_batch(
+                c,
+                &id,
+                &root_id,
+                &Batch::default(),
+                &held,
+                legacy,
+                false,
+                &ts,
+            )
+        });
+        match result {
+            Ok(Ok(db::Committed::Yes { .. })) => {
+                self.emit(false);
+                Flushed::Yes
+            }
+            Ok(Ok(_)) => Flushed::NotRunning,
+            _ => Flushed::Failed,
+        }
     }
 
     fn record_failure(&mut self, s: &Session, dir: &DirRow, code: &'static str) {

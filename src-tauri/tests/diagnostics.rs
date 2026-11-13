@@ -11,9 +11,9 @@ use std::time::Duration;
 use atlas_lib::domain::dto::{
     JobKind, JobState, KnowledgeState, PauseReason, PolicyMode, PowerSource,
 };
+use atlas_lib::services::catalog::migrations::SUPPORTED_SCHEMA_VERSION;
 use atlas_lib::services::diagnostics::event::{FailureReason, PauseBy, WorkerRole};
 use atlas_lib::services::diagnostics::report::{self, Inputs, KnowledgeSummary, Report};
-use atlas_lib::services::catalog::migrations::SUPPORTED_SCHEMA_VERSION;
 use atlas_lib::services::diagnostics::{self, Diagnostics, Event, LOGS_DIR, LogLine};
 use atlas_lib::services::extraction::db;
 use atlas_lib::services::extraction::supervisor::{Crash, WorkerStats};

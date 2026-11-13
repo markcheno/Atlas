@@ -119,9 +119,13 @@ worker-hello exe="src-tauri/target/debug/atlas":
     cargo build --manifest-path {{ manifest }} --locked
     node scripts/worker-hello.mjs {{ exe }}
 
-# Benchmark suite (cataloging on the 1k and 30k fixtures, search and extraction on the 30k text fixture; release build); results in the temp dir unless `out` is given
+# Benchmark suite (cataloging and rescans on the 1k and 30k fixtures, search and extraction on the 30k text fixture; release build); results in the temp dir unless `out` is given
 bench out="":
     pnpm bench {{ if out == "" { "" } else { "--out " + out } }}
+
+# Rescans only (Slice 4.5): catalog `fixture` (from `just fixtures`), then rescan it unchanged and with 1% of its files' times moved (restored afterwards); release build
+bench-rescan fixture rates="policy,unthrottled":
+    cargo bench --manifest-path {{ manifest }} --locked --bench inventory -- --fixture {{ fixture }} --label rescan --rates {{ rates }} --rescan
 
 # Benchmark suite plus the 30k throttle sweep (about 10 more minutes)
 bench-full out="":

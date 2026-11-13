@@ -201,6 +201,26 @@ Main views: Home, Search, Library, Trails and Settings (`NAV_VIEWS` in
   Text, Search index, Rest of the catalog and Caches, the indexing
   estimate as one sentence (always a range), and **Clean caches** with what
   it freed. "Measuring…" until the numbers arrive.
+- **Library folders and scans** (Slice 4.5,
+  `components/LibraryFoldersPanel.svelte`, `components/FolderChecks.svelte`,
+  wording in `lib/inventoryCopy.ts`):
+  - **Each folder's row** says when it was checked and what the last
+    check found, or that it was stopped, didn't finish or couldn't read
+    some folders. An away folder says what happens next.
+  - **Its badge** has a symbol beside the word.
+  - **Controls:** Pause or Resume and Cancel while it is cataloged, and
+    Rescan otherwise; **Check all folders now** is in the panel.
+  - **Recent checks and Couldn't read** are disclosures loaded when
+    opened (`list_scans`, `get_scan_problems`).
+  - **Refreshing:** the panel follows `inventory-status` and refreshes
+    the folder list at most every 5 s, and relative times every minute.
+  - **Errors:** a control that fails shows the store's `actionError`,
+    which a status refresh doesn't clear.
+
+  The status bar's **All activity** lists every folder's cataloging,
+  reading and meaning at once, from `InventoryOverview.activeJobs` and the
+  roots' `activeState`. Settings › Performance & Battery gains **Check
+  folders for changes** (`components/BackgroundWorkPanel.svelte`).
 - **Shared pieces.** `stores/originals.svelte.ts` holds Open and Reveal with
   the cloud-download question and per-file problems, used by the Library,
   Search and the panel (`OriginalActions`, `OriginalNotice`); `TextBadge`
@@ -351,6 +371,11 @@ Implemented in `src-tauri/src/services/jobs/` (Slice 1.1); rationale in
   nothing lands after a pause.
 - **Recovery.** On open, interrupted jobs of every kind are queued again; a
   user's pause is kept. A folder that has never been scanned gets one scan.
+- **Yielding** (Slice 4.5). A scan whose folder goes away pauses with
+  `source_root_missing` and returns to its runner, and `next_runnable`
+  skips such scans, so one unplugged drive doesn't hold every other
+  folder's scan. The folder checker queues it again when the folder is
+  back. `JobRunners::waker()` lets the checker wake the runners.
 - **Status.** The `inventory-status` overview, the per-folder lines and the
   Library's "scanning" flag count scan jobs only. Extraction reports its
   own status from Slice 1.3.
@@ -358,7 +383,8 @@ Implemented in `src-tauri/src/services/jobs/` (Slice 1.1); rationale in
 ## Inventory
 
 Implemented in `src-tauri/src/services/inventory/`; rationale in
-[ADR 0005](adr/0005-inventory-durability.md).
+[ADR 0005](adr/0005-inventory-durability.md) and, for rescans and the
+folder checker, [ADR 0022](adr/0022-automatic-rescans.md).
 
 - **Schema** (migrations 0003 and 0007). A scan is a `jobs` row of kind
   `scan` (the table was `scan_sessions` until 0007). `scan_directories` is
@@ -379,12 +405,40 @@ Implemented in `src-tauri/src/services/inventory/`; rationale in
   (`REPLAY_COST_DIVISOR`, Slice 1.7), so the next new file arrives in
   about a second even 9,000 entries into a 20,000-file folder (P1-20). Classification is by extension only, and file contents are never
   opened.
-- **Triggers.** A session starts when a folder is added, on Rescan, or when
-  a library opens with interrupted work or a never-scanned folder. User
-  pauses persist across restarts.
+- **Writing only what changed** (Slice 4.5, migration 0016). Each listed
+  file is looked up first, and a row that already matches the listing is
+  left alone: the same size and mtime, available, the same storage, and
+  not a cloud-skipped file now stored locally. It costs a replay. A batch
+  with no new files writes nothing: the scan holds its work (frontier,
+  counters, changed files, missing candidates) in a `Deferred`, skips held
+  folders in `next_dir`, and commits held work with the next batch that
+  adds a file, at 256 folders, 1,000 files or 5 s, or when the catalog's
+  frontier runs out. A no-change rescan of 30,000 files writes no file row
+  and about 1 MiB in all ([benchmarks](benchmarks.md#rescans-slice-45)).
+  Scans begun before 4.5 (`origin` NULL) finish by Phase 0's rule.
+- **Triggers.** A session starts when a folder is added, at launch for a
+  never-scanned folder or interrupted work, on Rescan or Check all folders
+  now, and by the folder checker. `jobs.origin` records which (added,
+  launch, user, automatic). User pauses persist across restarts; Rescan
+  on a folder the user paused resumes that scan.
+- **The folder checker** (`inventory/auto.rs`, Slice 4.5). A thread per
+  open library, owned by `OpenRoot`, ticking every minute (the first tick
+  at open). `check_if_due` probes every folder and queues an automatic
+  scan when a reachable, non-nested folder with no active scan is older
+  than `background.checkFolders` (hourly, six hours by default, daily,
+  never), or has just come back. It also queues again a scan paused for
+  its missing folder, and emits `inventory-status` when reachability
+  changes. Tests drive it with a `TestClock` (`tests/auto_check.rs`).
 - **Missing files.** A file is marked missing only when its folder was
   listed successfully in a session and the file wasn't found. A folder
-  that can't be read protects its whole subtree.
+  that can't be read protects its whole subtree. Since 4.5 the rows under
+  a folder just listed whose first name below it wasn't in the listing are
+  noted in `scan_missing`, and `finish` marks them.
+- **History.** The job row counts `discovered_files`, `new_files`,
+  `changed_files` and `missing_files`; failed folders are kept in
+  `scan_problems` (200 a scan, a folder's last 10 scans).
+  `list_scans(sourceRootId, limit)` and `get_scan_problems(jobId)` read
+  them; `check_all_folders()` queues a scan of every reachable folder.
 - **Links and long paths.** Symlinks, and on Windows junctions (which std
   reports as symlinks), are skipped and counted, never followed. Paths are
   stored as native bytes with no length limit; on Windows, std adds the

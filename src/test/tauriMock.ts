@@ -5,6 +5,8 @@
  * not_implemented ErrorPayload, like the real stubs.
  */
 import { vi } from 'vitest';
+import type { RootInventorySummary } from '../lib/api/bindings/RootInventorySummary';
+import type { ScanRecord } from '../lib/api/bindings/ScanRecord';
 import type { AiRole } from '../lib/api/bindings/AiRole';
 import type { AppStatus } from '../lib/api/bindings/AppStatus';
 import type { KnowledgeStatus } from '../lib/api/bindings/KnowledgeStatus';
@@ -168,19 +170,56 @@ export function inventoryStatus(overrides: Partial<InventoryStatus> = {}): Inven
     elapsedMs: 83_000,
     startedAt: '2026-11-07T00:00:00Z',
     finishedAt: null,
+    origin: 'user',
     lastError: null,
     ...overrides,
   };
 }
 
+/** Every scan scheduled defaults to the one the status bar shows. */
 export function overview(overrides: Partial<InventoryOverview> = {}): InventoryOverview {
+  const active = overrides.active ?? null;
   return {
-    active: null,
+    active,
     queuedSessions: 0,
     catalogedFiles: 0,
     missingFiles: 0,
     cloudOnlyFiles: 0,
     roots: [],
+    activeJobs: active ? [active] : [],
+    ...overrides,
+  };
+}
+
+export function rootSummary(overrides: Partial<RootInventorySummary> = {}): RootInventorySummary {
+  return {
+    sourceRootId: 'root-books',
+    fileCount: 0,
+    missingCount: 0,
+    cloudOnlyCount: 0,
+    lastScanAt: null,
+    lastState: null,
+    activeJobId: null,
+    activeState: null,
+    lastScan: null,
+    ...overrides,
+  };
+}
+
+export function scanRecord(overrides: Partial<ScanRecord> = {}): ScanRecord {
+  return {
+    jobId: 'scan-1',
+    origin: 'automatic',
+    state: 'completed',
+    startedAt: '2026-11-07T00:00:00Z',
+    finishedAt: '2026-11-07T00:00:02Z',
+    elapsedMs: 1_500,
+    discoveredFiles: 12,
+    newFiles: 0,
+    changedFiles: 0,
+    missingFiles: 0,
+    problems: 0,
+    lastError: null,
     ...overrides,
   };
 }
@@ -866,6 +905,7 @@ function defaults(): Record<string, Handler> {
       recordTrails: true,
       expireTrails: true,
     },
+    background: { checkFolders: 'sixHours' },
   };
   let roots: SourceRoot[] = [];
   let firstStepNote = false;
@@ -958,6 +998,9 @@ function defaults(): Record<string, Handler> {
     open_original: () => null,
     reveal_original: () => null,
     start_inventory: () => 'job-2',
+    list_scans: () => [],
+    get_scan_problems: () => [],
+    check_all_folders: () => 0,
     pause_job: () => null,
     resume_job: () => null,
     cancel_job: () => null,
