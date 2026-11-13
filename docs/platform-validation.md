@@ -1415,7 +1415,18 @@ The catalog migrates to version 16 (`scan_history`).
 - **The rescan benchmark** at 30,006 files
   ([benchmarks](benchmarks.md#rescans-slice-45)).
 
-**CI on `slice-45`:** RUN_PENDING
+**CI on `slice-45`:** the full run
+([43457155317](https://github.com/markcheno/Atlas/actions/runs/43457155317))
+is green on three OSes, smoke tests and release bundles included. The macOS
+release bundle passed when rerun: its runner had stalled before its first
+step. Earlier runs on the branch found three problems, all fixed:
+
+- the smoke test looked for the status bar's Pause button by its missing
+  label;
+- one Linux run hung in the Rust tests and was cancelled with no log. Scans
+  now use the workspace's clock, which the folder checker reads, and the
+  Rust test step has its own 20-minute limit, so a hang keeps its log;
+- bindings written by a test binary run outside cargo were committed.
 
 **For the product owner, on the installed build:**
 
