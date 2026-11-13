@@ -1398,7 +1398,9 @@ changes.
   stopped in its corpus job, when Commons served a re-rendered scan the
   manifest's pin refused. Left as the first thing to fix when OCR returns.
 
-**CI on `slice-42`:** to be recorded.
+**CI on `slice-42`:** the full run
+([43433588260](https://github.com/markcheno/Atlas/actions/runs/43433588260))
+is green on three OSes; the app is unchanged.
 
 ## Slice 4.1.2
 
