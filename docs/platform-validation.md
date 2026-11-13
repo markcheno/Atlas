@@ -1375,7 +1375,11 @@ Two fixes from the owner's import of the real library.
    events can't be brought back." **Keep** leaves the log's size as it
    was.
 
-**CI on `slice-411`:** to be recorded.
+**CI on `slice-411`:** the full run
+([43342861919](https://github.com/markcheno/Atlas/actions/runs/43342861919))
+is green on three OSes at the first attempt, with the smoke on Windows and
+Linux. Its `atlas-macOS-ARM64-release` artifact holds the DMG with both
+fixes.
 
 ## Slice 3.9
 
