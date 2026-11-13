@@ -75,12 +75,26 @@ pub fn check_if_due(
     setting: CheckFolders,
     state: &mut CheckState,
 ) -> AtlasResult<Checked> {
+    check_until(catalog, clock, setting, state, &|| false).map(Option::unwrap_or_default)
+}
+
+/// As [`check_if_due`], giving up without writing anything once `stop`
+/// says so (the library closing while folders are probed): `None` then.
+fn check_until(
+    catalog: &CatalogHandle,
+    clock: &dyn Clock,
+    setting: CheckFolders,
+    state: &mut CheckState,
+    stop: &dyn Fn() -> bool,
+) -> AtlasResult<Option<Checked>> {
     let records = SqliteCatalog::new(catalog).list_source_root_records()?;
     let paths: Vec<Option<PathBuf>> = records
         .iter()
         .map(|r| native_path::decode(&r.path_bytes))
         .collect();
-    let statuses = sources::probe::probe_all(&paths);
+    let Some(statuses) = sources::probe::probe_all_until(&paths, stop) else {
+        return Ok(None);
+    };
     let now = clock.now();
     let mut out = Checked::default();
     for ((record, path), status) in records.iter().zip(&paths).zip(statuses) {
@@ -153,7 +167,7 @@ pub fn check_if_due(
             None => {}
         }
     }
-    Ok(out)
+    Ok(Some(out))
 }
 
 enum Act {
@@ -190,8 +204,11 @@ impl Checker {
                 let mut state = CheckState::default();
                 loop {
                     let setting = *deps.setting.lock().unwrap_or_else(|p| p.into_inner());
-                    if let Ok(done) = check_if_due(&deps.catalog, &*deps.clock, setting, &mut state)
-                    {
+                    let check =
+                        check_until(&deps.catalog, &*deps.clock, setting, &mut state, &|| {
+                            stop.stopped()
+                        });
+                    if let Ok(Some(done)) = check {
                         if !(done.queued.is_empty() && done.resumed.is_empty())
                             && let Some(waker) = &deps.waker
                         {

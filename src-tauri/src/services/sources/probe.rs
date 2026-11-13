@@ -32,11 +32,33 @@ pub fn probe_all(paths: &[Option<PathBuf>]) -> Vec<SourceRootStatus> {
     probe_all_with(paths, PROBE_TIMEOUT, probe)
 }
 
+/// As [`probe_all`], giving up as soon as `stop` says so (the library is
+/// closing): `None` then. For the folder check (Slice 4.5), so closing a
+/// library never waits on a slow probe.
+pub fn probe_all_until(
+    paths: &[Option<PathBuf>],
+    stop: &dyn Fn() -> bool,
+) -> Option<Vec<SourceRootStatus>> {
+    probe_with_stop(paths, PROBE_TIMEOUT, probe, stop)
+}
+
 pub fn probe_all_with(
     paths: &[Option<PathBuf>],
     timeout: Duration,
     probe_fn: fn(&Path) -> SourceRootStatus,
 ) -> Vec<SourceRootStatus> {
+    probe_with_stop(paths, timeout, probe_fn, &|| false).unwrap_or_default()
+}
+
+/// How often a probe waiting for its answers looks at `stop`.
+const STOP_POLL: Duration = Duration::from_millis(20);
+
+fn probe_with_stop(
+    paths: &[Option<PathBuf>],
+    timeout: Duration,
+    probe_fn: fn(&Path) -> SourceRootStatus,
+    stop: &dyn Fn() -> bool,
+) -> Option<Vec<SourceRootStatus>> {
     let mut statuses = vec![SourceRootStatus::Unavailable; paths.len()];
     let (tx, rx) = mpsc::channel();
     let mut pending = 0usize;
@@ -57,21 +79,44 @@ pub fn probe_all_with(
 
     let deadline = Instant::now() + timeout;
     while pending > 0 {
+        if stop() {
+            return None;
+        }
         let remaining = deadline.saturating_duration_since(Instant::now());
-        match rx.recv_timeout(remaining) {
+        if remaining.is_zero() {
+            break;
+        }
+        match rx.recv_timeout(remaining.min(STOP_POLL)) {
             Ok((index, status)) => {
                 statuses[index] = status;
                 pending -= 1;
             }
-            Err(_) => break,
+            Err(mpsc::RecvTimeoutError::Timeout) => {}
+            Err(mpsc::RecvTimeoutError::Disconnected) => break,
         }
     }
-    statuses
+    Some(statuses)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_probe_stops_waiting_when_the_library_closes() {
+        fn slow(_: &Path) -> SourceRootStatus {
+            thread::sleep(Duration::from_secs(3));
+            SourceRootStatus::Available
+        }
+        let started = Instant::now();
+        let paths = [Some(PathBuf::from("/a stalled share"))];
+        assert!(probe_with_stop(&paths, PROBE_TIMEOUT, slow, &|| true).is_none());
+        assert!(
+            started.elapsed() < Duration::from_millis(500),
+            "{:?}",
+            started.elapsed()
+        );
+    }
 
     #[test]
     fn reports_available_missing_and_undecodable() {

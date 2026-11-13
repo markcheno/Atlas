@@ -296,6 +296,12 @@ fn p3_13_a_session_resumed_after_twelve_weeks_of_change() {
     });
     let chat = Chat::new(&lib);
     let mut sc = Scenario { lib, clock, chat };
+    // The scenario's clock jumps weeks while the library is open, which
+    // would start Atlas's own folder check mid-change (Slice 4.5); the
+    // script's rescan is the owner's, so the check is off.
+    let mut settings = sc.lib.ws.settings().unwrap();
+    settings.background.check_folders = atlas_lib::domain::dto::CheckFolders::Never;
+    sc.lib.ws.update_settings(settings).unwrap();
     let reread = sc.document_of(&script.later.reread);
     age(&sc.lib, &reread);
 
