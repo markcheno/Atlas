@@ -1364,7 +1364,9 @@ unplugged, the meaning line reads "Indexing meaning · N of M files ·
 Slowed on battery". With memory pressure elevated (Activity Monitor ›
 Memory shows yellow), it reads "… · Going slowly · The computer is busy".
 
-**CI on `slice-413`:** to be recorded.
+**CI on `slice-413`:** the full run
+([43351102234](https://github.com/markcheno/Atlas/actions/runs/43351102234))
+is green on three OSes at the first attempt.
 
 ## Slice 4.1.2
 
