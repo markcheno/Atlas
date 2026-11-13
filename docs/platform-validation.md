@@ -1348,6 +1348,66 @@ library: the report you share is the evidence.
 - **Clear the log had no confirmation.** One accidental click removed the
   whole log.
 
+## Slice 4.1.2
+
+The Explore spike ([write-up and rule](spike-explore.md)). Nothing in the
+app changes.
+
+**Verified locally (macOS arm64, M5 Pro):**
+- `just ci`: 50 Rust suites and 236 Vitest tests passed.
+- The new tests:
+  - `services::explore` (25 unit tests): planted clusters recovered; the
+    same seed giving the same areas and the same map; identical points
+    not split; no area under its floor; sub-areas partitioning their
+    area; neighbours equal to brute force on any number of threads;
+    planted clusters staying together on the map; trustworthiness 1 for a
+    faithful map and low for a shuffled one; names being the planted
+    words, never a common word, a number or one book's word;
+  - `tests/explore.rs` (10 tests) on a library made with the fake
+    embedder: book vectors equal to Related documents'; three planted
+    topics found end to end and named by their own words; a catalog of
+    another schema refused with nothing written; nothing written to a
+    closed library (every file's name and BLAKE3 unchanged, no `-wal` or
+    `-shm`); beside an open one, only the `-shm` changed; the page
+    self-contained, with a hostile title escaped; an output folder in the
+    library or the repository refused; no title or word in what is
+    printed; the model chosen by what it has done or by position.
+- `just bench-explore`: [benchmarks](benchmarks.md#explore-spike-slice-412).
+- The page was rendered from made-up data at the real collection's size
+  (6,222 books in 16 areas) in headless Chrome, light and dark, with an
+  area chosen: the map, the numbers on it, the list, the ticks and the
+  tally all drew as meant.
+
+### The owner's run on the real library
+
+The coding agent never opens the library; the numbers you paste back are
+the evidence.
+
+1. Wait until Atlas's status line says "Meaning up to date".
+2. Quit Atlas (Cmd+Q). Then nothing in the library's folder is touched.
+   (Beside a running Atlas the spike still works, and only the catalog's
+   `-shm` file is touched.)
+3. In the repository, at the commit your Atlas was built from or later
+   with the same catalog format:
+   `just spike-explore "<the library's folder>"`.
+   Settings › Storage shows the folder. The first run builds for a few
+   minutes.
+4. Open the page it names (`src-tauri/target/tmp/explore/atlas-explore.html`)
+   in a browser.
+5. For each of the 16 areas, read its words, its three central titles and,
+   under "All … books", as many titles as you need. Tick "These books
+   belong together" and "I'd recognise the area from these words" where
+   they hold. Choosing an area lights up its books on the map.
+6. Press **Copy the numbers** and share what it copied. It holds counts,
+   measures, timings and your ticks, and no title, word or name.
+7. The page holds your titles. Delete the folder when you're done, or
+   `just clean` removes it.
+
+**Result:** to be recorded when the owner reports it, with the rule
+applied.
+
+**CI on `slice-412`:** to be recorded.
+
 ## Slice 4.1.1
 
 Two fixes from the owner's import of the real library.

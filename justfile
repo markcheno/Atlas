@@ -163,6 +163,14 @@ bench-knowledge size="100k" out="":
 bench-diagnostics:
     cargo test --manifest-path {{ manifest }} --release --test diagnostics measure_the_cost_of_recording -- --ignored --nocapture
 
+# The Explore spike (Slice 4.1.2), run by the library's owner: reads the library at `data_root` read-only (best with Atlas quit) and writes atlas-explore.html, a map of the books by meaning with the areas to tick, into `out` (default src-tauri/target/tmp/explore; never inside the library or the repository). Prints numbers only. Options: ATLAS_EXPLORE_SAMPLING=all, ATLAS_EXPLORE_CENTRED=1, ATLAS_EXPLORE_AREAS=<n>, ATLAS_EXPLORE_MODEL=<position>
+spike-explore $ATLAS_EXPLORE_DATA_ROOT $ATLAS_EXPLORE_OUT="":
+    cargo test --manifest-path {{ manifest }} --locked --release --test explore -- --ignored --nocapture the_owners_library
+
+# What the Explore spike costs (Slice 4.1.2): neighbours, areas, the map and its measures at 5,000 and 30,000 synthetic books of 512 dimensions
+bench-explore:
+    cargo test --manifest-path {{ manifest }} --locked --release --test explore -- --ignored --nocapture measure_explore_at_5k_and_30k
+
 # A generated knowledge store as a JSON export, for trying Import: `just generate-knowledge out.json 1000 10000`
 generate-knowledge out trails="1000" steps="10000":
     node scripts/generate-knowledge.mjs {{ out }} --trails {{ trails }} --steps {{ steps }}

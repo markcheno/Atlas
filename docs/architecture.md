@@ -1360,6 +1360,30 @@ rationale in [ADR 0021](adr/0021-diagnostics.md).
   (`just bench-knowledge`; CI runs 10,000 steps). Method and results:
   [benchmarks](benchmarks.md).
 
+## The Explore spike (Slice 4.1.2)
+
+`src-tauri/src/services/explore/` is a spike, not a feature: pure
+functions that lay a library out by meaning, called by nothing in the
+app. A harness (`src-tauri/tests/explore.rs`, `just spike-explore`) runs
+them against a library and writes one page for its owner to judge. The
+question, the rule and the results are in
+[spike-explore.md](spike-explore.md); if the answer is stop, the module is
+removed.
+
+- **`books.rs`:** one unit vector per book for one embedding model, the
+  mean of the sample Related documents averages, read in one short
+  statement per document.
+- **`cluster.rs`, `knn.rs`, `layout.rs`:** areas by bisecting spherical
+  k-means, exact nearest neighbours on threads, and a 2-D layout (PCA,
+  then UMAP's pulls and pushes). Seeded; no dependency.
+- **`quality.rs`, `names.rs`:** measures of the areas and the map, and
+  area names from the books' own words.
+- **`survey.rs`:** the pipeline, and `Numbers`, which holds counts,
+  measures and timings only.
+- **`catalog::reader::open_offline`:** a catalog opened from outside
+  Atlas, read-only, immutable when Atlas is closed, never migrated, and
+  refused at any schema but the build's.
+
 ## Spikes (Slice 0.9)
 
 [`spikes/`](../spikes/README.md) holds experiments that inform decisions

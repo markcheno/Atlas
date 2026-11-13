@@ -9,6 +9,7 @@ use std::sync::{Condvar, Mutex};
 
 use rusqlite::{Connection, OpenFlags};
 
+use super::migrations::{SUPPORTED_SCHEMA_VERSION, current_version};
 use super::writer::BUSY_TIMEOUT;
 use crate::error::{AtlasError, AtlasResult};
 
@@ -80,6 +81,51 @@ impl CatalogReader {
 /// that must not hold a pooled connection (storage accounting).
 pub fn open_single(path: &Path) -> AtlasResult<Connection> {
     open_reader(path)
+}
+
+/// A catalog opened from outside Atlas, to read and nothing else (the
+/// Explore spike's harness, Slice 4.1.2): no lock, no migration, no
+/// pragma that writes. With Atlas closed (no `-wal` beside the catalog)
+/// the file is opened as immutable, which creates and touches nothing.
+/// Beside a running Atlas it is opened read-only, which marks its reads
+/// in the `-shm` file that is already there. Refuses a catalog of any
+/// schema but this build's: the queries are written for that one.
+pub fn open_offline(path: &Path) -> AtlasResult<Connection> {
+    if !path.is_file() {
+        return Err(AtlasError::DataRootInvalid {
+            reason: "it has no catalog",
+        });
+    }
+    let mut wal = path.as_os_str().to_owned();
+    wal.push("-wal");
+    let mode = if Path::new(&wal).exists() {
+        "mode=ro"
+    } else {
+        "immutable=1"
+    };
+    // A file: URI, so a `?` or `#` in a folder's name can't be read as
+    // part of the query.
+    let mut uri = url::Url::from_file_path(path).map_err(|()| AtlasError::DataRootInvalid {
+        reason: "its path can't be opened",
+    })?;
+    uri.set_query(Some(mode));
+    let conn = Connection::open_with_flags(
+        uri.as_str(),
+        OpenFlags::SQLITE_OPEN_READ_ONLY
+            | OpenFlags::SQLITE_OPEN_URI
+            | OpenFlags::SQLITE_OPEN_NO_MUTEX,
+    )
+    .map_err(AtlasError::db("be opened for reading"))?;
+    conn.busy_timeout(BUSY_TIMEOUT)
+        .map_err(AtlasError::db("be configured"))?;
+    let found = current_version(&conn)?;
+    if found != SUPPORTED_SCHEMA_VERSION {
+        return Err(AtlasError::DataRootIncompatible {
+            found,
+            supported: SUPPORTED_SCHEMA_VERSION,
+        });
+    }
+    Ok(conn)
 }
 
 fn open_reader(path: &Path) -> AtlasResult<Connection> {

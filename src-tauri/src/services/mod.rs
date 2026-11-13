@@ -8,6 +8,7 @@ pub mod catalog;
 pub mod diagnostics;
 pub mod documents;
 pub mod embedding;
+pub mod explore;
 pub mod export;
 pub mod extraction;
 pub mod inventory;

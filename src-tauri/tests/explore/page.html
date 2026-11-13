@@ -1,0 +1,641 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'"
+    />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Atlas Explore spike</title>
+    <style>
+      :root {
+        color-scheme: light;
+        --surface: #fcfcfb;
+        --panel: #f3f2ee;
+        --text: #0b0b0b;
+        --text-2: #52514e;
+        --muted: #898781;
+        --line: #e1e0d9;
+        --dot: rgba(82, 81, 78, 0.42);
+        --dot-dim: rgba(137, 135, 129, 0.22);
+        --accent: #2a78d6;
+        --ring: #fcfcfb;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          color-scheme: dark;
+          --surface: #1a1a19;
+          --panel: #242423;
+          --text: #f0efec;
+          --text-2: #c3c2b7;
+          --muted: #898781;
+          --line: #2c2c2a;
+          --dot: rgba(195, 194, 183, 0.45);
+          --dot-dim: rgba(137, 135, 129, 0.2);
+          --accent: #3987e5;
+          --ring: #1a1a19;
+        }
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        background: var(--surface);
+        color: var(--text);
+        font:
+          15px/1.45 system-ui,
+          -apple-system,
+          'Segoe UI',
+          sans-serif;
+      }
+      header {
+        padding: 20px 24px 12px;
+        border-bottom: 1px solid var(--line);
+      }
+      h1 {
+        margin: 0 0 4px;
+        font-size: 22px;
+      }
+      h2 {
+        margin: 0;
+        font-size: 16px;
+      }
+      p {
+        margin: 4px 0;
+      }
+      .muted {
+        color: var(--text-2);
+      }
+      .small {
+        font-size: 13px;
+      }
+      .notice {
+        margin-top: 8px;
+        padding: 8px 12px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: var(--panel);
+      }
+      main {
+        display: grid;
+        grid-template-columns: minmax(0, 3fr) minmax(320px, 2fr);
+        gap: 24px;
+        padding: 16px 24px 48px;
+      }
+      @media (max-width: 900px) {
+        main {
+          grid-template-columns: minmax(0, 1fr);
+        }
+      }
+      .map {
+        position: sticky;
+        top: 12px;
+        align-self: start;
+      }
+      .frame {
+        position: relative;
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        overflow: hidden;
+      }
+      canvas {
+        display: block;
+        width: 100%;
+        height: min(72vh, 760px);
+        touch-action: none;
+        cursor: grab;
+      }
+      canvas:active {
+        cursor: grabbing;
+      }
+      .controls {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        align-items: center;
+        margin-top: 8px;
+      }
+      button {
+        font: inherit;
+        color: var(--text);
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        padding: 6px 12px;
+        cursor: pointer;
+      }
+      button:focus-visible,
+      summary:focus-visible,
+      input:focus-visible,
+      textarea:focus-visible {
+        outline: 2px solid var(--accent);
+        outline-offset: 2px;
+      }
+      #tip {
+        position: absolute;
+        pointer-events: none;
+        max-width: 320px;
+        padding: 6px 10px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: var(--surface);
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.15);
+        font-size: 13px;
+        left: 0;
+        top: 0;
+      }
+      #tip[hidden] {
+        display: none;
+      }
+      #tip strong {
+        display: block;
+      }
+      .area {
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        padding: 12px 14px;
+        margin-bottom: 12px;
+      }
+      .area.selected {
+        border-color: var(--accent);
+        box-shadow: inset 3px 0 0 var(--accent);
+      }
+      .area-head {
+        display: flex;
+        gap: 10px;
+        align-items: baseline;
+        width: 100%;
+        text-align: left;
+        border: 0;
+        background: none;
+        padding: 0;
+      }
+      .number {
+        flex: none;
+        min-width: 26px;
+        padding: 0 6px;
+        border: 1px solid var(--muted);
+        border-radius: 999px;
+        text-align: center;
+        font-size: 13px;
+        font-variant-numeric: tabular-nums;
+      }
+      .words {
+        font-weight: 600;
+      }
+      ul {
+        margin: 6px 0;
+        padding-left: 20px;
+      }
+      .ticks {
+        display: grid;
+        gap: 4px;
+        margin-top: 8px;
+      }
+      label {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+        min-height: 28px;
+      }
+      details {
+        margin-top: 6px;
+      }
+      summary {
+        cursor: pointer;
+        color: var(--text-2);
+      }
+      .books {
+        max-height: 260px;
+        overflow: auto;
+      }
+      textarea {
+        width: 100%;
+        height: 180px;
+        font:
+          12px/1.4 ui-monospace,
+          Menlo,
+          Consolas,
+          monospace;
+        color: var(--text);
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        padding: 8px;
+      }
+      .tally {
+        font-variant-numeric: tabular-nums;
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>Atlas Explore spike</h1>
+      <p id="summary" class="muted"></p>
+      <p id="preliminary" class="notice" hidden></p>
+    </header>
+    <main>
+      <section class="map" aria-label="The map">
+        <div class="frame">
+          <canvas id="map" role="img" aria-label="A map of the library by meaning"></canvas>
+          <div id="tip" hidden></div>
+        </div>
+        <div class="controls">
+          <button type="button" id="zoom-in" aria-label="Zoom in">+</button>
+          <button type="button" id="zoom-out" aria-label="Zoom out">−</button>
+          <button type="button" id="reset">Show everything</button>
+          <button type="button" id="clear">Show every area alike</button>
+          <span class="muted small"
+            >Drag to move, scroll to zoom. Each dot is a book; numbers mark the areas, which are
+            listed beside the map.</span
+          >
+        </div>
+      </section>
+      <section aria-label="The areas">
+        <h2>The areas</h2>
+        <p class="muted small">
+          For each area, tick what holds. Choose an area to light up its books on the map.
+        </p>
+        <p id="tally" class="tally" role="status"></p>
+        <div id="areas"></div>
+        <h2>The numbers</h2>
+        <p class="muted small">
+          Counts, measures, timings and your ticks. No title, word or name from your library is in
+          this box: it is what to share.
+        </p>
+        <textarea id="numbers" readonly aria-label="The numbers to share"></textarea>
+        <div class="controls">
+          <button type="button" id="copy">Copy the numbers</button>
+          <span id="copied" class="muted small" role="status"></span>
+        </div>
+      </section>
+    </main>
+    <script type="application/json" id="data">
+      "__ATLAS_EXPLORE_DATA__"
+    </script>
+    <script>
+      'use strict';
+      const data = JSON.parse(document.getElementById('data').textContent);
+      const books = data.books; // [x, y, area, sub-area, title]
+      const areas = data.areas;
+      const el = (tag, cls, text) => {
+        const node = document.createElement(tag);
+        if (cls) node.className = cls;
+        if (text !== undefined) node.textContent = text;
+        return node;
+      };
+      const count = (n, one) => `${n.toLocaleString('en-US')} ${one}${n === 1 ? '' : 's'}`;
+      const nameOf = (i) => (areas[i].words.length ? areas[i].words.join(' · ') : 'No name found');
+
+      // ------------------------------------------------------------ header
+      const n = data.numbers;
+      document.getElementById('summary').textContent =
+        `${count(n.books, 'book')} in ${count(areas.length, 'area')}, ` +
+        `from ${count(n.coverage.withText, 'document')} with text.`;
+      if (n.covered < 0.9) {
+        const note = document.getElementById('preliminary');
+        note.hidden = false;
+        note.textContent =
+          `Only ${Math.round(n.covered * 100)}% of the documents with text have been indexed ` +
+          'for meaning. This run is preliminary: run it again when indexing has finished.';
+      }
+
+      // ------------------------------------------------------------- ticks
+      const key = `atlas-explore-ticks-${data.run}`;
+      let ticks = { together: areas.map(() => false), names: areas.map(() => false) };
+      try {
+        const saved = JSON.parse(localStorage.getItem(key) || 'null');
+        if (saved && saved.together.length === areas.length) ticks = saved;
+      } catch {
+        // Ticks then last only until the page is closed.
+      }
+      function tallies() {
+        const together = ticks.together.filter(Boolean).length;
+        const names = ticks.names.filter(Boolean).length;
+        const inTicked = areas.reduce((sum, a, i) => sum + (ticks.together[i] ? a.size : 0), 0);
+        return {
+          areas: areas.length,
+          together,
+          names,
+          booksInTickedAreas: inTicked,
+          shareOfBooksInTickedAreas: Math.round((inTicked / Math.max(1, n.books)) * 1000) / 1000,
+        };
+      }
+      function showTicks() {
+        const t = tallies();
+        document.getElementById('tally').textContent =
+          `Belong together: ${t.together} of ${t.areas} ` +
+          `(${Math.round(t.shareOfBooksInTickedAreas * 100)}% of books) · ` +
+          `Recognisable names: ${t.names} of ${t.areas}`;
+        document.getElementById('numbers').value = JSON.stringify(
+          { models: data.models, model: data.model, numbers: n, ticks: { ...ticks, ...t } },
+          null,
+          1,
+        );
+        try {
+          localStorage.setItem(key, JSON.stringify(ticks));
+        } catch {
+          // As above.
+        }
+      }
+
+      // -------------------------------------------------------------- list
+      let selected = -1;
+      const cards = [];
+      const list = document.getElementById('areas');
+      areas.forEach((area, i) => {
+        const card = el('div', 'area');
+        const head = el('button', 'area-head');
+        head.type = 'button';
+        head.setAttribute('aria-pressed', 'false');
+        head.append(el('span', 'number', String(i + 1)), el('span', 'words', nameOf(i)));
+        head.addEventListener('click', () => select(selected === i ? -1 : i));
+        card.append(head);
+        card.append(
+          el(
+            'p',
+            'muted small',
+            `${count(area.size, 'book')} · alike ${area.cohesion.toFixed(2)} of 1`,
+          ),
+        );
+        const central = el('ul');
+        for (const title of area.titles) central.append(el('li', '', title));
+        card.append(el('p', 'small', 'At its centre:'), central);
+        if (area.subs.length) {
+          const subs = el('ul', 'small');
+          for (const sub of area.subs) {
+            subs.append(
+              el(
+                'li',
+                '',
+                `${sub.words.length ? sub.words.join(' · ') : 'No name found'} (${count(sub.size, 'book')})`,
+              ),
+            );
+          }
+          card.append(el('p', 'small', 'Within it:'), subs);
+        }
+        const all = el('details');
+        all.append(el('summary', 'small', `All ${count(area.size, 'book')}`));
+        all.addEventListener('toggle', () => {
+          if (!all.open || all.dataset.filled) return;
+          all.dataset.filled = '1';
+          const titles = el('ul', 'small books');
+          const inside = books.filter((b) => b[2] === i).map((b) => b[4]);
+          inside.sort((a, b) => a.localeCompare(b));
+          for (const title of inside) titles.append(el('li', '', title));
+          all.append(titles);
+        });
+        card.append(all);
+        const boxes = el('div', 'ticks');
+        for (const [field, text] of [
+          ['together', 'These books belong together'],
+          ['names', 'I’d recognise the area from these words'],
+        ]) {
+          const label = el('label');
+          const box = el('input');
+          box.type = 'checkbox';
+          box.checked = ticks[field][i];
+          box.addEventListener('change', () => {
+            ticks[field][i] = box.checked;
+            showTicks();
+          });
+          label.append(box, el('span', '', text));
+          boxes.append(label);
+        }
+        card.append(boxes);
+        list.append(card);
+        cards.push({ card, head });
+      });
+      showTicks();
+
+      // --------------------------------------------------------------- map
+      const canvas = document.getElementById('map');
+      const ctx = canvas.getContext('2d');
+      const tip = document.getElementById('tip');
+      const css = (name) => getComputedStyle(document.documentElement).getPropertyValue(name);
+      let colours = {};
+      function readColours() {
+        for (const name of ['surface', 'text', 'muted', 'dot', 'dot-dim', 'accent', 'ring']) {
+          colours[name] = css(`--${name}`).trim();
+        }
+      }
+      // The data's extent, and the view: scale (px per unit) and offset.
+      let minX = Infinity;
+      let maxX = -Infinity;
+      let minY = Infinity;
+      let maxY = -Infinity;
+      for (const b of books) {
+        minX = Math.min(minX, b[0]);
+        maxX = Math.max(maxX, b[0]);
+        minY = Math.min(minY, b[1]);
+        maxY = Math.max(maxY, b[1]);
+      }
+      const centres = areas.map((_, i) => {
+        // The median book: a centre that is inside the area's crowd.
+        const xs = books.filter((b) => b[2] === i).map((b) => b[0]);
+        const ys = books.filter((b) => b[2] === i).map((b) => b[1]);
+        xs.sort((a, b) => a - b);
+        ys.sort((a, b) => a - b);
+        return [xs[xs.length >> 1] ?? 0, ys[ys.length >> 1] ?? 0];
+      });
+      const view = { scale: 1, x: 0, y: 0 };
+      let width = 0;
+      let height = 0;
+      let hovered = -1;
+      function fit() {
+        const pad = 28;
+        const spanX = Math.max(maxX - minX, 1e-6);
+        const spanY = Math.max(maxY - minY, 1e-6);
+        view.scale = Math.min((width - 2 * pad) / spanX, (height - 2 * pad) / spanY);
+        view.x = (width - spanX * view.scale) / 2 - minX * view.scale;
+        view.y = (height - spanY * view.scale) / 2 - minY * view.scale;
+      }
+      const px = (b) => [b[0] * view.scale + view.x, b[1] * view.scale + view.y];
+      function resize() {
+        const box = canvas.getBoundingClientRect();
+        const ratio = window.devicePixelRatio || 1;
+        const first = width === 0;
+        width = box.width;
+        height = box.height;
+        canvas.width = Math.round(width * ratio);
+        canvas.height = Math.round(height * ratio);
+        ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
+        if (first) fit();
+        draw();
+      }
+      function dot(b, r, fill, ring) {
+        const [x, y] = px(b);
+        if (x < -r || y < -r || x > width + r || y > height + r) return;
+        ctx.beginPath();
+        ctx.arc(x, y, r, 0, 6.2832);
+        ctx.fillStyle = fill;
+        ctx.fill();
+        if (ring) {
+          ctx.lineWidth = 1.5;
+          ctx.strokeStyle = colours.ring;
+          ctx.stroke();
+        }
+      }
+      function draw() {
+        ctx.clearRect(0, 0, width, height);
+        const r = Math.max(2, Math.min(5, 2 + Math.log2(Math.max(1, view.scale / 20))));
+        const some = selected >= 0;
+        for (const b of books) {
+          if (!some || b[2] !== selected) dot(b, r, some ? colours['dot-dim'] : colours.dot, false);
+        }
+        if (some) {
+          for (const b of books) if (b[2] === selected) dot(b, r + 0.5, colours.accent, true);
+        }
+        // Area numbers, on a pill of the surface so they read over dots.
+        ctx.font = '600 12px system-ui, sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        centres.forEach((c, i) => {
+          const [x, y] = px(c);
+          const text = String(i + 1);
+          const w = Math.max(20, ctx.measureText(text).width + 10);
+          ctx.beginPath();
+          ctx.roundRect(x - w / 2, y - 10, w, 20, 10);
+          ctx.fillStyle = colours.surface;
+          ctx.fill();
+          ctx.lineWidth = i === selected ? 2 : 1;
+          ctx.strokeStyle = i === selected ? colours.accent : colours.muted;
+          ctx.stroke();
+          ctx.fillStyle = colours.text;
+          ctx.fillText(text, x, y);
+        });
+        if (hovered >= 0) {
+          const [x, y] = px(books[hovered]);
+          ctx.beginPath();
+          ctx.arc(x, y, r + 3, 0, 6.2832);
+          ctx.lineWidth = 2;
+          ctx.strokeStyle = colours.text;
+          ctx.stroke();
+        }
+      }
+      function select(i) {
+        selected = i;
+        cards.forEach(({ card, head }, j) => {
+          card.classList.toggle('selected', j === i);
+          head.setAttribute('aria-pressed', String(j === i));
+        });
+        if (i >= 0) cards[i].card.scrollIntoView({ block: 'nearest' });
+        draw();
+      }
+      function zoom(factor, cx, cy) {
+        const next = Math.max(view.scale * factor, 1e-3);
+        view.x = cx - ((cx - view.x) * next) / view.scale;
+        view.y = cy - ((cy - view.y) * next) / view.scale;
+        view.scale = next;
+        draw();
+      }
+      // The nearest book within reach of the pointer, or the area number
+      // under it.
+      function at(x, y) {
+        for (let i = 0; i < centres.length; i++) {
+          const [cx, cy] = px(centres[i]);
+          if (Math.abs(x - cx) <= 14 && Math.abs(y - cy) <= 12) return { area: i, book: -1 };
+        }
+        let best = -1;
+        let reach = 14 * 14;
+        for (let i = 0; i < books.length; i++) {
+          const [bx, by] = px(books[i]);
+          const d = (bx - x) * (bx - x) + (by - y) * (by - y);
+          if (d < reach) {
+            reach = d;
+            best = i;
+          }
+        }
+        return { area: best >= 0 ? books[best][2] : -1, book: best };
+      }
+      let drag = null;
+      canvas.addEventListener('pointerdown', (e) => {
+        canvas.setPointerCapture(e.pointerId);
+        drag = { x: e.offsetX, y: e.offsetY, moved: false };
+      });
+      canvas.addEventListener('pointermove', (e) => {
+        if (drag) {
+          const dx = e.offsetX - drag.x;
+          const dy = e.offsetY - drag.y;
+          if (Math.abs(dx) + Math.abs(dy) > 3) drag.moved = true;
+          if (drag.moved) {
+            view.x += dx;
+            view.y += dy;
+            drag.x = e.offsetX;
+            drag.y = e.offsetY;
+            hovered = -1;
+            tip.hidden = true;
+            draw();
+          }
+          return;
+        }
+        const found = at(e.offsetX, e.offsetY);
+        hovered = found.book;
+        if (found.area < 0) {
+          tip.hidden = true;
+        } else {
+          tip.replaceChildren(
+            el('strong', '', found.book >= 0 ? books[found.book][4] : `Area ${found.area + 1}`),
+            el('span', 'muted', `${found.area + 1} · ${nameOf(found.area)}`),
+          );
+          tip.hidden = false;
+          const left = Math.min(e.offsetX + 14, width - tip.offsetWidth - 4);
+          const top = Math.min(e.offsetY + 14, height - tip.offsetHeight - 4);
+          tip.style.transform = `translate(${Math.max(4, left)}px, ${Math.max(4, top)}px)`;
+        }
+        draw();
+      });
+      canvas.addEventListener('pointerup', (e) => {
+        const wasDrag = drag && drag.moved;
+        drag = null;
+        if (wasDrag) return;
+        const found = at(e.offsetX, e.offsetY);
+        select(found.area === selected ? -1 : found.area);
+      });
+      canvas.addEventListener('pointerleave', () => {
+        hovered = -1;
+        tip.hidden = true;
+        draw();
+      });
+      canvas.addEventListener(
+        'wheel',
+        (e) => {
+          e.preventDefault();
+          zoom(Math.exp(-e.deltaY * 0.0015), e.offsetX, e.offsetY);
+        },
+        { passive: false },
+      );
+      document
+        .getElementById('zoom-in')
+        .addEventListener('click', () => zoom(1.4, width / 2, height / 2));
+      document
+        .getElementById('zoom-out')
+        .addEventListener('click', () => zoom(1 / 1.4, width / 2, height / 2));
+      document.getElementById('reset').addEventListener('click', () => {
+        fit();
+        draw();
+      });
+      document.getElementById('clear').addEventListener('click', () => select(-1));
+      document.getElementById('copy').addEventListener('click', async () => {
+        const box = document.getElementById('numbers');
+        const said = document.getElementById('copied');
+        try {
+          await navigator.clipboard.writeText(box.value);
+          said.textContent = 'Copied.';
+        } catch {
+          box.select();
+          said.textContent = 'Selected: press Cmd+C or Ctrl+C to copy.';
+        }
+      });
+      window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
+        readColours();
+        draw();
+      });
+      window.addEventListener('resize', resize);
+      readColours();
+      resize();
+    </script>
+  </body>
+</html>
