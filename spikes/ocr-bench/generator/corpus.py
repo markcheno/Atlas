@@ -124,8 +124,14 @@ def scan_entry(f: ws.Fetcher, file: str, page: int, meta: dict) -> dict:
     url = ws.scan_url(f, file, page, info["width"])
     jpeg = f.get(url)
     w, h, _ = pdf.jpeg_size(jpeg)
-    # Commons renders the page at the width asked for; the height follows.
-    return {"url": url, "sha256": sha256(jpeg), "bytes": len(jpeg), "width": w, "height": h, "ppi": info["dpi"] or 300}
+    # Commons serves a page at a standard width at most the original's
+    # (1920 px for most of these scans, 3840 for one), so the image's
+    # resolution is the scan's scaled by the width served over the width
+    # scanned. The PDF page is sized by it, so the page keeps its real size.
+    scanned = info["dpi"] or 300
+    ppi = round(scanned * w / info["width"], 2)
+    return {"url": url, "sha256": sha256(jpeg), "bytes": len(jpeg), "width": w, "height": h,
+            "ppi": ppi, "scannedPpi": scanned, "scannedWidth": info["width"]}
 
 
 def wikisource_page(f, file, page, rev, text, meta, source, category, **extra) -> dict:

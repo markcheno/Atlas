@@ -1,0 +1,1333 @@
+{
+  "version": 1,
+  "comment": "The OCR spike's corpus (docs/spike-ocr.md). Selected by generator/corpus.py select; built by make.",
+  "pages": [
+    {
+      "id": "book-carroll-alice-s-adventures-i-p23",
+      "category": "book",
+      "source": "Lewis Carroll, Alice's Adventures in Wonderland (Cassell, 1907)",
+      "scan": {
+        "file": "Carroll - Alice's Adventures in Wonderland.djvu",
+        "page": 23,
+        "commonsSha1": "3e550f5a49d255488d9eca51e5ee77d6f17f07b2",
+        "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/a/a4/Carroll_-_Alice%27s_Adventures_in_Wonderland.djvu/page23-1920px-Carroll_-_Alice%27s_Adventures_in_Wonderland.djvu.jpg",
+        "sha256": "03cc238fe8a3c6754f6494db2ee9281ebeecc8ae564b699d645c143c9cb2b537",
+        "bytes": 643050,
+        "width": 1920,
+        "height": 2854,
+        "ppi": 369.05,
+        "scannedPpi": 400,
+        "scannedWidth": 2081,
+        "licence": "Public domain (Wikimedia Commons: the scan of a work published before 1929)"
+      },
+      "truth": {
+        "kind": "wikisource",
+        "revid": 7675360,
+        "revSha1": "ddef0ba94355cdceb7f4cf17e5e6d3ccf28d0ab8",
+        "sha256": "33f6bd8473a230f4117f2b85c4bdc6c0a30dfc0e347e7d2ba375b3d41ae7458a",
+        "chars": 920,
+        "licence": "CC BY-SA 4.0 (Wikisource contributors); fetched at build time, not committed"
+      }
+    },
+    {
+      "id": "book-carroll-alice-s-adventures-i-p29",
+      "category": "book",
+      "source": "Lewis Carroll, Alice's Adventures in Wonderland (Cassell, 1907)",
+      "scan": {
+        "file": "Carroll - Alice's Adventures in Wonderland.djvu",
+        "page": 29,
+        "commonsSha1": "3e550f5a49d255488d9eca51e5ee77d6f17f07b2",
+        "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/a/a4/Carroll_-_Alice%27s_Adventures_in_Wonderland.djvu/page29-1920px-Carroll_-_Alice%27s_Adventures_in_Wonderland.djvu.jpg",
+        "sha256": "86452c3c34e1c4991e2a04268fda1378a8038e804c93babf8a0bfc9190821fa4",
+        "bytes": 661020,
+        "width": 1920,
+        "height": 2854,
+        "ppi": 369.05,
+        "scannedPpi": 400,
+        "scannedWidth": 2081,
+        "licence": "Public domain (Wikimedia Commons: the scan of a work published before 1929)"
+      },
+      "truth": {
+        "kind": "wikisource",
+        "revid": 9612420,
+        "revSha1": "ce4bcf7de5b563178707878f3b27fbd4b5246cc7",
+        "sha256": "c1fa1a73dc3682559fcc8c674dc27cf3ca6767b55bc5e8b24e6febf11a2a19fd",
+        "chars": 1099,
+        "licence": "CC BY-SA 4.0 (Wikisource contributors); fetched at build time, not committed"
+      }
+    },
+    {
+      "id": "book-carroll-alice-s-adventures-i-p33",
+      "category": "book",
+      "source": "Lewis Carroll, Alice's Adventures in Wonderland (Cassell, 1907)",
+      "scan": {
+        "file": "Carroll - Alice's Adventures in Wonderland.djvu",
+        "page": 33,
+        "commonsSha1": "3e550f5a49d255488d9eca51e5ee77d6f17f07b2",
+        "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/a/a4/Carroll_-_Alice%27s_Adventures_in_Wonderland.djvu/page33-1920px-Carroll_-_Alice%27s_Adventures_in_Wonderland.djvu.jpg",
+        "sha256": "c865d5e072cd8d0c2c173ed64ae204b9440b6f07cf1190f3301160c829f5ba67",
+        "bytes": 546561,
+        "width": 1920,
+        "height": 2854,
+        "ppi": 369.05,
+        "scannedPpi": 400,
+        "scannedWidth": 2081,
+        "licence": "Public domain (Wikimedia Commons: the scan of a work published before 1929)"
+      },
+      "truth": {
+        "kind": "wikisource",
+        "revid": 14839875,
+        "revSha1": "cacab3a0ff62567d3b80dc326f60ddc6dee214fd",
+        "sha256": "124586093680c6f644e113b5bca9b0d2d9ddcbac987fb62317dfd80bbd0ebd65",
+        "chars": 843,
+        "licence": "CC BY-SA 4.0 (Wikisource contributors); fetched at build time, not committed"
+      }
+    },
+    {
+      "id": "book-carroll-alice-s-adventures-i-p39",
+      "category": "book",
+      "source": "Lewis Carroll, Alice's Adventures in Wonderland (Cassell, 1907)",
+      "scan": {
+        "file": "Carroll - Alice's Adventures in Wonderland.djvu",
+        "page": 39,
+        "commonsSha1": "3e550f5a49d255488d9eca51e5ee77d6f17f07b2",
+        "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/a/a4/Carroll_-_Alice%27s_Adventures_in_Wonderland.djvu/page39-1920px-Carroll_-_Alice%27s_Adventures_in_Wonderland.djvu.jpg",
+        "sha256": "a44c3cebcf128e92ad41f96b7b4780cf0e23e03a15bb778e092ae2f757b5f888",
+        "bytes": 706381,
+        "width": 1920,
+        "height": 2854,
+        "ppi": 369.05,
+        "scannedPpi": 400,
+        "scannedWidth": 2081,
+        "licence": "Public domain (Wikimedia Commons: the scan of a work published before 1929)"
+      },
+      "truth": {
+        "kind": "wikisource",
+        "revid": 9612435,
+        "revSha1": "71283eedd3c4993d00e6a71380751b0c235c3c6a",
+        "sha256": "f5608902e0a6f6ec326f9e93cba0d62a4a642c6b31711c10433e7de961873523",
+        "chars": 710,
+        "licence": "CC BY-SA 4.0 (Wikisource contributors); fetched at build time, not committed"
+      }
+    },
+    {
+      "id": "degraded-carroll-alice-s-adventures-i-p55",
+      "category": "degraded",
+      "source": "Lewis Carroll, Alice's Adventures in Wonderland (Cassell, 1907)",
+      "scan": {
+        "file": "Carroll - Alice's Adventures in Wonderland.djvu",
+        "page": 55,
+        "commonsSha1": "3e550f5a49d255488d9eca51e5ee77d6f17f07b2",
+        "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/a/a4/Carroll_-_Alice%27s_Adventures_in_Wonderland.djvu/page55-1920px-Carroll_-_Alice%27s_Adventures_in_Wonderland.djvu.jpg",
+        "sha256": "bc11d1078849eb580cee3d0d9938c1d67ef4a24486faf2a8b993c3b1185426e8",
+        "bytes": 752147,
+        "width": 1920,
+        "height": 2854,
+        "ppi": 369.05,
+        "scannedPpi": 400,
+        "scannedWidth": 2081,
+        "licence": "Public domain (Wikimedia Commons: the scan of a work published before 1929)"
+      },
+      "truth": {
+        "kind": "wikisource",
+        "revid": 9612461,
+        "revSha1": "a38ef227aa90b9843b27fee290caa6b12f69b79b",
+        "sha256": "d71f5f479bb76aa8bddd9e2541d549321702486544259bff03f646518448a509",
+        "chars": 1281,
+        "licence": "CC BY-SA 4.0 (Wikisource contributors); fetched at build time, not committed"
+      },
+      "degrade": {
+        "recipe": "lowres150",
+        "seed": 4255
+      }
+    },
+    {
+      "id": "degraded-carroll-alice-s-adventures-i-p65",
+      "category": "degraded",
+      "source": "Lewis Carroll, Alice's Adventures in Wonderland (Cassell, 1907)",
+      "scan": {
+        "file": "Carroll - Alice's Adventures in Wonderland.djvu",
+        "page": 65,
+        "commonsSha1": "3e550f5a49d255488d9eca51e5ee77d6f17f07b2",
+        "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/a/a4/Carroll_-_Alice%27s_Adventures_in_Wonderland.djvu/page65-1920px-Carroll_-_Alice%27s_Adventures_in_Wonderland.djvu.jpg",
+        "sha256": "0dcac63003a7d2d7be63d9c8efdde66a1cc7024c6e4ec0e6b86d8ef65ee3ee68",
+        "bytes": 793501,
+        "width": 1920,
+        "height": 2854,
+        "ppi": 369.05,
+        "scannedPpi": 400,
+        "scannedWidth": 2081,
+        "licence": "Public domain (Wikimedia Commons: the scan of a work published before 1929)"
+      },
+      "truth": {
+        "kind": "wikisource",
+        "revid": 9612494,
+        "revSha1": "f7e0f3207aa03603c2c8ea6022289fc3556f5565",
+        "sha256": "8afdc749b484dd5be05b53043a8cd920dbcd54c7eacc54a077bc81246e118e64",
+        "chars": 1215,
+        "licence": "CC BY-SA 4.0 (Wikisource contributors); fetched at build time, not committed"
+      },
+      "degrade": {
+        "recipe": "lowres100",
+        "seed": 4265
+      }
+    },
+    {
+      "id": "book-the-time-machine-h-g-wells-w-p22",
+      "category": "book",
+      "source": "H. G. Wells, The Time Machine (Heinemann, 1895)",
+      "scan": {
+        "file": "The Time Machine (H. G. Wells, William Heinemann, 1895).djvu",
+        "page": 22,
+        "commonsSha1": "1c0c3f4e49b6e3853cb5a9d4deebdcc6c7c52d5a",
+        "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/4/4c/The_Time_Machine_%28H._G._Wells%2C_William_Heinemann%2C_1895%29.djvu/page22-1920px-The_Time_Machine_%28H._G._Wells%2C_William_Heinemann%2C_1895%29.djvu.jpg",
+        "sha256": "ba88f42d82a072fc96eb0628476ae702ee844ee1cba7e3e68f05cd391ca99012",
+        "bytes": 702093,
+        "width": 1920,
+        "height": 2994,
+        "ppi": 299.38,
+        "scannedPpi": 300,
+        "scannedWidth": 1924,
+        "licence": "Public domain (Wikimedia Commons: the scan of a work published before 1929)"
+      },
+      "truth": {
+        "kind": "wikisource",
+        "revid": 12801898,
+        "revSha1": "bba5b9850386d98448905dbdddc0d90745b4ae19",
+        "sha256": "0c0e386b69ae316d266f52216ded5a5619995aa57597cfecb139c1e3df9322f9",
+        "chars": 930,
+        "licence": "CC BY-SA 4.0 (Wikisource contributors); fetched at build time, not committed"
+      }
+    },
+    {
+      "id": "book-the-time-machine-h-g-wells-w-p26",
+      "category": "book",
+      "source": "H. G. Wells, The Time Machine (Heinemann, 1895)",
+      "scan": {
+        "file": "The Time Machine (H. G. Wells, William Heinemann, 1895).djvu",
+        "page": 26,
+        "commonsSha1": "1c0c3f4e49b6e3853cb5a9d4deebdcc6c7c52d5a",
+        "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/4/4c/The_Time_Machine_%28H._G._Wells%2C_William_Heinemann%2C_1895%29.djvu/page26-1280px-The_Time_Machine_%28H._G._Wells%2C_William_Heinemann%2C_1895%29.djvu.jpg",
+        "sha256": "cbd1d0f0e087f2ac03651a07837fff89a10a8fdc8f87d088b73d200431e2349d",
+        "bytes": 410206,
+        "width": 1280,
+        "height": 2002,
+        "ppi": 200.21,
+        "scannedPpi": 300,
+        "scannedWidth": 1918,
+        "licence": "Public domain (Wikimedia Commons: the scan of a work published before 1929)"
+      },
+      "truth": {
+        "kind": "wikisource",
+        "revid": 12801925,
+        "revSha1": "110eb92e068fccd68bca93b5a0c25665267f7293",
+        "sha256": "b5765d0c5d0862bd82f04e78dfa31c471558b819bedc065ddf9fac172bfd017a",
+        "chars": 1151,
+        "licence": "CC BY-SA 4.0 (Wikisource contributors); fetched at build time, not committed"
+      }
+    },
+    {
+      "id": "book-the-time-machine-h-g-wells-w-p30",
+      "category": "book",
+      "source": "H. G. Wells, The Time Machine (Heinemann, 1895)",
+      "scan": {
+        "file": "The Time Machine (H. G. Wells, William Heinemann, 1895).djvu",
+        "page": 30,
+        "commonsSha1": "1c0c3f4e49b6e3853cb5a9d4deebdcc6c7c52d5a",
+        "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/4/4c/The_Time_Machine_%28H._G._Wells%2C_William_Heinemann%2C_1895%29.djvu/page30-1280px-The_Time_Machine_%28H._G._Wells%2C_William_Heinemann%2C_1895%29.djvu.jpg",
+        "sha256": "df30b28719e097fa39ca192cb2474eff71c5940260a13e3f3aa6cc6f191ca8cc",
+        "bytes": 417879,
+        "width": 1280,
+        "height": 2025,
+        "ppi": 202.53,
+        "scannedPpi": 300,
+        "scannedWidth": 1896,
+        "licence": "Public domain (Wikimedia Commons: the scan of a work published before 1929)"
+      },
+      "truth": {
+        "kind": "wikisource",
+        "revid": 12801936,
+        "revSha1": "b3a8dc24b14113b29b5575e03aeb81a2e9e3fad0",
+        "sha256": "98e1ab405eadaa8789a4310a98c159e9c3fbc918477afcaae9b3026c92c30425",
+        "chars": 1248,
+        "licence": "CC BY-SA 4.0 (Wikisource contributors); fetched at build time, not committed"
+      }
+    },
+    {
+      "id": "book-the-time-machine-h-g-wells-w-p34",
+      "category": "book",
+      "source": "H. G. Wells, The Time Machine (Heinemann, 1895)",
+      "scan": {
+        "file": "The Time Machine (H. G. Wells, William Heinemann, 1895).djvu",
+        "page": 34,
+        "commonsSha1": "1c0c3f4e49b6e3853cb5a9d4deebdcc6c7c52d5a",
+        "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/4/4c/The_Time_Machine_%28H._G._Wells%2C_William_Heinemann%2C_1895%29.djvu/page34-1920px-The_Time_Machine_%28H._G._Wells%2C_William_Heinemann%2C_1895%29.djvu.jpg",
+        "sha256": "93ea1662ad0570c2abd24db6085870cf60058aaa76dc0ce8a3bec2322f593415",
+        "bytes": 757034,
+        "width": 1920,
+        "height": 2960,
+        "ppi": 295.99,
+        "scannedPpi": 300,
+        "scannedWidth": 1946,
+        "licence": "Public domain (Wikimedia Commons: the scan of a work published before 1929)"
+      },
+      "truth": {
+        "kind": "wikisource",
+        "revid": 12801943,
+        "revSha1": "2c0e382ddb4bb708169d81858ff71ea783030acb",
+        "sha256": "adaeb9eee2951aa499aa7d043501c41366c9c5c61e12486a5f2b404bab7aea98",
+        "chars": 1269,
+        "licence": "CC BY-SA 4.0 (Wikisource contributors); fetched at build time, not committed"
+      }
+    },
+    {
+      "id": "degraded-the-time-machine-h-g-wells-w-p42",
+      "category": "degraded",
+      "source": "H. G. Wells, The Time Machine (Heinemann, 1895)",
+      "scan": {
+        "file": "The Time Machine (H. G. Wells, William Heinemann, 1895).djvu",
+        "page": 42,
+        "commonsSha1": "1c0c3f4e49b6e3853cb5a9d4deebdcc6c7c52d5a",
+        "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/4/4c/The_Time_Machine_%28H._G._Wells%2C_William_Heinemann%2C_1895%29.djvu/page42-1280px-The_Time_Machine_%28H._G._Wells%2C_William_Heinemann%2C_1895%29.djvu.jpg",
+        "sha256": "a981f1f3797a2fae6f5ed84ee73fed174dc834c689824653eeb3b44c8e128030",
+        "bytes": 408547,
+        "width": 1280,
+        "height": 2001,
+        "ppi": 200.1,
+        "scannedPpi": 300,
+        "scannedWidth": 1919,
+        "licence": "Public domain (Wikimedia Commons: the scan of a work published before 1929)"
+      },
+      "truth": {
+        "kind": "wikisource",
+        "revid": 12802002,
+        "revSha1": "b83c83eb0eca32728045a25fb7f4b25b1dcf8620",
+        "sha256": "4d23232d83df02dba1d1395136d72463b0e2e7150be88f9abdd9e61b2e7775e9",
+        "chars": 1252,
+        "licence": "CC BY-SA 4.0 (Wikisource contributors); fetched at build time, not committed"
+      },
+      "degrade": {
+        "recipe": "skew",
+        "seed": 4242
+      }
+    },
+    {
+      "id": "degraded-the-time-machine-h-g-wells-w-p46",
+      "category": "degraded",
+      "source": "H. G. Wells, The Time Machine (Heinemann, 1895)",
+      "scan": {
+        "file": "The Time Machine (H. G. Wells, William Heinemann, 1895).djvu",
+        "page": 46,
+        "commonsSha1": "1c0c3f4e49b6e3853cb5a9d4deebdcc6c7c52d5a",
+        "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/4/4c/The_Time_Machine_%28H._G._Wells%2C_William_Heinemann%2C_1895%29.djvu/page46-1920px-The_Time_Machine_%28H._G._Wells%2C_William_Heinemann%2C_1895%29.djvu.jpg",
+        "sha256": "bfe57901a91d428e9c966ababc5847542160a30f994f17338bc79f13c7141769",
+        "bytes": 787922,
+        "width": 1920,
+        "height": 2975,
+        "ppi": 297.52,
+        "scannedPpi": 300,
+        "scannedWidth": 1936,
+        "licence": "Public domain (Wikimedia Commons: the scan of a work published before 1929)"
+      },
+      "truth": {
+        "kind": "wikisource",
+        "revid": 12802022,
+        "revSha1": "40bba7c41165089e37805f6546fb1b2ab860f82e",
+        "sha256": "fa870b1c8db1938751a6aec390800c57fabf1f2b448b3567fcea892099f39945",
+        "chars": 1249,
+        "licence": "CC BY-SA 4.0 (Wikisource contributors); fetched at build time, not committed"
+      },
+      "degrade": {
+        "recipe": "speckle",
+        "seed": 4246
+      }
+    },
+    {
+      "id": "poor-layer-the-time-machine-h-g-wells-w-p52",
+      "category": "poor-layer",
+      "source": "H. G. Wells, The Time Machine (Heinemann, 1895)",
+      "scan": {
+        "file": "The Time Machine (H. G. Wells, William Heinemann, 1895).djvu",
+        "page": 52,
+        "commonsSha1": "1c0c3f4e49b6e3853cb5a9d4deebdcc6c7c52d5a",
+        "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/4/4c/The_Time_Machine_%28H._G._Wells%2C_William_Heinemann%2C_1895%29.djvu/page52-1920px-The_Time_Machine_%28H._G._Wells%2C_William_Heinemann%2C_1895%29.djvu.jpg",
+        "sha256": "24972a1caeda52944e45c7bf47b190014d8bc47639342b3cc99245d66134920a",
+        "bytes": 752518,
+        "width": 1920,
+        "height": 2986,
+        "ppi": 298.6,
+        "scannedPpi": 300,
+        "scannedWidth": 1929,
+        "licence": "Public domain (Wikimedia Commons: the scan of a work published before 1929)"
+      },
+      "truth": {
+        "kind": "wikisource",
+        "revid": 13047805,
+        "revSha1": "d29d27b774f92bc00e84288646f6aad78126cbbe",
+        "sha256": "ef430d36c80c52900400af4ed2c435ebbee1fdc6c321af0c48e155a5925a44d3",
+        "chars": 1273,
+        "licence": "CC BY-SA 4.0 (Wikisource contributors); fetched at build time, not committed"
+      },
+      "layer": {
+        "sha256": "4dc0870c1dc77dea96b3ad04d68d8f507d97d474eacebfbd35da77d625241617",
+        "selectionWer": 1.0364
+      }
+    },
+    {
+      "id": "poor-layer-the-time-machine-h-g-wells-w-p58",
+      "category": "poor-layer",
+      "source": "H. G. Wells, The Time Machine (Heinemann, 1895)",
+      "scan": {
+        "file": "The Time Machine (H. G. Wells, William Heinemann, 1895).djvu",
+        "page": 58,
+        "commonsSha1": "1c0c3f4e49b6e3853cb5a9d4deebdcc6c7c52d5a",
+        "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/4/4c/The_Time_Machine_%28H._G._Wells%2C_William_Heinemann%2C_1895%29.djvu/page58-1920px-The_Time_Machine_%28H._G._Wells%2C_William_Heinemann%2C_1895%29.djvu.jpg",
+        "sha256": "7d6200ab5f275e810cbbfe0b8e3f973747bba17c482eef8867293e37157ce8b0",
+        "bytes": 796353,
+        "width": 1920,
+        "height": 2968,
+        "ppi": 296.75,
+        "scannedPpi": 300,
+        "scannedWidth": 1941,
+        "licence": "Public domain (Wikimedia Commons: the scan of a work published before 1929)"
+      },
+      "truth": {
+        "kind": "wikisource",
+        "revid": 13047839,
+        "revSha1": "be21e36db8f98576c1f3844da2bccc5f321eac18",
+        "sha256": "14dcfd26110f77fd8215dcc679a6a326f84a01628eb0347f7cdda9ca668bea19",
+        "chars": 1318,
+        "licence": "CC BY-SA 4.0 (Wikisource contributors); fetched at build time, not committed"
+      },
+      "layer": {
+        "sha256": "1fe3b75897c461dac824597ea2746e1c7700ab787f1a44362f743cddae4e4710",
+        "selectionWer": 0.9375
+      }
+    },
+    {
+      "id": "poor-layer-the-time-machine-h-g-wells-w-p64",
+      "category": "poor-layer",
+      "source": "H. G. Wells, The Time Machine (Heinemann, 1895)",
+      "scan": {
+        "file": "The Time Machine (H. G. Wells, William Heinemann, 1895).djvu",
+        "page": 64,
+        "commonsSha1": "1c0c3f4e49b6e3853cb5a9d4deebdcc6c7c52d5a",
+        "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/4/4c/The_Time_Machine_%28H._G._Wells%2C_William_Heinemann%2C_1895%29.djvu/page64-1920px-The_Time_Machine_%28H._G._Wells%2C_William_Heinemann%2C_1895%29.djvu.jpg",
+        "sha256": "42aa60e4095637002d3974a0e51a839a39da998d14ea65c87a9c8f2a7f40749c",
+        "bytes": 814256,
+        "width": 1920,
+        "height": 2961,
+        "ppi": 296.14,
+        "scannedPpi": 300,
+        "scannedWidth": 1945,
+        "licence": "Public domain (Wikimedia Commons: the scan of a work published before 1929)"
+      },
+      "truth": {
+        "kind": "wikisource",
+        "revid": 13047855,
+        "revSha1": "e1d98a3a4049a87b5b6960e0acd3f67008d7c831",
+        "sha256": "1dca7dd84e071c274edc1629f3b3954d9c0735804a6d9728e949cddc2b1747f7",
+        "chars": 1295,
+        "licence": "CC BY-SA 4.0 (Wikisource contributors); fetched at build time, not committed"
+      },
+      "layer": {
+        "sha256": "e781a885bcd89282adf582b2166e9ba0c50d9cfc21278cfc9e7a55ae794e324d",
+        "selectionWer": 1.0048
+      }
+    },
+    {
+      "id": "poor-layer-the-time-machine-h-g-wells-w-p88",
+      "category": "poor-layer",
+      "source": "H. G. Wells, The Time Machine (Heinemann, 1895)",
+      "scan": {
+        "file": "The Time Machine (H. G. Wells, William Heinemann, 1895).djvu",
+        "page": 88,
+        "commonsSha1": "1c0c3f4e49b6e3853cb5a9d4deebdcc6c7c52d5a",
+        "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/4/4c/The_Time_Machine_%28H._G._Wells%2C_William_Heinemann%2C_1895%29.djvu/page88-1920px-The_Time_Machine_%28H._G._Wells%2C_William_Heinemann%2C_1895%29.djvu.jpg",
+        "sha256": "82648250f564224898e0828b8685b688233d012d7254ddc97b30b9f1c9cdb7d4",
+        "bytes": 726067,
+        "width": 1920,
+        "height": 2844,
+        "ppi": 284.44,
+        "scannedPpi": 300,
+        "scannedWidth": 2025,
+        "licence": "Public domain (Wikimedia Commons: the scan of a work published before 1929)"
+      },
+      "truth": {
+        "kind": "wikisource",
+        "revid": 13047916,
+        "revSha1": "f9012cfa04456ab5c0c4919668d7a474cd680fe7",
+        "sha256": "d44fcad31b5e933b8d668c73ab5a3d2bc456324cc5921e58a9b871950be7541b",
+        "chars": 1315,
+        "licence": "CC BY-SA 4.0 (Wikisource contributors); fetched at build time, not committed"
+      },
+      "layer": {
+        "sha256": "9495432ed2b7771a689ce5e7ca46bc0dec6ffe6a28fde699335c413d6b4de0ea",
+        "selectionWer": 0.9918
+      }
+    },
+    {
+      "id": "poor-layer-the-time-machine-h-g-wells-w-p113",
+      "category": "poor-layer",
+      "source": "H. G. Wells, The Time Machine (Heinemann, 1895)",
+      "scan": {
+        "file": "The Time Machine (H. G. Wells, William Heinemann, 1895).djvu",
+        "page": 113,
+        "commonsSha1": "1c0c3f4e49b6e3853cb5a9d4deebdcc6c7c52d5a",
+        "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/4/4c/The_Time_Machine_%28H._G._Wells%2C_William_Heinemann%2C_1895%29.djvu/page113-1280px-The_Time_Machine_%28H._G._Wells%2C_William_Heinemann%2C_1895%29.djvu.jpg",
+        "sha256": "342774a72fd486847ae3c17af13a8bc2e85de1d3d8d8564cf02787d47fb71aaf",
+        "bytes": 471023,
+        "width": 1280,
+        "height": 2018,
+        "ppi": 201.79,
+        "scannedPpi": 300,
+        "scannedWidth": 1903,
+        "licence": "Public domain (Wikimedia Commons: the scan of a work published before 1929)"
+      },
+      "truth": {
+        "kind": "wikisource",
+        "revid": 13195942,
+        "revSha1": "055b0e1cab6c1ea87d6a8d755049c91e1b1ff0bb",
+        "sha256": "1d2221a2c2db812baa42fd5afece3f41ea02264a554a189ed240b546999cf384",
+        "chars": 1296,
+        "licence": "CC BY-SA 4.0 (Wikisource contributors); fetched at build time, not committed"
+      },
+      "layer": {
+        "sha256": "4534ce2f538817e38394141e39e63fe26a69c2fc2c588577ea92edd77e190d2c",
+        "selectionWer": 0.8867
+      }
+    },
+    {
+      "id": "book-stevenson-treasure-island-dj-p37",
+      "category": "book",
+      "source": "R. L. Stevenson, Treasure Island",
+      "scan": {
+        "file": "Stevenson - Treasure Island.djvu",
+        "page": 37,
+        "commonsSha1": "aff6692510ba0f2be1eadecab202d86e1295d185",
+        "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/d/d2/Stevenson_-_Treasure_Island.djvu/page37-3840px-Stevenson_-_Treasure_Island.djvu.jpg",
+        "sha256": "bdc1a8b753c1d25bf824722120a74c581dd80ca15e2235e16ed21c140f834e89",
+        "bytes": 1573794,
+        "width": 3840,
+        "height": 6215,
+        "ppi": 587.46,
+        "scannedPpi": 600,
+        "scannedWidth": 3922,
+        "licence": "Public domain (Wikimedia Commons: the scan of a work published before 1929)"
+      },
+      "truth": {
+        "kind": "wikisource",
+        "revid": 8303468,
+        "revSha1": "0eba124e2cc5738a8e2a7b8051e42ab34f2f6c36",
+        "sha256": "596d56b8e6e82c287859b34ce8f3e6798e20757a2ed60b4431a9b7fbfa9f6699",
+        "chars": 1519,
+        "licence": "CC BY-SA 4.0 (Wikisource contributors); fetched at build time, not committed"
+      }
+    },
+    {
+      "id": "book-stevenson-treasure-island-dj-p44",
+      "category": "book",
+      "source": "R. L. Stevenson, Treasure Island",
+      "scan": {
+        "file": "Stevenson - Treasure Island.djvu",
+        "page": 44,
+        "commonsSha1": "aff6692510ba0f2be1eadecab202d86e1295d185",
+        "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/d/d2/Stevenson_-_Treasure_Island.djvu/page44-3840px-Stevenson_-_Treasure_Island.djvu.jpg",
+        "sha256": "295584c55cfb54cfca7b310a95d065a4b7457c010a86ee8e231cb03cba959921",
+        "bytes": 1717598,
+        "width": 3840,
+        "height": 6215,
+        "ppi": 587.46,
+        "scannedPpi": 600,
+        "scannedWidth": 3922,
+        "licence": "Public domain (Wikimedia Commons: the scan of a work published before 1929)"
+      },
+      "truth": {
+        "kind": "wikisource",
+        "revid": 8303475,
+        "revSha1": "ab638cc18bba021868da3047f15943629f98884f",
+        "sha256": "9cad947ad954d2cf1bdfa8a81168e044dfef6c796ab2e582aa9f57ad4042a779",
+        "chars": 1490,
+        "licence": "CC BY-SA 4.0 (Wikisource contributors); fetched at build time, not committed"
+      }
+    },
+    {
+      "id": "book-stevenson-treasure-island-dj-p52",
+      "category": "book",
+      "source": "R. L. Stevenson, Treasure Island",
+      "scan": {
+        "file": "Stevenson - Treasure Island.djvu",
+        "page": 52,
+        "commonsSha1": "aff6692510ba0f2be1eadecab202d86e1295d185",
+        "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/d/d2/Stevenson_-_Treasure_Island.djvu/page52-3840px-Stevenson_-_Treasure_Island.djvu.jpg",
+        "sha256": "f8673abd26ba16c5ed2d3b21c682fb00c53121b5fee840cfc27c539cd9412e4e",
+        "bytes": 1550229,
+        "width": 3840,
+        "height": 6215,
+        "ppi": 587.46,
+        "scannedPpi": 600,
+        "scannedWidth": 3922,
+        "licence": "Public domain (Wikimedia Commons: the scan of a work published before 1929)"
+      },
+      "truth": {
+        "kind": "wikisource",
+        "revid": 8303484,
+        "revSha1": "d3c7cd71ef8a3543d50de6f5fa4a73419d25f32b",
+        "sha256": "e5a850b3f8b94a6b74a801bd74d5818d3dba6bb11eddc77855e5b2077495eaae",
+        "chars": 1219,
+        "licence": "CC BY-SA 4.0 (Wikisource contributors); fetched at build time, not committed"
+      }
+    },
+    {
+      "id": "book-stevenson-treasure-island-dj-p59",
+      "category": "book",
+      "source": "R. L. Stevenson, Treasure Island",
+      "scan": {
+        "file": "Stevenson - Treasure Island.djvu",
+        "page": 59,
+        "commonsSha1": "aff6692510ba0f2be1eadecab202d86e1295d185",
+        "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/d/d2/Stevenson_-_Treasure_Island.djvu/page59-3840px-Stevenson_-_Treasure_Island.djvu.jpg",
+        "sha256": "2af4c224e7344acd12a731277c239f8f67a5db96af08e0d958ee93555e87aefa",
+        "bytes": 1192768,
+        "width": 3840,
+        "height": 6215,
+        "ppi": 587.46,
+        "scannedPpi": 600,
+        "scannedWidth": 3922,
+        "licence": "Public domain (Wikimedia Commons: the scan of a work published before 1929)"
+      },
+      "truth": {
+        "kind": "wikisource",
+        "revid": 8303491,
+        "revSha1": "27f2e18efa4f18a8d7807abb80403c528a9c6346",
+        "sha256": "9ae5ffe0c1578958894e9b00506076c056b6058b93b7897c9fb323b60fd1f5cb",
+        "chars": 972,
+        "licence": "CC BY-SA 4.0 (Wikisource contributors); fetched at build time, not committed"
+      }
+    },
+    {
+      "id": "degraded-stevenson-treasure-island-dj-p66",
+      "category": "degraded",
+      "source": "R. L. Stevenson, Treasure Island",
+      "scan": {
+        "file": "Stevenson - Treasure Island.djvu",
+        "page": 66,
+        "commonsSha1": "aff6692510ba0f2be1eadecab202d86e1295d185",
+        "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/d/d2/Stevenson_-_Treasure_Island.djvu/page66-3840px-Stevenson_-_Treasure_Island.djvu.jpg",
+        "sha256": "464a6c52476a3e1190b0ad3149228bcb4dcc7902c0a22cf5f6995bf655665bc4",
+        "bytes": 1611601,
+        "width": 3840,
+        "height": 6215,
+        "ppi": 587.46,
+        "scannedPpi": 600,
+        "scannedWidth": 3922,
+        "licence": "Public domain (Wikimedia Commons: the scan of a work published before 1929)"
+      },
+      "truth": {
+        "kind": "wikisource",
+        "revid": 8303498,
+        "revSha1": "2643b9e00db71d3090a56499267e65c81c42e86c",
+        "sha256": "4f0f8a5fa901b19914c68308eb0d96c83128f3095efd7b81c83bfc75fa170359",
+        "chars": 1322,
+        "licence": "CC BY-SA 4.0 (Wikisource contributors); fetched at build time, not committed"
+      },
+      "degrade": {
+        "recipe": "jpeg",
+        "seed": 4266
+      }
+    },
+    {
+      "id": "degraded-stevenson-treasure-island-dj-p73",
+      "category": "degraded",
+      "source": "R. L. Stevenson, Treasure Island",
+      "scan": {
+        "file": "Stevenson - Treasure Island.djvu",
+        "page": 73,
+        "commonsSha1": "aff6692510ba0f2be1eadecab202d86e1295d185",
+        "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/d/d2/Stevenson_-_Treasure_Island.djvu/page73-3840px-Stevenson_-_Treasure_Island.djvu.jpg",
+        "sha256": "767bb6efbe56a6450464c8e533d710e3a1e502022e5817188845eb6780e16a4c",
+        "bytes": 1579937,
+        "width": 3840,
+        "height": 6215,
+        "ppi": 587.46,
+        "scannedPpi": 600,
+        "scannedWidth": 3922,
+        "licence": "Public domain (Wikimedia Commons: the scan of a work published before 1929)"
+      },
+      "truth": {
+        "kind": "wikisource",
+        "revid": 8303505,
+        "revSha1": "991931be1a44a5fa7a0d58febd20202122fc1b26",
+        "sha256": "6f7666e98bbc41c4894590e6931ff8bc217a56a8146d40e81ce49af5d2ecc773",
+        "chars": 1489,
+        "licence": "CC BY-SA 4.0 (Wikisource contributors); fetched at build time, not committed"
+      },
+      "degrade": {
+        "recipe": "blur",
+        "seed": 4273
+      }
+    },
+    {
+      "id": "book-the-jungle-book-djvu-p42",
+      "category": "book",
+      "source": "Rudyard Kipling, The Jungle Book",
+      "scan": {
+        "file": "The Jungle Book.djvu",
+        "page": 42,
+        "commonsSha1": "8fe9bf26cef3a95b5351cad8f71a9c58d416d0cb",
+        "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/8/8c/The_Jungle_Book.djvu/page42-1920px-The_Jungle_Book.djvu.jpg",
+        "sha256": "05ff25faecc1c2852496ec0d521bf57f61df1ee9dad83c8c222a487504875993",
+        "bytes": 606573,
+        "width": 1920,
+        "height": 2784,
+        "ppi": 374.63,
+        "scannedPpi": 600,
+        "scannedWidth": 3075,
+        "licence": "Public domain (Wikimedia Commons: the scan of a work published before 1929)"
+      },
+      "truth": {
+        "kind": "wikisource",
+        "revid": 8372726,
+        "revSha1": "e9061bb98874e0fbc3401ce23115ba7c5efbbe68",
+        "sha256": "7c62c13e9355ace8007ec997bf058851e803dac78cbabb0b75cb57c9aecd11c6",
+        "chars": 1200,
+        "licence": "CC BY-SA 4.0 (Wikisource contributors); fetched at build time, not committed"
+      }
+    },
+    {
+      "id": "book-the-jungle-book-djvu-p50",
+      "category": "book",
+      "source": "Rudyard Kipling, The Jungle Book",
+      "scan": {
+        "file": "The Jungle Book.djvu",
+        "page": 50,
+        "commonsSha1": "8fe9bf26cef3a95b5351cad8f71a9c58d416d0cb",
+        "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/8/8c/The_Jungle_Book.djvu/page50-1920px-The_Jungle_Book.djvu.jpg",
+        "sha256": "0416c8924094b4e4390a5b9a61e28479494d3ff3b3bde2afda9e106078f99be3",
+        "bytes": 585023,
+        "width": 1920,
+        "height": 2784,
+        "ppi": 374.63,
+        "scannedPpi": 600,
+        "scannedWidth": 3075,
+        "licence": "Public domain (Wikimedia Commons: the scan of a work published before 1929)"
+      },
+      "truth": {
+        "kind": "wikisource",
+        "revid": 8372733,
+        "revSha1": "5e841cb1a619270a331019663daa3fdb9bab0674",
+        "sha256": "de10badde290ab049355c2fbf63062d1e06e73f872778b7f14389ada9a0245f4",
+        "chars": 1127,
+        "licence": "CC BY-SA 4.0 (Wikisource contributors); fetched at build time, not committed"
+      }
+    },
+    {
+      "id": "book-the-jungle-book-djvu-p57",
+      "category": "book",
+      "source": "Rudyard Kipling, The Jungle Book",
+      "scan": {
+        "file": "The Jungle Book.djvu",
+        "page": 57,
+        "commonsSha1": "8fe9bf26cef3a95b5351cad8f71a9c58d416d0cb",
+        "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/8/8c/The_Jungle_Book.djvu/page57-1920px-The_Jungle_Book.djvu.jpg",
+        "sha256": "77a4aef4921c0b5ac815036ff29effd3b881b2083377f56c2ffd6ae6526ef7ed",
+        "bytes": 594380,
+        "width": 1920,
+        "height": 2784,
+        "ppi": 374.63,
+        "scannedPpi": 600,
+        "scannedWidth": 3075,
+        "licence": "Public domain (Wikimedia Commons: the scan of a work published before 1929)"
+      },
+      "truth": {
+        "kind": "wikisource",
+        "revid": 8372740,
+        "revSha1": "f287d96e1943e16948e13b2148e112e8859ac9ec",
+        "sha256": "205574877a3205897195b0b73be09a6e6dfd021343b04d0f3f4251736345393c",
+        "chars": 1153,
+        "licence": "CC BY-SA 4.0 (Wikisource contributors); fetched at build time, not committed"
+      }
+    },
+    {
+      "id": "book-the-jungle-book-djvu-p64",
+      "category": "book",
+      "source": "Rudyard Kipling, The Jungle Book",
+      "scan": {
+        "file": "The Jungle Book.djvu",
+        "page": 64,
+        "commonsSha1": "8fe9bf26cef3a95b5351cad8f71a9c58d416d0cb",
+        "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/8/8c/The_Jungle_Book.djvu/page64-1920px-The_Jungle_Book.djvu.jpg",
+        "sha256": "df1918c4267492826de32d1b9d915feb658b272e0f69489ee21495a8d9eacc73",
+        "bytes": 573441,
+        "width": 1920,
+        "height": 2784,
+        "ppi": 374.63,
+        "scannedPpi": 600,
+        "scannedWidth": 3075,
+        "licence": "Public domain (Wikimedia Commons: the scan of a work published before 1929)"
+      },
+      "truth": {
+        "kind": "wikisource",
+        "revid": 8372748,
+        "revSha1": "5111ae22f97ca786878468c627830909eff20729",
+        "sha256": "5d0957a1bea8e47a147d3f315749ca3af248f3123a7a285ec22c8298ce10f80e",
+        "chars": 1148,
+        "licence": "CC BY-SA 4.0 (Wikisource contributors); fetched at build time, not committed"
+      }
+    },
+    {
+      "id": "degraded-the-jungle-book-djvu-p72",
+      "category": "degraded",
+      "source": "Rudyard Kipling, The Jungle Book",
+      "scan": {
+        "file": "The Jungle Book.djvu",
+        "page": 72,
+        "commonsSha1": "8fe9bf26cef3a95b5351cad8f71a9c58d416d0cb",
+        "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/8/8c/The_Jungle_Book.djvu/page72-1920px-The_Jungle_Book.djvu.jpg",
+        "sha256": "6bb443c27e42ae57f00592ada84c27339baad8a13a7e0880cfa7d35d512570f6",
+        "bytes": 620575,
+        "width": 1920,
+        "height": 2784,
+        "ppi": 374.63,
+        "scannedPpi": 600,
+        "scannedWidth": 3075,
+        "licence": "Public domain (Wikimedia Commons: the scan of a work published before 1929)"
+      },
+      "truth": {
+        "kind": "wikisource",
+        "revid": 8372754,
+        "revSha1": "badf2eaedec862684328064522a2b087fe6746da",
+        "sha256": "a376cf09002b12131b2d7e4d6129f62d7587711cdca57ece4d19e6a3e2b66f02",
+        "chars": 1218,
+        "licence": "CC BY-SA 4.0 (Wikisource contributors); fetched at build time, not committed"
+      },
+      "degrade": {
+        "recipe": "binarised",
+        "seed": 4272
+      }
+    },
+    {
+      "id": "degraded-the-jungle-book-djvu-p79",
+      "category": "degraded",
+      "source": "Rudyard Kipling, The Jungle Book",
+      "scan": {
+        "file": "The Jungle Book.djvu",
+        "page": 79,
+        "commonsSha1": "8fe9bf26cef3a95b5351cad8f71a9c58d416d0cb",
+        "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/8/8c/The_Jungle_Book.djvu/page79-1920px-The_Jungle_Book.djvu.jpg",
+        "sha256": "4cab6a7d158d7120bf35e8f25893af00d063a7d9c09da0820bb30794348d998c",
+        "bytes": 650606,
+        "width": 1920,
+        "height": 2784,
+        "ppi": 374.63,
+        "scannedPpi": 600,
+        "scannedWidth": 3075,
+        "licence": "Public domain (Wikimedia Commons: the scan of a work published before 1929)"
+      },
+      "truth": {
+        "kind": "wikisource",
+        "revid": 8372759,
+        "revSha1": "a13cddbc83a954cd305b4f0f659c2a1d09d2a6f4",
+        "sha256": "e5494a523790e75264732c636a3227b392af42c83ec92aae1d7db0767a9c1bf3",
+        "chars": 1239,
+        "licence": "CC BY-SA 4.0 (Wikisource contributors); fetched at build time, not committed"
+      },
+      "degrade": {
+        "recipe": "combined",
+        "seed": 4279
+      }
+    },
+    {
+      "id": "book-wind-in-the-willows-1913-djv-p55",
+      "category": "book",
+      "source": "Kenneth Grahame, The Wind in the Willows (1913)",
+      "scan": {
+        "file": "Wind in the Willows (1913).djvu",
+        "page": 55,
+        "commonsSha1": "a3393b9a0a66440244a3f36157075478d33c0dd0",
+        "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/6/62/Wind_in_the_Willows_%281913%29.djvu/page55-1920px-Wind_in_the_Willows_%281913%29.djvu.jpg",
+        "sha256": "c53ed14a6a5e1d0d455ccfa57b55b96bd5ac6b35f69684774aa0985034cf5828",
+        "bytes": 512363,
+        "width": 1920,
+        "height": 2644,
+        "ppi": 271.95,
+        "scannedPpi": 300,
+        "scannedWidth": 2118,
+        "licence": "Public domain (Wikimedia Commons: the scan of a work published before 1929)"
+      },
+      "truth": {
+        "kind": "wikisource",
+        "revid": 8789717,
+        "revSha1": "a73d8c2ca9396f8353ff1e7099b4ba6283e4062f",
+        "sha256": "71a8bc4218b6cc6bd9d04cd5d8711c0f75a09b000cdbc60678cdfbc109fa4572",
+        "chars": 1002,
+        "licence": "CC BY-SA 4.0 (Wikisource contributors); fetched at build time, not committed"
+      }
+    },
+    {
+      "id": "book-wind-in-the-willows-1913-djv-p63",
+      "category": "book",
+      "source": "Kenneth Grahame, The Wind in the Willows (1913)",
+      "scan": {
+        "file": "Wind in the Willows (1913).djvu",
+        "page": 63,
+        "commonsSha1": "a3393b9a0a66440244a3f36157075478d33c0dd0",
+        "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/6/62/Wind_in_the_Willows_%281913%29.djvu/page63-1920px-Wind_in_the_Willows_%281913%29.djvu.jpg",
+        "sha256": "b6d42b621178e23cf38de3ad67f6262788e3de9ea81bc731e051c6666e0ad5b9",
+        "bytes": 553094,
+        "width": 1920,
+        "height": 2644,
+        "ppi": 271.95,
+        "scannedPpi": 300,
+        "scannedWidth": 2118,
+        "licence": "Public domain (Wikimedia Commons: the scan of a work published before 1929)"
+      },
+      "truth": {
+        "kind": "wikisource",
+        "revid": 8789725,
+        "revSha1": "e549fa494cd91f003f32f3d008f8b897404612fa",
+        "sha256": "a9d8a7c1bbed56264894cb5c5569b97d6bc44f6c7b1e2d7c2cc58c0a6e011642",
+        "chars": 1072,
+        "licence": "CC BY-SA 4.0 (Wikisource contributors); fetched at build time, not committed"
+      }
+    },
+    {
+      "id": "book-wind-in-the-willows-1913-djv-p83",
+      "category": "book",
+      "source": "Kenneth Grahame, The Wind in the Willows (1913)",
+      "scan": {
+        "file": "Wind in the Willows (1913).djvu",
+        "page": 83,
+        "commonsSha1": "a3393b9a0a66440244a3f36157075478d33c0dd0",
+        "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/6/62/Wind_in_the_Willows_%281913%29.djvu/page83-1920px-Wind_in_the_Willows_%281913%29.djvu.jpg",
+        "sha256": "e09bddee406e9bf12f1d693e9cbb99438cb136ed86aebb0eb7a1ccd89e2ff825",
+        "bytes": 509990,
+        "width": 1920,
+        "height": 2644,
+        "ppi": 271.95,
+        "scannedPpi": 300,
+        "scannedWidth": 2118,
+        "licence": "Public domain (Wikimedia Commons: the scan of a work published before 1929)"
+      },
+      "truth": {
+        "kind": "wikisource",
+        "revid": 8789744,
+        "revSha1": "308f584248efc77ea573b38fac3aceb3b4de557f",
+        "sha256": "45f6f96f1795917e7950cdeee7a802a4841416719776a11bffc18c0d8712d41a",
+        "chars": 1045,
+        "licence": "CC BY-SA 4.0 (Wikisource contributors); fetched at build time, not committed"
+      }
+    },
+    {
+      "id": "book-wind-in-the-willows-1913-djv-p92",
+      "category": "book",
+      "source": "Kenneth Grahame, The Wind in the Willows (1913)",
+      "scan": {
+        "file": "Wind in the Willows (1913).djvu",
+        "page": 92,
+        "commonsSha1": "a3393b9a0a66440244a3f36157075478d33c0dd0",
+        "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/6/62/Wind_in_the_Willows_%281913%29.djvu/page92-1920px-Wind_in_the_Willows_%281913%29.djvu.jpg",
+        "sha256": "c7f13a3a60c0f8056fafddb06810ef3d2e517f60fafa01dcd22a371b2de7e9e4",
+        "bytes": 509893,
+        "width": 1920,
+        "height": 2644,
+        "ppi": 271.95,
+        "scannedPpi": 300,
+        "scannedWidth": 2118,
+        "licence": "Public domain (Wikimedia Commons: the scan of a work published before 1929)"
+      },
+      "truth": {
+        "kind": "wikisource",
+        "revid": 8789752,
+        "revSha1": "76411d7a9b0186e28e8d904c0c8c3553049f9d7f",
+        "sha256": "6ddada1df677817a5ac6f3244d77a83d882f3672e13828929168ce718319b77d",
+        "chars": 1000,
+        "licence": "CC BY-SA 4.0 (Wikisource contributors); fetched at build time, not committed"
+      }
+    },
+    {
+      "id": "degraded-wind-in-the-willows-1913-djv-p111",
+      "category": "degraded",
+      "source": "Kenneth Grahame, The Wind in the Willows (1913)",
+      "scan": {
+        "file": "Wind in the Willows (1913).djvu",
+        "page": 111,
+        "commonsSha1": "a3393b9a0a66440244a3f36157075478d33c0dd0",
+        "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/6/62/Wind_in_the_Willows_%281913%29.djvu/page111-1920px-Wind_in_the_Willows_%281913%29.djvu.jpg",
+        "sha256": "c5f2f2d38bc30f526d25e177a14dfc4af588fc03b466e5aae70c334613f25ae7",
+        "bytes": 496275,
+        "width": 1920,
+        "height": 2644,
+        "ppi": 271.95,
+        "scannedPpi": 300,
+        "scannedWidth": 2118,
+        "licence": "Public domain (Wikimedia Commons: the scan of a work published before 1929)"
+      },
+      "truth": {
+        "kind": "wikisource",
+        "revid": 8789424,
+        "revSha1": "d68639de2c1e5c517ba4376076164a48eeed7bcd",
+        "sha256": "828504237c5ad1260d189f1556b65a5165f976eeac8df33a7414e5fc740e283e",
+        "chars": 944,
+        "licence": "CC BY-SA 4.0 (Wikisource contributors); fetched at build time, not committed"
+      },
+      "degrade": {
+        "recipe": "lowres150",
+        "seed": 4311
+      }
+    },
+    {
+      "id": "degraded-wind-in-the-willows-1913-djv-p120",
+      "category": "degraded",
+      "source": "Kenneth Grahame, The Wind in the Willows (1913)",
+      "scan": {
+        "file": "Wind in the Willows (1913).djvu",
+        "page": 120,
+        "commonsSha1": "a3393b9a0a66440244a3f36157075478d33c0dd0",
+        "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/6/62/Wind_in_the_Willows_%281913%29.djvu/page120-1920px-Wind_in_the_Willows_%281913%29.djvu.jpg",
+        "sha256": "fbf813adf861578d5380406aa8f5bc62fca7042d1253cd8ccc8531cf23fae3d4",
+        "bytes": 567773,
+        "width": 1920,
+        "height": 2644,
+        "ppi": 271.95,
+        "scannedPpi": 300,
+        "scannedWidth": 2118,
+        "licence": "Public domain (Wikimedia Commons: the scan of a work published before 1929)"
+      },
+      "truth": {
+        "kind": "wikisource",
+        "revid": 8789433,
+        "revSha1": "c13fddd787b879c7ecb435e39d22be39aa77c866",
+        "sha256": "23da26ad00888e5ebe0d117e1f7cac95a71a07265b3911082ab6aae42c4a1680",
+        "chars": 999,
+        "licence": "CC BY-SA 4.0 (Wikisource contributors); fetched at build time, not committed"
+      },
+      "degrade": {
+        "recipe": "lowres100",
+        "seed": 4320
+      }
+    },
+    {
+      "id": "two-column-eb1911-volume-03-djvu-p377",
+      "category": "two-column",
+      "source": "Encyclopaedia Britannica, 11th ed., vol. 3 (1910)",
+      "scan": {
+        "file": "EB1911 - Volume 03.djvu",
+        "page": 377,
+        "commonsSha1": "387b2cf656bf46f56fecc4d4d2c77f861f0ae67d",
+        "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/c/c8/EB1911_-_Volume_03.djvu/page377-1920px-EB1911_-_Volume_03.djvu.jpg",
+        "sha256": "d00a87ae2f9b595c2ec461acfcb8f9745ea744e808dbb59239d45efaa37a1963",
+        "bytes": 1893753,
+        "width": 1920,
+        "height": 2647,
+        "ppi": 250.0,
+        "scannedPpi": 300,
+        "scannedWidth": 2304,
+        "licence": "Public domain (Wikimedia Commons: the scan of a work published before 1929)"
+      },
+      "truth": {
+        "kind": "wikisource",
+        "revid": 12248481,
+        "revSha1": "b30f7641fd276f05c083ab88da3bbb21aa2f0e47",
+        "sha256": "dfaa86791314fab2718025a0e5db3e9d3cec52a6cf463adcb3a56183ae5cf335",
+        "chars": 10751,
+        "licence": "CC BY-SA 4.0 (Wikisource contributors); fetched at build time, not committed"
+      }
+    },
+    {
+      "id": "two-column-eb1911-volume-03-djvu-p438",
+      "category": "two-column",
+      "source": "Encyclopaedia Britannica, 11th ed., vol. 3 (1910)",
+      "scan": {
+        "file": "EB1911 - Volume 03.djvu",
+        "page": 438,
+        "commonsSha1": "387b2cf656bf46f56fecc4d4d2c77f861f0ae67d",
+        "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/c/c8/EB1911_-_Volume_03.djvu/page438-1920px-EB1911_-_Volume_03.djvu.jpg",
+        "sha256": "d742b63fc0d6217d96a6153d08719498b8083013ed9708d32508643a0694988c",
+        "bytes": 1648900,
+        "width": 1920,
+        "height": 2668,
+        "ppi": 250.0,
+        "scannedPpi": 300,
+        "scannedWidth": 2304,
+        "licence": "Public domain (Wikimedia Commons: the scan of a work published before 1929)"
+      },
+      "truth": {
+        "kind": "wikisource",
+        "revid": 12255612,
+        "revSha1": "fef39729ac74b3b836f2fa279c34f9835add86f5",
+        "sha256": "92a795e652e94f1ea6eda6eeadaf5cf9a439ebf97b0be9aad8562c0160fb44c4",
+        "chars": 8848,
+        "licence": "CC BY-SA 4.0 (Wikisource contributors); fetched at build time, not committed"
+      }
+    },
+    {
+      "id": "two-column-eb1911-volume-03-djvu-p456",
+      "category": "two-column",
+      "source": "Encyclopaedia Britannica, 11th ed., vol. 3 (1910)",
+      "scan": {
+        "file": "EB1911 - Volume 03.djvu",
+        "page": 456,
+        "commonsSha1": "387b2cf656bf46f56fecc4d4d2c77f861f0ae67d",
+        "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/c/c8/EB1911_-_Volume_03.djvu/page456-1920px-EB1911_-_Volume_03.djvu.jpg",
+        "sha256": "64bae1a65d65d3f1ac89f7da1937622394cb81426bee03eabb735cb2566a7eb7",
+        "bytes": 1644377,
+        "width": 1920,
+        "height": 2609,
+        "ppi": 246.58,
+        "scannedPpi": 300,
+        "scannedWidth": 2336,
+        "licence": "Public domain (Wikimedia Commons: the scan of a work published before 1929)"
+      },
+      "truth": {
+        "kind": "wikisource",
+        "revid": 12258453,
+        "revSha1": "d2b0cbeb6876ca31ce62c6c59cf006b0efe1b6e6",
+        "sha256": "1b04b06c319a93709b7b0092fcc88b4d8e282f17d7bb0eb80c002c775cd8f8f7",
+        "chars": 8986,
+        "licence": "CC BY-SA 4.0 (Wikisource contributors); fetched at build time, not committed"
+      }
+    },
+    {
+      "id": "two-column-eb1911-volume-03-djvu-p470",
+      "category": "two-column",
+      "source": "Encyclopaedia Britannica, 11th ed., vol. 3 (1910)",
+      "scan": {
+        "file": "EB1911 - Volume 03.djvu",
+        "page": 470,
+        "commonsSha1": "387b2cf656bf46f56fecc4d4d2c77f861f0ae67d",
+        "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/c/c8/EB1911_-_Volume_03.djvu/page470-1920px-EB1911_-_Volume_03.djvu.jpg",
+        "sha256": "31088e9aa9014c4c88780716ada09998d5d14dcb88010be2564f176e77681f1b",
+        "bytes": 1562380,
+        "width": 1920,
+        "height": 2650,
+        "ppi": 250.0,
+        "scannedPpi": 300,
+        "scannedWidth": 2304,
+        "licence": "Public domain (Wikimedia Commons: the scan of a work published before 1929)"
+      },
+      "truth": {
+        "kind": "wikisource",
+        "revid": 12262046,
+        "revSha1": "e8fc0fec1c8a10ca86deac00afbc1845ff5568fc",
+        "sha256": "4026f7148bda99ed64e9a57dae8ef2411e9cd58ed9e1259cf10ee3d950f59228",
+        "chars": 8506,
+        "licence": "CC BY-SA 4.0 (Wikisource contributors); fetched at build time, not committed"
+      }
+    },
+    {
+      "id": "two-column-eb1911-volume-03-djvu-p486",
+      "category": "two-column",
+      "source": "Encyclopaedia Britannica, 11th ed., vol. 3 (1910)",
+      "scan": {
+        "file": "EB1911 - Volume 03.djvu",
+        "page": 486,
+        "commonsSha1": "387b2cf656bf46f56fecc4d4d2c77f861f0ae67d",
+        "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/c/c8/EB1911_-_Volume_03.djvu/page486-1920px-EB1911_-_Volume_03.djvu.jpg",
+        "sha256": "6750191b16bfcb7276585ce016962d90dae07a533378eb557bc8e7b6f78e800e",
+        "bytes": 1637336,
+        "width": 1920,
+        "height": 2594,
+        "ppi": 246.58,
+        "scannedPpi": 300,
+        "scannedWidth": 2336,
+        "licence": "Public domain (Wikimedia Commons: the scan of a work published before 1929)"
+      },
+      "truth": {
+        "kind": "wikisource",
+        "revid": 12262717,
+        "revSha1": "8f320db92aede93e5cc3b2fbffe07b1431e001a3",
+        "sha256": "b6d08a9636085c3922bd573e7a12a5d29eda0f442de68562d694fca88ff6eb82",
+        "chars": 8983,
+        "licence": "CC BY-SA 4.0 (Wikisource contributors); fetched at build time, not committed"
+      }
+    },
+    {
+      "id": "two-column-eb1911-volume-10-djvu-p53",
+      "category": "two-column",
+      "source": "Encyclopaedia Britannica, 11th ed., vol. 10 (1910)",
+      "scan": {
+        "file": "EB1911 - Volume 10.djvu",
+        "page": 53,
+        "commonsSha1": "6146e403bf2613641e7715887125cd8c874aa022",
+        "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/b/b1/EB1911_-_Volume_10.djvu/page53-1920px-EB1911_-_Volume_10.djvu.jpg",
+        "sha256": "7d2f49957954008fea0ceced908554ec88a0ce1ace5ce638118ecc840acc4f66",
+        "bytes": 1617335,
+        "width": 1920,
+        "height": 2634,
+        "ppi": 250.0,
+        "scannedPpi": 300,
+        "scannedWidth": 2304,
+        "licence": "Public domain (Wikimedia Commons: the scan of a work published before 1929)"
+      },
+      "truth": {
+        "kind": "wikisource",
+        "revid": 12484847,
+        "revSha1": "b17cb2e56ff69af3f24ea1507d29cd8233dc7b8d",
+        "sha256": "5a5b2dba20f8bdf50f9ee27b41e227c3c19352a1f3e74fcaefe60bdde059692c",
+        "chars": 8697,
+        "licence": "CC BY-SA 4.0 (Wikisource contributors); fetched at build time, not committed"
+      }
+    },
+    {
+      "id": "two-column-eb1911-volume-10-djvu-p67",
+      "category": "two-column",
+      "source": "Encyclopaedia Britannica, 11th ed., vol. 10 (1910)",
+      "scan": {
+        "file": "EB1911 - Volume 10.djvu",
+        "page": 67,
+        "commonsSha1": "6146e403bf2613641e7715887125cd8c874aa022",
+        "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/b/b1/EB1911_-_Volume_10.djvu/page67-1920px-EB1911_-_Volume_10.djvu.jpg",
+        "sha256": "bdf620962cf2fefa8763e34e992d7c2fbc0a1f9151b22d4efe95980d01017d95",
+        "bytes": 1672480,
+        "width": 1920,
+        "height": 2637,
+        "ppi": 250.0,
+        "scannedPpi": 300,
+        "scannedWidth": 2304,
+        "licence": "Public domain (Wikimedia Commons: the scan of a work published before 1929)"
+      },
+      "truth": {
+        "kind": "wikisource",
+        "revid": 12484856,
+        "revSha1": "c653996597cbe28641d02d769a210f02662c5f35",
+        "sha256": "ac9ae1fec883c032aac93c02ed84b2f9802cd7f0b57d6c75abd0143ec71f43b3",
+        "chars": 9045,
+        "licence": "CC BY-SA 4.0 (Wikisource contributors); fetched at build time, not committed"
+      }
+    },
+    {
+      "id": "two-column-eb1911-volume-10-djvu-p89",
+      "category": "two-column",
+      "source": "Encyclopaedia Britannica, 11th ed., vol. 10 (1910)",
+      "scan": {
+        "file": "EB1911 - Volume 10.djvu",
+        "page": 89,
+        "commonsSha1": "6146e403bf2613641e7715887125cd8c874aa022",
+        "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/b/b1/EB1911_-_Volume_10.djvu/page89-1920px-EB1911_-_Volume_10.djvu.jpg",
+        "sha256": "0a40d7052dc594f17ba85d24b49d875e639949684563757ce40a1cc343834f01",
+        "bytes": 1810257,
+        "width": 1920,
+        "height": 2633,
+        "ppi": 250.0,
+        "scannedPpi": 300,
+        "scannedWidth": 2304,
+        "licence": "Public domain (Wikimedia Commons: the scan of a work published before 1929)"
+      },
+      "truth": {
+        "kind": "wikisource",
+        "revid": 11688780,
+        "revSha1": "2e770a49fe0ed05b31164b9b4a28a396b728d509",
+        "sha256": "e2e47cbc964ccd41e1a5cf2a070cd22b01d3bd62e125c5d03eb46f3a8992fd8f",
+        "chars": 11278,
+        "licence": "CC BY-SA 4.0 (Wikisource contributors); fetched at build time, not committed"
+      }
+    },
+    {
+      "id": "two-column-eb1911-volume-10-djvu-p137",
+      "category": "two-column",
+      "source": "Encyclopaedia Britannica, 11th ed., vol. 10 (1910)",
+      "scan": {
+        "file": "EB1911 - Volume 10.djvu",
+        "page": 137,
+        "commonsSha1": "6146e403bf2613641e7715887125cd8c874aa022",
+        "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/b/b1/EB1911_-_Volume_10.djvu/page137-1920px-EB1911_-_Volume_10.djvu.jpg",
+        "sha256": "747017270f92e0e8a584dcc150187ea55017f5848258e79063b6158a6a9c2619",
+        "bytes": 1700995,
+        "width": 1920,
+        "height": 2630,
+        "ppi": 250.0,
+        "scannedPpi": 300,
+        "scannedWidth": 2304,
+        "licence": "Public domain (Wikimedia Commons: the scan of a work published before 1929)"
+      },
+      "truth": {
+        "kind": "wikisource",
+        "revid": 15837275,
+        "revSha1": "2640874e29eecaefd2dabb4f303b2f2ce427ecf6",
+        "sha256": "de7c8152a61315dfff03b89e2b052e597f3e1302a0cbd9ef63e0393e299ddf99",
+        "chars": 8714,
+        "licence": "CC BY-SA 4.0 (Wikisource contributors); fetched at build time, not committed"
+      }
+    },
+    {
+      "id": "two-column-eb1911-volume-10-djvu-p172",
+      "category": "two-column",
+      "source": "Encyclopaedia Britannica, 11th ed., vol. 10 (1910)",
+      "scan": {
+        "file": "EB1911 - Volume 10.djvu",
+        "page": 172,
+        "commonsSha1": "6146e403bf2613641e7715887125cd8c874aa022",
+        "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/b/b1/EB1911_-_Volume_10.djvu/page172-1920px-EB1911_-_Volume_10.djvu.jpg",
+        "sha256": "d5f182146454b2669f417670edf144491a7f39caeeedf0870eb0ff3f5c4bdb6c",
+        "bytes": 1732219,
+        "width": 1920,
+        "height": 2640,
+        "ppi": 250.0,
+        "scannedPpi": 300,
+        "scannedWidth": 2304,
+        "licence": "Public domain (Wikimedia Commons: the scan of a work published before 1929)"
+      },
+      "truth": {
+        "kind": "wikisource",
+        "revid": 11732181,
+        "revSha1": "f01134bf051b743f5b890c4f3bb7de69ea71b065",
+        "sha256": "aa5ea7b1aa8093dbc9906728232017379ee5131600ef18705e0e5eeaa9a632a0",
+        "chars": 8950,
+        "licence": "CC BY-SA 4.0 (Wikisource contributors); fetched at build time, not committed"
+      }
+    }
+  ],
+  "own": [
+    {
+      "id": "two-column-own-1",
+      "category": "two-column",
+      "source": "typeset two-column paper (Project Gutenberg text)",
+      "own": {
+        "kind": "typst-paper",
+        "index": 0
+      },
+      "licence": "Generated for Atlas from public-domain text (Project Gutenberg); no rights reserved"
+    },
+    {
+      "id": "two-column-own-2",
+      "category": "two-column",
+      "source": "typeset two-column paper (Project Gutenberg text)",
+      "own": {
+        "kind": "typst-paper",
+        "index": 1
+      },
+      "licence": "Generated for Atlas from public-domain text (Project Gutenberg); no rights reserved"
+    },
+    {
+      "id": "two-column-own-3",
+      "category": "two-column",
+      "source": "typeset two-column paper (Project Gutenberg text)",
+      "own": {
+        "kind": "typst-paper",
+        "index": 2
+      },
+      "licence": "Generated for Atlas from public-domain text (Project Gutenberg); no rights reserved"
+    },
+    {
+      "id": "two-column-own-4",
+      "category": "two-column",
+      "source": "typeset two-column paper (Project Gutenberg text)",
+      "own": {
+        "kind": "typst-paper",
+        "index": 3
+      },
+      "licence": "Generated for Atlas from public-domain text (Project Gutenberg); no rights reserved"
+    },
+    {
+      "id": "two-column-own-5",
+      "category": "two-column",
+      "source": "typeset two-column paper (Project Gutenberg text)",
+      "own": {
+        "kind": "typst-paper",
+        "index": 4
+      },
+      "licence": "Generated for Atlas from public-domain text (Project Gutenberg); no rights reserved"
+    }
+  ]
+}

@@ -57,7 +57,17 @@ fetches exactly what is pinned and fails on any change.
     degraded pages all come from validated pages.
   - The "poor text layer" pages are scans whose DjVu file carries its own
     OCR text (the Internet Archive's, in these books); that text is the
-    reference row the engines are compared with.
+    reference row the engines are compared with. Only *The Time Machine*'s
+    layer was poor enough (word error rate at least 10%): its five pages
+    score about 0.9 to 1.0, mostly from lines out of order. The other
+    books' layers were better than the threshold.
+  - **Scans aren't all 300 ppi or more**, as the plan wanted. Commons
+    serves a page at a standard width no larger than the scan's (1920 px
+    for most of these books, 3840 for *Treasure Island*), so the images
+    are 200 to 587 ppi. Each PDF page is sized by its image's real
+    resolution (`ppi` in the manifest, beside the scan's own), so pages
+    keep their printed size and the 300 DPI render scales them as the
+    worker would scale a scan of that resolution.
 
 ## How it was measured
 
