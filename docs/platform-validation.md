@@ -1406,7 +1406,13 @@ the evidence.
 **Result:** to be recorded when the owner reports it, with the rule
 applied.
 
-**CI on `slice-412`:** to be recorded.
+**CI on `slice-412`:** the full run
+([43345116631](https://github.com/markcheno/Atlas/actions/runs/43345116631))
+is green on three OSes at the first attempt, including the new tests on
+Windows, where the output-folder checks compare paths without the `\\?\`
+prefix. `main` after Slice 4.1.1
+([43345060272](https://github.com/markcheno/Atlas/actions/runs/43345060272))
+is green too.
 
 ## Slice 4.1.1
 
