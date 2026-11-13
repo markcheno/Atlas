@@ -54,6 +54,9 @@ pub struct ProcessorContext {
     pub vectors: Arc<VectorRegistry>,
     /// The library's log (Slice 4.1).
     pub diagnostics: crate::services::diagnostics::Diagnostics,
+    /// The workspace's clock (Slice 4.5): a scan's times are on the clock
+    /// the folder check reads.
+    pub clock: Arc<dyn crate::infrastructure::clock::Clock>,
 }
 
 /// Builds a kind's processor for each data root the workspace opens.

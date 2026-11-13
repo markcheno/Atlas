@@ -13,7 +13,6 @@ use super::rate::TokenBucket;
 use super::{InventoryDeps, classify};
 use crate::domain::dto::{JobState, PauseReason, PolicyMode, SourceRootStatus, ThrottleReason};
 use crate::domain::traits::{CatalogRepository, DirEntryInfo, EntryKind};
-use crate::infrastructure::clock::now_rfc3339;
 use crate::infrastructure::native_path;
 use crate::services::catalog::codec::to_db;
 use crate::services::catalog::repository::SqliteCatalog;
@@ -38,6 +37,15 @@ enum Gate {
     },
 }
 
+/// What the gate tells the session loop when it shouldn't list now.
+enum Held {
+    /// Sample again after the policy wait.
+    Again,
+    Stop,
+    /// The folder is unreachable: hand the runner back (Slice 4.5).
+    Yield,
+}
+
 enum DirOutcome {
     Done,
     Failed,
@@ -51,6 +59,10 @@ struct Session {
     id: String,
     root_id: String,
     root: PathBuf,
+    root_display: String,
+    /// Begun before Slice 4.5: finishes by Phase 0's rule (every row written,
+    /// unseen rows found by the session marker).
+    legacy: bool,
     contains_data_root: bool,
     bucket: TokenBucket,
     last_sample: Option<Instant>,
@@ -59,6 +71,25 @@ struct Session {
     clock: Instant,
     /// Sub-millisecond remainder carried between batches.
     carry: Duration,
+    /// Folders listed with nothing to write, not yet committed (Slice 4.5),
+    /// and since when.
+    deferred: db::Deferred,
+    deferred_since: Option<Instant>,
+}
+
+/// How much listed-but-unchanged work a scan holds before committing it:
+/// a few commits for an unchanged library, and little to list again if
+/// Atlas stops first (Slice 4.5).
+const DEFER_DIRS: usize = 256;
+const DEFER_FILES: usize = 1_000;
+const DEFER_FOR: Duration = Duration::from_secs(5);
+
+/// Whether held work was written.
+enum Flushed {
+    Yes,
+    /// The session left `running`; the held work was dropped.
+    NotRunning,
+    Failed,
 }
 
 /// Walks one source root per job, in bounded batches, under the resource
@@ -73,6 +104,7 @@ pub struct ScanProcessor {
     waker: JobWaker,
     last_emit: Option<Instant>,
     diagnostics: crate::services::diagnostics::Diagnostics,
+    clock: Arc<dyn crate::infrastructure::clock::Clock>,
 }
 
 impl JobProcessor for ScanProcessor {
@@ -101,12 +133,14 @@ impl ScanProcessor {
             signal: ctx.signal,
             waker: ctx.waker,
             diagnostics: ctx.diagnostics,
+            clock: ctx.clock,
             last_emit: None,
         }
     }
 
+    /// On the workspace's clock, which the folder check reads (Slice 4.5).
     fn now(&self) -> String {
-        now_rfc3339()
+        self.clock.now_rfc3339()
     }
 
     /// Sends an overview to the UI, at most every `event_interval` unless
@@ -210,6 +244,8 @@ impl ScanProcessor {
         let mut s = Session {
             contains_data_root: sources::relation_by_components(&self.data_root, &root)
                 == Relation::Inside,
+            legacy: row.origin.is_none(),
+            root_display: row.root_display,
             id: row.id,
             root_id: row.source_root_id,
             root,
@@ -218,6 +254,8 @@ impl ScanProcessor {
             throttle: row.throttle_reason,
             clock: Instant::now(),
             carry: Duration::ZERO,
+            deferred: db::Deferred::default(),
+            deferred_since: None,
         };
 
         loop {
@@ -238,32 +276,44 @@ impl ScanProcessor {
                 .last_sample
                 .is_none_or(|t| t.elapsed() >= self.deps.config.recheck_interval);
             if (due || state == Some(JobState::PausedPolicy))
-                && let Some(flow) = self.apply_gate(&mut s, state)
+                && let Some(held) = self.apply_gate(&mut s, state)
             {
-                match flow {
-                    Flow::Stop => return Flow::Stop,
-                    Flow::Continue => continue,
+                match held {
+                    Held::Stop => return Flow::Stop,
+                    Held::Yield => return Flow::Continue,
+                    Held::Again => continue,
                 }
             }
 
             let id = s.id.clone();
             let max = self.deps.config.max_dir_attempts;
-            let next = match self.catalog.call(move |c| db::next_dir(c, &id, max)) {
+            let listed = s.deferred.done_dirs.clone();
+            let next = match self
+                .catalog
+                .call(move |c| db::next_dir(c, &id, max, &listed))
+            {
                 Ok(Ok(next)) => next,
                 _ => return self.database_failure(&s.id),
             };
             let Some(dir) = next else {
+                // What is held may hold the rest of the frontier.
+                if !s.deferred.is_empty() {
+                    match self.flush_deferred(&mut s) {
+                        Flushed::Yes | Flushed::NotRunning => continue,
+                        Flushed::Failed => return self.database_failure(&s.id),
+                    }
+                }
                 return self.finish(&s);
             };
             match self.process_dir(&mut s, dir) {
                 DirOutcome::Done | DirOutcome::Failed | DirOutcome::Interrupted => {}
                 DirOutcome::Stop => return Flow::Stop,
+                // The folder went away: wait outside the runner, so other
+                // folders' scans go on; the folder check queues this one
+                // again when it is back (Slice 4.5).
                 DirOutcome::RootVanished => {
                     self.pause_for(&s, PauseReason::SourceRootMissing, false);
-                    s.last_sample = Some(Instant::now());
-                    if self.signal.wait(self.deps.config.policy_wait) {
-                        return Flow::Stop;
-                    }
+                    return Flow::Continue;
                 }
             }
         }
@@ -290,16 +340,25 @@ impl ScanProcessor {
 
     /// Samples the device and the source root. `Some` means the caller
     /// should not process a directory now.
-    fn apply_gate(&mut self, s: &mut Session, state: Option<JobState>) -> Option<Flow> {
+    fn apply_gate(&mut self, s: &mut Session, state: Option<JobState>) -> Option<Held> {
         s.last_sample = Some(Instant::now());
         match self.gate(&s.root) {
+            // As for a folder that vanishes mid-scan: yield to other folders.
+            Gate::Pause(PauseReason::SourceRootMissing) => {
+                self.pause_for(
+                    s,
+                    PauseReason::SourceRootMissing,
+                    state == Some(JobState::PausedPolicy),
+                );
+                Some(Held::Yield)
+            }
             Gate::Pause(reason) => {
                 self.pause_for(s, reason, state == Some(JobState::PausedPolicy));
                 if self.signal.wait(self.deps.config.policy_wait) {
-                    return Some(Flow::Stop);
+                    return Some(Held::Stop);
                 }
                 s.clock = Instant::now();
-                Some(Flow::Continue)
+                Some(Held::Again)
             }
             Gate::Go { rate, throttle } => {
                 if state == Some(JobState::PausedPolicy) {
@@ -311,7 +370,7 @@ impl ScanProcessor {
                         None,
                     );
                     if !resumed {
-                        return Some(Flow::Continue);
+                        return Some(Held::Again);
                     }
                     crate::services::jobs::record_policy(
                         &self.diagnostics,
@@ -394,21 +453,31 @@ impl ScanProcessor {
 
         let batch_size = self.deps.config.batch_size.max(1);
         let mut batch = Batch::default();
+        let mut listing = db::Listing {
+            dir_rel: dir.rel_path.clone(),
+            ..db::Listing::default()
+        };
         for entry in entries {
             match entry {
-                Ok(info) => self.classify(s, &rel, info, &mut batch),
+                Ok(info) => {
+                    listing.names.insert(info.name.clone());
+                    self.classify(s, &rel, info, &mut batch);
+                }
                 Err(_) => batch.entry_errors += 1,
             }
-            if batch.len() >= batch_size
-                && let Some(outcome) = self.flush(s, &mut batch, None)
-            {
-                return outcome;
+            if batch.len() >= batch_size {
+                listing.files += batch.files.len() as u32;
+                if let Some(outcome) = self.flush(s, &mut batch, None) {
+                    return outcome;
+                }
             }
         }
 
         if !s.root.is_dir() {
             return DirOutcome::RootVanished;
         }
+        listing.files += batch.files.len() as u32;
+        batch.listing = Some(listing);
         match self.flush(s, &mut batch, Some(dir.id)) {
             Some(outcome) => outcome,
             None => DirOutcome::Done,
@@ -472,15 +541,42 @@ impl ScanProcessor {
         s.clock = now;
 
         let committed = std::mem::take(batch);
-        let (id, root_id, ts) = (s.id.clone(), s.root_id.clone(), self.now());
-        let replayed = match self
-            .catalog
-            .call(move |c| db::commit_batch(c, &id, &root_id, &committed, &ts))
-        {
-            Ok(Ok(db::Committed::Yes { replayed })) => replayed as u32,
+        let held = std::mem::take(&mut s.deferred);
+        let (id, root_id, ts, legacy) = (s.id.clone(), s.root_id.clone(), self.now(), s.legacy);
+        let result = self.catalog.call(move |c| {
+            let r = db::commit_batch(c, &id, &root_id, &committed, &held, legacy, !legacy, &ts);
+            (r, committed, held)
+        });
+        let replayed = match result {
+            Ok((Ok(db::Committed::Yes { replayed }), _, _)) => {
+                s.deferred_since = None;
+                replayed as u32
+            }
+            // Nothing to write yet: held, and committed with later work.
+            Ok((
+                Ok(db::Committed::Deferred {
+                    replayed,
+                    write,
+                    missing,
+                }),
+                committed,
+                mut held,
+            )) => {
+                held.absorb(committed, &write, missing);
+                s.deferred = held;
+                let since = *s.deferred_since.get_or_insert(now);
+                if (s.deferred.done_dirs.len() >= DEFER_DIRS
+                    || s.deferred.files.len() + s.deferred.missing.len() >= DEFER_FILES
+                    || since.elapsed() >= DEFER_FOR)
+                    && !matches!(self.flush_deferred(s), Flushed::Yes)
+                {
+                    return Some(DirOutcome::Interrupted);
+                }
+                replayed as u32
+            }
             // Paused or cancelled while this batch was listed: drop it. The
             // directory stays pending and is listed again on resume.
-            Ok(Ok(db::Committed::NotRunning)) => return Some(DirOutcome::Interrupted),
+            Ok((Ok(db::Committed::NotRunning), _, _)) => return Some(DirOutcome::Interrupted),
             // Most likely the folder was removed while scanning (cascade).
             _ => {
                 if self.state_of(&s.id).is_some()
@@ -535,6 +631,36 @@ impl ScanProcessor {
         None
     }
 
+    /// Commits held work on its own.
+    fn flush_deferred(&mut self, s: &mut Session) -> Flushed {
+        s.deferred_since = None;
+        let held = std::mem::take(&mut s.deferred);
+        if held.is_empty() {
+            return Flushed::Yes;
+        }
+        let (id, root_id, ts, legacy) = (s.id.clone(), s.root_id.clone(), self.now(), s.legacy);
+        let result = self.catalog.call(move |c| {
+            db::commit_batch(
+                c,
+                &id,
+                &root_id,
+                &Batch::default(),
+                &held,
+                legacy,
+                false,
+                &ts,
+            )
+        });
+        match result {
+            Ok(Ok(db::Committed::Yes { .. })) => {
+                self.emit(false);
+                Flushed::Yes
+            }
+            Ok(Ok(_)) => Flushed::NotRunning,
+            _ => Flushed::Failed,
+        }
+    }
+
     fn record_failure(&mut self, s: &Session, dir: &DirRow, code: &'static str) {
         let (id, dir_id, now) = (s.id.clone(), dir.id, self.now());
         let max = self.deps.config.max_dir_attempts;
@@ -547,17 +673,15 @@ impl ScanProcessor {
     fn finish(&mut self, s: &Session) -> Flow {
         let reachable = s.root.is_dir();
         if !reachable {
+            // Waits outside the runner until the folder is back (Slice 4.5).
             self.pause_for(s, PauseReason::SourceRootMissing, false);
-            return if self.signal.wait(self.deps.config.policy_wait) {
-                Flow::Stop
-            } else {
-                Flow::Continue
-            };
+            return Flow::Continue;
         }
         let (id, root_id, now) = (s.id.clone(), s.root_id.clone(), self.now());
+        let (display, legacy) = (s.root_display.clone(), s.legacy);
         match self
             .catalog
-            .call(move |c| db::finish(c, &id, &root_id, reachable, &now))
+            .call(move |c| db::finish(c, &id, &root_id, &display, reachable, legacy, &now))
         {
             Ok(Ok(())) => {
                 self.emit(true);

@@ -34,6 +34,8 @@ import type { DocumentQuery } from './bindings/DocumentQuery';
 import type { ErrorCode } from './bindings/ErrorCode';
 import type { ErrorPayload } from './bindings/ErrorPayload';
 import type { InventoryOverview } from './bindings/InventoryOverview';
+import type { ScanProblem } from './bindings/ScanProblem';
+import type { ScanRecord } from './bindings/ScanRecord';
 import type { LocalProviderSuggestion } from './bindings/LocalProviderSuggestion';
 import type { ProviderProfile } from './bindings/ProviderProfile';
 import type { ProviderProfileInput } from './bindings/ProviderProfileInput';
@@ -172,6 +174,13 @@ export const atlas = {
   resumeJob: (jobId: string) => call<void>('resume_job', { jobId }),
   cancelJob: (jobId: string) => call<void>('cancel_job', { jobId }),
   getInventoryStatus: () => call<InventoryOverview>('get_inventory_status'),
+  /** A folder's recent checks, newest first (Slice 4.5). */
+  listScans: (sourceRootId: string, limit?: number) =>
+    call<ScanRecord[]>('list_scans', { sourceRootId, limit: limit ?? null }),
+  /** The folders a check couldn't read, and why (Slice 4.5). */
+  getScanProblems: (jobId: string) => call<ScanProblem[]>('get_scan_problems', { jobId }),
+  /** Check all folders now; how many have a check scheduled (Slice 4.5). */
+  checkAllFolders: () => call<number>('check_all_folders'),
   startExtraction: (sourceRootId: string) => call<string>('start_extraction', { sourceRootId }),
   getExtractionStatus: () => call<ExtractionOverview>('get_extraction_status'),
   startEmbedding: (sourceRootId: string) => call<string>('start_embedding', { sourceRootId }),

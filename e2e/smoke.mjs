@@ -190,7 +190,8 @@ const formatted = expected.toLocaleString('en-US');
 const readingStatus = async () =>
   wd.text(await wd.waitFor("//*[@data-testid='extraction-status']"));
 // The cataloging line's controls; the reading line's have their own labels.
-const catalogButton = (label) => `//button[normalize-space(.)=${lit(label)} and not(@aria-label)]`;
+// The status bar's own (Slice 4.5): each folder's row has "Pause cataloging <name>".
+const catalogButton = (label) => `//button[@aria-label=${lit(`${label} cataloging`)}]`;
 
 /** Command lines of this app's text-reading worker processes. */
 function workerProcesses() {

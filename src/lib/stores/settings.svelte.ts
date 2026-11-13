@@ -15,6 +15,7 @@ export const DEFAULT_SETTINGS: Settings = {
     recordTrails: true,
     expireTrails: true,
   },
+  background: { checkFolders: 'sixHours' },
 };
 
 class SettingsStore {
@@ -28,6 +29,7 @@ class SettingsStore {
         ...DEFAULT_SETTINGS,
         ...got,
         privacy: { ...DEFAULT_SETTINGS.privacy, ...got.privacy },
+        background: { ...DEFAULT_SETTINGS.background, ...got.background },
       };
       this.loaded = true;
       return this.current;

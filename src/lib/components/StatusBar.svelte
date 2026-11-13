@@ -2,7 +2,8 @@
   import { onMount, tick } from 'svelte';
   import { atlas } from '../api/client';
   import type { AppStatus } from '../api/bindings/AppStatus';
-  import { count, elapsedText, statusLine } from '../inventoryCopy';
+  import { activityText, count, elapsedText, statusLine } from '../inventoryCopy';
+  import { folderName, sources } from '../stores/sources.svelte';
   import { extractionLine } from '../extractionCopy';
   import { meaningLine, stoppedFolders } from '../embeddingCopy';
   import { embedding } from '../stores/embedding.svelte';
@@ -38,6 +39,35 @@
   function indexStopped() {
     for (const id of stoppedFolders(embedding.overview)) void embedding.indexNow(id);
   }
+
+  /**
+   * Every folder with something going on, in cataloging, reading or
+   * meaning (Slice 4.5): the lines above show one job each.
+   */
+  const activity = $derived.by(() => {
+    // Built afresh on every change, so a plain record (in first-seen order).
+    const rows: Record<string, string[]> = {};
+    const add = (id: string, text: string) => (rows[id] = [...(rows[id] ?? []), text]);
+    for (const j of inventory.overview?.activeJobs ?? [])
+      add(
+        j.sourceRootId,
+        activityText('catalog', j.state, { origin: j.origin, pauseReason: j.pauseReason }),
+      );
+    for (const r of extraction.overview?.roots ?? [])
+      if (r.activeState) add(r.sourceRootId, activityText('read', r.activeState));
+    for (const r of embedding.overview?.roots ?? [])
+      if (r.activeState) add(r.sourceRootId, activityText('meaning', r.activeState));
+    return Object.entries(rows).map(([id, parts]) => ({
+      id,
+      name: folderName(
+        sources.displayName(id) ??
+          inventory.overview?.activeJobs.find((j) => j.sourceRootId === id)
+            ?.sourceRootDisplayPath ??
+          'A folder',
+      ),
+      text: parts.join(' · '),
+    }));
+  });
 
   async function openStorage() {
     view.go('settings');
@@ -84,18 +114,29 @@
       </details>
       <div class="controls">
         {#if pausable}
-          <button type="button" class="small-button" onclick={() => inventory.pause(active.jobId)}>
+          <button
+            type="button"
+            class="small-button"
+            aria-label="Pause cataloging"
+            onclick={() => inventory.pause(active.jobId)}
+          >
             Pause
           </button>
         {/if}
         {#if resumable}
-          <button type="button" class="small-button" onclick={() => inventory.resume(active.jobId)}>
+          <button
+            type="button"
+            class="small-button"
+            aria-label="Resume cataloging"
+            onclick={() => inventory.resume(active.jobId)}
+          >
             Resume
           </button>
         {/if}
         <button
           type="button"
           class="small-button"
+          aria-label="Cancel cataloging"
           title="Stop cataloging. Files found so far stay in your library."
           onclick={() => inventory.cancel(active.jobId)}
         >
@@ -199,6 +240,16 @@
         {/if}
       </div>
     </div>
+  {/if}
+  {#if activity.length > 1 || (activity.length === 1 && activity[0].text.includes(' · '))}
+    <details class="details activity" data-testid="all-activity">
+      <summary>All activity</summary>
+      <ul aria-label="Every folder's activity">
+        {#each activity as row (row.id)}
+          <li><span class="folder-name">{row.name}</span> {row.text}</li>
+        {/each}
+      </ul>
+    </details>
   {/if}
   {#if trails.status}
     <div class="cataloging" data-testid="trail-indicator">
@@ -308,5 +359,29 @@
 
   .details dd {
     margin: 0;
+  }
+
+  .activity ul {
+    position: absolute;
+    bottom: calc(100% + var(--space-2));
+    left: 0;
+    display: grid;
+    gap: var(--space-1);
+    min-width: 280px;
+    margin: 0;
+    padding: var(--space-3) var(--space-4);
+    list-style: none;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--surface);
+    box-shadow: 0 4px 16px rgb(0 0 0 / 12%);
+  }
+
+  .folder-name {
+    font-weight: 600;
+  }
+
+  .folder-name::after {
+    content: ':';
   }
 </style>

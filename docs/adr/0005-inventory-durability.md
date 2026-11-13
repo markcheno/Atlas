@@ -117,6 +117,8 @@ for cloud-offloaded files it would trigger a download.
   the 20,000-file folder went from about 18 s to under 1 s before the
   next new file ([benchmarks](../benchmarks.md#resuming-inside-a-very-large-folder)).
   A rescan is a new session, so every row is written as before.
+  *Amended in Slice 4.5:* a rescan now leaves an unchanged row alone too;
+  see below.
 - Status counts come from live queries during a scan and from stored
   counters afterwards. Skip counters can over-count slightly when a folder
   is replayed.
@@ -126,3 +128,28 @@ for cloud-offloaded files it would trigger a download.
   plugged in and 100 when slowed (ADR 0004, retuned in Slice 0.8).
   Unthrottled, a warm 30,000-file tree takes about 1.2 seconds on an M5
   Pro ([benchmarks](../benchmarks.md)).
+
+## Amendment: a rescan writes only what changed (Phase 4, Slice 4.5)
+
+*2026-11-13.* [ADR 0022](0022-automatic-rescans.md) has the decision; this
+records what it changes here.
+
+- **Unseen rows are found by missing candidates, not the session marker.**
+  When a folder is listed in full, the rows under it whose first name below
+  it wasn't in the listing go into `scan_missing` (migration 0016). At the
+  end they are marked missing, by this ADR's rules unchanged: only after a
+  complete scan, never under a folder that failed to list, never when the
+  root is unreachable. A failed folder records no candidates, so its
+  subtree is still protected. `last_seen_session_id` is written only on
+  the rows a scan writes.
+- **Counts come from the job row.** `discovered_files` is added to as each
+  folder completes; live progress reads it, not a count by marker.
+- **A scan begun before 4.5** (`origin` NULL) finishes by this ADR's
+  original rule, writing every row, so an upgrade mid-scan is correct.
+- **Commits are fewer.** A rescan holds a folder with nothing new in it in
+  memory and commits held folders together. Atlas stopping first loses
+  only their listing, as a kill always could: they are still pending.
+- **Failed folders are kept** as the scan's problems (`scan_problems`, up
+  to 200 a scan, for a folder's last 10 scans), where the frontier used to
+  delete them at the end.
+

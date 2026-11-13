@@ -7,7 +7,7 @@
 
 use rusqlite::{Connection, OptionalExtension, Row, params};
 
-use crate::domain::dto::{JobKind, JobState, PauseReason, ThrottleReason};
+use crate::domain::dto::{JobKind, JobState, PauseReason, ScanOrigin, ThrottleReason};
 use crate::services::catalog::codec::{from_db, opt_from_db, to_db};
 
 /// States that still have work to do or could resume.
@@ -49,6 +49,12 @@ pub struct JobRow {
     pub retry_count: u32,
     pub elapsed_ms: u64,
     pub last_error: Option<String>,
+    /// Why it was made; `None` for a job made before Slice 4.5, which a
+    /// scan finishes by Phase 0's rule.
+    pub origin: Option<ScanOrigin>,
+    pub new_files: u32,
+    pub changed_files: u32,
+    pub missing_files: u32,
 }
 
 /// Columns for [`job_from_row`]; the job table is aliased `s`, its source
@@ -56,7 +62,8 @@ pub struct JobRow {
 pub const JOB_COLUMNS: &str = "s.id, s.source_root_id, r.path_bytes, r.display_path, s.kind, \
      s.state, s.pause_reason, s.throttle_reason, s.started_at, s.finished_at, \
      s.scanned_directories, s.discovered_files, s.skipped_symlinks, s.skipped_entries, \
-     s.error_count, s.retry_count, s.elapsed_ms, s.last_error";
+     s.error_count, s.retry_count, s.elapsed_ms, s.last_error, s.origin, s.new_files, \
+     s.changed_files, s.missing_files";
 
 /// Decodes a row selected with [`JOB_COLUMNS`]. An unknown kind is an
 /// error, never mistaken for a scan (there is no CHECK constraint on it).
@@ -89,6 +96,10 @@ pub fn job_from_row(row: &Row) -> rusqlite::Result<JobRow> {
         retry_count: row.get(15)?,
         elapsed_ms: row.get::<_, i64>(16)?.max(0) as u64,
         last_error: row.get(17)?,
+        origin: opt_from_db(row.get(18)?),
+        new_files: row.get(19)?,
+        changed_files: row.get(20)?,
+        missing_files: row.get(21)?,
     })
 }
 
@@ -106,12 +117,18 @@ pub fn job(conn: &Connection, id: &str) -> rusqlite::Result<Option<JobRow>> {
 
 /// The next job of `kind` its runner should run: an interrupted running one
 /// first, then policy-paused, then queued, by priority and age.
+///
+/// A scan paused because its folder is unreachable waits outside the
+/// runner (Slice 4.5): the folder check queues it again when the folder
+/// comes back, so one unplugged drive never holds up the other folders.
 pub fn next_runnable(conn: &Connection, kind: JobKind) -> rusqlite::Result<Option<JobRow>> {
     conn.query_row(
         &format!(
             "SELECT {JOB_COLUMNS} FROM jobs s
              JOIN source_roots r ON r.id = s.source_root_id
              WHERE s.kind = ?1 AND s.state IN ('running', 'paused_policy', 'queued')
+               AND NOT (s.kind = 'scan' AND s.state = 'paused_policy'
+                        AND s.pause_reason = 'source_root_missing')
              ORDER BY s.priority DESC,
                       CASE s.state WHEN 'running' THEN 0 WHEN 'paused_policy' THEN 1 ELSE 2 END,
                       s.created_at, s.rowid
@@ -150,10 +167,22 @@ pub fn insert_job(
     kind: JobKind,
     now: &str,
 ) -> rusqlite::Result<()> {
+    insert_job_from(conn, id, root_id, kind, ScanOrigin::User, now)
+}
+
+/// A queued job, recording why it was made.
+pub fn insert_job_from(
+    conn: &Connection,
+    id: &str,
+    root_id: &str,
+    kind: JobKind,
+    origin: ScanOrigin,
+    now: &str,
+) -> rusqlite::Result<()> {
     conn.execute(
-        "INSERT INTO jobs (id, source_root_id, kind, state, created_at, updated_at)
-         VALUES (?1, ?2, ?3, 'queued', ?4, ?4)",
-        params![id, root_id, to_db(&kind), now],
+        "INSERT INTO jobs (id, source_root_id, kind, state, origin, created_at, updated_at)
+         VALUES (?1, ?2, ?3, 'queued', ?4, ?5, ?5)",
+        params![id, root_id, to_db(&kind), to_db(&origin), now],
     )
     .map(|_| ())
 }
@@ -239,6 +268,8 @@ pub fn drop_frontier(conn: &Connection, job_id: &str) -> rusqlite::Result<()> {
     conn.execute(
         "DELETE FROM scan_directories WHERE session_id = ?1",
         [job_id],
-    )
-    .map(|_| ())
+    )?;
+    // A cancelled scan marks nothing missing (Slice 4.5).
+    conn.execute("DELETE FROM scan_missing WHERE session_id = ?1", [job_id])
+        .map(|_| ())
 }

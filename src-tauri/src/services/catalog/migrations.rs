@@ -86,6 +86,11 @@ pub const MIGRATIONS: &[Migration] = &[
         name: "ocr_pages",
         sql: include_str!("../../../migrations/0015_ocr_pages.sql"),
     },
+    Migration {
+        version: 16,
+        name: "scan_history",
+        sql: include_str!("../../../migrations/0016_scan_history.sql"),
+    },
 ];
 
 /// Highest catalog schema version this build can read and write.
@@ -506,7 +511,7 @@ mod tests {
                     )
                     .unwrap();
                 }
-                assert_eq!(migrate(c, "t2").unwrap(), 15);
+                assert_eq!(migrate_to(c, 15, "t2").unwrap(), 15);
                 let rows: Vec<(String, i64, Option<i64>)> = c
                     .prepare("SELECT id, refresh, text_pages FROM documents ORDER BY id")
                     .unwrap()
@@ -523,6 +528,58 @@ mod tests {
                     ],
                     "only the scanned PDF is read again"
                 );
+            })
+            .unwrap();
+    }
+
+    #[test]
+    fn version_16_starts_scan_history_and_keeps_a_scan_in_progress_counting() {
+        use crate::services::catalog::writer::CatalogWriter;
+
+        let dir = tempfile::tempdir().unwrap();
+        let writer = CatalogWriter::open(&dir.path().join("catalog.sqlite")).unwrap();
+        writer
+            .call(|c| {
+                assert_eq!(migrate_to(c, 15, "t").unwrap(), 15);
+                c.execute_batch(
+                    "INSERT INTO workspace (id, name, created_at) VALUES ('w', 'W', 't');
+                     INSERT INTO source_roots (id, workspace_id, path_bytes, display_path, created_at)
+                         VALUES ('r', 'w', x'00', '/b', 't');
+                     INSERT INTO jobs (id, source_root_id, state, kind, created_at, updated_at, discovered_files)
+                         VALUES ('old', 'r', 'completed', 'scan', 't', 't', 7),
+                                ('live', 'r', 'paused_user', 'scan', 't', 't', 0);",
+                )
+                .unwrap();
+                for (id, session) in [("f1", "live"), ("f2", "live"), ("f3", "old")] {
+                    c.execute(
+                        "INSERT INTO file_instances (id, source_root_id, rel_path, display_path,
+                             display_name, extension, file_type, availability,
+                             last_seen_session_id, created_at, updated_at)
+                         VALUES (?1, 'r', CAST(?1 AS BLOB), ?1, ?1, 'pdf', 'pdf', 'available', ?2, 't', 't')",
+                        rusqlite::params![id, session],
+                    )
+                    .unwrap();
+                }
+                assert_eq!(migrate_to(c, 16, "t2").unwrap(), 16);
+                let jobs: Vec<(String, Option<String>, i64, i64)> = c
+                    .prepare("SELECT id, origin, discovered_files, new_files FROM jobs ORDER BY id")
+                    .unwrap()
+                    .query_map([], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?)))
+                    .unwrap()
+                    .map(Result::unwrap)
+                    .collect();
+                // The finished scan keeps its count; the one in progress
+                // counts what it had written; neither has an origin.
+                assert_eq!(
+                    jobs,
+                    vec![("live".into(), None, 2, 0), ("old".into(), None, 7, 0)]
+                );
+                for table in ["scan_missing", "scan_problems"] {
+                    let n: i64 = c
+                        .query_row(&format!("SELECT COUNT(*) FROM {table}"), [], |r| r.get(0))
+                        .unwrap();
+                    assert_eq!(n, 0);
+                }
             })
             .unwrap();
     }

@@ -251,13 +251,20 @@ fn p1_01_upgrade_keeps_a_paused_scan_and_its_frontier() {
             .map(|v| vec![Value::Integer(v)])
             .collect::<Vec<_>>()
     );
-    // The same row, every column, now with a kind.
+    // The same row, every column, now with a kind; and (Slice 4.5) its
+    // count of files found so far kept on the row, as the scan showed it.
+    let mut job_expected = job_before.clone();
+    let found = job_columns
+        .split(", ")
+        .position(|c| c == "discovered_files")
+        .unwrap();
+    job_expected[0][found] = Value::Integer(1);
     assert_eq!(
         query(
             root,
             format!("SELECT {job_columns} FROM jobs WHERE kind = 'scan'")
         ),
-        job_before
+        job_expected
     );
     assert_eq!(
         query(root, "SELECT kind FROM jobs WHERE id = 'job-6'"),

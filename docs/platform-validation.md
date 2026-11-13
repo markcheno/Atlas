@@ -1368,6 +1368,82 @@ Memory shows yellow), it reads "… · Going slowly · The computer is busy".
 ([43351102234](https://github.com/markcheno/Atlas/actions/runs/43351102234))
 is green on three OSes at the first attempt.
 
+## Slice 4.5
+
+Automatic rescans and the scan UI ([ADR 0022](adr/0022-automatic-rescans.md)).
+The catalog migrates to version 16 (`scan_history`).
+
+**Verified locally (macOS arm64, M5 Pro):**
+
+- **P4-11** (`tests/rescan.rs`):
+  - a rescan of an unchanged folder writes no `file_instances` row
+    (counted by a trigger);
+  - then one new, one changed, one moved, one deleted and one cloud-only
+    file are each found, with the new, changed and missing counts equal to
+    the changes;
+  - a folder that can't be read keeps its files and is recorded as a
+    problem;
+  - Rescan resumes a scan the user paused, and Check all skips what is
+    away;
+  - a rescan killed part-way (`tests/inventory_crash.rs`, SIGKILL, with
+    work held in memory) resumes and marks exactly the deleted files
+    missing, counts 5 new, 5 changed and 10 missing once, and keeps every
+    row's ID.
+- **P4-12** (`tests/auto_check.rs`, with a `TestClock`):
+  - due cases: at launch, by the interval, a returning drive;
+  - not due: the setting off, a folder already scanning, a cancel, a pause
+    under the resource policy, an unreachable folder;
+  - one scan queued in each due case, never two of one folder;
+  - a folder that is away doesn't block another folder's scan.
+- **The held-work rule** (`inventory/db.rs` unit test): a batch with
+  nothing new writes nothing, and its folders, counts, changed files and
+  missing candidates are written with the next commit.
+- **The earlier suites** (inventory, the kill mid-scan, jobs, extraction,
+  refresh, duplicates, knowledge) pass. Three tests were updated for 4.5:
+  - the migration of a paused Phase 0 scan now counts what it had found;
+  - P4-04 also undoes migration 0016;
+  - the never-scanned folder test turns the checker off.
+- **Vitest:**
+  - folder lines for every outcome;
+  - per-folder Pause, Resume and Cancel, and no Rescan while scanning;
+  - Check all;
+  - Recent checks and Couldn't read;
+  - the status bar's All activity, and Atlas's own check named as such;
+  - a failed control's error staying shown;
+  - the Settings radio;
+  - the copy functions (`inventoryCopy.test.ts`).
+- **The rescan benchmark** at 30,006 files
+  ([benchmarks](benchmarks.md#rescans-slice-45)).
+
+**CI on `slice-45`:** the full run
+([43457155317](https://github.com/markcheno/Atlas/actions/runs/43457155317))
+is green on three OSes, smoke tests and release bundles included. The macOS
+release bundle passed when rerun: its runner had stalled before its first
+step. Earlier runs on the branch found three problems, all fixed:
+
+- the smoke test looked for the status bar's Pause button by its missing
+  label;
+- one Linux run hung in the Rust tests and was cancelled with no log. Scans
+  now use the workspace's clock, which the folder checker reads, and the
+  Rust test step has its own 20-minute limit, so a hang keeps its log;
+- bindings written by a test binary run outside cargo were committed.
+
+**For the product owner, on the installed build:**
+
+1. Settings › Performance & Battery shows **Check folders for changes**,
+   set to Every 6 hours.
+2. Each library folder says "Checked … ago". After a check: "No changes",
+   or what was new, changed or missing.
+3. Add a PDF to a folder in Finder and press **Check all folders now**:
+   the folder's line says "1 new" and the file is in the Library.
+4. Unplug a drive that holds a library folder: its row says "Not
+   connected · Atlas checks it when it's back", and other folders can still
+   be rescanned. Plug it back in: within a minute or so it is checked by
+   itself.
+5. **Recent checks** on a folder lists its checks, with who started each.
+6. While a folder is cataloged, its row has Pause and Cancel, and the
+   status bar's **All activity** lists every folder that is busy.
+
 ## Slice 4.2
 
 The OCR spike ([write-up](spike-ocr.md), [ADR 0020](adr/0020-ocr-engine.md)),

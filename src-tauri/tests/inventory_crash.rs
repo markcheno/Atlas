@@ -136,3 +136,154 @@ fn p0_08_kill_mid_scan_then_resume() {
         .unwrap();
     assert_eq!(ok, "ok");
 }
+
+const RESCAN_ENV: &str = "ATLAS_TEST_RESCAN_DIR";
+
+/// Child half of the rescan kill: reopen the library and rescan slowly
+/// until killed. Ignored unless run by the parent.
+#[test]
+#[ignore = "run only as the child of p4_11_kill_mid_rescan_then_resume"]
+fn p4_11_child_process() {
+    let Ok(dir) = std::env::var(RESCAN_ENV) else {
+        return;
+    };
+    let dir = PathBuf::from(dir);
+    let (mut ws, _h) = workspace(
+        &dir,
+        InventoryConfig {
+            unthrottled: false,
+            rate_override: Some(40),
+            ..fast_config()
+        },
+    );
+    ws.startup();
+    let root = ws.require_open().unwrap();
+    let folder = sources::list(root).unwrap().remove(0);
+    control::rescan(root, &folder.id).unwrap();
+    loop {
+        std::thread::sleep(Duration::from_secs(1));
+    }
+}
+
+/// Slice 4.5: a rescan killed part-way, with its unchanged work held in
+/// memory, resumes and finds exactly what changed, counted once, with
+/// every row's ID kept.
+#[test]
+fn p4_11_kill_mid_rescan_then_resume() {
+    let tmp = tempfile::tempdir().unwrap();
+    let dir = tmp.path().to_path_buf();
+    let book = |i: usize| dir.join(format!("Books/shelf-{:02}/book-{i:05}.pdf", i % 30));
+    for i in 0..FILES {
+        fs::create_dir_all(book(i).parent().unwrap()).unwrap();
+        fs::write(book(i), b"%PDF").unwrap();
+    }
+    {
+        let (mut ws, _h) = workspace(&dir, fast_config());
+        ws.choose(&dir.join("AtlasData")).unwrap();
+        let root = ws.require_open().unwrap();
+        let added = sources::add(root, &dir.join("Books")).unwrap();
+        control::enqueue(root, &added.id).unwrap();
+        assert!(wait_until(Duration::from_secs(60), || {
+            control::overview(ws.require_open().unwrap()).is_ok_and(|o| {
+                o.active.is_none() && o.roots[0].last_state == Some(JobState::Completed)
+            })
+        }));
+    }
+    let before = rows(&dir);
+    assert_eq!(before.len(), FILES);
+
+    // Ten deleted (shelf 0), five changed (shelf 15), five new (shelf 29).
+    for i in (0..300).step_by(30) {
+        fs::remove_file(book(i)).unwrap();
+    }
+    for i in (15..165).step_by(30) {
+        fs::write(book(i), b"%PDF-1.7 edited").unwrap();
+    }
+    for n in 0..5 {
+        fs::write(dir.join(format!("Books/shelf-29/new-{n}.pdf")), b"%PDF").unwrap();
+    }
+
+    let mut child = Command::new(std::env::current_exe().unwrap())
+        .args(["p4_11_child_process", "--exact", "--ignored", "--nocapture"])
+        .env(RESCAN_ENV, &dir)
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .spawn()
+        .unwrap();
+    let rescan_running = || {
+        rusqlite::Connection::open_with_flags(
+            catalog_path(&dir),
+            rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY,
+        )
+        .and_then(|c| {
+            c.query_row(
+                "SELECT COUNT(*) FROM jobs WHERE kind = 'scan' AND origin = 'user'
+                   AND state = 'running'",
+                [],
+                |r| r.get::<_, i64>(0),
+            )
+        })
+        .is_ok_and(|n| n == 1)
+    };
+    let started = wait_until(Duration::from_secs(30), rescan_running);
+    std::thread::sleep(Duration::from_millis(1_500));
+    child.kill().unwrap();
+    child.wait().unwrap();
+    assert!(started, "child never started the rescan");
+    assert!(
+        rescan_running(),
+        "kill landed after the rescan finished; slow the child down"
+    );
+
+    let (mut ws, _h) = workspace(&dir, fast_config());
+    ws.startup();
+    let done = wait_until(Duration::from_secs(60), || {
+        control::overview(ws.require_open().unwrap())
+            .is_ok_and(|o| o.active.is_none() && o.roots[0].last_state == Some(JobState::Completed))
+    });
+    assert!(done, "rescan did not complete after restart");
+
+    let after = rows(&dir);
+    assert_eq!(after.len(), FILES + 5, "the new files, each once");
+    for (rel, id) in &before {
+        assert_eq!(after.get(rel), Some(id), "IDs from before are kept");
+    }
+    let (missing, counts): (Vec<String>, (i64, i64, i64)) = ws
+        .require_open()
+        .unwrap()
+        .catalog()
+        .call(|c| {
+            let mut stmt = c
+                .prepare(
+                    "SELECT display_name FROM file_instances WHERE availability = 'missing'
+                     ORDER BY display_name",
+                )
+                .unwrap();
+            let missing = stmt
+                .query_map([], |r| r.get(0))
+                .unwrap()
+                .collect::<Result<Vec<String>, _>>()
+                .unwrap();
+            let counts = c
+                .query_row(
+                    // The rescan: the latest scan.
+                    "SELECT new_files, changed_files, missing_files FROM jobs
+                     WHERE kind = 'scan' ORDER BY rowid DESC LIMIT 1",
+                    [],
+                    |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
+                )
+                .unwrap();
+            (missing, counts)
+        })
+        .unwrap();
+    let expected: Vec<String> = (0..300)
+        .step_by(30)
+        .map(|i| format!("book-{i:05}.pdf"))
+        .collect();
+    assert_eq!(missing, expected, "exactly the deleted files are missing");
+    assert_eq!(
+        counts,
+        (5, 5, 10),
+        "each change counted once across the kill"
+    );
+}

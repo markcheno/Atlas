@@ -407,6 +407,21 @@ pub enum JobKind {
     Embed,
 }
 
+/// Why a scan was made (Slice 4.5): shown in a folder's recent checks.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "snake_case")]
+#[ts(export)]
+pub enum ScanOrigin {
+    /// The folder was added.
+    Added,
+    /// The folder had never been scanned, and the library opened.
+    Launch,
+    /// Rescan, or Check all folders now.
+    User,
+    /// Atlas's own check: on its interval, at launch, or a drive returning.
+    Automatic,
+}
+
 // ------------------------------------------------------------ extraction
 
 /// A file's text status as the Library shows it (phase1-spec §5.3).
@@ -483,6 +498,8 @@ pub struct RootExtractionSummary {
     pub counts: ExtractionCounts,
     pub last_state: Option<JobState>,
     pub active_job_id: Option<RecordId>,
+    /// The state of the reading job in progress, if any (Slice 4.5).
+    pub active_state: Option<JobState>,
     /// The fixed code of the folder's latest job, when it ended for good:
     /// `extractor_unavailable`, `worker_protocol`, `path_undecodable`
     /// (Slice 4.1).
@@ -563,6 +580,8 @@ pub struct RootEmbeddingSummary {
     pub source_root_id: RecordId,
     pub counts: EmbeddingCounts,
     pub active_job_id: Option<RecordId>,
+    /// The state of the meaning job in progress, if any (Slice 4.5).
+    pub active_state: Option<JobState>,
     /// Why indexing this folder's meaning stopped for good (the code of
     /// its latest job, while that job is the failed one): `provider_auth`,
     /// `model_not_found`, `model_changed`, `address_rejected`,
@@ -1134,6 +1153,8 @@ pub struct InventoryStatus {
     pub elapsed_ms: u64,
     pub started_at: Option<String>,
     pub finished_at: Option<String>,
+    /// Why the scan was made (Slice 4.5); `None` before 4.5.
+    pub origin: Option<ScanOrigin>,
     /// Stable code of the most recent problem, if any.
     pub last_error: Option<String>,
 }
@@ -1152,6 +1173,46 @@ pub struct RootInventorySummary {
     pub last_scan_at: Option<String>,
     pub last_state: Option<JobState>,
     pub active_job_id: Option<RecordId>,
+    /// The state of the scan in progress, if any (Slice 4.5).
+    pub active_state: Option<JobState>,
+    /// The folder's latest scan that ended, however it ended (Slice 4.5).
+    pub last_scan: Option<ScanRecord>,
+}
+
+/// One scan of a folder, for its recent checks (Slice 4.5).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct ScanRecord {
+    pub job_id: RecordId,
+    /// `None` for scans made before Slice 4.5.
+    pub origin: Option<ScanOrigin>,
+    pub state: JobState,
+    pub started_at: Option<String>,
+    pub finished_at: Option<String>,
+    #[ts(type = "number")]
+    pub elapsed_ms: u64,
+    pub discovered_files: u32,
+    /// What the scan found. Zero for scans made before Slice 4.5, which
+    /// didn't count.
+    pub new_files: u32,
+    pub changed_files: u32,
+    pub missing_files: u32,
+    /// Folders it couldn't read ([`ScanProblem`]).
+    pub problems: u32,
+    /// Why it stopped, when it failed: a fixed code.
+    pub last_error: Option<String>,
+}
+
+/// A folder a scan couldn't read, and why (Slice 4.5).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct ScanProblem {
+    pub display_path: String,
+    /// `permission_denied`, `cloud_listing_timed_out`, `not_found`,
+    /// `not_a_folder`, `read_failed`, `path_undecodable`.
+    pub code: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize, TS)]
@@ -1166,6 +1227,8 @@ pub struct InventoryOverview {
     pub missing_files: u32,
     pub cloud_only_files: u32,
     pub roots: Vec<RootInventorySummary>,
+    /// Every scan scheduled, `active` first (Slice 4.5).
+    pub active_jobs: Vec<InventoryStatus>,
 }
 
 // --------------------------------------------------------- model providers
@@ -1586,6 +1649,59 @@ pub struct AppearanceSettings {
 pub struct Settings {
     pub appearance: AppearanceSettings,
     pub privacy: PrivacySettings,
+    /// Settings › Performance & Battery (Phase 4, from Slice 4.5).
+    pub background: BackgroundSettings,
+}
+
+/// When background work runs (phase4-spec §6.3). Slice 4.5 adds the folder
+/// check; 4.6 adds the rest.
+#[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase", default)]
+#[ts(export)]
+pub struct BackgroundSettings {
+    /// How often Atlas checks every folder for changes by itself. A value
+    /// this build doesn't know reads as the default, so it can't reset the
+    /// rest of the file.
+    pub check_folders: CheckFolders,
+}
+
+/// "Check folders for changes" (phase4-spec §5.4). Read leniently: a value
+/// this build doesn't know is the default.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub enum CheckFolders {
+    Hourly,
+    #[default]
+    SixHours,
+    Daily,
+    /// "Only when I ask": no automatic checks at all.
+    Never,
+}
+
+impl CheckFolders {
+    /// How long a folder's last complete scan stays fresh; `None` never
+    /// goes stale.
+    pub fn interval(self) -> Option<std::time::Duration> {
+        let hours = match self {
+            Self::Hourly => 1,
+            Self::SixHours => 6,
+            Self::Daily => 24,
+            Self::Never => return None,
+        };
+        Some(std::time::Duration::from_secs(hours * 3600))
+    }
+}
+
+impl<'de> Deserialize<'de> for CheckFolders {
+    fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        Ok(match serde_json::Value::deserialize(d)?.as_str() {
+            Some("hourly") => Self::Hourly,
+            Some("daily") => Self::Daily,
+            Some("never") => Self::Never,
+            _ => Self::SixHours,
+        })
+    }
 }
 
 /// Settings › Privacy (phase2-spec §5.7, ADR 0015). Services on this

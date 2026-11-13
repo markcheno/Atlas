@@ -107,6 +107,9 @@ jobs:
           rust-shared-key: check
 
       - name: Rust format, clippy, tests
+        # Its own limit, under the job's: a test that hangs then fails this
+        # step with its log kept, where a cancelled job keeps none.
+        timeout-minutes: 20
         run: pnpm check:rust
         env:
           # P3-23's link cases must run on Windows, not skip unseen (Slice 3.9).
@@ -165,6 +168,9 @@ jobs:
           rust-shared-key: check
 
       - name: Rust format, clippy, tests
+        # Its own limit, under the job's: a test that hangs then fails this
+        # step with its log kept, where a cancelled job keeps none.
+        timeout-minutes: 20
         run: pnpm check:rust
         env:
           # P3-23's link cases must run on Windows, not skip unseen (Slice 3.9).

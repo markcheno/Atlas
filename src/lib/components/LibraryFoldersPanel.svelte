@@ -2,7 +2,9 @@
   import { onMount } from 'svelte';
   import type { SourceRoot } from '../api/bindings/SourceRoot';
   import { rootTextLine } from '../extractionCopy';
-  import { rootLine } from '../inventoryCopy';
+  import { awayText, lastCheckLine, rootLine } from '../inventoryCopy';
+  import { appInfo } from '../stores/app.svelte';
+  import FolderChecks from './FolderChecks.svelte';
   import { extraction } from '../stores/extraction.svelte';
   import { embedding } from '../stores/embedding.svelte';
   import { rootMeaningLine } from '../embeddingCopy';
@@ -15,26 +17,48 @@
   let { removable = false, primary = false }: { removable?: boolean; primary?: boolean } = $props();
 
   let confirmingId = $state<string | null>(null);
+  /** Relative times ("Checked 2 h ago") move on while the list is open. */
+  let now = $state(Date.now());
+  let lastSourcesRefresh = 0;
 
   // Availability is live (drives come and go), so re-check whenever the
-  // list is shown.
+  // list is shown, and again (at most every 5 s) when cataloging reports a
+  // change, as the folder check does when a drive comes or goes.
   onMount(() => {
     sources.refresh();
+    lastSourcesRefresh = Date.now();
+    const tick = setInterval(() => (now = Date.now()), 60_000);
+    return () => clearInterval(tick);
+  });
+  $effect(() => {
+    void inventory.overview;
+    if (Date.now() - lastSourcesRefresh < 5_000) return;
+    lastSourcesRefresh = Date.now();
+    void sources.refresh();
   });
 
+  /** A symbol beside the word, so the state is never colour alone. */
   function statusText(root: SourceRoot): string {
     if (root.nestedInRootId) {
       const outer = sources.displayName(root.nestedInRootId);
-      return outer ? `Inside “${folderName(outer)}”` : 'Inside another folder';
+      return outer ? `↳ Inside “${folderName(outer)}”` : '↳ Inside another folder';
     }
     switch (root.status) {
       case 'available':
-        return 'Available';
+        return '● Available';
       case 'unavailable':
-        return 'Not connected';
+        return '○ Not connected';
       case 'no_access':
-        return 'Atlas needs permission';
+        return '⚠ Atlas needs permission';
     }
+  }
+
+  function summaryFor(id: string) {
+    return inventory.overview?.roots.find((r) => r.sourceRootId === id);
+  }
+
+  function activeFor(id: string) {
+    return inventory.overview?.activeJobs.find((j) => j.sourceRootId === id) ?? null;
   }
 
   async function confirmRemove(id: string) {
@@ -56,11 +80,17 @@
             {/if}
             {#if !root.nestedInRootId}
               <span class="muted small" data-testid="root-line">
-                {rootLine(
-                  inventory.overview?.roots.find((r) => r.sourceRootId === root.id),
-                  inventory.overview,
-                )}
+                {rootLine(summaryFor(root.id), inventory.overview, now)}
               </span>
+              {#if awayText(root.status, appInfo.status?.os)}
+                <span class="small" data-testid="root-away-line">
+                  {awayText(root.status, appInfo.status?.os)}
+                </span>
+              {:else if !activeFor(root.id) && lastCheckLine(summaryFor(root.id))}
+                <span class="muted small" data-testid="root-check-line">
+                  {lastCheckLine(summaryFor(root.id))}
+                </span>
+              {/if}
               {#if rootTextLine(extraction.overview, root.id)}
                 <span class="muted small" data-testid="root-text-line">
                   {rootTextLine(extraction.overview, root.id)}
@@ -76,15 +106,48 @@
           <span class="badge" data-status={root.nestedInRootId ? 'nested' : root.status}>
             {statusText(root)}
           </span>
-          {#if !root.nestedInRootId && root.status === 'available'}
+          {#if !root.nestedInRootId && activeFor(root.id)}
+            {@const job = activeFor(root.id)!}
+            {#if job.state === 'paused_user'}
+              <button
+                type="button"
+                class="button quiet"
+                aria-label={`Resume cataloging ${folderName(root.displayPath)}`}
+                onclick={() => inventory.resume(job.jobId)}
+              >
+                Resume
+              </button>
+            {:else}
+              <button
+                type="button"
+                class="button quiet"
+                aria-label={`Pause cataloging ${folderName(root.displayPath)}`}
+                onclick={() => inventory.pause(job.jobId)}
+              >
+                Pause
+              </button>
+            {/if}
             <button
               type="button"
               class="button quiet"
-              aria-label={`Rescan ${folderName(root.displayPath)}`}
-              onclick={() => inventory.rescan(root.id)}
+              aria-label={`Cancel cataloging ${folderName(root.displayPath)}`}
+              title="Stop cataloging this folder. Files found so far stay in your library."
+              onclick={() => inventory.cancel(job.jobId)}
             >
-              Rescan
+              Cancel
             </button>
+          {/if}
+          {#if !root.nestedInRootId && root.status === 'available'}
+            {#if !activeFor(root.id)}
+              <button
+                type="button"
+                class="button quiet"
+                aria-label={`Rescan ${folderName(root.displayPath)}`}
+                onclick={() => inventory.rescan(root.id)}
+              >
+                Rescan
+              </button>
+            {/if}
             <button
               type="button"
               class="button quiet"
@@ -126,6 +189,15 @@
               </button>
             {/if}
           {/if}
+          {#if !root.nestedInRootId}
+            <div class="checks">
+              <FolderChecks
+                summary={summaryFor(root.id)}
+                name={folderName(root.displayPath)}
+                {now}
+              />
+            </div>
+          {/if}
         </li>
       {/each}
     </ul>
@@ -144,6 +216,16 @@
     />
   {/each}
 
+  {#each [inventory.actionError, extraction.actionError, embedding.actionError] as problem, i (i)}
+    {#if problem}
+      <ProblemNotice
+        title="That didn't work"
+        message={problem.message}
+        recovery={problem.recovery}
+      />
+    {/if}
+  {/each}
+
   {#if sources.error}
     <ProblemNotice
       title="That didn't work"
@@ -152,7 +234,7 @@
     />
   {/if}
 
-  <div>
+  <div class="actions">
     <button
       type="button"
       class="button"
@@ -162,6 +244,11 @@
     >
       Add folders…
     </button>
+    {#if sources.roots.some((r) => !r.nestedInRootId)}
+      <button type="button" class="button quiet" onclick={() => inventory.checkAll()}>
+        Check all folders now
+      </button>
+    {/if}
   </div>
 </div>
 
@@ -222,6 +309,18 @@
   .badge[data-status='unavailable'],
   .badge[data-status='no_access'] {
     background: var(--notice-bg);
+  }
+
+  .checks {
+    flex: 1 1 100%;
+    display: grid;
+    gap: var(--space-1);
+  }
+
+  .actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
   }
 
   .confirm {

@@ -11,6 +11,7 @@ use std::time::Duration;
 use atlas_lib::domain::dto::{
     JobKind, JobState, KnowledgeState, PauseReason, PolicyMode, PowerSource,
 };
+use atlas_lib::services::catalog::migrations::SUPPORTED_SCHEMA_VERSION;
 use atlas_lib::services::diagnostics::event::{FailureReason, PauseBy, WorkerRole};
 use atlas_lib::services::diagnostics::report::{self, Inputs, KnowledgeSummary, Report};
 use atlas_lib::services::diagnostics::{self, Diagnostics, Event, LOGS_DIR, LogLine};
@@ -410,7 +411,7 @@ fn p4_03_the_report_counts_what_the_library_holds() {
         )
     );
     assert_eq!(lib.jobs.get("scan.completed"), Some(&1));
-    assert_eq!(r.versions.catalog_schema, 15);
+    assert_eq!(r.versions.catalog_schema, SUPPORTED_SCHEMA_VERSION);
     assert_eq!(r.knowledge.state, KnowledgeState::Ready);
     assert_eq!(r.knowledge.status.as_ref().unwrap().trails, 0);
     assert!(r.storage.as_ref().unwrap().log_bytes > 0);

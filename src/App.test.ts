@@ -241,6 +241,7 @@ describe('main shell', () => {
             recordTrails: true,
             expireTrails: true,
           },
+          background: { checkFolders: 'sixHours' },
         },
       }),
     );
@@ -298,7 +299,7 @@ describe('library folders', () => {
     await user.click(screen.getByRole('button', { name: 'Add folders…' }));
     const list = await screen.findByRole('list', { name: 'Library folders' });
     expect(within(list).getByText('Books')).toBeInTheDocument();
-    expect(within(list).getByText('Available')).toBeInTheDocument();
+    expect(within(list).getByText('● Available')).toBeInTheDocument();
     expect(screen.getByText('Not added: Astronomy')).toBeInTheDocument();
     expect(
       screen.getByText(/overlaps a folder already in your library\. \(“Books”\)/),
@@ -336,9 +337,9 @@ describe('library folders', () => {
       tauri.sourceRoot({ id: 'home', displayPath: '/Users/test', containsDataRoot: true }),
     ]);
     await launchOpen();
-    expect(screen.getByText('Not connected')).toBeInTheDocument();
-    expect(screen.getByText('Atlas needs permission')).toBeInTheDocument();
-    expect(screen.getByText('Inside “Library”')).toBeInTheDocument();
+    expect(screen.getByText('○ Not connected')).toBeInTheDocument();
+    expect(screen.getByText('⚠ Atlas needs permission')).toBeInTheDocument();
+    expect(screen.getByText('↳ Inside “Library”')).toBeInTheDocument();
     expect(screen.getByText(/own data folder inside it will be skipped/)).toBeInTheDocument();
   });
 
@@ -545,29 +546,32 @@ describe('cataloging status', () => {
             lastScanAt: new Date(Date.now() - 5 * 60_000).toISOString(),
             lastState: 'completed',
             activeJobId: null,
+            activeState: null,
+            lastScan: null,
           },
         ],
       }),
     );
     expect(status()).toHaveTextContent('Up to date · 1,204 files');
     expect(screen.getByTestId('root-line')).toHaveTextContent(
-      '1,204 files · Updated 5 min ago · 12 only in the cloud · 3 missing',
+      '1,204 files · Checked 5 min ago · 12 only in the cloud · 3 missing',
     );
   });
 
   it('Pause, Resume, and Cancel call the right commands', async () => {
     const user = await launchWith(tauri.overview({ active: tauri.inventoryStatus() }));
-    await user.click(screen.getByRole('button', { name: 'Pause' }));
+    const bar = within(screen.getByRole('contentinfo', { name: 'Status' }));
+    await user.click(bar.getByRole('button', { name: 'Pause cataloging' }));
     expect(tauri.invoke).toHaveBeenCalledWith('pause_job', { jobId: 'job-1' });
 
     events.emit(
       'inventory-status',
       tauri.overview({ active: tauri.inventoryStatus({ state: 'paused_user' }) }),
     );
-    await user.click(await screen.findByRole('button', { name: 'Resume' }));
+    await user.click(await bar.findByRole('button', { name: 'Resume cataloging' }));
     expect(tauri.invoke).toHaveBeenCalledWith('resume_job', { jobId: 'job-1' });
 
-    await user.click(screen.getByRole('button', { name: 'Cancel' }));
+    await user.click(bar.getByRole('button', { name: 'Cancel cataloging' }));
     expect(tauri.invoke).toHaveBeenCalledWith('cancel_job', { jobId: 'job-1' });
   });
 
@@ -817,6 +821,7 @@ describe('reading text', () => {
       counts,
       lastState: 'failed_terminal' as const,
       activeJobId: null,
+      activeState: null,
       failedBecause,
     });
     await launchWith(tauri.extractionOverview({ counts, roots: [root('worker_protocol')] }));
@@ -875,6 +880,7 @@ describe('reading text', () => {
             counts,
             lastState: 'paused_user',
             activeJobId: 'extract-1',
+            activeState: 'paused_user',
             failedBecause: null,
           },
         ],
@@ -1951,7 +1957,7 @@ describe('status bar with both jobs', () => {
     const bar = within(screen.getByRole('contentinfo', { name: 'Status' }));
     expect(screen.getByTestId('inventory-status')).toBeInTheDocument();
     expect(screen.getByTestId('extraction-status')).toBeInTheDocument();
-    expect(bar.getByRole('button', { name: 'Pause' })).toBeInTheDocument();
+    expect(bar.getByRole('button', { name: 'Pause cataloging' })).toBeInTheDocument();
     await user.click(bar.getByRole('button', { name: 'Pause reading text' }));
     expect(tauri.invoke).toHaveBeenCalledWith('pause_job', { jobId: 'extract-1' });
   });
@@ -2323,7 +2329,15 @@ describe('indexing meaning', () => {
     const user = await launchWith(
       withModel({
         active: tauri.embeddingStatus(),
-        roots: [{ sourceRootId: 'root-books', counts, activeJobId: null, failedBecause: null }],
+        roots: [
+          {
+            sourceRootId: 'root-books',
+            counts,
+            activeJobId: null,
+            activeState: null,
+            failedBecause: null,
+          },
+        ],
       }),
     );
     expect(screen.getByTestId('meaning-note')).toHaveTextContent(
@@ -2340,7 +2354,9 @@ describe('indexing meaning', () => {
   // good isn't active, and the line said only "Meaning waiting".
   const stopped = (failedBecause: string) =>
     withModel({
-      roots: [{ sourceRootId: 'root-books', counts, activeJobId: null, failedBecause }],
+      roots: [
+        { sourceRootId: 'root-books', counts, activeJobId: null, activeState: null, failedBecause },
+      ],
     });
 
   it('says why indexing stopped for good, and sends the owner to Settings', async () => {
@@ -2368,7 +2384,15 @@ describe('indexing meaning', () => {
   it('still says waiting when nothing stopped, and nothing once a stop has no file left', async () => {
     await launchWith(
       withModel({
-        roots: [{ sourceRootId: 'root-books', counts, activeJobId: null, failedBecause: null }],
+        roots: [
+          {
+            sourceRootId: 'root-books',
+            counts,
+            activeJobId: null,
+            activeState: null,
+            failedBecause: null,
+          },
+        ],
       }),
     );
     expect(line()).toHaveTextContent('Meaning waiting · 3 of 10 files indexed');
@@ -2382,6 +2406,7 @@ describe('indexing meaning', () => {
             sourceRootId: 'root-books',
             counts: done,
             activeJobId: null,
+            activeState: null,
             failedBecause: 'model_not_found',
           },
         ],
@@ -2413,6 +2438,7 @@ describe('indexing meaning', () => {
             recordTrails: true,
             expireTrails: true,
           },
+          background: { checkFolders: 'sixHours' },
         },
       }),
     );
@@ -2429,6 +2455,7 @@ describe('indexing meaning', () => {
             recordTrails: true,
             expireTrails: true,
           },
+          background: { checkFolders: 'sixHours' },
         },
       }),
     );
@@ -2454,6 +2481,7 @@ describe('indexing meaning', () => {
             recordTrails: true,
             expireTrails: true,
           },
+          background: { checkFolders: 'sixHours' },
         },
       }),
     );
@@ -2493,6 +2521,7 @@ describe('indexing meaning', () => {
             recordTrails: true,
             expireTrails: true,
           },
+          background: { checkFolders: 'sixHours' },
         },
       }),
     );
@@ -4543,5 +4572,194 @@ describe('diagnostics (Slice 4.1)', () => {
     await user.click(section.getByRole('button', { name: 'Save a diagnostics report' }));
     expect(await section.findByText('Atlas couldn’t save the report')).toBeInTheDocument();
     expect(section.queryByTestId('report-saved')).not.toBeInTheDocument();
+  });
+});
+
+describe('folder checks (Slice 4.5)', () => {
+  beforeEach(resetAll);
+
+  const books = () => tauri.sourceRoot({ id: 'root-books', displayPath: '/Users/test/Books' });
+  const papers = () => tauri.sourceRoot({ id: 'root-papers', displayPath: '/Users/test/Papers' });
+  const checked = (lastScan = tauri.scanRecord()) =>
+    tauri.rootSummary({
+      fileCount: 12,
+      lastScanAt: new Date(Date.now() - 2 * 3_600_000).toISOString(),
+      lastState: lastScan.state,
+      lastScan,
+    });
+  const folders = () => screen.getByRole('list', { name: 'Library folders' });
+
+  it('a folder row says what its last check found', async () => {
+    tauri.setHandler('list_source_roots', () => [books()]);
+    tauri.setHandler('get_inventory_status', () =>
+      tauri.overview({
+        roots: [checked(tauri.scanRecord({ newFiles: 3, changedFiles: 1, missingFiles: 2 }))],
+      }),
+    );
+    await launchOpen();
+    expect(screen.getByTestId('root-line')).toHaveTextContent('12 files · Checked 2 h ago');
+    expect(screen.getByTestId('root-check-line')).toHaveTextContent(
+      '3 new · 1 changed · 2 missing',
+    );
+  });
+
+  it('a folder that is away says so, and what happens next', async () => {
+    tauri.setHandler('list_source_roots', () => [
+      tauri.sourceRoot({ displayPath: '/Volumes/Old/Papers', status: 'unavailable' }),
+    ]);
+    await launchOpen();
+    expect(screen.getByTestId('root-away-line')).toHaveTextContent(
+      "Not connected · Atlas checks it when it's back",
+    );
+    expect(within(folders()).queryByRole('button', { name: /Rescan/ })).not.toBeInTheDocument();
+  });
+
+  it('a scanning folder has its own Pause, Resume and Cancel, and no Rescan', async () => {
+    tauri.setHandler('list_source_roots', () => [books(), papers()]);
+    const active = tauri.inventoryStatus({ jobId: 'job-p', sourceRootId: 'root-papers' });
+    tauri.setHandler('get_inventory_status', () => tauri.overview({ active }));
+    const user = await launchOpen();
+    const list = within(folders());
+    expect(list.getByRole('button', { name: 'Rescan Books' })).toBeInTheDocument();
+    expect(list.queryByRole('button', { name: 'Rescan Papers' })).not.toBeInTheDocument();
+    expect(list.queryByRole('button', { name: 'Pause cataloging Books' })).not.toBeInTheDocument();
+
+    await user.click(list.getByRole('button', { name: 'Pause cataloging Papers' }));
+    expect(tauri.invoke).toHaveBeenCalledWith('pause_job', { jobId: 'job-p' });
+
+    events.emit(
+      'inventory-status',
+      tauri.overview({ active: { ...active, state: 'paused_user' } }),
+    );
+    await user.click(await list.findByRole('button', { name: 'Resume cataloging Papers' }));
+    expect(tauri.invoke).toHaveBeenCalledWith('resume_job', { jobId: 'job-p' });
+    await user.click(list.getByRole('button', { name: 'Cancel cataloging Papers' }));
+    expect(tauri.invoke).toHaveBeenCalledWith('cancel_job', { jobId: 'job-p' });
+  });
+
+  it('Check all folders now asks Atlas to check every folder', async () => {
+    tauri.setHandler('list_source_roots', () => [books()]);
+    const user = await launchOpen();
+    await user.click(screen.getByRole('button', { name: 'Check all folders now' }));
+    expect(tauri.invoke).toHaveBeenCalledWith('check_all_folders', undefined);
+  });
+
+  it('a control that fails says why, and stays said after the refresh', async () => {
+    tauri.setHandler('list_source_roots', () => [books()]);
+    tauri.setHandler('get_inventory_status', () =>
+      tauri.overview({ active: tauri.inventoryStatus() }),
+    );
+    tauri.setHandler('pause_job', () => {
+      throw tauri.apiError('job_not_pausable', 'This job has already finished.', 'Try again.');
+    });
+    const user = await launchOpen();
+    await user.click(within(folders()).getByRole('button', { name: 'Pause cataloging Books' }));
+    expect(await screen.findByText('This job has already finished.')).toBeInTheDocument();
+    await waitFor(() =>
+      expect(
+        tauri.invoke.mock.calls.filter(([c]) => c === 'get_inventory_status').length,
+      ).toBeGreaterThan(1),
+    );
+    expect(screen.getByText('This job has already finished.')).toBeInTheDocument();
+  });
+
+  it('Recent checks lists each check when opened', async () => {
+    tauri.setHandler('list_source_roots', () => [books()]);
+    tauri.setHandler('get_inventory_status', () => tauri.overview({ roots: [checked()] }));
+    const finished = new Date(Date.now() - 3 * 3_600_000).toISOString();
+    tauri.setHandler('list_scans', () => [
+      tauri.scanRecord({ jobId: 'scan-2', finishedAt: finished, newFiles: 4 }),
+      tauri.scanRecord({
+        jobId: 'scan-1',
+        origin: 'added',
+        state: 'cancelled',
+        finishedAt: finished,
+      }),
+    ]);
+    const user = await launchOpen();
+    await user.click(screen.getByText('Recent checks'));
+    const history = await screen.findByRole('list', { name: 'Recent checks of Books' });
+    const items = within(history).getAllByRole('listitem');
+    expect(items[0]).toHaveTextContent('3 h ago · automatically · 2 s · 4 new');
+    expect(items[1]).toHaveTextContent('3 h ago · when you added it · stopped by you');
+    expect(tauri.invoke).toHaveBeenCalledWith('list_scans', {
+      sourceRootId: 'root-books',
+      limit: 10,
+    });
+  });
+
+  it('Couldn’t read lists each folder with what to do', async () => {
+    tauri.setHandler('list_source_roots', () => [books()]);
+    tauri.setHandler('get_inventory_status', () =>
+      tauri.overview({ roots: [checked(tauri.scanRecord({ jobId: 'scan-9', problems: 1 }))] }),
+    );
+    tauri.setHandler('get_scan_problems', () => [
+      { displayPath: '/Users/test/Books/Private', code: 'permission_denied' },
+    ]);
+    const user = await launchOpen();
+    expect(screen.getByTestId('root-check-line')).toHaveTextContent(
+      "No changes · Couldn't read 1 folder",
+    );
+    await user.click(screen.getByText("Couldn't read 1 folder", { selector: 'summary' }));
+    expect(await screen.findByText('/Users/test/Books/Private')).toBeInTheDocument();
+    expect(
+      screen.getByText(/Atlas isn't allowed to read it\. .*then Rescan\./),
+    ).toBeInTheDocument();
+    expect(tauri.invoke).toHaveBeenCalledWith('get_scan_problems', { jobId: 'scan-9' });
+  });
+
+  it('the status bar names Atlas’s own check and lists every folder’s activity', async () => {
+    tauri.setHandler('list_source_roots', () => [books(), papers()]);
+    const check = tauri.inventoryStatus({ origin: 'automatic' });
+    const other = tauri.inventoryStatus({
+      jobId: 'job-p',
+      sourceRootId: 'root-papers',
+      sourceRootDisplayPath: '/Users/test/Papers',
+      state: 'queued',
+    });
+    tauri.setHandler('get_inventory_status', () =>
+      tauri.overview({ active: check, activeJobs: [check, other] }),
+    );
+    tauri.setHandler('get_extraction_status', () =>
+      tauri.extractionOverview({
+        roots: [
+          {
+            sourceRootId: 'root-books',
+            counts: tauri.extractionCounts(),
+            lastState: null,
+            activeJobId: 'extract-1',
+            activeState: 'running',
+            failedBecause: null,
+          },
+        ],
+      }),
+    );
+    const user = await launchOpen();
+    expect(screen.getByTestId('inventory-status')).toHaveTextContent('Checking Books for changes');
+    const all = screen.getByTestId('all-activity');
+    await user.click(within(all).getByText('All activity'));
+    const rows = within(all).getAllByRole('listitem');
+    expect(rows[0]).toHaveTextContent('Books Checking for changes · Reading text');
+    expect(rows[1]).toHaveTextContent('Papers Waiting to catalog');
+  });
+
+  it('Settings chooses how often folders are checked, in words', async () => {
+    const user = await launchOpen();
+    await user.click(screen.getByRole('button', { name: 'Settings' }));
+    const group = await screen.findByRole('group', { name: 'Check folders for changes' });
+    expect(within(group).getByRole('radio', { name: 'Every 6 hours' })).toBeChecked();
+    expect(screen.getByTestId('check-folders-note')).toHaveTextContent('every 6 hours');
+    await user.click(within(group).getByRole('radio', { name: 'Only when I ask' }));
+    await waitFor(() =>
+      expect(tauri.invoke).toHaveBeenCalledWith(
+        'update_settings',
+        expect.objectContaining({
+          settings: expect.objectContaining({ background: { checkFolders: 'never' } }),
+        }),
+      ),
+    );
+    expect(screen.getByTestId('check-folders-note')).toHaveTextContent(
+      'only when you choose Rescan or Check all folders now',
+    );
   });
 });

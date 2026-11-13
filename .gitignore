@@ -25,3 +25,6 @@ dist-ssr
 
 # Coverage and test output
 coverage
+
+# ts-rs output when a test binary runs outside cargo (the real bindings are src/lib/api/bindings)
+/src-tauri/bindings/

@@ -484,7 +484,13 @@ fn p4_04_scanned_pdfs_marked_before_counts_are_read_once_more() {
     c.execute_batch(
         "UPDATE documents SET page_count = NULL WHERE state = 'needs_ocr';
          ALTER TABLE documents DROP COLUMN text_pages;
-         DELETE FROM schema_migrations WHERE version = 15;",
+         DROP TABLE scan_problems;
+         DROP TABLE scan_missing;
+         ALTER TABLE jobs DROP COLUMN origin;
+         ALTER TABLE jobs DROP COLUMN new_files;
+         ALTER TABLE jobs DROP COLUMN changed_files;
+         ALTER TABLE jobs DROP COLUMN missing_files;
+         DELETE FROM schema_migrations WHERE version >= 15;",
     )
     .unwrap();
     drop(c);

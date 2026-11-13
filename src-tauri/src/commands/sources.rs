@@ -3,7 +3,7 @@ use std::path::PathBuf;
 use tauri::{AppHandle, State};
 use tauri_plugin_dialog::DialogExt;
 
-use crate::domain::dto::{AddSourceRootsResult, SourceRoot};
+use crate::domain::dto::{AddSourceRootsResult, ScanOrigin, SourceRoot};
 use crate::error::{AtlasError, AtlasResult};
 use crate::infrastructure::e2e;
 use crate::services::inventory::control;
@@ -27,7 +27,7 @@ pub async fn add_source_root(state: State<'_, AppState>, path: String) -> AtlasR
         .with_workspace(move |ws| {
             let root = ws.require_open()?;
             let added = sources::add(root, &PathBuf::from(path))?;
-            control::enqueue(root, &added.id)?;
+            control::enqueue_from(root, &added.id, ScanOrigin::Added)?;
             Ok(added)
         })
         .await
@@ -75,7 +75,7 @@ pub async fn pick_and_add_source_roots(
             let root = ws.require_open()?;
             let result = sources::add_many(root, &paths);
             for added in &result.added {
-                control::enqueue(root, &added.id)?;
+                control::enqueue_from(root, &added.id, ScanOrigin::Added)?;
             }
             Ok(result)
         })

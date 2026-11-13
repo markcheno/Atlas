@@ -11,6 +11,7 @@ use super::db;
 use super::{Flow, ProcessorContext, ProcessorFactory};
 use crate::domain::dto::{JobKind, JobState};
 use crate::error::{AtlasError, AtlasResult};
+use crate::infrastructure::clock::Clock;
 use crate::services::catalog::codec::to_db;
 use crate::services::catalog::writer::CatalogHandle;
 use crate::services::diagnostics::{Diagnostics, Event, FailureReason};
@@ -95,6 +96,7 @@ impl JobRunner {
         waker: JobWaker,
         vectors: Arc<VectorRegistry>,
         diagnostics: Diagnostics,
+        clock: Arc<dyn Clock>,
     ) -> AtlasResult<Self> {
         let ctx = ProcessorContext {
             catalog: catalog.clone(),
@@ -103,6 +105,7 @@ impl JobRunner {
             waker,
             vectors,
             diagnostics: diagnostics.clone(),
+            clock,
         };
         let loop_signal = Arc::clone(&signal);
         let thread = thread::Builder::new()
@@ -233,6 +236,7 @@ fn items(catalog: &CatalogHandle, id: &str) -> u64 {
 #[derive(Default)]
 pub struct JobRunners {
     runners: BTreeMap<JobKind, JobRunner>,
+    waker: Option<JobWaker>,
 }
 
 impl JobRunners {
@@ -242,6 +246,7 @@ impl JobRunners {
         factories: &BTreeMap<JobKind, ProcessorFactory>,
         vectors: &Arc<VectorRegistry>,
         diagnostics: &Diagnostics,
+        clock: &Arc<dyn Clock>,
     ) -> AtlasResult<Self> {
         // Every signal exists before any runner starts, so each processor's
         // waker reaches all of them.
@@ -266,10 +271,19 @@ impl JobRunners {
                     waker.clone(),
                     Arc::clone(vectors),
                     diagnostics.clone(),
+                    Arc::clone(clock),
                 )?,
             );
         }
-        Ok(Self { runners })
+        Ok(Self {
+            runners,
+            waker: Some(waker),
+        })
+    }
+
+    /// Wakes every runner, for work queued outside them (the folder check).
+    pub fn waker(&self) -> Option<JobWaker> {
+        self.waker.clone()
     }
 
     pub fn wake_all(&self) {

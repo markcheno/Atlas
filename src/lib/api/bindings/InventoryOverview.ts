@@ -7,4 +7,8 @@ export type InventoryOverview = {
  * The session to show in the status bar: running, then paused, then
  * queued. `None` when nothing is scheduled.
  */
-active: InventoryStatus | null, queuedSessions: number, catalogedFiles: number, missingFiles: number, cloudOnlyFiles: number, roots: Array<RootInventorySummary>, };
+active: InventoryStatus | null, queuedSessions: number, catalogedFiles: number, missingFiles: number, cloudOnlyFiles: number, roots: Array<RootInventorySummary>, 
+/**
+ * Every scan scheduled, `active` first (Slice 4.5).
+ */
+activeJobs: Array<InventoryStatus>, };

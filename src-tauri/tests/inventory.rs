@@ -726,6 +726,10 @@ fn never_scanned_folders_are_queued_on_open() {
     let mut lib = Lib::new();
     let books = lib.dir("Books");
     many(&books, 20);
+    // Atlas's own checks off (Slice 4.5), so only opening schedules it.
+    let mut settings = lib.ws.settings().unwrap();
+    settings.background.check_folders = atlas_lib::domain::dto::CheckFolders::Never;
+    lib.ws.update_settings(settings).unwrap();
     // Added without scheduling, as Slice 0.3 did.
     let added = sources::add(lib.ws.require_open().unwrap(), &books).unwrap();
     std::thread::sleep(Duration::from_millis(100));

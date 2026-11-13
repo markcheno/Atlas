@@ -12,11 +12,15 @@ export const EMBEDDING_EVENT = 'embedding-status';
 class EmbeddingStore {
   overview = $state<EmbeddingOverview | null>(null);
   error = $state<AtlasApiError | null>(null);
+  /** What a Pause, Resume, Cancel or start failed with (Slice 4.5: shown, and
+   *  not cleared by the status refresh that follows). */
+  actionError = $state<AtlasApiError | null>(null);
   #unlisten: UnlistenFn | null = null;
 
   clear() {
     this.overview = null;
     this.error = null;
+    this.actionError = null;
   }
 
   async refresh() {
@@ -37,11 +41,11 @@ class EmbeddingStore {
   }
 
   async #act(command: string, action: () => Promise<unknown>) {
-    this.error = null;
+    this.actionError = null;
     try {
       await action();
     } catch (err) {
-      this.error = err instanceof AtlasApiError ? err : toApiError(command, err);
+      this.actionError = err instanceof AtlasApiError ? err : toApiError(command, err);
     }
     await this.refresh();
   }

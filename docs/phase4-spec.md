@@ -663,6 +663,44 @@ Do **not** add an OCR engine, an `ocr` job, a rescan timer or any backup code be
 
 ### Revision notes
 
+**2026-11-13, Slice 4.5** (automatic rescans; [ADR 0022](adr/0022-automatic-rescans.md)):
+
+- **Gone files are found by missing candidates, not a temporary table of
+  the rows seen** (§6.1, §7.4). When a folder is listed in full, the rows
+  under it whose name wasn't listed are noted in `scan_missing`. A table of
+  every row seen would be 30,000 writes per rescan and lost on a kill;
+  candidates are few, and they persist with the frontier.
+- **So 4.5 has a migration after all: 0016** (`scan_history`):
+  - `jobs` gains `origin`, `new_files`, `changed_files` and
+    `missing_files`;
+  - new tables `scan_missing` and `scan_problems`.
+- **"Unchanged" also needs** the row available, the same storage, and not
+  a cloud-skipped file now stored locally (P3-01).
+- **A rescan holds unchanged work and commits it together**, so it makes a
+  few commits, not one a batch. Comparing alone left about 650 commits,
+  about 25 MiB of WAL. New files are still written at once.
+- **§13's provisional targets, at 30,000 unchanged files on the M5 Pro:**
+  - the time is met, 4.1 s against 10 s;
+  - the writes are just over, 1.06 MiB against 1 MiB. No file row is
+    written. What remains is a scan's fixed start and finish (queueing, the
+    frontier and its clean-up, the job's end) at 16 KiB pages, and holding
+    more folders per commit didn't change it. See
+    [benchmarks](benchmarks.md#rescans-slice-45).
+
+  The 100,000-file run in §13 waits for the 100,000-file fixture (§11).
+- **A scan paused for its missing folder gives up the runner**, so other
+  folders' scans go on. The checker queues it again when the folder is
+  back.
+- **Launch is the checker's first tick.** "Older than the interval" counts
+  from the later of the last completion and the latest scan's creation,
+  so a cancelled or failed check isn't retried every minute.
+- **The scan UI goes beyond §5.3**, at the product owner's request: folder
+  rows say what the last check found, per-folder Pause, Resume and
+  Cancel, Check all folders now, Recent checks and Couldn't read, and the
+  status bar's All activity. Atlas's own check reads "Checking Books for
+  changes", with no file count.
+- **The slice string is 4.5.**
+
 **2026-11-13, Slice 4.4 skipped for now** (the product owner: "go straight
 to 4.5"). Read this now and `jobs.priority` wait; 4.5 follows 4.2. 4.5
 takes migration 0016, which OCR had reserved.
