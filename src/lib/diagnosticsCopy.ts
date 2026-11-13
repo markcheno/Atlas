@@ -11,6 +11,10 @@ export const SAVING = 'Saving…';
 export const SHOW_LOG = 'Show the log folder';
 export const CLEAR_LOG = 'Clear the log';
 export const CLEARING = 'Clearing…';
+/** Slice 4.1.1: one click used to remove the whole log. */
+export const CLEAR_LOG_QUESTION = 'Clear the log? Its events can’t be brought back.';
+export const CLEAR_LOG_CONFIRM = 'Clear';
+export const CLEAR_LOG_KEEP = 'Keep';
 export const LOG_STOPPED =
   'Atlas stopped writing its log after a failed write. It starts again when the library is opened again.';
 

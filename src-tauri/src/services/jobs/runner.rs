@@ -13,7 +13,7 @@ use crate::domain::dto::{JobKind, JobState};
 use crate::error::{AtlasError, AtlasResult};
 use crate::services::catalog::codec::to_db;
 use crate::services::catalog::writer::CatalogHandle;
-use crate::services::diagnostics::{Diagnostics, Event};
+use crate::services::diagnostics::{Diagnostics, Event, FailureReason};
 use crate::services::embedding::registry::VectorRegistry;
 
 /// Wakes a runner early (user commands) and tells it to stop (shutdown).
@@ -164,12 +164,25 @@ fn run(
                     .ok()
                     .and_then(Result::ok)
                     .flatten();
+                // Only a failure has a reason: `last_error` outlives the
+                // problem on a job that went on to finish.
+                let reason = after
+                    .as_ref()
+                    .filter(|j| {
+                        matches!(
+                            j.state,
+                            JobState::FailedTerminal | JobState::FailedRetryable
+                        )
+                    })
+                    .and_then(|j| j.last_error.as_deref())
+                    .map(FailureReason::of_code);
                 diagnostics.record(Event::JobEnded {
                     kind,
                     state: after.as_ref().map(|j| j.state),
                     ms: started.elapsed().as_millis() as u64,
                     items: items(&catalog, &id).saturating_sub(before),
                     errors: after.map_or(0, |j| u64::from(j.error_count)),
+                    reason,
                 });
                 if let Flow::Stop = flow {
                     break;

@@ -8,7 +8,7 @@ import type { PauseReason } from './api/bindings/PauseReason';
 import { count } from './inventoryCopy';
 
 /** What the status line offers besides Pause, Resume and Cancel. */
-export type MeaningAction = 'retry' | 'choose_model' | 'allow_remote' | null;
+export type MeaningAction = 'retry' | 'choose_model' | 'allow_remote' | 'index_now' | null;
 
 export interface MeaningLine {
   text: string;
@@ -43,6 +43,25 @@ const ERRORS: Record<string, string> = {
   index_unavailable: "Can't index meaning · Atlas couldn't open its meaning index",
 };
 
+/** Failures only Settings can mend: the key, the model or the address. */
+const MENDED_IN_SETTINGS = [
+  'provider_auth',
+  'model_not_found',
+  'model_changed',
+  'address_rejected',
+];
+
+/**
+ * Folders whose last meaning job stopped for good with files still
+ * waiting (Slice 4.1.1). Such a job isn't active, so without this the
+ * line read "Meaning waiting" and gave no reason.
+ */
+export function stoppedFolders(ov: EmbeddingOverview | null): string[] {
+  return (ov?.roots ?? [])
+    .filter((r) => r.failedBecause !== null && r.counts.waiting > 0)
+    .map((r) => r.sourceRootId);
+}
+
 /** The status bar's third line, or null when there's nothing to say. */
 export function meaningLine(ov: EmbeddingOverview | null): MeaningLine | null {
   if (!ov) return null;
@@ -64,6 +83,14 @@ export function meaningLine(ov: EmbeddingOverview | null): MeaningLine | null {
   const after = ov.rebuilding ? ' · search uses the previous index' : '';
   const a = ov.active;
   if (!a) {
+    const stopped = ov.roots.find((r) => r.failedBecause !== null && r.counts.waiting > 0);
+    if (stopped) {
+      const code = stopped.failedBecause ?? '';
+      return {
+        text: `${ERRORS[code] ?? "Can't index meaning"} · ${progress} indexed`,
+        action: MENDED_IN_SETTINGS.includes(code) ? 'choose_model' : 'index_now',
+      };
+    }
     if (ov.counts.waiting > 0)
       return { text: `Meaning waiting · ${progress} indexed`, action: null };
     return {
@@ -107,6 +134,8 @@ export function rootMeaningLine(ov: EmbeddingOverview | null, sourceRootId: stri
     return job?.state.startsWith('paused') ? 'Indexing meaning paused' : 'Indexing meaning…';
   }
   const c = root.counts;
+  const failure = c.waiting > 0 ? meaningFailure(root.failedBecause) : null;
+  if (failure) return failure;
   const parts = [`Meaning: ${c.indexed.toLocaleString('en-US')} indexed`];
   if (c.waiting) parts.push(`${c.waiting.toLocaleString('en-US')} waiting`);
   if (c.failed) parts.push(`${c.failed.toLocaleString('en-US')} refused by the model`);

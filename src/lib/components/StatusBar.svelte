@@ -4,7 +4,7 @@
   import type { AppStatus } from '../api/bindings/AppStatus';
   import { count, elapsedText, statusLine } from '../inventoryCopy';
   import { extractionLine } from '../extractionCopy';
-  import { meaningLine } from '../embeddingCopy';
+  import { meaningLine, stoppedFolders } from '../embeddingCopy';
   import { embedding } from '../stores/embedding.svelte';
   import { view } from '../stores/view.svelte';
   import { extraction } from '../stores/extraction.svelte';
@@ -33,6 +33,11 @@
   const meaningPausable = $derived(
     meaning !== null && ['queued', 'running', 'paused_policy'].includes(meaning.state),
   );
+
+  /** Index meaning now, in every folder whose job stopped for good. */
+  function indexStopped() {
+    for (const id of stoppedFolders(embedding.overview)) void embedding.indexNow(id);
+  }
 
   async function openStorage() {
     view.go('settings');
@@ -155,6 +160,10 @@
         {:else if meaningStatus.action === 'choose_model' || meaningStatus.action === 'allow_remote'}
           <button type="button" class="small-button" onclick={() => view.go('settings')}>
             Open Settings
+          </button>
+        {:else if meaningStatus.action === 'index_now'}
+          <button type="button" class="small-button" onclick={indexStopped}>
+            Index meaning now
           </button>
         {/if}
         {#if meaning && meaningPausable}

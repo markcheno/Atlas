@@ -2302,7 +2302,7 @@ describe('indexing meaning', () => {
     const user = await launchWith(
       withModel({
         active: tauri.embeddingStatus(),
-        roots: [{ sourceRootId: 'root-books', counts, activeJobId: null }],
+        roots: [{ sourceRootId: 'root-books', counts, activeJobId: null, failedBecause: null }],
       }),
     );
     expect(screen.getByTestId('meaning-note')).toHaveTextContent(
@@ -2313,6 +2313,60 @@ describe('indexing meaning', () => {
     );
     await user.click(screen.getByRole('button', { name: /Index meaning now in/ }));
     expect(tauri.invoke).toHaveBeenCalledWith('start_embedding', { sourceRootId: 'root-books' });
+  });
+
+  // Slice 4.1.1 (found on the owner's library): a job that stopped for
+  // good isn't active, and the line said only "Meaning waiting".
+  const stopped = (failedBecause: string) =>
+    withModel({
+      roots: [{ sourceRootId: 'root-books', counts, activeJobId: null, failedBecause }],
+    });
+
+  it('says why indexing stopped for good, and sends the owner to Settings', async () => {
+    const user = await launchWith(stopped('model_not_found'));
+    expect(line()).toHaveTextContent(
+      "Can't index meaning · The AI service no longer has the model · 3 of 10 files indexed",
+    );
+    expect(screen.getByTestId('root-meaning-line')).toHaveTextContent(
+      "Can't index meaning · The AI service no longer has the model",
+    );
+    expect(screen.queryByRole('button', { name: 'Index meaning now' })).toBeNull();
+    await user.click(screen.getByRole('button', { name: 'Open Settings' }));
+    await h1('Settings');
+  });
+
+  it('offers Index meaning now when the stop needs no setting changed', async () => {
+    const user = await launchWith(stopped('index_unavailable'));
+    expect(line()).toHaveTextContent(
+      "Can't index meaning · Atlas couldn't open its meaning index · 3 of 10 files indexed",
+    );
+    await user.click(screen.getByRole('button', { name: 'Index meaning now' }));
+    expect(tauri.invoke).toHaveBeenCalledWith('start_embedding', { sourceRootId: 'root-books' });
+  });
+
+  it('still says waiting when nothing stopped, and nothing once a stop has no file left', async () => {
+    await launchWith(
+      withModel({
+        roots: [{ sourceRootId: 'root-books', counts, activeJobId: null, failedBecause: null }],
+      }),
+    );
+    expect(line()).toHaveTextContent('Meaning waiting · 3 of 10 files indexed');
+    const done = tauri.embeddingCounts({ indexed: 10, total: 10 });
+    events.emit(
+      'embedding-status',
+      withModel({
+        counts: done,
+        roots: [
+          {
+            sourceRootId: 'root-books',
+            counts: done,
+            activeJobId: null,
+            failedBecause: 'model_not_found',
+          },
+        ],
+      }),
+    );
+    await waitFor(() => expect(line()).toHaveTextContent('Meaning up to date · 10 files'));
   });
 
   it('lets the owner allow embedding through an internet service, showing the volume', async () => {
@@ -4432,10 +4486,24 @@ describe('diagnostics (Slice 4.1)', () => {
     expect(section.getByRole('button', { name: 'Saving…' })).toBeDisabled();
   });
 
-  it('clears the log', async () => {
+  // Slice 4.1.1: one accidental click used to remove the whole log.
+  it('clears the log only after asking', async () => {
     const { user, section } = await openDiagnostics();
     await section.findByTestId('log-size');
     await user.click(section.getByRole('button', { name: 'Clear the log' }));
+    const confirm = within(section.getByRole('group', { name: 'Confirm clearing the log' }));
+    expect(
+      confirm.getByText('Clear the log? Its events can’t be brought back.'),
+    ).toBeInTheDocument();
+    expect(calls('clear_log')).toEqual([]);
+
+    await user.click(confirm.getByRole('button', { name: 'Keep' }));
+    expect(section.queryByRole('group', { name: 'Confirm clearing the log' })).toBeNull();
+    expect(calls('clear_log')).toEqual([]);
+    expect(section.getByTestId('log-size')).toHaveTextContent('The log: 48.0 KB in 2 files.');
+
+    await user.click(section.getByRole('button', { name: 'Clear the log' }));
+    await user.click(section.getByRole('button', { name: 'Clear' }));
     expect(calls('clear_log')).toEqual([undefined]);
     expect(await section.findByText('The log: 120 bytes in 1 file.')).toBeInTheDocument();
   });

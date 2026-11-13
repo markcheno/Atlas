@@ -131,6 +131,16 @@ pub fn overview(conn: &Connection, allow_remote: bool) -> rusqlite::Result<Embed
         )?
         .query_map([], |r| Ok((r.get(0)?, r.get(1)?)))?
         .collect::<rusqlite::Result<_>>()?;
+    // A folder's latest embed job, when it stopped for good.
+    let failed: Vec<(String, Option<String>)> = conn
+        .prepare_cached(
+            "SELECT j.source_root_id, j.last_error FROM jobs j
+              WHERE j.kind = 'embed' AND j.state = 'failed_terminal'
+                AND j.rowid = (SELECT MAX(rowid) FROM jobs
+                                WHERE kind = 'embed' AND source_root_id = j.source_root_id)",
+        )?
+        .query_map([], |r| Ok((r.get(0)?, r.get(1)?)))?
+        .collect::<rusqlite::Result<_>>()?;
     let roots = root_counts(conn, active.as_ref().map(|m| m.id.as_str()))?
         .into_iter()
         .map(|(root, c)| {
@@ -140,6 +150,10 @@ pub fn overview(conn: &Connection, allow_remote: bool) -> rusqlite::Result<Embed
                     .iter()
                     .find(|(r, _)| *r == root)
                     .map(|(_, j)| j.clone()),
+                failed_because: failed
+                    .iter()
+                    .find(|(r, _)| *r == root)
+                    .and_then(|(_, code)| code.clone()),
                 source_root_id: root,
                 counts: c,
             }

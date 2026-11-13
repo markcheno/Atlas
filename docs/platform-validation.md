@@ -1339,6 +1339,44 @@ library: the report you share is the evidence.
 
 **Result:** to be recorded when the owner reports it.
 
+**Found while the owner imported the real library** (fixed in
+[Slice 4.1.1](#slice-411)):
+- **A stopped meaning job read "Meaning waiting".** An embed job that
+  ended `failed_terminal` isn't active, so the status line gave no reason
+  and no way to start again. Here the AI service no longer had the
+  configured model; the owner repointed the models to fix it.
+- **Clear the log had no confirmation.** One accidental click removed the
+  whole log.
+
+## Slice 4.1.1
+
+Two fixes from the owner's import of the real library.
+
+**Verified locally (macOS arm64, M5 Pro):**
+- `just ci`: 49 Rust suites and 236 Vitest tests passed.
+- The new tests:
+  - `a_job_that_stopped_for_good_says_why_until_another_runs`
+    (`tests/embedding.rs`): the folder's summary carries
+    `model_not_found` while the failed job is its latest, and nothing
+    once Index meaning now has run;
+  - `a_failed_job_says_why_in_a_code` (`diagnostics/event.rs`) and P4-04
+    (`tests/diagnostics.rs`): `job_ended` carries the reason as a closed
+    code, and a string that isn't one is written as `other`;
+  - Vitest: the status line and the folder line say why indexing stopped,
+    with Open Settings or Index meaning now; Clear the log asks, Keep
+    leaves the log, Clear clears it. The three fail without the fix.
+
+**For the owner, with the next build:**
+1. With indexing stopped for good (for example, the AI service without
+   the model), the status line reads "Can't index meaning · The AI
+   service no longer has the model · N of M files indexed" with **Open
+   Settings**, and the folder's line says the same.
+2. Settings › Diagnostics › **Clear the log** asks "Clear the log? Its
+   events can't be brought back." **Keep** leaves the log's size as it
+   was.
+
+**CI on `slice-411`:** to be recorded.
+
 ## Slice 3.9
 
 The Phase 3 close-out ([review](phase3-closeout.md)).

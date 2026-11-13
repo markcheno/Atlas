@@ -21,7 +21,7 @@ use std::time::Instant;
 
 use serde::{Deserialize, Serialize};
 
-pub use event::Event;
+pub use event::{Event, FailureReason};
 pub use log::{LOGS_DIR, Limits};
 
 use log::LogWriter;
