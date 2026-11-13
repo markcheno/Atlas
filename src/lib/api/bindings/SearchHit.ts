@@ -2,6 +2,7 @@
 import type { Availability } from "./Availability";
 import type { FileStorage } from "./FileStorage";
 import type { FileType } from "./FileType";
+import type { FormatFile } from "./FormatFile";
 import type { MatchReason } from "./MatchReason";
 import type { SnippetSpan } from "./SnippetSpan";
 import type { TitleSource } from "./TitleSource";
@@ -30,4 +31,8 @@ allWords: boolean,
 /**
  * Other cataloged copies of the same content.
  */
-otherLocations: number, };
+otherLocations: number, 
+/**
+ * The same book in its other format (Slice 4.5.1).
+ */
+otherFormat: FormatFile | null, };

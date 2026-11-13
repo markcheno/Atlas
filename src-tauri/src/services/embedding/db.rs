@@ -429,9 +429,11 @@ pub struct WaitingDocument {
     pub id: String,
 }
 
-/// SQL: a document (alias `d`) the model still needs: read, with no
-/// finished row, or a failed one under [`MAX_ATTEMPTS`].
+/// SQL: a document (alias `d`) the model still needs: read, not kept out
+/// of a book in two formats (Slice 4.5.1), with no finished row, or a
+/// failed one under [`MAX_ATTEMPTS`].
 const NEEDS_EMBEDDING: &str = "d.state = 'done'
+     AND NOT EXISTS (SELECT 1 FROM book_pairs bp WHERE bp.hidden_document_id = d.id)
      AND NOT EXISTS (SELECT 1 FROM document_embeddings de
                      WHERE de.document_id = d.id AND de.model_id = :model
                        AND (de.status IN ('done', 'empty') OR de.attempts >= 3))";
@@ -449,6 +451,7 @@ pub fn fresh_behind(
     conn.query_row(
         "SELECT EXISTS (SELECT 1 FROM documents d
            WHERE d.rowid <= :cursor AND d.state = 'done'
+             AND NOT EXISTS (SELECT 1 FROM book_pairs bp WHERE bp.hidden_document_id = d.id)
              AND NOT EXISTS (SELECT 1 FROM document_embeddings de
                              WHERE de.document_id = d.id AND de.model_id = :model)
              AND EXISTS (SELECT 1 FROM file_instances f
@@ -580,8 +583,12 @@ pub fn add_counters(
 /// for good): a model's coverage, for comparing an old and a new one.
 pub fn covered_documents(conn: &Connection, model_id: &str) -> rusqlite::Result<u64> {
     conn.query_row(
-        "SELECT COUNT(*) FROM document_embeddings
-         WHERE model_id = ?1 AND (status IN ('done', 'empty') OR attempts >= 3)",
+        // A copy kept out of a book (Slice 4.5.1) isn't one a new model
+        // must cover, even if an older one indexed it.
+        "SELECT COUNT(*) FROM document_embeddings de
+         WHERE de.model_id = ?1 AND (de.status IN ('done', 'empty') OR de.attempts >= 3)
+           AND NOT EXISTS (SELECT 1 FROM book_pairs bp
+                           WHERE bp.hidden_document_id = de.document_id)",
         [model_id],
         |r| r.get::<_, i64>(0).map(|n| n as u64),
     )

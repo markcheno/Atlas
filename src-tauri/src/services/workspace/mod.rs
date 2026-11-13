@@ -524,6 +524,10 @@ impl Workspace {
                 // Files still waiting for their text, including ones read
                 // by an older extractor (phase1-spec §7.1).
                 extraction::db::queue_pending(c, &now)?;
+                // Folders whose books in two formats this build hasn't
+                // paired: a reading job each, which pairs them as it ends
+                // (Slice 4.5.1).
+                crate::services::formats::db::queue_unchecked(c, &now)?;
                 // Text waiting for its meaning (Slice 2.3).
                 embedding::models::sync(c, &now)?;
                 embedding::triggers::queue_waiting(c, allow_remote, &now)

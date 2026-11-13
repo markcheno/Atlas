@@ -684,6 +684,21 @@ impl ScanProcessor {
             .call(move |c| db::finish(c, &id, &root_id, &display, reachable, legacy, &now))
         {
             Ok(Ok(())) => {
+                // Books in two formats (Slice 4.5.1): files gone or moved
+                // end their pairs, and a copy kept out is shown again and
+                // queued for its meaning. New files are paired once read.
+                let allow = crate::services::providers::privacy::remote_embedding(
+                    &crate::services::workspace::settings::read(&self.data_root).privacy,
+                );
+                let (root_id, now) = (s.root_id.clone(), self.now());
+                let _ = self.catalog.call(move |c| -> rusqlite::Result<()> {
+                    crate::services::formats::db::reconcile_root(c, &root_id, &now)?;
+                    let changes = crate::services::formats::db::apply(c, &now)?;
+                    if !changes.unhidden.is_empty() {
+                        crate::services::embedding::triggers::queue_root(c, &root_id, allow, &now)?;
+                    }
+                    Ok(())
+                });
                 self.emit(true);
                 // The finish may have queued text reading for this folder.
                 self.waker.wake();

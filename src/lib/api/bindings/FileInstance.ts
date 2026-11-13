@@ -3,6 +3,7 @@ import type { Availability } from "./Availability";
 import type { FileExtraction } from "./FileExtraction";
 import type { FileStorage } from "./FileStorage";
 import type { FileType } from "./FileType";
+import type { FormatFile } from "./FormatFile";
 
 export type FileInstance = { id: string, sourceRootId: string, displayName: string, displayPath: string, extension: string, fileType: FileType, 
 /**
@@ -17,4 +18,9 @@ documentId: string | null,
 /**
  * Whether Atlas has read the file's text (phase1-spec §5.3).
  */
-extraction: FileExtraction, };
+extraction: FileExtraction, 
+/**
+ * The same book's other format beside it, while the two are one book
+ * (Slice 4.5.1): the Library shows them as one row.
+ */
+otherFormat: FormatFile | null, };

@@ -157,10 +157,13 @@ fn measure_catalog(conn: &Connection) -> rusqlite::Result<Measured> {
                         (SELECT COUNT(*) FROM file_instances f
                          WHERE f.availability = 'available' AND f.document_id IN
                              (SELECT d2.id FROM documents d2 WHERE d2.state = 'done'
+                              AND NOT EXISTS (SELECT 1 FROM book_pairs bp WHERE bp.hidden_document_id = d2.id)
                               AND NOT EXISTS (SELECT 1 FROM document_embeddings de
                                   WHERE de.document_id = d2.id AND de.model_id = ?1)))
                  FROM documents d
                  WHERE d.state = 'done'
+                   -- A copy kept out of a book is never indexed (Slice 4.5.1).
+                   AND NOT EXISTS (SELECT 1 FROM book_pairs bp WHERE bp.hidden_document_id = d.id)
                    AND NOT EXISTS (SELECT 1 FROM document_embeddings de
                                    WHERE de.document_id = d.id AND de.model_id = ?1)",
                 [&model.id],

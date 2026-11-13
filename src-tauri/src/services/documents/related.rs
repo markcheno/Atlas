@@ -29,6 +29,7 @@ use crate::error::{AtlasError, AtlasResult};
 use crate::services::catalog::reader::CatalogReader;
 use crate::services::catalog::writer::CatalogHandle;
 use crate::services::embedding::db as edb;
+use crate::services::formats::{self, db::BookMap};
 use crate::services::embedding::index::VectorIndex;
 use crate::services::embedding::models;
 use crate::services::embedding::registry::VectorRegistry;
@@ -106,6 +107,8 @@ struct Key {
     model: String,
     generation: i64,
     len: usize,
+    /// Changes with the books in two formats (Slice 4.5.1).
+    books: String,
 }
 
 /// The candidates of the documents asked about most recently.
@@ -205,6 +208,9 @@ struct Ask<'a> {
     vector: &'a [f32],
     own_chunks: usize,
     min_similarity: f32,
+    /// Books in two formats (Slice 4.5.1): the asked book's other copy, and
+    /// every copy kept out of a book, are never related.
+    books: &'a BookMap,
 }
 
 /// The nearest other documents to the document's vector, best first, with
@@ -220,9 +226,16 @@ fn candidates(
     let mut map = vectors.chunk_map();
     map.top_up(conn)?;
     let own = map.number_of(ask.document_id);
+    let left_out: HashSet<u32> = ask
+        .books
+        .index_of
+        .keys()
+        .chain(ask.books.partner(ask.document_id).map(str::to_owned).iter())
+        .filter_map(|d| map.number_of(d))
+        .collect();
     let keep = |chunk: u64| {
         let doc = map.document_of(chunk);
-        doc.is_some() && doc != own
+        doc.is_some() && doc != own && !doc.is_some_and(|d| left_out.contains(&d))
     };
     let mut k = NEIGHBOURS;
     loop {
@@ -241,7 +254,11 @@ fn candidates(
             let Some((document, passage, start, end)) = places.get(chunk) else {
                 continue;
             };
-            if document == ask.document_id || !seen.insert(document.as_str()) {
+            if document == ask.document_id
+                || ask.books.is_hidden(document)
+                || ask.books.partner(ask.document_id) == Some(document.as_str())
+                || !seen.insert(document.as_str())
+            {
                 continue;
             }
             let (shared, theirs) = shared_chunks(conn, ask.document_id, document)?;
@@ -271,6 +288,10 @@ fn find(
     limit: u32,
 ) -> rusqlite::Result<(RelatedStatus, Vec<SearchHit>)> {
     let limit = limit.clamp(1, MAX_LIMIT) as usize;
+    // A copy kept out of a book in two formats asks as the book's copy
+    // shown, whose meaning is the one indexed (Slice 4.5.1).
+    let books = BookMap::load(conn)?;
+    let document_id = books.book(document_id);
     let model = match status_of(conn, document_id)? {
         Ok(model) => model,
         Err(status) => return Ok((status, Vec::new())),
@@ -284,6 +305,7 @@ fn find(
         model: model.id.clone(),
         generation: index.generation(),
         len: index.len(),
+        books: formats::db::stamp(conn)?,
     };
     let cached = vectors.related_cache().get(&key);
     let found = match cached {
@@ -299,6 +321,7 @@ fn find(
                 vector: &vector,
                 own_chunks: distinct_chunks(conn, document_id)?,
                 min_similarity: query_profile(&model.model_name).min_similarity,
+                books: &books,
             };
             let Some(found) = candidates(conn, vectors, &index, &ask)? else {
                 return Ok((RelatedStatus::Failed, Vec::new()));
@@ -339,6 +362,7 @@ fn page(status: RelatedStatus, hits: Vec<SearchHit>) -> RelatedPage {
                     storage: h.storage,
                     location: h.location,
                     page_no: h.page_no,
+                    other_format: h.other_format,
                 })
             })
             .collect(),
@@ -439,6 +463,7 @@ mod tests {
             model: "m".into(),
             generation,
             len: 10,
+            books: String::new(),
         }
     }
 

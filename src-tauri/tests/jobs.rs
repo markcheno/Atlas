@@ -147,6 +147,9 @@ fn p1_01_upgrade_keeps_a_paused_scan_and_its_frontier() {
         }
         conn.execute("DELETE FROM schema_migrations WHERE version >= 3", [])
             .unwrap();
+        // Columns later migrations add to the tables kept (Slice 4.5.1).
+        conn.execute_batch("ALTER TABLE source_roots DROP COLUMN formats_version")
+            .unwrap();
         // As the app's writer does: foreign keys on while migrating.
         conn.execute_batch("PRAGMA foreign_keys = ON").unwrap();
         assert_eq!(

@@ -59,6 +59,7 @@ pub fn file_from_row(r: &Row) -> rusqlite::Result<(FileInstance, Vec<u8>)> {
                 FileStorage::Local
             },
             document_id: r.get(10)?,
+            other_format: None,
             extraction: FileExtraction {
                 state: from_db(&state).unwrap_or(ExtractionState::Pending),
                 reason: r.get(12)?,

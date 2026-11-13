@@ -332,6 +332,61 @@ pub struct FileInstance {
     pub document_id: Option<RecordId>,
     /// Whether Atlas has read the file's text (phase1-spec §5.3).
     pub extraction: FileExtraction,
+    /// The same book's other format beside it, while the two are one book
+    /// (Slice 4.5.1): the Library shows them as one row.
+    #[serde(default)]
+    pub other_format: Option<FormatFile>,
+}
+
+/// A book's other format (Slice 4.5.1): the file beside it, to open or show.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct FormatFile {
+    pub file_instance_id: RecordId,
+    pub file_type: FileType,
+    pub display_name: String,
+    pub display_path: String,
+    pub source_root_id: RecordId,
+    pub availability: Availability,
+    pub storage: FileStorage,
+}
+
+/// Whether a file and the other format beside it are one book (Slice 4.5.1).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "snake_case")]
+#[ts(export)]
+pub enum FormatPairState {
+    /// Not both read yet: compared once they are.
+    Waiting,
+    Same,
+    Different,
+}
+
+/// How a pair was judged.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "snake_case")]
+#[ts(export)]
+pub enum FormatPairBasis {
+    /// Their texts were compared.
+    Text,
+    /// One has no text to compare (a scan, say): paired by name.
+    Name,
+    /// The owner said so.
+    Owner,
+}
+
+/// The detail panel's view of a book's two formats.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct FormatPair {
+    /// The other format's file, beside this one.
+    pub partner: FileInstance,
+    pub state: FormatPairState,
+    pub basis: Option<FormatPairBasis>,
+    /// Which format is indexed for meaning and shown, while the same book.
+    pub indexed_as: Option<FileType>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
@@ -794,6 +849,9 @@ pub struct DocumentDetail {
     /// The other cataloged copies of the same content, missing ones
     /// included (and marked).
     pub also_at: Vec<FileInstance>,
+    /// The other format beside it, with the same name (Slice 4.5.1).
+    #[serde(default)]
+    pub formats: Option<FormatPair>,
 }
 
 // ---------------------------------------------------------------- search
@@ -900,6 +958,9 @@ pub struct SearchHit {
     pub all_words: bool,
     /// Other cataloged copies of the same content.
     pub other_locations: u32,
+    /// The same book in its other format (Slice 4.5.1).
+    #[serde(default)]
+    pub other_format: Option<FormatFile>,
     /// The passage shown, for a trail step's anchor (Slice 3.3). A
     /// catalog row id: never sent, never stored.
     #[serde(skip)]
@@ -968,6 +1029,9 @@ pub struct RelatedHit {
     /// Where the best matching passage is: "Page 12", "Chapter 3, part 2".
     pub location: Option<String>,
     pub page_no: Option<u32>,
+    /// The same book in its other format (Slice 4.5.1).
+    #[serde(default)]
+    pub other_format: Option<FormatFile>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize, TS)]

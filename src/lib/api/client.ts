@@ -193,6 +193,9 @@ export const atlas = {
   searchDocuments: (query: SearchQuery, intent: SearchIntent = 'refresh') =>
     call<SearchPage>('search_documents', { query, intent }),
   getDocumentDetail: (fileId: string) => call<DocumentDetail>('get_document_detail', { fileId }),
+  /** Whether a file and its other format beside it are one book (Slice 4.5.1). */
+  setSameBook: (fileId: string, same: boolean) =>
+    call<DocumentDetail>('set_same_book', { fileId, same }),
   listDuplicates: (query: DuplicateQuery) => call<DuplicatePage>('list_duplicates', { query }),
   getRelatedDocuments: (documentId: string, limit = 10) =>
     call<RelatedPage>('get_related_documents', { documentId, limit }),

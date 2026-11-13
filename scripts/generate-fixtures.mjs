@@ -23,7 +23,7 @@ const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 function usage(message) {
   if (message) console.error(`error: ${message}`);
   console.error(
-    'usage: generate-fixtures.mjs <output-dir> [--files N] [--flat N] [--text-kb N] [--untitled-every N] [--copies N]',
+    'usage: generate-fixtures.mjs <output-dir> [--files N] [--flat N] [--text-kb N] [--untitled-every N] [--copies N] [--pairs N]',
   );
   process.exit(2);
 }
@@ -46,6 +46,9 @@ const textKb = opt('text-kb', 0);
 const untitledEvery = opt('untitled-every', 0);
 // Extra copies of existing files under copies/, for duplicate groups.
 const copyCount = opt('copies', 0);
+// Books in both formats (Slice 4.5.1), with --text-kb: see `pairs/` below.
+const pairCount = opt('pairs', 0);
+if (pairCount > 0 && textKb === 0) usage('--pairs needs --text-kb');
 
 const target = path.resolve(out);
 const inside = (child, parent) => {
@@ -165,6 +168,42 @@ for (const subject of subjects) {
   pdfOrEpub++;
 }
 
+// One book in two formats (Slice 4.5.1): `pairs/` holds N books as both a
+// PDF and an EPUB with one text (pages and chapters cut it differently),
+// and the cases that must not pair, or must:
+//   notes.pdf / notes.epub       one name, different texts: two books
+//   Sampler.pdf / Sampler.epub   the EPUB is the PDF's first chapter: two
+//   A/Atlas.pdf + B/Atlas.epub   different folders: no pair
+//   Café.PDF / cafe.epub         case and accents fold: one book
+const pairDoc = (kind, i, title, paragraphs) => {
+  const doc = { id: `Pairs-${i}`, title, author: authorFor(i), paragraphs };
+  return kind === 'epub' ? textEpub(doc).bytes : textPdf(doc).bytes;
+};
+let pairFiles = 0;
+if (pairCount > 0) {
+  const both = (rel, i, title, pdfText, epubText = pdfText) => {
+    write(path.join('pairs', `${rel}.pdf`), pairDoc('pdf', i, title, pdfText));
+    write(path.join('pairs', `${rel}.epub`), pairDoc('epub', i, title, epubText));
+    pairFiles += 2;
+  };
+  for (let i = 0; i < pairCount; i++) {
+    const stem = `paired ${String(i).padStart(4, '0')}`;
+    both(stem, 9000 + i, `Pairs ${stem}`, bodyText('Pairs', 9000 + i, textKb));
+  }
+  both('notes', 9500, 'Notes', bodyText('Pairs', 9500, textKb), bodyText('Pairs', 9501, textKb));
+  const sampler = bodyText('Pairs', 9600, textKb);
+  both('Sampler', 9600, 'Sampler', sampler, sampler.slice(0, Math.max(1, Math.floor(sampler.length / 5))));
+  const atlas = bodyText('Pairs', 9700, textKb);
+  write(path.join('pairs', 'A', 'Atlas.pdf'), pairDoc('pdf', 9700, 'Atlas', atlas));
+  write(path.join('pairs', 'B', 'Atlas.epub'), pairDoc('epub', 9700, 'Atlas', atlas));
+  pairFiles += 2;
+  const cafe = bodyText('Pairs', 9800, textKb);
+  write(path.join('pairs', 'Café.PDF'), pairDoc('pdf', 9800, 'Café', cafe));
+  write(path.join('pairs', 'cafe.epub'), pairDoc('epub', 9800, 'Café', cafe));
+  pairFiles += 2;
+  pdfOrEpub += pairFiles;
+}
+
 // Unsupported types and look-alikes.
 for (const name of ['notes.txt', 'cover.png', 'archive.epub.zip', 'paper.pdf.part', 'README']) {
   write(path.join('misc', name), Buffer.from('not a document'));
@@ -218,6 +257,8 @@ if (textKb > 0) {
 }
 if (untitledEvery > 0) summary.untitledEvery = untitledEvery;
 if (copyCount > 0) summary.copies = copyCount;
+// Pairs expected to be one book: the N, and Café.
+if (pairCount > 0) Object.assign(summary, { pairs: pairCount, pairFiles, sameBooks: pairCount + 1 });
 console.log(JSON.stringify(summary, null, 2));
 if (unreadable) {
   console.log(
