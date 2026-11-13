@@ -702,6 +702,35 @@ fn p2_19_the_meaning_index_is_counted_estimated_and_kept_by_clean_caches() {
     );
 }
 
+/// Slice 4.1.1 (found on the owner's library): a job that stopped for good
+/// isn't active, so the status line said "Meaning waiting" and nothing
+/// else. The folder's summary now carries the reason, until another job
+/// for the folder takes its place.
+#[test]
+fn a_job_that_stopped_for_good_says_why_until_another_runs() {
+    let lib = Lib::new();
+    let root_id = lib.read_books(2, 0);
+    lib.h
+        .script
+        .with(|s| s.fail_always = Some(EmbedError::ModelNotFound));
+    lib.set_role("http://localhost:9/v1", DIMS);
+    lib.wait_idle();
+    let ov = lib.overview();
+    assert!(ov.active.is_none(), "{:?}", ov.active);
+    assert!(ov.counts.waiting > 0);
+    assert_eq!(
+        ov.roots[0].failed_because.as_deref(),
+        Some("model_not_found")
+    );
+
+    lib.h.script.with(|s| s.fail_always = None);
+    triggers::start(lib.root(), &root_id).unwrap();
+    lib.wait_idle();
+    let ov = lib.overview();
+    assert_eq!(ov.counts.waiting, 0);
+    assert_eq!(ov.roots[0].failed_because, None);
+}
+
 /// Slice 4.1 (found by P3-13 on CI): a document read again after the job
 /// has passed it waits again, and the reading job's trigger sees this job
 /// still running. The job looks once more from the start before finishing,

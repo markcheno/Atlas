@@ -563,6 +563,12 @@ pub struct RootEmbeddingSummary {
     pub source_root_id: RecordId,
     pub counts: EmbeddingCounts,
     pub active_job_id: Option<RecordId>,
+    /// Why indexing this folder's meaning stopped for good (the code of
+    /// its latest job, while that job is the failed one): `provider_auth`,
+    /// `model_not_found`, `model_changed`, `address_rejected`,
+    /// `index_unavailable`. Slice 4.1.1: without it a stopped job read as
+    /// "waiting".
+    pub failed_because: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize, TS)]

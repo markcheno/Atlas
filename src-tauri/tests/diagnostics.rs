@@ -11,7 +11,7 @@ use std::time::Duration;
 use atlas_lib::domain::dto::{
     JobKind, JobState, KnowledgeState, PauseReason, PolicyMode, PowerSource,
 };
-use atlas_lib::services::diagnostics::event::{PauseBy, WorkerRole};
+use atlas_lib::services::diagnostics::event::{FailureReason, PauseBy, WorkerRole};
 use atlas_lib::services::diagnostics::report::{self, Inputs, KnowledgeSummary, Report};
 use atlas_lib::services::diagnostics::{self, Diagnostics, Event, LOGS_DIR, LogLine};
 use atlas_lib::services::extraction::db;
@@ -483,13 +483,27 @@ fn p4_04_reading_stops_for_a_worker_of_another_protocol() {
     );
     assert!(WorkerStats::get(&h.deps.stats.spawns) <= 2);
     drop(ws);
-    assert!(events(&env).iter().any(|e| matches!(
+    let events = events(&env);
+    assert!(events.iter().any(|e| matches!(
         e,
         Event::WorkerRefused {
             role: WorkerRole::Read,
             protocol: 1
         }
     )));
+    // Slice 4.1.1: the job's end says why it failed.
+    assert!(
+        events.iter().any(|e| matches!(
+            e,
+            Event::JobEnded {
+                kind: JobKind::Extract,
+                state: Some(JobState::FailedTerminal),
+                reason: Some(FailureReason::WorkerProtocol),
+                ..
+            }
+        )),
+        "{events:?}"
+    );
 }
 
 /// What recording costs (docs/benchmarks.md, Slice 4.1): 100,000 events
@@ -513,6 +527,7 @@ fn measure_the_cost_of_recording() {
             ms: i,
             items: i,
             errors: 0,
+            reason: None,
         });
         queued += t.elapsed();
         if i % 512 == 511 {

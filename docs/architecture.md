@@ -734,7 +734,11 @@ in [ADR 0013](adr/0013-embeddings-durable-index-disposable.md).
   - Jobs are queued when a folder's text is read, when the library opens,
     when the role or a service changes, when the privacy setting allows
     it, and on "Index meaning now" (`embedding/triggers.rs`).
-  - Status: `embedding/status.rs`, the `embedding-status` event.
+  - Status: `embedding/status.rs`, the `embedding-status` event. A
+    folder whose latest job stopped for good carries its code
+    (`RootEmbeddingSummary.failedBecause`, Slice 4.1.1), so the status
+    line says why and offers Open Settings or Index meaning now, where
+    it used to say only "Meaning waiting".
 - **Old catalogs** (`catalog/convert.rs`): a catalog with 4 KiB pages,
   an embedding role and no vectors is rewritten with 16 KiB pages
   (`VACUUM INTO`, then a rename) when its library opens.
@@ -1237,7 +1241,8 @@ rationale in [ADR 0021](adr/0021-diagnostics.md).
   `logs/atlas-<UTC date>.jsonl`, rolling at 5 MiB, the folder kept under
   50 MiB. A failed write stops the log until the library opens again.
 - **What records:**
-  - the job runner (start and end, with items and errors);
+  - the job runner (start and end, with items and errors, and a failed
+    job's reason as a closed code, Slice 4.1.1);
   - user and policy pauses, once per change;
   - the supervisors, tagged `read` or `render` (start, crash, refusal);
   - the governor (policy changes);
@@ -1255,7 +1260,8 @@ rationale in [ADR 0021](adr/0021-diagnostics.md).
 - **The renderer:** Settings › Diagnostics (`DiagnosticsPanel.svelte`,
   `diagnosticsCopy.ts`) says what a report holds and never holds, then
   offers Save a diagnostics report, Show in…, Show the log folder and
-  Clear the log. It sends only which folder to show.
+  Clear the log, which asks first (Slice 4.1.1). It sends only which
+  folder to show.
 - **The worker's hello** (Slice 4.1): a worker of another protocol is
   refused as `Unavailable(ProtocolMismatch)`. Reading ends with
   `worker_protocol`, which `RootExtractionSummary.failedBecause` carries

@@ -185,7 +185,7 @@ The panel keeps its readings and gains:
 A small section in Settings:
 
 - **Save a diagnostics report:** shows what the report holds and what it never holds, then writes it and offers **Show in Finder** (or the platform's wording).
-- **Show the log folder**, the log's size, and **Clear the log**.
+- **Show the log folder**, the log's size, and **Clear the log**, which asks first (Slice 4.1.1).
 - A sentence: "Atlas keeps a log of what it did, in counts and timings, on this computer. Nothing is sent anywhere."
 
 ### Visual and accessibility rules
@@ -660,6 +660,19 @@ Do **not** add an OCR engine, an `ocr` job, a rescan timer or any backup code be
 ---
 
 ### Revision notes
+
+**2026-11-12, Slice 4.1.1** (found by the owner on the real library):
+- **A meaning job that stopped for good says why.** Such a job isn't
+  active, so the status line read "Meaning waiting" and offered nothing.
+  A folder's summary now carries its latest job's code while that job is
+  the failed one. The status line and the folder's line show the reason,
+  with Open Settings when the key, the model or the address has to change
+  and Index meaning now otherwise.
+- **`job_ended` carries the reason** of a failed job, as a closed code
+  (`FailureReason`; a code it doesn't know is `other`). The report's
+  version stays 1: the field is optional and older lines read as before.
+- **Clear the log asks first** (§5.8): "Clear the log? Its events can't be
+  brought back.", with Clear and Keep, as removing a folder does.
 
 **2026-11-12, Slice 4.1** (diagnostics and carry-overs; [ADR 0021](adr/0021-diagnostics.md)):
 - **Errors returned to the window are logged by code, not by command.**

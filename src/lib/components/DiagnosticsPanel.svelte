@@ -9,6 +9,9 @@
   import type { DiagnosticsStatus } from '../api/bindings/DiagnosticsStatus';
   import {
     CLEAR_LOG,
+    CLEAR_LOG_CONFIRM,
+    CLEAR_LOG_KEEP,
+    CLEAR_LOG_QUESTION,
     CLEARING,
     DIAGNOSTICS_NOTE,
     LOG_STOPPED,
@@ -28,6 +31,8 @@
   let status = $state<DiagnosticsStatus | null>(null);
   let saving = $state(false);
   let clearing = $state(false);
+  /** Clear the log asks first (Slice 4.1.1): the events can't come back. */
+  let confirmingClear = $state(false);
   let saved = $state<string | null>(null);
   let error = $state<AtlasApiError | null>(null);
   let errorTitle = $state('');
@@ -71,6 +76,7 @@
   }
 
   async function clear() {
+    confirmingClear = false;
     clearing = true;
     error = null;
     try {
@@ -131,14 +137,26 @@
       <button type="button" class="button quiet" onclick={() => void show('log')}>
         {SHOW_LOG}
       </button>
-      <button
-        type="button"
-        class="button"
-        disabled={clearing || status.logFiles === 0}
-        onclick={() => void clear()}
-      >
-        {clearing ? CLEARING : CLEAR_LOG}
-      </button>
+      {#if confirmingClear}
+        <div class="confirm" role="group" aria-label="Confirm clearing the log">
+          <span class="small">{CLEAR_LOG_QUESTION}</span>
+          <button type="button" class="button" onclick={() => void clear()}>
+            {CLEAR_LOG_CONFIRM}
+          </button>
+          <button type="button" class="button quiet" onclick={() => (confirmingClear = false)}>
+            {CLEAR_LOG_KEEP}
+          </button>
+        </div>
+      {:else}
+        <button
+          type="button"
+          class="button quiet"
+          disabled={clearing || status.logFiles === 0}
+          onclick={() => (confirmingClear = true)}
+        >
+          {clearing ? CLEARING : CLEAR_LOG}
+        </button>
+      {/if}
     </div>
   {/if}
 
@@ -180,6 +198,13 @@
     flex-wrap: wrap;
     gap: var(--space-2);
     align-items: center;
+  }
+
+  .confirm {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-2);
   }
 
   .small {

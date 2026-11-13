@@ -52,7 +52,9 @@ What is recorded:
 - Atlas starting.
 - A library opening, with the schema it had if it was migrated, and the
   knowledge store's state. A library closing, with how long it was open.
-- Each job starting and ending, with its state, time, items and errors.
+- Each job starting and ending, with its state, time, items and errors,
+  and, for a job that failed, why (Slice 4.1.1): one of a closed list of
+  codes, `other` for any string the list doesn't know.
 - Each pause and resume, by the user or by the policy, once per change.
 - Workers starting, crashing (by kind) and being refused.
 - Each change in the policy's decision.
@@ -142,3 +144,9 @@ status line says Atlas couldn't start its document reader.
   the seed count.
 - **Later slices add events of their own**, in the same closed form: OCR's
   pages, rescans, checks, backups and moves.
+- **The first real use found a gap** (Slice 4.1.1). The owner's meaning
+  job stopped for good, and the log said that it ended, not why. A failed
+  job's end now carries its reason. The field is optional, so lines
+  written before it still read and the report's version stays 1.
+- **Clear the log asks first** (Slice 4.1.1). One accidental click
+  removed the log the owner was about to need.

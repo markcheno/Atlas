@@ -56,6 +56,10 @@ pub enum Event {
         ms: u64,
         items: u64,
         errors: u64,
+        /// Why a job that failed did (Slice 4.1.1): without it the log
+        /// showed that indexing meaning stopped and not what stopped it.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        reason: Option<FailureReason>,
     },
     WorkerStarted {
         role: WorkerRole,
@@ -114,6 +118,46 @@ pub enum Event {
         bytes: u64,
     },
     LogCleared,
+}
+
+/// Why a job failed: the codes jobs store as `last_error`. A code this
+/// list doesn't know is `other`, so text can never ride in.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum FailureReason {
+    ProviderUnreachable,
+    ProviderAuth,
+    ModelNotFound,
+    ModelChanged,
+    AddressRejected,
+    IndexUnavailable,
+    ExtractorUnavailable,
+    WorkerProtocol,
+    WorkerRestarts,
+    NestedRoot,
+    PathUndecodable,
+    Database,
+    Other,
+}
+
+impl FailureReason {
+    pub fn of_code(code: &str) -> Self {
+        match code {
+            "provider_unreachable" => Self::ProviderUnreachable,
+            "provider_auth" => Self::ProviderAuth,
+            "model_not_found" => Self::ModelNotFound,
+            "model_changed" => Self::ModelChanged,
+            "address_rejected" => Self::AddressRejected,
+            "index_unavailable" => Self::IndexUnavailable,
+            "extractor_unavailable" => Self::ExtractorUnavailable,
+            "worker_protocol" => Self::WorkerProtocol,
+            "worker_restarts" => Self::WorkerRestarts,
+            "nested_root" => Self::NestedRoot,
+            "path_undecodable" => Self::PathUndecodable,
+            "database" => Self::Database,
+            _ => Self::Other,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -221,6 +265,7 @@ mod tests {
             ms: 12,
             items: 3,
             errors: 0,
+            reason: None,
         };
         let line = serde_json::to_string(&e).unwrap();
         assert_eq!(
@@ -231,6 +276,27 @@ mod tests {
         assert!(
             serde_json::from_str::<Event>(r#"{"event":"job_started","kind":"scan","note":"x"}"#)
                 .is_err()
+        );
+    }
+
+    #[test]
+    fn a_failed_job_says_why_in_a_code() {
+        let e = Event::JobEnded {
+            kind: JobKind::Embed,
+            state: Some(JobState::FailedTerminal),
+            ms: 5,
+            items: 0,
+            errors: 1,
+            reason: Some(FailureReason::of_code("model_not_found")),
+        };
+        assert_eq!(
+            serde_json::to_string(&e).unwrap(),
+            r#"{"event":"job_ended","kind":"embed","state":"failed_terminal","ms":5,"items":0,"errors":1,"reason":"model_not_found"}"#
+        );
+        // Whatever a job stored, only a known code is written.
+        assert_eq!(
+            FailureReason::of_code("/Users/someone/Books"),
+            FailureReason::Other
         );
     }
 }
