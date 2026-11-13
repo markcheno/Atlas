@@ -1384,6 +1384,18 @@ removed.
   Atlas, read-only, immutable when Atlas is closed, never migrated, and
   refused at any schema but the build's.
 
+## The OCR spike (Slice 4.2)
+
+`spikes/ocr-bench/` measured Tesseract, PP-OCR (v5 and v6 through ONNX
+Runtime) and Apple's Vision for reading scanned PDFs, by ADR 0020's
+criteria; the product owner then deferred OCR, so nothing in the app
+changed. The harness, its pinned tools and models (`spikes/tools.lock.json`)
+and the corpus generator stay for when OCR returns; the results and what to
+fix first are in [spike-ocr.md](spike-ocr.md). One finding binds the
+worker whenever OCR is built: PDFium's grey bitmap format leaves image
+objects undrawn, so scanned pages must be rendered BGRA with the greyscale
+flag.
+
 ## Spikes (Slice 0.9)
 
 [`spikes/`](../spikes/README.md) holds experiments that inform decisions

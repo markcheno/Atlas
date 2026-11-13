@@ -18,14 +18,14 @@ Phase 4 closes those gaps and then meets the real collection. The product spec's
 
 Phase 4 is complete **only** when the following holds on each of the three target OSes:
 
-1. **Scanned PDFs are read.** Documents marked Needs OCR are read page by page in the background, in priority order. The work pauses on battery, and after a kill it resumes at the next page.
+1. ~~**Scanned PDFs are read.**~~ *Deferred to a later version by the product owner (2026-11-13): their collection has few scans. Documents marked Needs OCR stay labelled, as today. The OCR spike's measurements are kept ([spike-ocr.md](spike-ocr.md), [ADR 0020](adr/0020-ocr-engine.md)).*
 2. **The library stays current without being asked.** Atlas rescans at launch and on a timer, and a rescan that finds nothing changed is cheap.
 3. **The user decides when background work runs:** automatically, only while charging, only between set hours, or not at all; and can ask for full speed now.
 4. **Atlas can check and repair itself.** Check library reports on both databases and both indexes; the search index and the meaning index can be rebuilt; the catalog can be compacted. A damaged catalog has a way back that isn't starting over.
 5. **Everything can be backed up and restored.** Trails and notes are also copied to a second folder the user chooses. The catalog has a verified backup inside the data folder. Both can be restored inside Atlas, and a restore first saves what is there.
 6. **Move Atlas data works**, and a kill at any point leaves exactly one whole library.
 7. **Atlas keeps a record.** A local log of counts and timings, and a report the user can save. Nothing is sent anywhere, and neither ever holds a path, a title or a word the user typed.
-8. **The real collection.** The product owner runs the release build against their real collection from the checklist in §10: it is indexed progressively, scans included, survives kills, battery and a move, and no trail or note is lost.
+8. **The real collection.** The product owner runs the release build against their real collection from the checklist in §10: it is indexed progressively, survives kills, battery and a move, and no trail or note is lost.
 9. Unit, integration and smoke tests, benchmarks, packaging and licence evidence are recorded for macOS, Windows and Linux.
 
 **Do not mark Phase 4 complete on builds alone, or on fixtures alone.** Item 8 is the owner's run, and the phase stays open until it is recorded. If an OS is unavailable for a check, document it as unverified with a reproducible checklist, as Phases 0 to 3 did.
@@ -60,8 +60,8 @@ Phase 4 is complete **only** when the following holds on each of the three targe
 ### Implement in Phase 4
 
 - **Diagnostics:** a local log of typed events, a panic hook, and a counts-only report.
-- **OCR:** the engine the spike chooses, in the worker; an `ocr` job; page-level resume; passages from OCR.
-- **Priority:** Read this now, and an order for OCR.
+- ~~**OCR**~~: deferred (2026-11-13); the spike's measurements are recorded.
+- **Priority:** Read this now, for reading and meaning.
 - **Automatic rescans:** at launch, on a timer, and when a drive returns; a rescan that writes nothing when nothing changed.
 - **Schedules:** when background work runs; full speed; a rule for a busy computer.
 - **Check library and repairs:** checks of both databases and both indexes; rebuild, compact, and removing records of files long gone; recovery from a damaged catalog.
@@ -72,7 +72,7 @@ Phase 4 is complete **only** when the following holds on each of the three targe
 
 ### Explicitly defer
 
-Signing, notarization and in-app updates (their own release-readiness phase); filesystem watchers; OCR of languages other than English; OCR through a vision model on the user's AI service; OCR of partly scanned documents that pass today's rule (they are counted, §7.2); an outline on OCR'd pages in the page view (no positions are stored); compressing stored passages (ADR 0010 stands; the real collection's sizes are recorded in the close-out); a trigram index for Chinese and Japanese; incremental snapshots and a streaming import (measured against the real store, not built); re-linking a library folder that moved, and opening a library on another computer; encryption of backups; an EPUB renderer, text selection and annotations; `atlas://` links; a "Check for newer recommendations" fetch; a reranker, summaries and query rewriting; §7.7 of the Phase 2 spec; an Anthropic native adapter; an Atlas-managed runtime and model downloads; thumbnails and covers; sync of trails and bookmarks (Phase 5); a background service that runs after Atlas quits.
+OCR itself (2026-11-13: the spike measured the engines, and building OCR waits for a version where scans matter more); signing, notarization and in-app updates (their own release-readiness phase); filesystem watchers; OCR of languages other than English; OCR through a vision model on the user's AI service; OCR of partly scanned documents that pass today's rule (they are counted, §7.2); an outline on OCR'd pages in the page view (no positions are stored); compressing stored passages (ADR 0010 stands; the real collection's sizes are recorded in the close-out); a trigram index for Chinese and Japanese; incremental snapshots and a streaming import (measured against the real store, not built); re-linking a library folder that moved, and opening a library on another computer; encryption of backups; an EPUB renderer, text selection and annotations; `atlas://` links; a "Check for newer recommendations" fetch; a reranker, summaries and query rewriting; §7.7 of the Phase 2 spec; an Anthropic native adapter; an Atlas-managed runtime and model downloads; thumbnails and covers; sync of trails and bookmarks (Phase 5); a background service that runs after Atlas quits.
 
 **Scope discipline.** One executable. Two SQLite databases, each with one writer. The OCR engine is loaded only in the worker process, as PDFium is. Atlas writes outside its data root in exactly two places, both chosen by the user in a native dialog: the `Atlas` folder of an export destination (Phase 3) and the `Atlas Backups` folder of a backup destination (§7.7). A Move ends with one data root, not two. No network request is added: Atlas still contacts only the AI service the user configured.
 
@@ -80,7 +80,7 @@ Signing, notarization and in-app updates (their own release-readiness phase); fi
 
 | Concern | Phase 4 choice | Notes |
 | --- | --- | --- |
-| OCR engine | **Decided by Slice 4.2** (ADR 0020), by the rule in §10 | Candidates: Tesseract 5 (Apache-2.0; Leptonica BSD-2), PP-OCRv5 through ONNX Runtime (models Apache-2.0; runtime MIT), and Apple's Vision framework on macOS only. `ocrs` is excluded: its models are CC BY-SA 4.0 |
+| OCR engine | **Decided by Slice 4.2** (ADR 0020), by the rule in §10 | Candidates: Tesseract 5 (Apache-2.0; Leptonica BSD-2), PP-OCRv5 and PP-OCRv6 through ONNX Runtime (models Apache-2.0; runtime MIT; v6 added in Slice 4.2), and Apple's Vision framework on macOS only. `ocrs` is excluded: its models are CC BY-SA 4.0 |
 | Page images for OCR | `pdfium-render` 0.9.5 as pinned: `render_with_config` at 300 DPI, greyscale, annotations off | Already in the worker. A page that is one embedded image may be taken at its own resolution instead |
 | OCR process | a third instance of the extraction worker's `Supervisor`, for OCR only | After extraction and the page view (ADR 0018). The main process still loads neither PDFium nor the OCR engine |
 | Staging OCR pages | a table in the catalog (`ocr_pages`), emptied as each document is committed | So a kill costs one page, and nothing is written under `jobs/checkpoints/` |
@@ -297,6 +297,8 @@ No schema change. Its snapshots (§6.3 of the Phase 3 spec) are unchanged; Phase
 
 ### 7.2 OCR (`services/ocr/`, `extraction/engine/ocr.rs`)
 
+*Deferred (2026-11-13), with §10.1's decision, §10.2 and P4-05 to P4-09: see the revision notes. Kept for when OCR returns.*
+
 - **What is read.** A PDF in the state `needs_ocr`:
   - with the reason `no_text_layer`, the pages with under 20 visible characters are read by OCR and the others keep their text layer;
   - with the reason `unreadable_text`, every page is read by OCR.
@@ -492,7 +494,7 @@ get_move_status() -> MoveStatus;  remove_old_copy() -> ()            # 4.9
   - what the engine adds to each installer, and to a clean CI build on each OS;
   - whether the bundle still passes the worker checks in each installed layout.
 - **The rule:**
-  - **Tesseract is chosen** unless PP-OCRv5's word error rate over the corpus is at least 3 points lower, each installer grows by at most 40 MiB, and it builds and passes the worker checks on all three OSes. Then PP-OCRv5 is chosen.
+  - **Tesseract is chosen** unless PP-OCR's word error rate over the corpus is at least 3 points lower, each installer grows by at most 40 MiB, and it builds and passes the worker checks on all three OSes. Then PP-OCR is chosen. PP-OCR's entry is the best of its v5 and v6 variants within those limits (Slice 4.2; ADR 0020 defines the measures and the variants).
   - **Apple's Vision framework is used on macOS** only if its word error rate is at least 3 points lower than the chosen engine's there. If it is used, ADR 0020 records that text read on macOS differs from text read elsewhere.
   - **If no candidate builds on all three OSes**, the slice stops and reports; OCR does not ship on some OSes only without the product owner's decision.
 - **The result** is ADR 0020 and `docs/spike-ocr.md`, with every measurement.
@@ -591,8 +593,8 @@ Implement and verify **one slice at a time**. Build and rerun tests after each s
 | --- | --- | --- |
 | 4.1 | **Diagnostics and carry-overs.** The log, the panic hook, the report, the Diagnostics section; the protocol check; page counts for Needs OCR documents (migration 0015); slice strings to Phase 4; ADR 0021 | P4-01, P4-02, P4-03, P4-04. The product owner then saves a report from the real library; its counts are recorded and size Slices 4.3 to 4.5 |
 | 4.2 | **The OCR spike.** `spikes/ocr-bench/`, the corpus, the measurements on three OSes, the decision by §10.1's rule; ADR 0020; `docs/spike-ocr.md` | Every §10.1 measurement recorded for every candidate; a clean build and worker check on three OSes for the engine chosen; licences recorded |
-| 4.3 | **OCR.** The engine in the worker, `Ocr` (protocol 3), the `ocr` job, staging and commit (migration 0016), the policy, the scanned fixtures, the wording of §5.1 | P4-05, P4-06, P4-07, P4-08, P4-09; `benches/ocr.rs`; the floor of §10.2 set and met |
-| 4.4 | **Priority.** Read this now (migration 0017), `jobs.priority` in use, OCR's order, OCR progress in the indexing line | P4-10; Vitest |
+| 4.3 | ~~**OCR.**~~ *Deferred (2026-11-13).* The engine in the worker, `Ocr` (protocol 3), the `ocr` job, staging and commit (migration 0016), the policy, the scanned fixtures, the wording of §5.1 | P4-05, P4-06, P4-07, P4-08, P4-09; `benches/ocr.rs`; the floor of §10.2 set and met |
+| 4.4 | **Priority.** Read this now (migration 0017) for reading and meaning, `jobs.priority` in use (OCR's order and progress deferred with OCR) | P4-10 without its OCR cases; Vitest |
 | 4.5 | **Automatic rescans.** The rescan that writes only changes; launch, timer and returning drives; "Checked … ago"; ADR 0022 | P4-11, P4-12; the no-change rescan benchmarked at 30,000 files |
 | 4.6 | **Schedules.** Background work's modes, hours, full speed, the busy rule, the settings; ADR 0022 completed; ADR 0004 amended | P4-13, P4-14, P4-25 (settings); Vitest |
 | 4.7 | **Check library and repairs.** The checks, the four repairs, the setup mirror, recovery from a damaged catalog; ADR 0023 | P4-15, P4-16, P4-17; Vitest |
@@ -660,6 +662,55 @@ Do **not** add an OCR engine, an `ocr` job, a rescan timer or any backup code be
 ---
 
 ### Revision notes
+
+**2026-11-13, Slice 4.4 skipped for now** (the product owner: "go straight
+to 4.5"). Read this now and `jobs.priority` wait; 4.5 follows 4.2. 4.5
+takes migration 0016, which OCR had reserved.
+
+**2026-11-13, Slice 4.2, OCR deferred** (the product owner's decision;
+[the spike](spike-ocr.md)):
+- **OCR leaves Phase 4.** The owner's collection has few scanned PDFs, and
+  building OCR (Slice 4.3, OCR's parts of 4.4, P4-05 to P4-09, the scanned
+  fixtures, protocol 3, migration 0016) isn't worth it in this version.
+  §1's first criterion and "scans included" in the eighth are withdrawn;
+  Needs OCR documents stay labelled.
+- **The spike is closed with what it measured**: Tesseract's accuracy and
+  speed on the M5 Pro, every engine's clean build on three OSes, and each
+  engine in the real installers with its check from the installed place.
+  PP-OCR's and Vision's accuracy over the corpus weren't measured: the
+  owner's Mac was needed for indexing, and CI's corpus build stopped when
+  Commons served a re-rendered scan the manifest's pin refused.
+- **ADR 0020 stays Proposed**, its criteria intact, for when OCR returns.
+  What the next attempt needs first is in the spike's write-up.
+- **Priority (4.4) keeps** Read this now for reading and meaning.
+
+**2026-11-12, Slice 4.2, before measuring** (the OCR spike's criteria;
+[ADR 0020](adr/0020-ocr-engine.md), Proposed):
+- **PP-OCRv6 is measured beside v5**, by the product owner's decision: it
+  was released in June 2026 under Apache-2.0. The better of the two within
+  §10.1's limits is PP-OCR's entry. v6 has no English-only recogniser, so
+  its variants use the multilingual one. The v5 server and v6 medium
+  models are excluded before measuring: their models alone pass 40 MiB.
+- **The rule's definitions are fixed in ADR 0020**: the normalisation; WER
+  and CER by Levenshtein (substitutions count once); the corpus figure as
+  the mean of the pages' WERs; 300 DPI; PP-OCR must win on every OS where
+  both engines ran; a page over 60 s fails a variant.
+- **Recorded, not deciding**, by the product owner's decisions: a 95%
+  interval for each WER difference (a paired bootstrap over pages), and
+  speed. No speed bound beyond §7.2's 60 s a page.
+- **The owner's own scans** (`just spike-ocr-mine`), read by every engine
+  and timed, side by side with the page image: a check on behaviour, not
+  part of the rule.
+- **Reference text for book scans** comes from Wikisource's validated page
+  transcriptions where Project Gutenberg's isn't aligned to the page or
+  the edition. Wikisource text is CC BY-SA, so it is fetched by a pinned
+  script and not committed.
+- **The worker check in 4.2 is a stand-in**: a small program built with
+  the engine, bundled into a real installer beside Atlas, finding its
+  library and models by the worker's rules from its installed place, and
+  reading one scanned page. The real worker with the engine inside is
+  §14's check in Slice 4.3. ONNX Runtime is Microsoft's official build,
+  pinned and loaded at run time, as PDFium is.
 
 **2026-11-12, Slice 4.1.3** (asked by the owner while indexing the real
 library):
@@ -775,7 +826,7 @@ library):
 ### Primary reference documentation (verify current versions at implementation time)
 
 - Tesseract (quality, resolution, models): <https://tesseract-ocr.github.io/tessdoc/>, <https://tesseract-ocr.github.io/tessdoc/ImproveQuality.html>
-- PP-OCRv5 models: <https://huggingface.co/PaddlePaddle/PP-OCRv5_mobile_rec>; ONNX Runtime: <https://onnxruntime.ai/docs/>
+- PP-OCRv5 models: <https://huggingface.co/PaddlePaddle/PP-OCRv5_mobile_rec>; PP-OCRv6: <https://huggingface.co/PaddlePaddle/PP-OCRv6_small_rec_onnx>; ONNX Runtime: <https://onnxruntime.ai/docs/>
 - Apple Vision text recognition from Rust: <https://docs.rs/objc2-vision/latest/objc2_vision/>
 - pdfium-render (page rendering): <https://docs.rs/pdfium-render/0.9.5/pdfium_render/>
 - SQLite `quick_check`, `integrity_check` and `foreign_key_check`: <https://www.sqlite.org/pragma.html>; `VACUUM INTO`: <https://www.sqlite.org/lang_vacuum.html>

@@ -4,7 +4,7 @@ Atlas is a local-first personal AI librarian for large private collections of
 PDFs, EPUBs, books and papers. *Collect freely. Organize minimally. Retrieve
 intelligently.*
 
-**Status: Phase 3 complete (version 0.4.0, [close-out review](docs/phase3-closeout.md)): research trails, bookmarks and findings, interests and projects, the PDF page view, export and import. Phases 0 to 2 complete ([Phase 2 review](docs/phase2-closeout.md), [Phase 1 review](docs/phase1-closeout.md)). Phase 4, full-collection readiness, is under way ([specification](docs/phase4-spec.md)): Slice 4.1 adds a local log and a diagnostics report; Slice 4.1.1 makes a stopped meaning job say why and Clear the log ask first, and Slice 4.1.3 says why work is going slowly; Slice 4.1.2 is a [spike](docs/spike-explore.md) on a map of the library by meaning, which changes nothing in the app.** Atlas asks where to keep its library and
+**Status: Phase 3 complete (version 0.4.0, [close-out review](docs/phase3-closeout.md)): research trails, bookmarks and findings, interests and projects, the PDF page view, export and import. Phases 0 to 2 complete ([Phase 2 review](docs/phase2-closeout.md), [Phase 1 review](docs/phase1-closeout.md)). Phase 4, full-collection readiness, is under way ([specification](docs/phase4-spec.md)): Slice 4.1 adds a local log and a diagnostics report; Slice 4.1.1 makes a stopped meaning job say why and Clear the log ask first, and Slice 4.1.3 says why work is going slowly; Slice 4.1.2 is a [spike](docs/spike-explore.md) on a map of the library by meaning, and Slice 4.2 an [OCR spike](docs/spike-ocr.md), measured and then deferred: neither changes the app.** Atlas asks where to keep its library and
 which folders hold your books and papers, then catalogs every PDF and EPUB
 in them in the background, read-only. Cataloging slows on battery, pauses
 when the battery is low or the drive is nearly full, survives quitting and
@@ -163,6 +163,7 @@ Specifications: [product](docs/product-spec.md), [Phase 0](docs/phase0-spec.md),
 [benchmarks](docs/benchmarks.md), [packaging](docs/packaging.md),
 [extraction and vector spike](docs/spike-0.9.md),
 [Explore spike](docs/spike-explore.md),
+[OCR spike](docs/spike-ocr.md),
 [dependency licenses](docs/dependency-licenses.md)
 ([spike candidates](docs/spike-dependency-licenses.md)).
 

@@ -29,7 +29,10 @@
     "spike:extract": "node spikes/scripts/run-extraction.mjs",
     "spike:vectors": "node spikes/scripts/run-vectors.mjs",
     "spike:builds": "node spikes/scripts/measure-builds.mjs",
-    "spike:licenses": "node scripts/license-report.mjs --spikes"
+    "spike:licenses": "node scripts/license-report.mjs --spikes",
+    "spike:ocr": "node spikes/scripts/run-ocr.mjs",
+    "spike:ocr-installers": "node spikes/scripts/ocr-installed.mjs",
+    "spike:ocr-mine": "node spikes/scripts/ocr-mine.mjs"
   },
   "dependencies": {
     "@tauri-apps/api": "2.12.4"

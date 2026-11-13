@@ -5,3 +5,4 @@
 
 # Spike corpus: byte-exact (hashes in the manifest)
 spikes/extraction-bench/corpus/** -text
+spikes/ocr-bench/corpus/** -text

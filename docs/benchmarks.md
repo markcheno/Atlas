@@ -473,6 +473,13 @@ bursts the queue holds (512, then a flush).
   under measurement noise by construction, so it wasn't timed against a
   1k read.
 
+## OCR spike (Slice 4.2)
+
+Tesseract's speed and memory over the 50-page OCR corpus on the M5 Pro,
+each OCR engine's clean build cost on three OSes, and what each adds to
+each installer: [spike-ocr.md](spike-ocr.md#results). OCR was deferred
+before PP-OCR and Vision were timed over the corpus.
+
 ## Explore spike (Slice 4.1.2)
 
 What laying out a library by meaning costs: `just bench-explore`

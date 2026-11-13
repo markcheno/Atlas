@@ -21,6 +21,33 @@ Results: [docs/spike-0.9.md](../docs/spike-0.9.md). Decision:
 | `tools.lock.json` | Pinned downloads (protoc, typst) with SHA-256 per OS; PDFium, which the app now ships, is pinned in the root `tools.lock.json` (Slice 1.2) and fetched from there |
 | `.tools/` | Where `fetch-tools` unpacks them (gitignored) |
 
+## Slice 4.2: the OCR engine
+
+Results: [docs/spike-ocr.md](../docs/spike-ocr.md). Decision:
+[ADR 0020](../docs/adr/0020-ocr-engine.md), whose criteria were committed
+before anything was measured.
+
+| Folder | What |
+| --- | --- |
+| `ocr-bench/` | Cargo workspace: `ocrbench` (the engines' contract, the PDFium page render, the measures, the column ordering, the installed check), one binary per engine (`ocr-tesseract`, `ocr-ppocr`, `ocr-vision`), a `baseline` that renders only, and `score` |
+| `ocr-bench/generator/` | `corpus.py select` (chooses the pages and pins them in `corpus/manifest.json`; run once), `make` (fetches what the manifest pins and builds `build/corpus/`) and `check`; a uv project with tests |
+| `ocr-bench/corpus/` | Committed: the manifest of pins, and `check/`, the page every engine reads in the installed check (our own, from Project Gutenberg text). The Wikisource text is CC BY-SA, so it is fetched, never committed |
+| `scripts/` | `run-ocr` (every variant over the corpus, scored), `ocr-installed` (each engine in real installers, and its check from the installed place), `ocr-mine` (the owner's own scans), `ocr-lib` (what they share) |
+
+```sh
+just spike-ocr-tools             # PDFium, ONNX Runtime, cmake, the models (checksummed)
+just spike-ocr-corpus            # fetch and build the corpus (slow: Wikimedia's rate limits)
+just spike-ocr                   # every engine at 300 and 200 DPI, scored
+just spike-ocr-installers        # each engine in this OS's real installers
+just spike-ocr-mine ~/Scans      # your own scanned PDFs, timed, side by side (numbers only on the terminal)
+```
+
+The engines' contract: `<engine> --dpi N --variant V <jobs.jsonl>`, one
+`{"id", "pdf", "page"}` a line; out come a `ready` line, one line a page
+with its text and timings, and a `done` line with peak memory and the
+engine's versions and model hashes. `<engine> --self-check` reads the
+embedded page from wherever an installer put it.
+
 ## Running
 
 ```sh
@@ -39,7 +66,8 @@ given. CI runs the same scripts on macOS, Windows and Linux when the
 **Spikes** workflow is dispatched by hand (`.github/workflows/spikes.yml`).
 
 Requirements beyond the app's: [uv](https://docs.astral.sh/uv/) for the
-generator and the Docling sidecar, and a C++17 compiler (usearch).
+generators and the Docling sidecar, and a C++17 compiler (usearch,
+Tesseract; cmake is fetched by `spike-ocr-tools`).
 Everything else is downloaded into `spikes/.tools` by `just spike-tools`.
 
 ## The extractor contract
