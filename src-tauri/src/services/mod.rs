@@ -11,6 +11,7 @@ pub mod embedding;
 pub mod explore;
 pub mod export;
 pub mod extraction;
+pub mod formats;
 pub mod inventory;
 pub mod jobs;
 pub mod knowledge;

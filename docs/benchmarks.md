@@ -490,9 +490,19 @@ includes the first scan's delayed writeback.
   unchanged file a twentieth. Unthrottled, the same rescan takes 0.42 s.
 - **First rows of a first scan are unchanged** (17 ms unthrottled), because
   new files are never held.
-- **Not yet measured:** the 100,000-file fixture (phase4-spec §11), and
-  CI's three OSes, whose 1k and 30k scenarios now include `--rescan`
-  (results in the full run's bench artifact).
+- **On CI's three OSes** (`main` after the merge,
+  [43464336485](https://github.com/markcheno/Atlas/actions/runs/43464336485)):
+
+  | No-change rescan, policy rate | macOS | Linux | Windows |
+  | --- | ---: | ---: | ---: |
+  | 30k files | 4.94 s | 4.19 s | 4.18 s |
+  | 1k files | 1.52 s | 1.44 s | 1.45 s |
+  | Catalog written (both sizes) | 1,090 KiB | 1,090 KiB | 993 KiB |
+  | 1% changed at 30k | 4.97 s, 21.0 MiB | 4.79 s, 21.3 MiB | 4.79 s, 22.5 MiB |
+
+  The writes are the same at 1k files as at 30k, so what a no-change
+  rescan writes is a scan's fixed cost, not a cost per file.
+- **Not yet measured:** the 100,000-file fixture (phase4-spec §11).
 
 ## Diagnostics (Slice 4.1)
 
