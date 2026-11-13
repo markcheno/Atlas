@@ -1,5 +1,5 @@
 {
-  "comment": "Pinned tool downloads for the Slice 0.9 spike. fetch-tools.mjs verifies each SHA-256 before unpacking into spikes/.tools/. PDFium, which the app now ships, is pinned in the root tools.lock.json (Slice 1.2); fetch-tools.mjs reads it from there.",
+  "comment": "Pinned tool and model downloads for the spikes (Slice 0.9; the OCR spike, Slice 4.2). fetch-tools.mjs verifies each SHA-256 before unpacking into spikes/.tools/. PDFium, which the app now ships, is pinned in the root tools.lock.json (Slice 1.2); fetch-tools.mjs reads it from there. Entries with `files` are the same on every platform and are stored as they are, not unpacked.",
   "tools": {
     "protoc": {
       "version": "36.2",
@@ -36,6 +36,128 @@
         "win32-x64": {
           "url": "https://github.com/typst/typst/releases/download/v0.15.1/typst-x86_64-pc-windows-msvc.zip",
           "sha256": "19ce3551153c2fe7ee9fa2f95208310c8f4d3209fedb699e0333faf8913f6736"
+        }
+      }
+    },
+    "onnxruntime": {
+      "version": "1.28.0",
+      "license": "MIT (ThirdPartyNotices.txt in the archive)",
+      "why": "The OCR spike (Slice 4.2): Microsoft's official build, loaded at run time by `ort` 2.0.0-rc.13 (load-dynamic), as the worker would ship it beside PDFium. rc.13 was built against 1.28.0",
+      "assets": {
+        "darwin-arm64": {
+          "url": "https://github.com/microsoft/onnxruntime/releases/download/v1.28.0/onnxruntime-osx-arm64-1.28.0.tgz",
+          "sha256": "1268b359718099bde2cedb55787f182a130067bc4f31e8c88478c445b850d3d8"
+        },
+        "linux-x64": {
+          "url": "https://github.com/microsoft/onnxruntime/releases/download/v1.28.0/onnxruntime-linux-x64-1.28.0.tgz",
+          "sha256": "a3e1b79d7bb1bf09696ce675f49e4064e6c81f6202b8225624fff0e93f8d6407"
+        },
+        "win32-x64": {
+          "url": "https://github.com/microsoft/onnxruntime/releases/download/v1.28.0/onnxruntime-win-x64-1.28.0.zip",
+          "sha256": "abef733dacbe2f571547a7150b479b5cb9cc0df22f96c24983a42cadb1b4f8bc"
+        }
+      }
+    },
+    "cmake": {
+      "version": "4.5.0",
+      "license": "BSD-3-Clause",
+      "why": "The OCR spike (Slice 4.2): xberg-tesseract builds Tesseract and Leptonica from source with cmake. Downloadable, so no system-wide install (ADR 0008's hard gate)",
+      "assets": {
+        "darwin-arm64": {
+          "url": "https://github.com/Kitware/CMake/releases/download/v4.5.0/cmake-4.5.0-macos-universal.tar.gz",
+          "sha256": "a645d69fd21e521759cc0c64e7c60462d43faf0c7214ac05f75c80f7c5037dde"
+        },
+        "linux-x64": {
+          "url": "https://github.com/Kitware/CMake/releases/download/v4.5.0/cmake-4.5.0-linux-x86_64.tar.gz",
+          "sha256": "81f0d5b0960fb6adc8197030ffc827fba937640d51e73e39e0e9e40d88c66f6f"
+        },
+        "win32-x64": {
+          "url": "https://github.com/Kitware/CMake/releases/download/v4.5.0/cmake-4.5.0-windows-x86_64.zip",
+          "sha256": "301b1728317ccd84e984b02e366a8293735bc5ac618757d3d8f58b578f062411"
+        }
+      }
+    },
+    "ppocr-models": {
+      "version": "2026-11-12",
+      "license": "Apache-2.0 (PaddlePaddle on Hugging Face)",
+      "why": "The OCR spike (Slice 4.2): PP-OCRv5 mobile detection with the English-only v5 recogniser, and PP-OCRv6 tiny and small (v6 has no English-only recogniser). Each pinned by its repository's commit",
+      "files": {
+        "v5-mobile-det.onnx": {
+          "url": "https://huggingface.co/PaddlePaddle/PP-OCRv5_mobile_det_onnx/resolve/e6f4fa85f00e168c862bc462aebca69eef9b3d3d/inference.onnx",
+          "sha256": "a431985659dc921974177a95adcfbb90fd9e51989a5e04d70d0b75f597b6e61d",
+          "bytes": 4826518
+        },
+        "v5-mobile-det.yml": {
+          "url": "https://huggingface.co/PaddlePaddle/PP-OCRv5_mobile_det_onnx/resolve/e6f4fa85f00e168c862bc462aebca69eef9b3d3d/inference.yml",
+          "sha256": "98069072e1b6b37d727fd9d9f11725faa46d6ea0de012f2ed26caea011c37699",
+          "bytes": 903
+        },
+        "v5-mobile-en-rec.onnx": {
+          "url": "https://huggingface.co/PaddlePaddle/en_PP-OCRv5_mobile_rec_onnx/resolve/3fafbc3b5dcf93dd72add9f48368be8a3a2cd33b/inference.onnx",
+          "sha256": "b5f833dfc5d0eb71da397b4efa06ebeee9b431b690a47d6af40d77d8eabc557f",
+          "bytes": 7848423
+        },
+        "v5-mobile-en-rec.yml": {
+          "url": "https://huggingface.co/PaddlePaddle/en_PP-OCRv5_mobile_rec_onnx/resolve/3fafbc3b5dcf93dd72add9f48368be8a3a2cd33b/inference.yml",
+          "sha256": "27e91d0582f40168aa218303c76e184bc78fa7a5d105aad0cfbad8458b441067",
+          "bytes": 3964
+        },
+        "v6-tiny-det.onnx": {
+          "url": "https://huggingface.co/PaddlePaddle/PP-OCRv6_tiny_det_onnx/resolve/2ba1506c0380b8f0b03dd142459aac66d4421f6c/inference.onnx",
+          "sha256": "193bab7a04fca699a6c82e6abb5b81bdb28177f0abd4062552b04908dafb19f8",
+          "bytes": 1780590
+        },
+        "v6-tiny-det.yml": {
+          "url": "https://huggingface.co/PaddlePaddle/PP-OCRv6_tiny_det_onnx/resolve/2ba1506c0380b8f0b03dd142459aac66d4421f6c/inference.yml",
+          "sha256": "3ac018be6f97499a08faa3bbdeb33640968d9307f6736d152902747a9f259593",
+          "bytes": 883
+        },
+        "v6-tiny-rec.onnx": {
+          "url": "https://huggingface.co/PaddlePaddle/PP-OCRv6_tiny_rec_onnx/resolve/2612ab37152ae0a677521bae4e1e3d4fb4cf7c30/inference.onnx",
+          "sha256": "9ef676d6ed3c88256a2d92c640c44f25b0c40947e111b14b8be8f594091563e6",
+          "bytes": 4462639
+        },
+        "v6-tiny-rec.yml": {
+          "url": "https://huggingface.co/PaddlePaddle/PP-OCRv6_tiny_rec_onnx/resolve/2612ab37152ae0a677521bae4e1e3d4fb4cf7c30/inference.yml",
+          "sha256": "66170210bad538e83fff3c4a3867e547d6bf20b50d64b20347c4b913f3034ea1",
+          "bytes": 55571
+        },
+        "v6-small-det.onnx": {
+          "url": "https://huggingface.co/PaddlePaddle/PP-OCRv6_small_det_onnx/resolve/28fe5895c24fd108c19eb3e8479f4ab385fbfc62/inference.onnx",
+          "sha256": "d73e0058b7a8086bbd57f3d10b8bcd4ff95363f67e06e2762b5e814fe9c9410e",
+          "bytes": 9880512
+        },
+        "v6-small-det.yml": {
+          "url": "https://huggingface.co/PaddlePaddle/PP-OCRv6_small_det_onnx/resolve/28fe5895c24fd108c19eb3e8479f4ab385fbfc62/inference.yml",
+          "sha256": "193f435274bf9f0b5f71a929bbfbcf148282df7e633b34e7c373e8f44741b516",
+          "bytes": 885
+        },
+        "v6-small-rec.onnx": {
+          "url": "https://huggingface.co/PaddlePaddle/PP-OCRv6_small_rec_onnx/resolve/b8f84f0b80c529de40b4fbb3544b84fa7233a513/inference.onnx",
+          "sha256": "5435fd747c9e0efe15a96d0b378d5bd157e9492ed8fd80edf08f30d02fa24634",
+          "bytes": 21159378
+        },
+        "v6-small-rec.yml": {
+          "url": "https://huggingface.co/PaddlePaddle/PP-OCRv6_small_rec_onnx/resolve/b8f84f0b80c529de40b4fbb3544b84fa7233a513/inference.yml",
+          "sha256": "ab078671bb49f06228eadccd34f1bb501e157f7a047095ffb943ba81512c77d1",
+          "bytes": 150579
+        }
+      }
+    },
+    "tessdata": {
+      "version": "2026-11-12",
+      "license": "Apache-2.0 (tesseract-ocr/tessdata_fast, tessdata_best)",
+      "why": "The OCR spike (Slice 4.2): Tesseract's English LSTM models, the fast (integer) and best (float) variants",
+      "files": {
+        "fast/eng.traineddata": {
+          "url": "https://raw.githubusercontent.com/tesseract-ocr/tessdata_fast/87416418657359cb625c412a48b6e1d6d41c29bd/eng.traineddata",
+          "sha256": "7d4322bd2a7749724879683fc3912cb542f19906c83bcc1a52132556427170b2",
+          "bytes": 4113088
+        },
+        "best/eng.traineddata": {
+          "url": "https://raw.githubusercontent.com/tesseract-ocr/tessdata_best/e12c65a915945e4c28e237a9b52bc4a8f39a0cec/eng.traineddata",
+          "sha256": "8280aed0782fe27257a68ea10fe7ef324ca0f8d85bd2fd145d1c2b560bcb66ba",
+          "bytes": 15400601
         }
       }
     }

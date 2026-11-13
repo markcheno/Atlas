@@ -80,7 +80,7 @@ Signing, notarization and in-app updates (their own release-readiness phase); fi
 
 | Concern | Phase 4 choice | Notes |
 | --- | --- | --- |
-| OCR engine | **Decided by Slice 4.2** (ADR 0020), by the rule in §10 | Candidates: Tesseract 5 (Apache-2.0; Leptonica BSD-2), PP-OCRv5 through ONNX Runtime (models Apache-2.0; runtime MIT), and Apple's Vision framework on macOS only. `ocrs` is excluded: its models are CC BY-SA 4.0 |
+| OCR engine | **Decided by Slice 4.2** (ADR 0020), by the rule in §10 | Candidates: Tesseract 5 (Apache-2.0; Leptonica BSD-2), PP-OCRv5 and PP-OCRv6 through ONNX Runtime (models Apache-2.0; runtime MIT; v6 added in Slice 4.2), and Apple's Vision framework on macOS only. `ocrs` is excluded: its models are CC BY-SA 4.0 |
 | Page images for OCR | `pdfium-render` 0.9.5 as pinned: `render_with_config` at 300 DPI, greyscale, annotations off | Already in the worker. A page that is one embedded image may be taken at its own resolution instead |
 | OCR process | a third instance of the extraction worker's `Supervisor`, for OCR only | After extraction and the page view (ADR 0018). The main process still loads neither PDFium nor the OCR engine |
 | Staging OCR pages | a table in the catalog (`ocr_pages`), emptied as each document is committed | So a kill costs one page, and nothing is written under `jobs/checkpoints/` |
@@ -492,7 +492,7 @@ get_move_status() -> MoveStatus;  remove_old_copy() -> ()            # 4.9
   - what the engine adds to each installer, and to a clean CI build on each OS;
   - whether the bundle still passes the worker checks in each installed layout.
 - **The rule:**
-  - **Tesseract is chosen** unless PP-OCRv5's word error rate over the corpus is at least 3 points lower, each installer grows by at most 40 MiB, and it builds and passes the worker checks on all three OSes. Then PP-OCRv5 is chosen.
+  - **Tesseract is chosen** unless PP-OCR's word error rate over the corpus is at least 3 points lower, each installer grows by at most 40 MiB, and it builds and passes the worker checks on all three OSes. Then PP-OCR is chosen. PP-OCR's entry is the best of its v5 and v6 variants within those limits (Slice 4.2; ADR 0020 defines the measures and the variants).
   - **Apple's Vision framework is used on macOS** only if its word error rate is at least 3 points lower than the chosen engine's there. If it is used, ADR 0020 records that text read on macOS differs from text read elsewhere.
   - **If no candidate builds on all three OSes**, the slice stops and reports; OCR does not ship on some OSes only without the product owner's decision.
 - **The result** is ADR 0020 and `docs/spike-ocr.md`, with every measurement.
@@ -661,6 +661,34 @@ Do **not** add an OCR engine, an `ocr` job, a rescan timer or any backup code be
 
 ### Revision notes
 
+**2026-11-12, Slice 4.2, before measuring** (the OCR spike's criteria;
+[ADR 0020](adr/0020-ocr-engine.md), Proposed):
+- **PP-OCRv6 is measured beside v5**, by the product owner's decision: it
+  was released in June 2026 under Apache-2.0. The better of the two within
+  §10.1's limits is PP-OCR's entry. v6 has no English-only recogniser, so
+  its variants use the multilingual one. The v5 server and v6 medium
+  models are excluded before measuring: their models alone pass 40 MiB.
+- **The rule's definitions are fixed in ADR 0020**: the normalisation; WER
+  and CER by Levenshtein (substitutions count once); the corpus figure as
+  the mean of the pages' WERs; 300 DPI; PP-OCR must win on every OS where
+  both engines ran; a page over 60 s fails a variant.
+- **Recorded, not deciding**, by the product owner's decisions: a 95%
+  interval for each WER difference (a paired bootstrap over pages), and
+  speed. No speed bound beyond §7.2's 60 s a page.
+- **The owner's own scans** (`just spike-ocr-mine`), read by every engine
+  and timed, side by side with the page image: a check on behaviour, not
+  part of the rule.
+- **Reference text for book scans** comes from Wikisource's validated page
+  transcriptions where Project Gutenberg's isn't aligned to the page or
+  the edition. Wikisource text is CC BY-SA, so it is fetched by a pinned
+  script and not committed.
+- **The worker check in 4.2 is a stand-in**: a small program built with
+  the engine, bundled into a real installer beside Atlas, finding its
+  library and models by the worker's rules from its installed place, and
+  reading one scanned page. The real worker with the engine inside is
+  §14's check in Slice 4.3. ONNX Runtime is Microsoft's official build,
+  pinned and loaded at run time, as PDFium is.
+
 **2026-11-12, Slice 4.1.3** (asked by the owner while indexing the real
 library):
 - **"Going slowly" says why.** The status lines for cataloging, reading
@@ -775,7 +803,7 @@ library):
 ### Primary reference documentation (verify current versions at implementation time)
 
 - Tesseract (quality, resolution, models): <https://tesseract-ocr.github.io/tessdoc/>, <https://tesseract-ocr.github.io/tessdoc/ImproveQuality.html>
-- PP-OCRv5 models: <https://huggingface.co/PaddlePaddle/PP-OCRv5_mobile_rec>; ONNX Runtime: <https://onnxruntime.ai/docs/>
+- PP-OCRv5 models: <https://huggingface.co/PaddlePaddle/PP-OCRv5_mobile_rec>; PP-OCRv6: <https://huggingface.co/PaddlePaddle/PP-OCRv6_small_rec_onnx>; ONNX Runtime: <https://onnxruntime.ai/docs/>
 - Apple Vision text recognition from Rust: <https://docs.rs/objc2-vision/latest/objc2_vision/>
 - pdfium-render (page rendering): <https://docs.rs/pdfium-render/0.9.5/pdfium_render/>
 - SQLite `quick_check`, `integrity_check` and `foreign_key_check`: <https://www.sqlite.org/pragma.html>; `VACUUM INTO`: <https://www.sqlite.org/lang_vacuum.html>

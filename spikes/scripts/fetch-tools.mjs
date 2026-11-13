@@ -3,7 +3,11 @@
 // spikes/.tools/, verifying each SHA-256 before unpacking. Nothing is
 // installed system-wide. Already-present tools are kept.
 //
-//   node spikes/scripts/fetch-tools.mjs [pdfium] [protoc] [typst]
+//   node spikes/scripts/fetch-tools.mjs [pdfium] [protoc] [typst] [onnxruntime] [cmake]
+//                                        [ppocr-models] [tessdata]
+//
+// A tool with `files` (models) is the same on every platform: each file is
+// verified and stored under its name, not unpacked.
 //
 // Writes spikes/.tools/paths.json, which the other spike scripts read.
 
@@ -51,26 +55,87 @@ const layout = {
     const inner = fs.readdirSync(dir).find((d) => d.startsWith('typst-'));
     return { bin: path.join(dir, inner ?? '', exe('typst')) };
   },
+  // The OCR spike (Slice 4.2).
+  onnxruntime: (dir) => {
+    const inner = fs.readdirSync(dir).find((d) => d.startsWith('onnxruntime-')) ?? '';
+    const lib = path.join(dir, inner, 'lib');
+    const name = fs.existsSync(lib)
+      ? fs
+          .readdirSync(lib)
+          .find((f) =>
+            process.platform === 'win32'
+              ? f === 'onnxruntime.dll'
+              : process.platform === 'darwin'
+                ? /^libonnxruntime\.\d+\.\d+\.\d+\.dylib$/.test(f)
+                : /^libonnxruntime\.so\.\d+\.\d+\.\d+$/.test(f),
+          )
+      : undefined;
+    return {
+      library: path.join(lib, name ?? 'missing'),
+      license: path.join(dir, inner, 'LICENSE'),
+      notices: path.join(dir, inner, 'ThirdPartyNotices.txt'),
+    };
+  },
+  cmake: (dir) => {
+    const inner = fs.readdirSync(dir).find((d) => d.startsWith('cmake-')) ?? '';
+    return {
+      bin:
+        process.platform === 'darwin'
+          ? path.join(dir, inner, 'CMake.app', 'Contents', 'bin', 'cmake')
+          : path.join(dir, inner, 'bin', exe('cmake')),
+    };
+  },
+  'ppocr-models': (dir) => ({ dir }),
+  tessdata: (dir) => ({ dir }),
 };
+
+async function download(name, url, sha256) {
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`${name}: HTTP ${res.status} for ${url}`);
+  const bytes = Buffer.from(await res.arrayBuffer());
+  const digest = createHash('sha256').update(bytes).digest('hex');
+  if (digest !== sha256) {
+    throw new Error(`${name}: SHA-256 mismatch for ${url} (expected ${sha256}, got ${digest})`);
+  }
+  return bytes;
+}
+
+/** A tool of single files: each verified, stored under its name. */
+async function fetchFiles(name, tool, dir) {
+  // The marker is one hash over every file's pin, so a changed pin fetches again.
+  const pin = createHash('sha256').update(JSON.stringify(tool.files)).digest('hex');
+  const marker = path.join(dir, '.sha256');
+  if (fs.existsSync(marker) && fs.readFileSync(marker, 'utf8') === pin) {
+    return { name, version: tool.version, dir, ...layout[name](dir) };
+  }
+  process.stdout.write(`spike-tools: ${name} ${tool.version}… `);
+  fs.rmSync(dir, { recursive: true, force: true });
+  let total = 0;
+  for (const [file, { url, sha256 }] of Object.entries(tool.files)) {
+    const bytes = await download(name, url, sha256);
+    const to = path.join(dir, file);
+    fs.mkdirSync(path.dirname(to), { recursive: true });
+    fs.writeFileSync(to, bytes);
+    total += bytes.length;
+  }
+  fs.writeFileSync(marker, pin);
+  console.log(`ok (${Object.keys(tool.files).length} files, ${(total / 1048576).toFixed(1)} MiB)`);
+  return { name, version: tool.version, dir, ...layout[name](dir) };
+}
 
 async function fetchTool(name) {
   const tool = lock.tools[name];
   if (!tool) throw new Error(`unknown tool ${name}`);
-  const asset = tool.assets[platformKey()];
   const dir = path.join(toolsDir, `${name}-${tool.version.replace(/[^\w.-]/g, '_')}`);
+  if (tool.files) return fetchFiles(name, tool, dir);
+  const asset = tool.assets[platformKey()];
   const marker = path.join(dir, '.sha256');
   if (fs.existsSync(marker) && fs.readFileSync(marker, 'utf8') === asset.sha256) {
     return { name, version: tool.version, dir, ...layout[name](dir) };
   }
 
   process.stdout.write(`spike-tools: ${name} ${tool.version}… `);
-  const res = await fetch(asset.url);
-  if (!res.ok) throw new Error(`${name}: HTTP ${res.status} for ${asset.url}`);
-  const bytes = Buffer.from(await res.arrayBuffer());
-  const digest = createHash('sha256').update(bytes).digest('hex');
-  if (digest !== asset.sha256) {
-    throw new Error(`${name}: SHA-256 mismatch (expected ${asset.sha256}, got ${digest})`);
-  }
+  const bytes = await download(name, asset.url, asset.sha256);
 
   fs.rmSync(dir, { recursive: true, force: true });
   fs.mkdirSync(dir, { recursive: true });
