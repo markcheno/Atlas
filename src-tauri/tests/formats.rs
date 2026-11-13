@@ -35,7 +35,7 @@ fn verdicts(c: &Connection) -> HashMap<String, (String, String)> {
         "SELECT fp.display_name, bp.verdict, bp.basis
          FROM book_pairs bp
          JOIN file_instances fp ON fp.document_id = bp.pdf_document_id AND fp.file_type = 'pdf'
-         WHERE fp.display_path LIKE '%/pairs/%'",
+         WHERE fp.display_path LIKE '%pairs%'",
     )
     .unwrap()
     .query_map([], |r| Ok((r.get(0)?, (r.get(1)?, r.get(2)?))))
