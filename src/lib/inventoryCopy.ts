@@ -5,6 +5,7 @@
 import type { InventoryOverview } from './api/bindings/InventoryOverview';
 import type { InventoryStatus } from './api/bindings/InventoryStatus';
 import type { RootInventorySummary } from './api/bindings/RootInventorySummary';
+import type { ThrottleReason } from './api/bindings/ThrottleReason';
 import { folderName } from './stores/sources.svelte';
 
 export function count(n: number, one: string, many = `${one}s`): string {
@@ -30,6 +31,24 @@ function pausedText(a: InventoryStatus, name: string): string {
   }
 }
 
+/**
+ * Why background work is going slowly, for the end of a status line
+ * (Slice 4.1.3: the line said "Going slowly" without saying why, and the
+ * cataloging line said nothing when the computer was busy).
+ */
+export function slowedText(reason: ThrottleReason | null | undefined): string {
+  switch (reason) {
+    case 'on_battery':
+      return 'Slowed on battery';
+    case 'power_unknown':
+      return 'Going slowly · Can’t tell if it’s plugged in';
+    case 'system_busy':
+      return 'Going slowly · The computer is busy';
+    default:
+      return '';
+  }
+}
+
 export function statusLine(ov: InventoryOverview | null): string {
   if (!ov) return 'Not cataloging';
   const a = ov.active;
@@ -40,12 +59,7 @@ export function statusLine(ov: InventoryOverview | null): string {
   const name = folderName(a.sourceRootDisplayPath);
   switch (a.state) {
     case 'running': {
-      const slowed =
-        a.throttleReason === 'on_battery'
-          ? ' · Slowed on battery'
-          : a.throttleReason === 'power_unknown'
-            ? ' · Going slowly'
-            : '';
+      const slowed = a.throttleReason ? ` · ${slowedText(a.throttleReason)}` : '';
       return `Cataloged ${count(a.discoveredFiles, 'file')} · Scanning ${name}${slowed}`;
     }
     case 'queued':

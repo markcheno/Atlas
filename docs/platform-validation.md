@@ -1348,6 +1348,26 @@ library: the report you share is the evidence.
 - **Clear the log had no confirmation.** One accidental click removed the
   whole log.
 
+## Slice 4.1.3
+
+"Going slowly" says why: on battery, power source unknown, or the computer
+busy (elevated memory pressure or heat), on all three status lines.
+
+**Verified locally (macOS arm64, M5 Pro):**
+- `just ci`: 50 Rust suites and 240 Vitest tests passed.
+- Vitest: four new cases across the cataloging, reading and meaning
+  lines (a busy computer, power unknown, battery while rebuilding). All
+  four fail without the change.
+
+**For the owner, with the next build:** while indexing runs with the Mac
+unplugged, the meaning line reads "Indexing meaning · N of M files ·
+Slowed on battery". With memory pressure elevated (Activity Monitor ›
+Memory shows yellow), it reads "… · Going slowly · The computer is busy".
+
+**CI on `slice-413`:** the full run
+([43351102234](https://github.com/markcheno/Atlas/actions/runs/43351102234))
+is green on three OSes at the first attempt.
+
 ## Slice 4.1.2
 
 The Explore spike ([write-up and rule](spike-explore.md)). Nothing in the

@@ -8,7 +8,7 @@ import type { ExtractionOverview } from './api/bindings/ExtractionOverview';
 import type { ExtractionState } from './api/bindings/ExtractionState';
 import type { FileInstance } from './api/bindings/FileInstance';
 import type { PauseReason } from './api/bindings/PauseReason';
-import { count } from './inventoryCopy';
+import { count, slowedText } from './inventoryCopy';
 
 export const TEXT_LABEL: Record<ExtractionState, string> = {
   done: 'Text ready',
@@ -139,9 +139,7 @@ export function extractionLine(ov: ExtractionOverview | null): string | null {
   switch (a.state) {
     case 'running':
       if (updating) return `Updating text · ${toUpdate}`;
-      if (a.throttleReason === 'on_battery')
-        return `Reading text · ${progress} · Slowed on battery`;
-      if (a.throttleReason) return `Reading text · ${progress} · Going slowly`;
+      if (a.throttleReason) return `Reading text · ${progress} · ${slowedText(a.throttleReason)}`;
       return `Reading text · ${progress}`;
     case 'queued':
       return `Waiting to read text · ${progress}`;

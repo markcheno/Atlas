@@ -5,7 +5,7 @@
  */
 import type { EmbeddingOverview } from './api/bindings/EmbeddingOverview';
 import type { PauseReason } from './api/bindings/PauseReason';
-import { count } from './inventoryCopy';
+import { count, slowedText } from './inventoryCopy';
 
 /** What the status line offers besides Pause, Resume and Cancel. */
 export type MeaningAction = 'retry' | 'choose_model' | 'allow_remote' | 'index_now' | null;
@@ -101,7 +101,10 @@ export function meaningLine(ov: EmbeddingOverview | null): MeaningLine | null {
   switch (a.state) {
     case 'running':
       if (a.throttleReason)
-        return { text: `${doing} · ${progress} · Going slowly${after}`, action: null };
+        return {
+          text: `${doing} · ${progress} · ${slowedText(a.throttleReason)}${after}`,
+          action: null,
+        };
       return { text: `${doing} · ${progress}${after}`, action: null };
     case 'queued':
       return { text: `Waiting to index meaning · ${progress}`, action: null };
