@@ -11,6 +11,8 @@ import type { OpenVia } from '../api/bindings/OpenVia';
 import type { SaveTarget } from '../api/bindings/SaveTarget';
 import type { SourceUsed } from '../api/bindings/SourceUsed';
 import { FROM_RELATED } from '../openVia';
+import { library } from './library.svelte';
+import { search } from './search.svelte';
 import { recordOpen } from './trails.svelte';
 
 /** A document the panel showed before the current one. */
@@ -41,8 +43,34 @@ class DetailsState {
    */
   via = $state<OpenVia | null>(null);
 
+  /** The owner's say on a book in two formats is being saved (Slice 4.5.1). */
+  saving = $state(false);
+  sameBookError = $state<AtlasApiError | null>(null);
+
   #seq = 0;
   #trigger: HTMLElement | null = null;
+
+  /**
+   * Whether the shown file and the other format beside it are one book
+   * (Slice 4.5.1). The panel shows the result; the Library and search
+   * results are refreshed, as a book may now be one row or two.
+   */
+  async setSameBook(same: boolean) {
+    const fileId = this.fileId;
+    if (!fileId) return;
+    this.saving = true;
+    this.sameBookError = null;
+    try {
+      const detail = await atlas.setSameBook(fileId, same);
+      if (this.fileId === fileId) this.detail = detail;
+      if (library.page) void library.load();
+      search.refreshLive();
+    } catch (err) {
+      this.sameBookError = err instanceof AtlasApiError ? err : toApiError('set_same_book', err);
+    } finally {
+      this.saving = false;
+    }
+  }
 
   /** Opens the panel for a file; Close returns focus to `trigger`. */
   async open(
@@ -76,6 +104,7 @@ class DetailsState {
     this.cited = null;
     this.citedNote = null;
     this.saveAs = null;
+    this.sameBookError = null;
     this.via = FROM_RELATED;
     await this.#load(fileId, true);
   }
@@ -98,6 +127,7 @@ class DetailsState {
     this.fileId = fileId;
     this.detail = null;
     this.error = null;
+    this.sameBookError = null;
     this.loading = true;
     try {
       const detail = await atlas.getDocumentDetail(fileId);

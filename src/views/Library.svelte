@@ -8,6 +8,8 @@
   import { modifiedText, rangeText, statusLabel } from '../lib/libraryCopy';
   import type { ExtractionState } from '../lib/api/bindings/ExtractionState';
   import OriginalActions from '../lib/components/OriginalActions.svelte';
+  import OtherFormat from '../lib/components/OtherFormat.svelte';
+  import { typesText } from '../lib/formatsCopy';
   import OriginalNotice from '../lib/components/OriginalNotice.svelte';
   import TextBadge from '../lib/components/TextBadge.svelte';
   import { TEXT_FILTERS } from '../lib/extractionCopy';
@@ -222,8 +224,9 @@
                   {item.displayName}
                 </button>
                 <span class="path">{item.displayPath}</span>
+                {#if item.otherFormat}<OtherFormat other={item.otherFormat} />{/if}
               </th>
-              <td>{item.fileType.toUpperCase()}</td>
+              <td>{typesText(item.fileType, item.otherFormat)}</td>
               <td>{rootName(item)}</td>
               <td>{item.sizeBytes === null ? 'Unknown' : formatBytes(item.sizeBytes)}</td>
               <td>{modifiedText(item.modifiedAt)}</td>

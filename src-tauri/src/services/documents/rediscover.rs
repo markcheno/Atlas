@@ -133,7 +133,11 @@ pub fn suggest(
     let opened = &opened;
     let mut queues: Vec<(&SeedDocuments, VecDeque<Candidate>)> = Vec::new();
     for seed in order {
-        let seeded: Vec<String> = seed.documents.iter().map(|d| books.book(d).to_owned()).collect();
+        let seeded: Vec<String> = seed
+            .documents
+            .iter()
+            .map(|d| books.book(d).to_owned())
+            .collect();
         let means: Vec<Vec<f32>> = seeded
             .iter()
             .map(|d| {

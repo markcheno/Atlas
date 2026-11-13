@@ -119,8 +119,8 @@ fn sketch_of(conn: &Connection, document_id: &str) -> rusqlite::Result<(Sketch, 
     )?;
     let mut sketch = Sketch::default();
     if state == "done" {
-        let mut stmt =
-            conn.prepare_cached("SELECT text FROM passages WHERE document_id = ?1 ORDER BY ordinal")?;
+        let mut stmt = conn
+            .prepare_cached("SELECT text FROM passages WHERE document_id = ?1 ORDER BY ordinal")?;
         let mut rows = stmt.query([document_id])?;
         while let Some(row) = rows.next()? {
             sketch.add(row.get_ref(0)?.as_str()?);
@@ -262,12 +262,19 @@ pub fn set_owner_verdict(
     let index_format = if same {
         Some(choose_index(
             conn,
-            (pdf_document_id, pdf.usable() || indexed(conn, pdf_document_id)?),
-            (epub_document_id, epub.usable() || indexed(conn, epub_document_id)?),
+            (
+                pdf_document_id,
+                pdf.usable() || indexed(conn, pdf_document_id)?,
+            ),
+            (
+                epub_document_id,
+                epub.usable() || indexed(conn, epub_document_id)?,
+            ),
             kept.as_deref(),
         )?)
     } else {
-        kept.as_deref().map(|k| if k == "pdf" { "pdf" } else { "epub" })
+        kept.as_deref()
+            .map(|k| if k == "pdf" { "pdf" } else { "epub" })
     };
     conn.execute(
         "INSERT INTO book_pairs (pdf_document_id, epub_document_id, verdict, basis,
@@ -349,7 +356,11 @@ pub fn apply(conn: &Connection, now: &str) -> rusqlite::Result<Changes> {
             books.insert(key.clone(), pair);
         }
         let (_, hidden) = &books[&key];
-        let file = if *hidden == c.pdf_doc { &c.pdf_file } else { &c.epub_file };
+        let file = if *hidden == c.pdf_doc {
+            &c.pdf_file
+        } else {
+            &c.epub_file
+        };
         folded.insert(c.pdf_file.clone(), file.clone());
     }
 
@@ -435,7 +446,9 @@ impl BookMap {
 
     /// The document a book is indexed and shown as: itself, unless hidden.
     pub fn book<'a>(&'a self, document_id: &'a str) -> &'a str {
-        self.index_of.get(document_id).map_or(document_id, String::as_str)
+        self.index_of
+            .get(document_id)
+            .map_or(document_id, String::as_str)
     }
 
     pub fn is_hidden(&self, document_id: &str) -> bool {
@@ -624,7 +637,11 @@ mod tests {
 
     /// A file and its document, read with `text` (None: Needs OCR).
     fn add(c: &Connection, id: &str, name: &str, text: Option<&str>) {
-        let kind = if name.ends_with(".pdf") { "pdf" } else { "epub" };
+        let kind = if name.ends_with(".pdf") {
+            "pdf"
+        } else {
+            "epub"
+        };
         let state = if text.is_some() { "done" } else { "needs_ocr" };
         c.execute(
             "INSERT INTO documents (id, content_hash, state, created_at, updated_at)
@@ -644,7 +661,13 @@ mod tests {
                  extension, file_type, availability, extract_state, document_id, created_at,
                  updated_at)
              VALUES (?1, 'r', ?2, ?3, ?3, ?4, ?4, 'available', 'linked', ?5, 't', 't')",
-            params![id, native_path::encode(Path::new(name)), name, kind, format!("d-{id}")],
+            params![
+                id,
+                native_path::encode(Path::new(name)),
+                name,
+                kind,
+                format!("d-{id}")
+            ],
         )
         .unwrap();
     }
@@ -683,7 +706,9 @@ mod tests {
         add(&c, "e", "notes.epub", Some(&book_text(2)));
         assert!(pass(&c).is_empty());
         let (verdict, basis): (String, String) = c
-            .query_row("SELECT verdict, basis FROM book_pairs", [], |r| Ok((r.get(0)?, r.get(1)?)))
+            .query_row("SELECT verdict, basis FROM book_pairs", [], |r| {
+                Ok((r.get(0)?, r.get(1)?))
+            })
             .unwrap();
         assert_eq!((verdict.as_str(), basis.as_str()), ("different", "text"));
     }
@@ -694,7 +719,9 @@ mod tests {
         add(&c, "p", "Alice.pdf", None);
         add(&c, "e", "Alice.epub", Some(&book_text(3)));
         pass(&c);
-        let basis: String = c.query_row("SELECT basis FROM book_pairs", [], |r| r.get(0)).unwrap();
+        let basis: String = c
+            .query_row("SELECT basis FROM book_pairs", [], |r| r.get(0))
+            .unwrap();
         assert_eq!(basis, "name");
         assert_eq!(BookMap::load(&c).unwrap().book("d-p"), "d-e");
     }
@@ -716,7 +743,11 @@ mod tests {
         .unwrap();
         pass(&c);
         let map = BookMap::load(&c).unwrap();
-        assert_eq!(map.book("d-e"), "d-p", "the indexed PDF is used; the EPUB waits for nothing");
+        assert_eq!(
+            map.book("d-e"),
+            "d-p",
+            "the indexed PDF is used; the EPUB waits for nothing"
+        );
     }
 
     #[test]
@@ -730,13 +761,17 @@ mod tests {
         let changes = apply(&c, "t2").unwrap();
         assert_eq!(changes.unhidden, vec!["d-p".to_owned()]);
         // A re-read doesn't overturn it.
-        c.execute("UPDATE documents SET updated_at = 't9'", []).unwrap();
+        c.execute("UPDATE documents SET updated_at = 't9'", [])
+            .unwrap();
         assert!(pending_checks(&c, "r", 10).unwrap().is_empty());
         set_owner_verdict(&c, "d-p", "d-e", true, "t3").unwrap();
         assert_eq!(apply(&c, "t3").unwrap().hidden, vec!["d-p".to_owned()]);
         // The EPUB deleted: the PDF is shown again.
-        c.execute("UPDATE file_instances SET availability = 'missing' WHERE id = 'e'", [])
-            .unwrap();
+        c.execute(
+            "UPDATE file_instances SET availability = 'missing' WHERE id = 'e'",
+            [],
+        )
+        .unwrap();
         reconcile_root(&c, "r", "t4").unwrap();
         assert_eq!(apply(&c, "t4").unwrap().unhidden, vec!["d-p".to_owned()]);
         assert!(BookMap::load(&c).unwrap().is_empty());

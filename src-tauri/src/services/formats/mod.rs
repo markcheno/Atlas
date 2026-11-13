@@ -64,16 +64,13 @@ pub fn catch_up(
         }
     }
     let (root, ts) = (root_id.to_owned(), now.to_owned());
-    match catalog.call(move |c| -> rusqlite::Result<db::Changes> {
+    if let Ok(Ok(changes)) = catalog.call(move |c| -> rusqlite::Result<db::Changes> {
         let changes = db::apply(c, &ts)?;
         db::mark_current(c, &root)?;
         Ok(changes)
     }) {
-        Ok(Ok(changes)) => {
-            out.changes = changes;
-            out.finished = true;
-        }
-        _ => {}
+        out.changes = changes;
+        out.finished = true;
     }
     out
 }

@@ -997,6 +997,7 @@ function defaults(): Record<string, Handler> {
     get_related_documents: () => relatedPage(),
     get_storage_usage: () => storageUsage(),
     clean_caches: () => ({ freedBytes: 0, usage: storageUsage() }),
+    set_same_book: (args) => documentDetail({ file: fileInstance({ id: String(args?.fileId) }) }),
     get_document_detail: (args) =>
       documentDetail({ file: fileInstance({ id: String(args?.fileId) }) }),
     open_original: () => null,

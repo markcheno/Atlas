@@ -144,13 +144,23 @@ fn formats(
         Some((verdict, basis, index)) => {
             let same = verdict == "same";
             (
-                if same { FormatPairState::Same } else { FormatPairState::Different },
+                if same {
+                    FormatPairState::Same
+                } else {
+                    FormatPairState::Different
+                },
                 Some(match basis.as_str() {
                     "text" => FormatPairBasis::Text,
                     "name" => FormatPairBasis::Name,
                     _ => FormatPairBasis::Owner,
                 }),
-                index.filter(|_| same).map(|i| if i == "pdf" { FileType::Pdf } else { FileType::Epub }),
+                index.filter(|_| same).map(|i| {
+                    if i == "pdf" {
+                        FileType::Pdf
+                    } else {
+                        FileType::Epub
+                    }
+                }),
             )
         }
     };

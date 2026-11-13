@@ -92,7 +92,11 @@ pub struct Comparison {
 
 pub fn compare(a: &Sketch, b: &Sketch) -> Comparison {
     let (small, large) = if a.len() <= b.len() { (a, b) } else { (b, a) };
-    let shared = small.hashes.iter().filter(|h| large.hashes.contains(h)).count();
+    let shared = small
+        .hashes
+        .iter()
+        .filter(|h| large.hashes.contains(h))
+        .count();
     let similarity = if small.is_empty() {
         0.0
     } else {
@@ -186,7 +190,9 @@ mod tests {
         let mut x = seed.wrapping_mul(6364136223846793005).wrapping_add(1);
         (0..n)
             .map(|_| {
-                x = x.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+                x = x
+                    .wrapping_mul(6364136223846793005)
+                    .wrapping_add(1442695040888963407);
                 WORDS[(x >> 33) as usize % WORDS.len()]
             })
             .collect::<Vec<_>>()
@@ -255,7 +261,10 @@ mod tests {
 
     #[test]
     fn unspaced_scripts_count_each_character() {
-        assert_eq!(words("東京タワー"), ["東", "京", "タ", "ワ", "ー"].map(String::from));
+        assert_eq!(
+            words("東京タワー"),
+            ["東", "京", "タ", "ワ", "ー"].map(String::from)
+        );
         let text: String = "春夏秋冬山川草木".repeat(400);
         assert!(sketch(&[&text]).words() > 3_000);
     }

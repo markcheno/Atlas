@@ -192,7 +192,13 @@ if (pairCount > 0) {
   }
   both('notes', 9500, 'Notes', bodyText('Pairs', 9500, textKb), bodyText('Pairs', 9501, textKb));
   const sampler = bodyText('Pairs', 9600, textKb);
-  both('Sampler', 9600, 'Sampler', sampler, sampler.slice(0, Math.max(1, Math.floor(sampler.length / 5))));
+  both(
+    'Sampler',
+    9600,
+    'Sampler',
+    sampler,
+    sampler.slice(0, Math.max(1, Math.floor(sampler.length / 5))),
+  );
   const atlas = bodyText('Pairs', 9700, textKb);
   write(path.join('pairs', 'A', 'Atlas.pdf'), pairDoc('pdf', 9700, 'Atlas', atlas));
   write(path.join('pairs', 'B', 'Atlas.epub'), pairDoc('epub', 9700, 'Atlas', atlas));
@@ -258,7 +264,8 @@ if (textKb > 0) {
 if (untitledEvery > 0) summary.untitledEvery = untitledEvery;
 if (copyCount > 0) summary.copies = copyCount;
 // Pairs expected to be one book: the N, and Café.
-if (pairCount > 0) Object.assign(summary, { pairs: pairCount, pairFiles, sameBooks: pairCount + 1 });
+if (pairCount > 0)
+  Object.assign(summary, { pairs: pairCount, pairFiles, sameBooks: pairCount + 1 });
 console.log(JSON.stringify(summary, null, 2));
 if (unreadable) {
   console.log(

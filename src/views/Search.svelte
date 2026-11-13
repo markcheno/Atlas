@@ -10,6 +10,8 @@
   import AnswerView from '../lib/components/AnswerView.svelte';
   import AskForm from '../lib/components/AskForm.svelte';
   import OriginalActions from '../lib/components/OriginalActions.svelte';
+  import OtherFormat from '../lib/components/OtherFormat.svelte';
+  import { typesText } from '../lib/formatsCopy';
   import OriginalNotice from '../lib/components/OriginalNotice.svelte';
   import SaveAction from '../lib/components/SaveAction.svelte';
   import ProblemNotice from '../lib/components/ProblemNotice.svelte';
@@ -214,7 +216,7 @@
           <li data-testid="search-hit">
             <h3>{hit.title}</h3>
             <p class="meta muted small">
-              <span>{hit.fileType.toUpperCase()}</span>
+              <span>{typesText(hit.fileType, hit.otherFormat)}</span>
               <span>{rootName(hit)}</span>
               {#if hit.location}<span>{hit.location}</span>{/if}
               {#if hit.titleSource !== 'file_name'}<span>{hit.displayName}</span>{/if}
@@ -258,6 +260,7 @@
                 </button>
               {/if}
               <OriginalActions item={fromHit(hit, FROM_RESULT)} />
+              {#if hit.otherFormat}<OtherFormat other={hit.otherFormat} via={FROM_RESULT} />{/if}
               {#if hit.documentId && hit.fileType === 'pdf' && hit.pageNo}
                 {@const pageNo = hit.pageNo}
                 <button

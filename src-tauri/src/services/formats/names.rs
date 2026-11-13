@@ -36,7 +36,9 @@ pub fn key(rel_path: &[u8]) -> Option<(Vec<u8>, String)> {
 /// anything but exactly one PDF and one EPUB (two PDFs that differ only in
 /// case, say) pairs nothing: Atlas doesn't guess.
 pub fn pairs(files: &[NamedFile]) -> Vec<(String, String)> {
-    let mut groups: HashMap<(Vec<u8>, String), (Vec<&str>, Vec<&str>)> = HashMap::new();
+    // (folder, name) → (PDFs, EPUBs)
+    type Group<'a> = (Vec<&'a str>, Vec<&'a str>);
+    let mut groups: HashMap<(Vec<u8>, String), Group<'_>> = HashMap::new();
     for f in files {
         let Some(k) = key(&f.rel_path) else {
             continue;
@@ -109,9 +111,18 @@ mod tests {
 
     #[test]
     fn the_folder_is_part_of_the_key() {
-        assert_eq!(key(&native_path::encode(Path::new("Dune.pdf"))).unwrap().1, "dune");
-        let (a, _) = key(&native_path::encode(&["A", "x.pdf"].iter().collect::<PathBuf>())).unwrap();
-        let (b, _) = key(&native_path::encode(&["B", "x.pdf"].iter().collect::<PathBuf>())).unwrap();
+        assert_eq!(
+            key(&native_path::encode(Path::new("Dune.pdf"))).unwrap().1,
+            "dune"
+        );
+        let (a, _) = key(&native_path::encode(
+            &["A", "x.pdf"].iter().collect::<PathBuf>(),
+        ))
+        .unwrap();
+        let (b, _) = key(&native_path::encode(
+            &["B", "x.pdf"].iter().collect::<PathBuf>(),
+        ))
+        .unwrap();
         assert_ne!(a, b);
     }
 }
