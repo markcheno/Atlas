@@ -91,11 +91,6 @@ pub const MIGRATIONS: &[Migration] = &[
         name: "scan_history",
         sql: include_str!("../../../migrations/0016_scan_history.sql"),
     },
-    Migration {
-        version: 17,
-        name: "book_pairs",
-        sql: include_str!("../../../migrations/0017_book_pairs.sql"),
-    },
 ];
 
 /// Highest catalog schema version this build can read and write.
@@ -585,78 +580,6 @@ mod tests {
                         .unwrap();
                     assert_eq!(n, 0);
                 }
-            })
-            .unwrap();
-    }
-
-    #[test]
-    fn version_17_adds_book_pairs_that_follow_their_files_and_documents() {
-        use crate::services::catalog::writer::CatalogWriter;
-
-        let dir = tempfile::tempdir().unwrap();
-        let writer = CatalogWriter::open(&dir.path().join("catalog.sqlite")).unwrap();
-        writer
-            .call(|c| {
-                assert_eq!(migrate_to(c, 16, "t").unwrap(), 16);
-                c.execute_batch(
-                    "INSERT INTO workspace (id, name, created_at) VALUES ('w', 'W', 't');
-                     INSERT INTO source_roots (id, workspace_id, path_bytes, display_path, created_at)
-                         VALUES ('r', 'w', x'00', '/b', 't');
-                     INSERT INTO documents (id, content_hash, state, created_at, updated_at)
-                         VALUES ('dp', x'01', 'done', 't', 't'), ('de', x'02', 'done', 't', 't'),
-                                ('dx', x'03', 'done', 't', 't');",
-                )
-                .unwrap();
-                for (id, kind, doc) in [("p", "pdf", "dp"), ("e", "epub", "de")] {
-                    c.execute(
-                        "INSERT INTO file_instances (id, source_root_id, rel_path, display_path,
-                             display_name, extension, file_type, availability, document_id,
-                             created_at, updated_at)
-                         VALUES (?1, 'r', CAST(?1 AS BLOB), ?1, ?1, ?2, ?2, 'available', ?3, 't', 't')",
-                        rusqlite::params![id, kind, doc],
-                    )
-                    .unwrap();
-                }
-                assert_eq!(migrate_to(c, 17, "t2").unwrap(), 17);
-                let version: i64 = c
-                    .query_row("SELECT formats_version FROM source_roots", [], |r| r.get(0))
-                    .unwrap();
-                assert_eq!(version, 0, "every folder is paired once after the upgrade");
-                c.execute_batch(
-                    "INSERT INTO format_pairs (pdf_file_id, epub_file_id, folded_file_id, created_at)
-                         VALUES ('p', 'e', 'p', 't');
-                     INSERT INTO book_pairs (pdf_document_id, epub_document_id, verdict, basis,
-                         index_format, check_version, pdf_checked_at, epub_checked_at,
-                         index_document_id, hidden_document_id, created_at, updated_at)
-                         VALUES ('dp', 'de', 'same', 'text', 'epub', 1, 't', 't', 'de', 'dp', 't', 't');",
-                )
-                .unwrap();
-                // A document is kept out of one book at most.
-                assert!(c
-                    .execute(
-                        "INSERT INTO book_pairs (pdf_document_id, epub_document_id, verdict, basis,
-                             check_version, pdf_checked_at, epub_checked_at,
-                             index_document_id, hidden_document_id, created_at, updated_at)
-                         VALUES ('dp', 'dx', 'same', 'text', 1, 't', 't', 'dx', 'dp', 't', 't')",
-                        [],
-                    )
-                    .is_err());
-                // An index document always has its hidden partner.
-                assert!(c
-                    .execute(
-                        "INSERT INTO book_pairs (pdf_document_id, epub_document_id, verdict, basis,
-                             check_version, pdf_checked_at, epub_checked_at, index_document_id,
-                             created_at, updated_at)
-                         VALUES ('dx', 'de', 'same', 'text', 1, 't', 't', 'dx', 't', 't')",
-                        [],
-                    )
-                    .is_err());
-                // A file gone takes its name pair with it.
-                c.execute("DELETE FROM file_instances WHERE id = 'e'", []).unwrap();
-                let pairs: i64 = c
-                    .query_row("SELECT COUNT(*) FROM format_pairs", [], |r| r.get(0))
-                    .unwrap();
-                assert_eq!(pairs, 0);
             })
             .unwrap();
     }
