@@ -1,6 +1,6 @@
 use tauri::State;
 
-use crate::domain::dto::InventoryOverview;
+use crate::domain::dto::{InventoryOverview, ScanProblem, ScanRecord};
 use crate::error::AtlasResult;
 use crate::services::inventory::control;
 use crate::services::jobs;
@@ -13,7 +13,7 @@ pub async fn start_inventory(
     source_root_id: String,
 ) -> AtlasResult<String> {
     state
-        .with_workspace(move |ws| control::enqueue(ws.require_open()?, &source_root_id))
+        .with_workspace(move |ws| control::rescan(ws.require_open()?, &source_root_id))
         .await
 }
 
@@ -44,5 +44,39 @@ pub async fn cancel_job(state: State<'_, AppState>, job_id: String) -> AtlasResu
 pub async fn get_inventory_status(state: State<'_, AppState>) -> AtlasResult<InventoryOverview> {
     state
         .with_workspace(|ws| control::overview(ws.require_open()?))
+        .await
+}
+
+/// A folder's recent checks, newest first (Slice 4.5).
+#[tauri::command]
+pub async fn list_scans(
+    state: State<'_, AppState>,
+    source_root_id: String,
+    limit: Option<u32>,
+) -> AtlasResult<Vec<ScanRecord>> {
+    state
+        .with_workspace(move |ws| {
+            control::scans(ws.require_open()?, &source_root_id, limit.unwrap_or(10))
+        })
+        .await
+}
+
+/// The folders a check couldn't read, and why (Slice 4.5).
+#[tauri::command]
+pub async fn get_scan_problems(
+    state: State<'_, AppState>,
+    job_id: String,
+) -> AtlasResult<Vec<ScanProblem>> {
+    state
+        .with_workspace(move |ws| control::problems(ws.require_open()?, &job_id))
+        .await
+}
+
+/// Check all folders now (Slice 4.5): returns how many have a check
+/// scheduled.
+#[tauri::command]
+pub async fn check_all_folders(state: State<'_, AppState>) -> AtlasResult<u32> {
+    state
+        .with_workspace(|ws| control::check_all(ws.require_open()?))
         .await
 }

@@ -61,6 +61,9 @@ pub struct WorkspaceConfig {
 /// declaration order: the job runners stop first, then the readers and the
 /// writer close, then the lock is released.
 pub struct OpenRoot {
+    /// The folder check (Slice 4.5), stopped first: it queues scans.
+    _checker: Option<inventory::auto::Checker>,
+    check_setting: inventory::auto::CheckSetting,
     /// The answer in progress (Slice 2.6), ended first, so an answer
     /// stopped by closing is still recorded.
     answers: Arc<AnswerRegistry>,
@@ -178,6 +181,8 @@ pub struct Workspace {
     /// One processor per job kind, started for every root this workspace
     /// opens (ADR 0009).
     processors: BTreeMap<JobKind, ProcessorFactory>,
+    /// Scans' dependencies, for the folder check (Slice 4.5).
+    inventory: Option<InventoryDeps>,
     /// Records into the open library's log (Slice 4.1).
     diagnostics: Diagnostics,
     state: State,
@@ -192,6 +197,7 @@ impl Workspace {
             trail_events: None,
             reader: None,
             processors: BTreeMap::new(),
+            inventory: None,
             diagnostics: Diagnostics::new(),
             state: State::NotConfigured,
         }
@@ -233,8 +239,10 @@ impl Workspace {
         self
     }
 
-    /// Runs scans (cataloging) for every root this workspace opens.
-    pub fn with_inventory(self, deps: InventoryDeps) -> Self {
+    /// Runs scans (cataloging) for every root this workspace opens, and
+    /// checks its folders for changes (Slice 4.5).
+    pub fn with_inventory(mut self, deps: InventoryDeps) -> Self {
+        self.inventory = Some(deps.clone());
         self.with_job_processor(JobKind::Scan, inventory::scan::factory(deps))
     }
 
@@ -399,6 +407,9 @@ impl Workspace {
         };
         settings::write(&root.path, &new)?;
         let privacy_changed = root.settings.privacy != new.privacy;
+        // The folder check reads its interval at every tick (Slice 4.5).
+        *root.check_setting.lock().unwrap_or_else(|p| p.into_inner()) =
+            new.background.check_folders;
         root.settings = new.clone();
         if privacy_changed {
             // Recording and expiry take effect at once (Slice 3.3).
@@ -526,12 +537,16 @@ impl Workspace {
             knowledge: knowledge.state(),
             created: false,
         });
+        let jobs = self.start_jobs(&catalog, path, &vectors)?;
+        let check_setting = Arc::new(std::sync::Mutex::new(settings.background.check_folders));
         Ok(OpenRoot {
+            _checker: self.start_checker(&catalog, &jobs, &check_setting),
+            check_setting,
             answers: Arc::default(),
             recorder: self.recorder(&knowledge, &reader),
             pages: self.pages(path),
             imports: Arc::default(),
-            jobs: self.start_jobs(&catalog, path, &vectors)?,
+            jobs,
             vectors,
             reader,
             root_status: Arc::default(),
@@ -576,6 +591,24 @@ impl Workspace {
             Arc::clone(reader),
             self.trail_events.clone(),
         ))
+    }
+
+    /// The folder check (Slice 4.5), when this workspace runs scans.
+    fn start_checker(
+        &self,
+        catalog: &CatalogWriter,
+        jobs: &JobRunners,
+        setting: &inventory::auto::CheckSetting,
+    ) -> Option<inventory::auto::Checker> {
+        let deps = self.inventory.as_ref()?;
+        inventory::auto::Checker::start(inventory::auto::CheckerDeps {
+            catalog: catalog.handle(),
+            waker: jobs.waker(),
+            clock: Arc::clone(&self.clock),
+            setting: Arc::clone(setting),
+            events: Arc::clone(&deps.events),
+            every: deps.config.check_every,
+        })
     }
 
     fn start_jobs(
@@ -643,12 +676,16 @@ impl Workspace {
             knowledge: knowledge.state(),
             created: true,
         });
+        let jobs = self.start_jobs(&catalog, path, &vectors)?;
+        let check_setting = Arc::new(std::sync::Mutex::new(settings.background.check_folders));
         Ok(OpenRoot {
+            _checker: self.start_checker(&catalog, &jobs, &check_setting),
+            check_setting,
             answers: Arc::default(),
             recorder: self.recorder(&knowledge, &reader),
             pages: self.pages(path),
             imports: Arc::default(),
-            jobs: self.start_jobs(&catalog, path, &vectors)?,
+            jobs,
             vectors,
             reader,
             root_status: Arc::default(),

@@ -8,7 +8,7 @@ use crate::state::AppState;
 
 /// The slice this build implements, "<phase>.<slice>" (Phase 1, Slice 1 is
 /// "1.1"). The UI derives the phase from it.
-pub const CURRENT_SLICE: &str = "4.1";
+pub const CURRENT_SLICE: &str = "4.5";
 
 /// (id, label, delivering slice, implemented in this build)
 const FEATURES: &[(&str, &str, &str, bool)] = &[
@@ -116,6 +116,12 @@ const FEATURES: &[(&str, &str, &str, bool)] = &[
         "diagnostics",
         "A local log of what Atlas did, in counts and timings, and a report you can save",
         "4.1",
+        true,
+    ),
+    (
+        "folder_checks",
+        "Folders checked for changes by themselves, and a record of every check",
+        "4.5",
         true,
     ),
 ];

@@ -233,6 +233,7 @@ fn items(catalog: &CatalogHandle, id: &str) -> u64 {
 #[derive(Default)]
 pub struct JobRunners {
     runners: BTreeMap<JobKind, JobRunner>,
+    waker: Option<JobWaker>,
 }
 
 impl JobRunners {
@@ -269,7 +270,15 @@ impl JobRunners {
                 )?,
             );
         }
-        Ok(Self { runners })
+        Ok(Self {
+            runners,
+            waker: Some(waker),
+        })
+    }
+
+    /// Wakes every runner, for work queued outside them (the folder check).
+    pub fn waker(&self) -> Option<JobWaker> {
+        self.waker.clone()
     }
 
     pub fn wake_all(&self) {

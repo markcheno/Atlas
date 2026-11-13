@@ -4,6 +4,10 @@ import type { JobState } from "./JobState";
 
 export type RootExtractionSummary = { sourceRootId: string, counts: ExtractionCounts, lastState: JobState | null, activeJobId: string | null, 
 /**
+ * The state of the reading job in progress, if any (Slice 4.5).
+ */
+activeState: JobState | null, 
+/**
  * The fixed code of the folder's latest job, when it ended for good:
  * `extractor_unavailable`, `worker_protocol`, `path_undecodable`
  * (Slice 4.1).

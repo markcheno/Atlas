@@ -3,17 +3,20 @@
 //! callers pass to the reader pool. Job rows of every kind, and their state
 //! changes, are in [`crate::services::jobs::db`].
 
-use std::path::PathBuf;
+use std::collections::HashSet;
+use std::ffi::OsString;
+use std::path::{Path, PathBuf};
 
 use rusqlite::{Connection, OptionalExtension, params};
 
 use crate::domain::dto::{
-    InventoryOverview, InventoryStatus, JobKind, JobState, RootInventorySummary,
+    InventoryOverview, InventoryStatus, JobKind, JobState, RootInventorySummary, ScanOrigin,
+    ScanProblem, ScanRecord,
 };
 use crate::infrastructure::native_path;
 use crate::services::catalog::codec::opt_from_db;
 use crate::services::jobs::db::{
-    ACTIVE_STATES, JOB_COLUMNS, JobRow, insert_job, job_from_row, state_list,
+    ACTIVE_STATES, JOB_COLUMNS, JobRow, insert_job_from, job_from_row, state_list,
 };
 
 /// On open, folders that have never been scanned, such as ones added before
@@ -29,11 +32,12 @@ pub fn queue_never_scanned(conn: &Connection, now: &str) -> rusqlite::Result<usi
             .collect::<rusqlite::Result<_>>()?
     };
     for root_id in &never_scanned {
-        insert_job(
+        insert_job_from(
             conn,
             &uuid::Uuid::new_v4().to_string(),
             root_id,
             JobKind::Scan,
+            ScanOrigin::Launch,
             now,
         )?;
     }
@@ -128,6 +132,18 @@ pub struct Batch {
     pub elapsed_ms: u64,
     /// Marks the directory complete in the same transaction.
     pub done_dir: Option<i64>,
+    /// With `done_dir`: the directory, every name its listing held, and how
+    /// many catalogable files it had. Rows under it whose name wasn't listed
+    /// become missing candidates; the files are added to the scan's count
+    /// (Slice 4.5).
+    pub listing: Option<Listing>,
+}
+
+#[derive(Debug, Default)]
+pub struct Listing {
+    pub dir_rel: Vec<u8>,
+    pub names: HashSet<OsString>,
+    pub files: u32,
 }
 
 impl Batch {
@@ -145,9 +161,10 @@ impl Batch {
 /// Whether a batch was written.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Committed {
-    /// Written. `replayed` counts entries this session had already written
-    /// unchanged (a folder listed again after a pause): they changed
-    /// nothing, so the scan charges them less (P1-20, ADR 0005).
+    /// Written. `replayed` counts entries that changed nothing: already in
+    /// the catalog exactly as listed (Slice 4.5), or, for a scan begun
+    /// before 4.5, already written by this session (a folder listed again
+    /// after a pause). The scan charges them less (P1-20, ADR 0005).
     Yes { replayed: usize },
     /// The session left `running` (paused, cancelled, or removed) while the
     /// batch was being listed. Nothing was written; the directory stays
@@ -167,6 +184,7 @@ pub fn commit_batch(
     session_id: &str,
     root_id: &str,
     batch: &Batch,
+    legacy: bool,
     now: &str,
 ) -> rusqlite::Result<Committed> {
     let tx = conn.transaction()?;
@@ -254,7 +272,37 @@ pub fn commit_batch(
                 OR availability <> 'available'
                 OR storage <> excluded.storage",
         )?;
+        let mut lookup = tx.prepare_cached(
+            "SELECT size_bytes, mtime_secs, availability, storage, extract_state
+             FROM file_instances WHERE source_root_id = ?1 AND rel_path = ?2",
+        )?;
+        let (mut new_files, mut changed_files) = (0u32, 0u32);
         for f in &batch.files {
+            let storage = if f.cloud_only { "cloud_only" } else { "local" };
+            if !legacy {
+                // Slice 4.5: a row that already says what was listed is left
+                // alone, so a rescan of an unchanged folder writes nothing.
+                let row: Option<(Option<i64>, Option<i64>, String, String, String)> = lookup
+                    .query_row(params![root_id, f.rel_path], |r| {
+                        Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?, r.get(4)?))
+                    })
+                    .optional()?;
+                match &row {
+                    Some((size, mtime, availability, stored, extract))
+                        if *size == f.size_bytes.map(|s| s as i64)
+                            && *mtime == f.mtime_secs
+                            && availability == "available"
+                            && stored == storage
+                            // Back from the cloud: still to be read (P3-01).
+                            && !(extract == "skipped_cloud_only" && storage == "local") =>
+                    {
+                        replayed += 1;
+                        continue;
+                    }
+                    Some(_) => changed_files += 1,
+                    None => new_files += 1,
+                }
+            }
             let changed = upsert.execute(params![
                 uuid::Uuid::new_v4().to_string(),
                 root_id,
@@ -266,7 +314,7 @@ pub fn commit_batch(
                 f.size_bytes.map(|s| s as i64),
                 f.mtime_secs,
                 f.modified_at,
-                if f.cloud_only { "cloud_only" } else { "local" },
+                storage,
                 session_id,
                 now,
                 f.search_key,
@@ -274,6 +322,18 @@ pub fn commit_batch(
             ])?;
             if changed == 0 {
                 replayed += 1;
+            }
+        }
+        if !legacy {
+            let listed = batch.listing.as_ref().map_or(0, |l| l.files);
+            tx.execute(
+                "UPDATE jobs SET new_files = new_files + ?2, changed_files = changed_files + ?3,
+                     discovered_files = discovered_files + ?4
+                 WHERE id = ?1",
+                params![session_id, new_files, changed_files, listed],
+            )?;
+            if let Some(listing) = &batch.listing {
+                note_missing(&tx, session_id, root_id, listing)?;
             }
         }
 
@@ -288,6 +348,71 @@ pub fn commit_batch(
     Ok(Committed::Yes { replayed })
 }
 
+/// The stored prefix every row under `dir` starts with, and the first key
+/// past them, for a range scan of the `(source_root_id, rel_path)` index.
+fn child_range(dir: &Path) -> (Vec<u8>, Option<Vec<u8>>) {
+    // The encoding of `dir/x` less that of `x`: the tag, `dir` and its
+    // separator (only the tag for the root itself).
+    let probe = native_path::encode(&dir.join("x"));
+    let x = native_path::encode(Path::new("x"));
+    let start = probe[..probe.len() - (x.len() - 1)].to_vec();
+    let mut end = start.clone();
+    while let Some(last) = end.pop() {
+        if last < u8::MAX {
+            end.push(last + 1);
+            return (start, Some(end));
+        }
+    }
+    (start, None)
+}
+
+/// Rows under a directory just listed whose first name below it wasn't in
+/// the listing: deleted, moved away, or under a folder that is gone. They
+/// become missing when the scan completes (Slice 4.5).
+fn note_missing(
+    tx: &Connection,
+    session_id: &str,
+    root_id: &str,
+    listing: &Listing,
+) -> rusqlite::Result<()> {
+    let Some(dir) = native_path::decode(&listing.dir_rel) else {
+        return Ok(());
+    };
+    let (start, end) = child_range(&dir);
+    let rows: Vec<(String, Vec<u8>)> = {
+        let mut stmt = tx.prepare_cached(
+            "SELECT id, rel_path FROM file_instances
+             WHERE source_root_id = ?1 AND availability = 'available'
+               AND rel_path >= ?2 AND (?3 IS NULL OR rel_path < ?3)",
+        )?;
+        stmt.query_map(params![root_id, start, end], |r| Ok((r.get(0)?, r.get(1)?)))?
+            .collect::<rusqlite::Result<_>>()?
+    };
+    let mut note = tx.prepare_cached(
+        "INSERT OR IGNORE INTO scan_missing (session_id, file_id) VALUES (?1, ?2)",
+    )?;
+    for (id, rel) in rows {
+        // Undecodable: leave it alone rather than guess.
+        let Some(rel) = native_path::decode(&rel) else {
+            continue;
+        };
+        let Ok(below) = rel.strip_prefix(&dir) else {
+            continue;
+        };
+        let Some(first) = below.components().next() else {
+            continue;
+        };
+        if !listing.names.contains(first.as_os_str()) {
+            note.execute(params![session_id, id])?;
+        }
+    }
+    Ok(())
+}
+
+/// Problems kept a scan, and how many of a folder's scans keep theirs.
+pub const PROBLEMS_PER_SCAN: u32 = 200;
+pub const SCANS_WITH_PROBLEMS: u32 = 10;
+
 /// Completes a session whose frontier is empty.
 ///
 /// A file not seen in this session is marked missing only when it lies in
@@ -295,15 +420,23 @@ pub fn commit_batch(
 /// that could not be read (or anything below it, which was not reached),
 /// and never when the root itself is unreachable. So a permission error or
 /// an offline cloud folder cannot make files look deleted (ADR 0005).
+///
+/// From Slice 4.5 the files not seen are the session's missing candidates,
+/// noted folder by folder as each was listed; a scan begun before 4.5
+/// (`legacy`) finds them by the marker on the rows it wrote, as Phase 0
+/// did. The folders it couldn't read are kept as the scan's problems.
 pub fn finish(
     conn: &mut Connection,
     session_id: &str,
     root_id: &str,
+    root_display: &str,
     root_reachable: bool,
+    legacy: bool,
     now: &str,
 ) -> rusqlite::Result<()> {
     let tx = conn.transaction()?;
-    if root_reachable {
+    let mut missing = 0usize;
+    if root_reachable && legacy {
         let failed: Vec<PathBuf> = {
             let mut stmt = tx.prepare(
                 "SELECT rel_path FROM scan_directories WHERE session_id = ?1 AND state = 'failed'",
@@ -331,31 +464,86 @@ pub fn finish(
                 None => true,
             };
             if !protected {
-                mark.execute(params![id, now])?;
+                missing += mark.execute(params![id, now])?;
             }
         }
+    } else if root_reachable {
+        missing = tx.execute(
+            "UPDATE file_instances SET availability = 'missing', updated_at = ?2
+             WHERE availability = 'available'
+               AND id IN (SELECT file_id FROM scan_missing WHERE session_id = ?1)",
+            params![session_id, now],
+        )?;
     }
+    record_problems(&tx, session_id, root_id, root_display)?;
     tx.execute(
         "UPDATE source_roots SET last_scan_at = ?2 WHERE id = ?1",
         params![root_id, now],
     )?;
+    let discovered = if legacy {
+        "(SELECT COUNT(*) FROM file_instances WHERE last_seen_session_id = ?1)"
+    } else {
+        "discovered_files"
+    };
     tx.execute(
-        "UPDATE jobs SET
-             state = 'completed', pause_reason = NULL, throttle_reason = NULL,
-             finished_at = ?2, updated_at = ?2,
-             discovered_files = (SELECT COUNT(*) FROM file_instances WHERE last_seen_session_id = ?1),
-             scanned_directories = (SELECT COUNT(*) FROM scan_directories
-                                    WHERE session_id = ?1 AND state = 'done')
-         WHERE id = ?1 AND state = 'running'",
-        params![session_id, now],
+        &format!(
+            "UPDATE jobs SET
+                 state = 'completed', pause_reason = NULL, throttle_reason = NULL,
+                 finished_at = ?2, updated_at = ?2,
+                 discovered_files = {discovered},
+                 missing_files = ?3,
+                 scanned_directories = (SELECT COUNT(*) FROM scan_directories
+                                        WHERE session_id = ?1 AND state = 'done')
+             WHERE id = ?1 AND state = 'running'"
+        ),
+        params![session_id, now, missing as i64],
     )?;
     tx.execute(
         "DELETE FROM scan_directories WHERE session_id = ?1",
         [session_id],
     )?;
+    tx.execute("DELETE FROM scan_missing WHERE session_id = ?1", [session_id])?;
     // New or changed files are read next (phase1-spec §7.1).
     crate::services::extraction::db::enqueue_if_pending(&tx, root_id, now)?;
     tx.commit()
+}
+
+/// Keeps the folders this scan couldn't read, with why, and drops the
+/// problems of the folder's older scans past [`SCANS_WITH_PROBLEMS`].
+fn record_problems(
+    tx: &Connection,
+    session_id: &str,
+    root_id: &str,
+    root_display: &str,
+) -> rusqlite::Result<()> {
+    let failed: Vec<(Vec<u8>, String)> = {
+        let mut stmt = tx.prepare(
+            "SELECT rel_path, COALESCE(last_error, 'read_failed') FROM scan_directories
+             WHERE session_id = ?1 AND state = 'failed' ORDER BY id LIMIT ?2",
+        )?;
+        stmt.query_map(params![session_id, PROBLEMS_PER_SCAN], |r| {
+            Ok((r.get(0)?, r.get(1)?))
+        })?
+        .collect::<rusqlite::Result<_>>()?
+    };
+    let mut add = tx.prepare_cached(
+        "INSERT INTO scan_problems (job_id, rel_path, display_path, code) VALUES (?1, ?2, ?3, ?4)",
+    )?;
+    for (rel, code) in failed {
+        let display = match native_path::decode(&rel) {
+            Some(p) if p.as_os_str().is_empty() => root_display.to_owned(),
+            Some(p) => native_path::display(&Path::new(root_display).join(p)),
+            None => format!("{root_display} (a folder whose name can't be shown)"),
+        };
+        add.execute(params![session_id, rel, display, code])?;
+    }
+    tx.execute(
+        "DELETE FROM scan_problems WHERE job_id IN (
+             SELECT id FROM jobs WHERE source_root_id = ?1 AND kind = 'scan'
+             ORDER BY rowid DESC LIMIT -1 OFFSET ?2)",
+        params![root_id, SCANS_WITH_PROBLEMS],
+    )
+    .map(|_| ())
 }
 
 fn live_counts(conn: &Connection, s: &JobRow) -> rusqlite::Result<(u32, u32)> {
@@ -366,11 +554,17 @@ fn live_counts(conn: &Connection, s: &JobRow) -> rusqlite::Result<(u32, u32)> {
     if terminal {
         return Ok((s.discovered_files, s.scanned_directories));
     }
-    let discovered = conn.query_row(
-        "SELECT COUNT(*) FROM file_instances WHERE last_seen_session_id = ?1",
-        [&s.id],
-        |r| r.get(0),
-    )?;
+    // From Slice 4.5 a scan counts what it found as it goes; one begun
+    // before counts the rows it marked.
+    let discovered = if s.origin.is_some() {
+        s.discovered_files
+    } else {
+        conn.query_row(
+            "SELECT COUNT(*) FROM file_instances WHERE last_seen_session_id = ?1",
+            [&s.id],
+            |r| r.get(0),
+        )?
+    };
     let done = conn.query_row(
         "SELECT COUNT(*) FROM scan_directories WHERE session_id = ?1 AND state = 'done'",
         [&s.id],
@@ -450,7 +644,7 @@ pub fn overview(conn: &Connection) -> rusqlite::Result<InventoryOverview> {
             .replace("{active}", &state_list(ACTIVE_STATES))
             .as_str(),
     )?;
-    let roots = roots_stmt
+    let mut roots = roots_stmt
         .query_map([], |r| {
             Ok(RootInventorySummary {
                 source_root_id: r.get(0)?,
@@ -460,9 +654,36 @@ pub fn overview(conn: &Connection) -> rusqlite::Result<InventoryOverview> {
                 cloud_only_count: r.get(4)?,
                 last_state: opt_from_db(r.get(5)?),
                 active_job_id: r.get(6)?,
+                active_state: None,
+                last_scan: None,
             })
         })?
         .collect::<rusqlite::Result<Vec<_>>>()?;
+
+    // Every scan scheduled (Slice 4.5), in the status bar's order.
+    let active_rows: Vec<JobRow> = conn
+        .prepare_cached(&format!(
+            "SELECT {JOB_COLUMNS} FROM jobs s
+             JOIN source_roots r ON r.id = s.source_root_id
+             WHERE s.kind = 'scan' AND s.state IN ({})
+             ORDER BY CASE s.state WHEN 'running' THEN 0 WHEN 'paused_policy' THEN 1
+                          WHEN 'paused_user' THEN 2 WHEN 'failed_retryable' THEN 3 ELSE 4 END,
+                      s.created_at, s.rowid",
+            state_list(ACTIVE_STATES)
+        ))?
+        .query_map([], job_from_row)?
+        .collect::<rusqlite::Result<_>>()?;
+    let mut active_jobs = Vec::with_capacity(active_rows.len());
+    for row in &active_rows {
+        active_jobs.push(status(conn, row)?);
+    }
+    for root in &mut roots {
+        root.active_state = active_rows
+            .iter()
+            .find(|j| Some(&j.id) == root.active_job_id.as_ref())
+            .map(|j| j.state);
+        root.last_scan = scans(conn, &root.source_root_id, 1)?.into_iter().next();
+    }
 
     Ok(InventoryOverview {
         active,
@@ -471,13 +692,60 @@ pub fn overview(conn: &Connection) -> rusqlite::Result<InventoryOverview> {
         missing_files,
         cloud_only_files,
         roots,
+        active_jobs,
     })
+}
+
+/// A folder's scans that ended, newest first (Slice 4.5).
+pub fn scans(conn: &Connection, root_id: &str, limit: u32) -> rusqlite::Result<Vec<ScanRecord>> {
+    conn.prepare_cached(
+        "SELECT j.id, j.origin, j.state, j.started_at, j.finished_at, j.elapsed_ms,
+                j.discovered_files, j.new_files, j.changed_files, j.missing_files,
+                (SELECT COUNT(*) FROM scan_problems p WHERE p.job_id = j.id), j.last_error
+         FROM jobs j
+         WHERE j.source_root_id = ?1 AND j.kind = 'scan'
+           AND j.state IN ('completed', 'cancelled', 'failed_terminal')
+         ORDER BY j.rowid DESC LIMIT ?2",
+    )?
+    .query_map(params![root_id, limit], |r| {
+        let state: String = r.get(2)?;
+        Ok(ScanRecord {
+            job_id: r.get(0)?,
+            origin: opt_from_db(r.get(1)?),
+            state: crate::services::catalog::codec::from_db(&state)
+                .unwrap_or(JobState::FailedTerminal),
+            started_at: r.get(3)?,
+            finished_at: r.get(4)?,
+            elapsed_ms: r.get::<_, i64>(5)?.max(0) as u64,
+            discovered_files: r.get(6)?,
+            new_files: r.get(7)?,
+            changed_files: r.get(8)?,
+            missing_files: r.get(9)?,
+            problems: r.get(10)?,
+            last_error: r.get(11)?,
+        })
+    })?
+    .collect()
+}
+
+/// The folders a scan couldn't read (Slice 4.5).
+pub fn problems(conn: &Connection, job_id: &str) -> rusqlite::Result<Vec<ScanProblem>> {
+    conn.prepare_cached(
+        "SELECT display_path, code FROM scan_problems WHERE job_id = ?1 ORDER BY id",
+    )?
+    .query_map([job_id], |r| {
+        Ok(ScanProblem {
+            display_path: r.get(0)?,
+            code: r.get(1)?,
+        })
+    })?
+    .collect()
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::services::jobs::db::transition;
+    use crate::services::jobs::db::{insert_job, transition};
 
     #[test]
     fn a_batch_for_a_session_that_left_running_writes_nothing() {
@@ -508,7 +776,7 @@ mod tests {
         };
 
         assert_eq!(
-            commit_batch(&mut conn, "s1", "r1", &batch(b"a"), "t").unwrap(),
+            commit_batch(&mut conn, "s1", "r1", &batch(b"a"), false, "t").unwrap(),
             Committed::Yes { replayed: 0 }
         );
         assert_eq!(dirs(&conn), 1);
@@ -524,7 +792,7 @@ mod tests {
         )
         .unwrap();
         assert_eq!(
-            commit_batch(&mut conn, "s1", "r1", &batch(b"b"), "t").unwrap(),
+            commit_batch(&mut conn, "s1", "r1", &batch(b"b"), false, "t").unwrap(),
             Committed::NotRunning
         );
         assert_eq!(dirs(&conn), 1, "the late batch must not land");
@@ -595,6 +863,7 @@ mod tests {
             "s1",
             "r1",
             &batch(vec![file("a.pdf", 1), file("b.pdf", 2)]),
+            false,
             "t1",
         );
         assert_eq!(first.unwrap(), Committed::Yes { replayed: 0 });
@@ -605,6 +874,7 @@ mod tests {
             "s1",
             "r1",
             &batch(vec![file("a.pdf", 1), file("b.pdf", 2)]),
+            false,
             "t2",
         );
         assert_eq!(again.unwrap(), Committed::Yes { replayed: 3 });
@@ -616,28 +886,80 @@ mod tests {
             "s1",
             "r1",
             &batch(vec![file("a.pdf", 9), file("b.pdf", 2)]),
+            false,
             "t3",
         );
         assert_eq!(changed.unwrap(), Committed::Yes { replayed: 2 });
         assert_eq!(updated(&conn), "t3");
 
-        // A rescan is a new session: every entry is written again.
+        // A rescan is a new session (Slice 4.5): what is unchanged isn't
+        // written; only the session's new frontier row is.
         running_session(&conn, "s2");
         let rescan = commit_batch(
             &mut conn,
             "s2",
             "r1",
             &batch(vec![file("a.pdf", 9), file("b.pdf", 2)]),
+            false,
             "t4",
         );
-        assert_eq!(rescan.unwrap(), Committed::Yes { replayed: 0 });
+        assert_eq!(rescan.unwrap(), Committed::Yes { replayed: 2 });
+        assert_eq!(updated(&conn), "t3");
+        let (new, changed): (i64, i64) = conn
+            .query_row(
+                "SELECT new_files, changed_files FROM jobs WHERE id = 's2'",
+                [],
+                |r| Ok((r.get(0)?, r.get(1)?)),
+            )
+            .unwrap();
+        assert_eq!((new, changed), (0, 0));
+        // The first session counted what it wrote: two new, then one
+        // changed.
+        let (new, changed): (i64, i64) = conn
+            .query_row(
+                "SELECT new_files, changed_files FROM jobs WHERE id = 's1'",
+                [],
+                |r| Ok((r.get(0)?, r.get(1)?)),
+            )
+            .unwrap();
+        assert_eq!((new, changed), (2, 1));
+
+        // A scan begun before Slice 4.5 writes every entry again, as Phase 0
+        // did, so it can find unseen rows by its marker.
+        running_session(&conn, "s3");
+        let legacy = commit_batch(
+            &mut conn,
+            "s3",
+            "r1",
+            &batch(vec![file("a.pdf", 9), file("b.pdf", 2)]),
+            true,
+            "t5",
+        );
+        assert_eq!(legacy.unwrap(), Committed::Yes { replayed: 0 });
         let seen: i64 = conn
             .query_row(
-                "SELECT COUNT(*) FROM file_instances WHERE last_seen_session_id = 's2'",
+                "SELECT COUNT(*) FROM file_instances WHERE last_seen_session_id = 's3'",
                 [],
                 |r| r.get(0),
             )
             .unwrap();
         assert_eq!(seen, 2);
+    }
+
+    #[test]
+    fn the_range_under_a_folder_holds_its_subtree_only() {
+        // Built with `join`, as the scan builds them, so the separator is
+        // the platform's.
+        let rel = |p: &str| {
+            native_path::encode(&p.split('/').fold(PathBuf::new(), |acc, part| acc.join(part)))
+        };
+        let (start, end) = child_range(Path::new("a"));
+        let end = end.unwrap();
+        let inside = |p: &str| rel(p) >= start && rel(p) < end;
+        assert!(inside("a/x.pdf") && inside("a/b/y.pdf"));
+        assert!(!inside("a") && !inside("ab/x.pdf") && !inside("b/x.pdf"));
+        // The folder itself: every row of the root.
+        let (start, end) = child_range(Path::new(""));
+        assert!(rel("x.pdf") >= start && end.is_none_or(|e| rel("x.pdf") < e));
     }
 }

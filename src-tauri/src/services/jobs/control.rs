@@ -3,7 +3,7 @@
 //! wake-up, so the runners see it before their next unit of work.
 
 use super::db;
-use crate::domain::dto::{JobKind, JobState};
+use crate::domain::dto::{JobKind, JobState, ScanOrigin};
 use crate::domain::traits::CatalogRepository;
 use crate::error::{AtlasError, AtlasResult};
 use crate::infrastructure::clock::now_rfc3339;
@@ -16,6 +16,16 @@ use crate::services::workspace::OpenRoot;
 /// scheduled (including one the user paused, which stays paused). Callers
 /// apply their kind's own rules first (scans refuse nested roots).
 pub fn enqueue(root: &OpenRoot, source_root_id: &str, kind: JobKind) -> AtlasResult<String> {
+    enqueue_from(root, source_root_id, kind, ScanOrigin::User)
+}
+
+/// As [`enqueue`], recording why the job was made.
+pub fn enqueue_from(
+    root: &OpenRoot,
+    source_root_id: &str,
+    kind: JobKind,
+    origin: ScanOrigin,
+) -> AtlasResult<String> {
     let exists = SqliteCatalog::new(root.catalog())
         .list_source_root_records()?
         .iter()
@@ -29,7 +39,7 @@ pub fn enqueue(root: &OpenRoot, source_root_id: &str, kind: JobKind) -> AtlasRes
             return Ok(active.id);
         }
         let id = uuid::Uuid::new_v4().to_string();
-        db::insert_job(c, &id, &root_id, kind, &now_rfc3339())?;
+        db::insert_job_from(c, &id, &root_id, kind, origin, &now_rfc3339())?;
         Ok::<_, rusqlite::Error>(id)
     })?;
     let id = id.map_err(AtlasError::db("schedule cataloging"))?;

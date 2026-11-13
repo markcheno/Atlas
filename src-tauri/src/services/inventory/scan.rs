@@ -38,6 +38,15 @@ enum Gate {
     },
 }
 
+/// What the gate tells the session loop when it shouldn't list now.
+enum Held {
+    /// Sample again after the policy wait.
+    Again,
+    Stop,
+    /// The folder is unreachable: hand the runner back (Slice 4.5).
+    Yield,
+}
+
 enum DirOutcome {
     Done,
     Failed,
@@ -51,6 +60,10 @@ struct Session {
     id: String,
     root_id: String,
     root: PathBuf,
+    root_display: String,
+    /// Begun before Slice 4.5: finishes by Phase 0's rule (every row written,
+    /// unseen rows found by the session marker).
+    legacy: bool,
     contains_data_root: bool,
     bucket: TokenBucket,
     last_sample: Option<Instant>,
@@ -210,6 +223,8 @@ impl ScanProcessor {
         let mut s = Session {
             contains_data_root: sources::relation_by_components(&self.data_root, &root)
                 == Relation::Inside,
+            legacy: row.origin.is_none(),
+            root_display: row.root_display,
             id: row.id,
             root_id: row.source_root_id,
             root,
@@ -238,11 +253,12 @@ impl ScanProcessor {
                 .last_sample
                 .is_none_or(|t| t.elapsed() >= self.deps.config.recheck_interval);
             if (due || state == Some(JobState::PausedPolicy))
-                && let Some(flow) = self.apply_gate(&mut s, state)
+                && let Some(held) = self.apply_gate(&mut s, state)
             {
-                match flow {
-                    Flow::Stop => return Flow::Stop,
-                    Flow::Continue => continue,
+                match held {
+                    Held::Stop => return Flow::Stop,
+                    Held::Yield => return Flow::Continue,
+                    Held::Again => continue,
                 }
             }
 
@@ -258,12 +274,12 @@ impl ScanProcessor {
             match self.process_dir(&mut s, dir) {
                 DirOutcome::Done | DirOutcome::Failed | DirOutcome::Interrupted => {}
                 DirOutcome::Stop => return Flow::Stop,
+                // The folder went away: wait outside the runner, so other
+                // folders' scans go on; the folder check queues this one
+                // again when it is back (Slice 4.5).
                 DirOutcome::RootVanished => {
                     self.pause_for(&s, PauseReason::SourceRootMissing, false);
-                    s.last_sample = Some(Instant::now());
-                    if self.signal.wait(self.deps.config.policy_wait) {
-                        return Flow::Stop;
-                    }
+                    return Flow::Continue;
                 }
             }
         }
@@ -290,16 +306,25 @@ impl ScanProcessor {
 
     /// Samples the device and the source root. `Some` means the caller
     /// should not process a directory now.
-    fn apply_gate(&mut self, s: &mut Session, state: Option<JobState>) -> Option<Flow> {
+    fn apply_gate(&mut self, s: &mut Session, state: Option<JobState>) -> Option<Held> {
         s.last_sample = Some(Instant::now());
         match self.gate(&s.root) {
+            // As for a folder that vanishes mid-scan: yield to other folders.
+            Gate::Pause(PauseReason::SourceRootMissing) => {
+                self.pause_for(
+                    s,
+                    PauseReason::SourceRootMissing,
+                    state == Some(JobState::PausedPolicy),
+                );
+                Some(Held::Yield)
+            }
             Gate::Pause(reason) => {
                 self.pause_for(s, reason, state == Some(JobState::PausedPolicy));
                 if self.signal.wait(self.deps.config.policy_wait) {
-                    return Some(Flow::Stop);
+                    return Some(Held::Stop);
                 }
                 s.clock = Instant::now();
-                Some(Flow::Continue)
+                Some(Held::Again)
             }
             Gate::Go { rate, throttle } => {
                 if state == Some(JobState::PausedPolicy) {
@@ -311,7 +336,7 @@ impl ScanProcessor {
                         None,
                     );
                     if !resumed {
-                        return Some(Flow::Continue);
+                        return Some(Held::Again);
                     }
                     crate::services::jobs::record_policy(
                         &self.diagnostics,
@@ -394,21 +419,31 @@ impl ScanProcessor {
 
         let batch_size = self.deps.config.batch_size.max(1);
         let mut batch = Batch::default();
+        let mut listing = db::Listing {
+            dir_rel: dir.rel_path.clone(),
+            ..db::Listing::default()
+        };
         for entry in entries {
             match entry {
-                Ok(info) => self.classify(s, &rel, info, &mut batch),
+                Ok(info) => {
+                    listing.names.insert(info.name.clone());
+                    self.classify(s, &rel, info, &mut batch);
+                }
                 Err(_) => batch.entry_errors += 1,
             }
-            if batch.len() >= batch_size
-                && let Some(outcome) = self.flush(s, &mut batch, None)
-            {
-                return outcome;
+            if batch.len() >= batch_size {
+                listing.files += batch.files.len() as u32;
+                if let Some(outcome) = self.flush(s, &mut batch, None) {
+                    return outcome;
+                }
             }
         }
 
         if !s.root.is_dir() {
             return DirOutcome::RootVanished;
         }
+        listing.files += batch.files.len() as u32;
+        batch.listing = Some(listing);
         match self.flush(s, &mut batch, Some(dir.id)) {
             Some(outcome) => outcome,
             None => DirOutcome::Done,
@@ -472,10 +507,10 @@ impl ScanProcessor {
         s.clock = now;
 
         let committed = std::mem::take(batch);
-        let (id, root_id, ts) = (s.id.clone(), s.root_id.clone(), self.now());
+        let (id, root_id, ts, legacy) = (s.id.clone(), s.root_id.clone(), self.now(), s.legacy);
         let replayed = match self
             .catalog
-            .call(move |c| db::commit_batch(c, &id, &root_id, &committed, &ts))
+            .call(move |c| db::commit_batch(c, &id, &root_id, &committed, legacy, &ts))
         {
             Ok(Ok(db::Committed::Yes { replayed })) => replayed as u32,
             // Paused or cancelled while this batch was listed: drop it. The
@@ -547,17 +582,15 @@ impl ScanProcessor {
     fn finish(&mut self, s: &Session) -> Flow {
         let reachable = s.root.is_dir();
         if !reachable {
+            // Waits outside the runner until the folder is back (Slice 4.5).
             self.pause_for(s, PauseReason::SourceRootMissing, false);
-            return if self.signal.wait(self.deps.config.policy_wait) {
-                Flow::Stop
-            } else {
-                Flow::Continue
-            };
+            return Flow::Continue;
         }
         let (id, root_id, now) = (s.id.clone(), s.root_id.clone(), self.now());
+        let (display, legacy) = (s.root_display.clone(), s.legacy);
         match self
             .catalog
-            .call(move |c| db::finish(c, &id, &root_id, reachable, &now))
+            .call(move |c| db::finish(c, &id, &root_id, &display, reachable, legacy, &now))
         {
             Ok(Ok(())) => {
                 self.emit(true);

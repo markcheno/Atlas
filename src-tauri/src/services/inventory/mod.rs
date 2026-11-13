@@ -9,6 +9,7 @@
 //! worker obeys [`crate::services::scheduler::policy::ResourcePolicy`] and
 //! a token-bucket rate limit, and it never opens file contents.
 
+pub mod auto;
 pub mod classify;
 pub mod control;
 pub mod db;
@@ -46,6 +47,8 @@ pub struct InventoryConfig {
     pub max_dir_attempts: u32,
     /// Minimum time between progress events.
     pub event_interval: Duration,
+    /// How often the folder check looks (Slice 4.5).
+    pub check_every: Duration,
 }
 
 impl Default for InventoryConfig {
@@ -59,6 +62,7 @@ impl Default for InventoryConfig {
             idle_wait: Duration::from_secs(30),
             max_dir_attempts: 3,
             event_interval: Duration::from_millis(250),
+            check_every: auto::CHECK_EVERY,
         }
     }
 }

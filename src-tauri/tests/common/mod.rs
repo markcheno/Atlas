@@ -255,6 +255,7 @@ pub fn fast_config() -> InventoryConfig {
         idle_wait: Duration::from_millis(50),
         max_dir_attempts: 3,
         event_interval: Duration::ZERO,
+        check_every: Duration::from_millis(25),
     }
 }
 

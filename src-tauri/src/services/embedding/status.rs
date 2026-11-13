@@ -124,12 +124,12 @@ pub fn overview(conn: &Connection, allow_remote: bool) -> rusqlite::Result<Embed
         location: service.as_ref().map(|(_, loc)| *loc),
     });
     let mut counts = EmbeddingCounts::default();
-    let jobs: Vec<(String, String)> = conn
+    let jobs: Vec<(String, String, String)> = conn
         .prepare_cached(
-            "SELECT source_root_id, id FROM jobs WHERE kind = 'embed'
+            "SELECT source_root_id, id, state FROM jobs WHERE kind = 'embed'
              AND state IN ('running', 'paused_policy', 'paused_user', 'failed_retryable', 'queued')",
         )?
-        .query_map([], |r| Ok((r.get(0)?, r.get(1)?)))?
+        .query_map([], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)))?
         .collect::<rusqlite::Result<_>>()?;
     // A folder's latest embed job, when it stopped for good.
     let failed: Vec<(String, Option<String>)> = conn
@@ -148,8 +148,12 @@ pub fn overview(conn: &Connection, allow_remote: bool) -> rusqlite::Result<Embed
             RootEmbeddingSummary {
                 active_job_id: jobs
                     .iter()
-                    .find(|(r, _)| *r == root)
-                    .map(|(_, j)| j.clone()),
+                    .find(|(r, _, _)| *r == root)
+                    .map(|(_, j, _)| j.clone()),
+                active_state: jobs
+                    .iter()
+                    .find(|(r, _, _)| *r == root)
+                    .and_then(|(_, _, s)| crate::services::catalog::codec::from_db(s)),
                 failed_because: failed
                     .iter()
                     .find(|(r, _)| *r == root)

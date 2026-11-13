@@ -72,7 +72,7 @@ export const fakeStatus: AppStatus = {
   os: 'macos',
   arch: 'aarch64',
   buildProfile: 'debug',
-  slice: '4.1',
+  slice: '4.5',
   features: [],
 };
 

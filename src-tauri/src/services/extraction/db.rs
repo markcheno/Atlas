@@ -657,6 +657,11 @@ pub fn overview(conn: &Connection, current: Option<&str>) -> rusqlite::Result<Ex
             // Only while that failure is the folder's latest job.
             failed_because: failed.filter(|_| last.as_deref() == Some("failed_terminal")),
             last_state: last.as_deref().and_then(from_db),
+            // A job of this folder that is active is its latest one.
+            active_state: active_job_id
+                .as_ref()
+                .and(last.as_deref())
+                .and_then(from_db),
             active_job_id,
         })
         .collect();
