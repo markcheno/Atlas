@@ -282,6 +282,12 @@ fn main() {
         .filter_map(Result::ok)
         .map(|e| e.path())
         .filter(|p| p.extension().is_some_and(|e| e == "jsonl"))
+        // Runs are named `<variant>@<dpi>`; the driver's job lists sit
+        // beside them.
+        .filter(|p| {
+            p.file_stem()
+                .is_some_and(|s| s.to_string_lossy().contains('@'))
+        })
         .collect();
     files.sort();
     for file in files {

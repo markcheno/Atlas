@@ -1368,6 +1368,38 @@ Memory shows yellow), it reads "… · Going slowly · The computer is busy".
 ([43351102234](https://github.com/markcheno/Atlas/actions/runs/43351102234))
 is green on three OSes at the first attempt.
 
+## Slice 4.2
+
+The OCR spike ([write-up](spike-ocr.md), [ADR 0020](adr/0020-ocr-engine.md)),
+measured in part and then deferred by the product owner. Nothing in the app
+changes.
+
+**Verified locally (macOS arm64, M5 Pro):**
+- The spike workspace's tests: `ocrbench` (normalisation, Levenshtein, WER
+  and CER, the bootstrap, the column ordering, CPU time) and the PP-OCR
+  model-config reader; the corpus generator's 11 tests (rendered page to
+  text, image PDFs, seeded degradations, page selection).
+- Every engine read a scanned page through the contract, and passed
+  `--self-check` from a simulated `.app` layout and from a real one.
+- Tesseract over the 50-page corpus at 300 and 200 DPI (results in the
+  write-up). The run was stopped before PP-OCR and Vision to free the
+  owner's Mac for indexing.
+- `just spike-ocr-mine` on the corpus's own scans: originals unchanged,
+  numbers only on the terminal, output folders inside the input folder,
+  the repository or with `..` refused with the reason.
+
+**CI (Spikes workflow, `slice-42`):**
+- Build cost: [43363368422](https://github.com/markcheno/Atlas/actions/runs/43363368422),
+  green on three OSes.
+- Installers: [43363376670](https://github.com/markcheno/Atlas/actions/runs/43363376670),
+  green on three OSes; every variant's check passed from every installed
+  layout.
+- Accuracy: [43363360359](https://github.com/markcheno/Atlas/actions/runs/43363360359)
+  stopped in its corpus job, when Commons served a re-rendered scan the
+  manifest's pin refused. Left as the first thing to fix when OCR returns.
+
+**CI on `slice-42`:** to be recorded.
+
 ## Slice 4.1.2
 
 The Explore spike ([write-up and rule](spike-explore.md)). Nothing in the

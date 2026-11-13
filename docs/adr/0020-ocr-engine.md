@@ -1,8 +1,11 @@
 # ADR 0020: The OCR engine
 
-- **Status:** Proposed. These criteria are committed before any candidate
-  is measured (Slice 4.2); the decision will follow from the measurements
-  and be recorded here, with the commit that holds these criteria.
+- **Status:** Proposed; **deferred** (2026-11-13). The criteria were
+  committed before any candidate was measured (commit `004894d`). The
+  product owner then deferred OCR to a later version: their collection
+  has few scans. The spike closed with part of its measurements
+  ([spike-ocr.md](../spike-ocr.md)); no engine is chosen, and these
+  criteria stand for when OCR returns.
 - **Date:** 2026-11-12
 - **Context documents:** [Phase 4 spec](../phase4-spec.md) §3, §7.2, §10.1
   and its revision notes for Slice 4.2; [ADR 0008](0008-extraction-and-vector-engines.md)
@@ -161,8 +164,24 @@ A variant that fails one can't be chosen, whatever its accuracy.
 
 ## Decision
 
-To be recorded from the measurements.
+Not taken: OCR was deferred before the measurements were complete. What
+was measured is in [the spike's write-up](../spike-ocr.md): Tesseract's
+accuracy and speed on one machine, every variant's clean build on three
+OSes, and each variant inside the real installers with its check from
+the installed place.
 
 ## Consequences
 
-To be recorded with the decision.
+- Documents marked Needs OCR stay labelled, as they have been since
+  Phase 1.
+- **What the measurements imply:** Tesseract's corpus WER is 2.7% (the
+  better of `fast` and `best`, 300 DPI, M5 Pro), so no engine can beat it
+  by the rule's 3 points, and the rule as written would choose Tesseract
+  on this corpus whatever PP-OCR measures. Tesseract `fast` adds about
+  3 MiB to each installer and passed every installed check on three OSes.
+  Whoever picks OCR up should decide first whether the corpus is too easy
+  or the margin too wide, before measuring the rest.
+- When OCR returns, the spike's harness (`spikes/ocr-bench`) and these
+  criteria are the starting point; the write-up lists what has to be
+  fixed first (the corpus's scans fetched from originals, not Commons'
+  re-rendered images).

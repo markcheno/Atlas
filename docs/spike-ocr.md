@@ -5,8 +5,17 @@ These are measurements, not guarantees (phase4-spec §10.1). They inform
 were committed (`004894d`) before anything was measured. The harness is
 in [`spikes/ocr-bench/`](../spikes/README.md) and is not part of the app.
 
-**Status:** harness, corpus and engines built; the measurements are to be
-recorded here, then the rule applied in ADR 0020.
+**Status: measured in part, then deferred.** On 2026-11-13 the product
+owner deferred OCR to a later version: their collection has few scans
+(phase4-spec revision notes). The spike was closed with what had been
+measured, and ADR 0020 stays Proposed with its criteria intact.
+
+**What was measured:** Tesseract's accuracy and speed over the corpus on
+the M5 Pro; every engine's clean build on three OSes; every variant inside
+Atlas's real installers on three OSes, with its check from the installed
+place. **What wasn't:** PP-OCR's and Vision's accuracy over the corpus (the
+M5 Pro's run was stopped to free the owner's Mac for indexing, and the CI
+corpus build stopped at a pin, see below), and the owner's own scans.
 
 ## The question
 
@@ -102,20 +111,77 @@ reported beside each difference.
 
 ## Results
 
-To be recorded from the M5 Pro's run and the CI runs.
+### Accuracy and speed: Tesseract on the M5 Pro (2026-11-13)
 
-### Accuracy (300 DPI)
+All 50 pages, one process each, one thread. WER and CER are the mean of
+the pages' rates; by category, WER. Seconds a page are after the first
+page; peak memory is the process's over the whole pass.
 
-### Speed and memory
+| Variant | DPI | WER | CER | Book | Two-column | Degraded | Poor layer | Reading order | s/page (median, p90) | Peak memory | Failed |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| tesseract-fast | 300 | 2.9% | 2.2% | 3.6% | 1.9% | 3.8% | 1.9% | 0.997 | 0.43, 2.14 s | 556 MiB | 0 |
+| tesseract-fast | 200 | 2.6% | 1.8% | 3.5% | 1.8% | 2.9% | 1.4% | 0.997 | 0.32, 2.07 s | 344 MiB | 0 |
+| tesseract-best | 300 | 2.7% | 2.0% | 2.9% | 1.9% | 3.7% | 1.8% | 0.996 | 1.01, 6.33 s | 502 MiB | 0 |
+| tesseract-best | 200 | 2.5% | 1.7% | 3.1% | 1.8% | 2.9% | 1.2% | 0.997 | 0.96, 5.66 s | 359 MiB | 0 |
 
-### Installers
+- **The poor-layer pages' own OCR text** scores 97.1% WER and 82.9% CER
+  against the reference, mostly lines out of order: Tesseract reads the
+  same pages at under 2%.
+- **`best` against `fast`** at 300 DPI: 0.28 points lower WER (95%
+  interval 0.06 to 0.49), for 2.4 times the time a page and 10 MiB more
+  in each installer. At 200 DPI the difference is inside the interval.
+- **200 DPI did as well as 300** on this corpus, and faster: the scans are
+  200 to 587 ppi, and Tesseract estimates the text size itself.
+- **The p90 is the two-column encyclopaedia pages**, 9,000 to 11,000
+  characters each.
 
-First measured locally (M5 Pro, 2026-11-12): the macOS DMG with the
-`tesseract-fast` stand-in and its model is 3.1 MiB larger than with the
-baseline stand-in, and the stand-in passed its check twice from the
-installed `.app`. The full table comes from the `ocr-installers` suite.
+### Build cost (CI, Spikes run [43363368422](https://github.com/markcheno/Atlas/actions/runs/43363368422))
 
-### Build cost
+A clean release build of each engine binary in a fresh target folder,
+after the sources are fetched; against the `baseline` binary, which renders
+pages and links what the app links.
+
+| Engine | macOS arm64 | Windows x64 | Linux x64 |
+| --- | --- | --- | --- |
+| Tesseract (built from source): build time, binary | +87 s, +2.5 MiB | +117 s, +3.8 MiB | +88 s, +4.9 MiB |
+| PP-OCR (oar-ocr, ONNX Runtime loaded at run time): build time, binary | +175 s, +1.2 MiB | +226 s, +2.0 MiB | +110 s, +1.9 MiB |
+| Vision: build time, binary | none (−19 s, +0.1 MiB) | – | – |
+
+Every engine built on all three OSes with only downloaded tools (cmake
+from `spike-tools`).
+
+### Installers (CI, Spikes run [43363376670](https://github.com/markcheno/Atlas/actions/runs/43363376670))
+
+Each installer carrying the variant's engine as a stand-in, with its model
+files and, for PP-OCR, ONNX Runtime; less the same installer carrying the
+baseline stand-in. Every variant's check passed from every installed
+layout, three times each: the signed `.app`, a per-user Windows install,
+the extracted `.deb` and the AppImage.
+
+| Variant | macOS DMG | Windows NSIS | Linux `.deb` | Linux AppImage |
+| --- | --- | --- | --- | --- |
+| tesseract-fast | +3.1 MiB | +2.9 MiB | +4.3 MiB | +4.1 MiB |
+| tesseract-best | +13.4 MiB | +13.1 MiB | +14.6 MiB | +14.4 MiB |
+| ppocr-v5-mobile | +22.1 MiB | +15.6 MiB | +20.8 MiB | +19.7 MiB |
+| ppocr-v6-tiny | +16.2 MiB | +9.8 MiB | +15.0 MiB | +13.9 MiB |
+| ppocr-v6-small | +35.6 MiB | +28.9 MiB | +34.5 MiB | +33.2 MiB |
+| vision-accurate-raw | +0.0 MiB | – | – | – |
+
+Every PP-OCR variant is within the rule's 40 MiB; v6 small comes closest
+(35.6 MiB on macOS). The baselines are 16.6 MiB (DMG), 11.8 MiB (NSIS),
+20.6 MiB (`.deb`) and 93.5 MiB (AppImage).
+
+### What the rule could and couldn't say
+
+The rule needs PP-OCR's WER on every OS beside Tesseract's, which wasn't
+measured. But the Tesseract candidate (the better of its two variants) has
+a corpus WER of 2.7% at 300 DPI, and PP-OCR is chosen only if its WER is
+at least 3 points lower: below zero, which no engine can reach. **On this
+corpus the rule can only choose Tesseract**, whatever PP-OCR measures;
+Vision is in the same position on macOS. A 3-point margin over an engine
+already under 3% means the rule, as written, will keep Tesseract on any
+corpus this clean. This is recorded as what the measurements
+imply, not as a decision; ADR 0020's decision waits for OCR's return.
 
 ### Seen while building the harness
 
@@ -132,7 +198,22 @@ lost:
 
 ## The owner's own scans
 
-`just spike-ocr-mine <folder>`: to be recorded when the owner runs it.
+Not run: OCR was deferred first. `just spike-ocr-mine <folder>` is ready
+for when it returns.
+
+## When OCR returns
+
+1. **The corpus's scans must come from the originals.** CI's corpus build
+   stopped at its first page: Commons served a re-rendered JPEG for a scan
+   the manifest pinned (`make: … the scan changed`), as it may for any of
+   its thumbnails. Fetch the DjVu or the Internet Archive's JPEG 2000
+   originals (Pillow reads JPEG 2000), or commit the public-domain scans.
+2. **Measure PP-OCR and Vision over the corpus** on each OS, then apply
+   ADR 0020's rule.
+3. **The worker's render** must use BGRA with PDFium's greyscale flag
+   (PDFium's grey format leaves scans undrawn).
+4. **A memory cap** must allow for PP-OCR's 1 to 4 GiB a page, if it is
+   chosen.
 
 ## Licences
 
