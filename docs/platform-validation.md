@@ -1416,7 +1416,18 @@ The catalog migrates to version 17 (`book_pairs`).
 - **The text check's cost:** 26 ms a pair at p50
   ([benchmarks](benchmarks.md#one-book-two-formats-slice-451)).
 
-**CI on `slice-451`:** RUN_PENDING
+**CI on `slice-451`:** the full run
+([43486282381](https://github.com/markcheno/Atlas/actions/runs/43486282381))
+is green on three OSes, smoke tests and release bundles included.
+
+- **Windows rerun:** Windows passed when rerun. Its first attempt failed
+  `p2_11` (meaning search reported "off" for a moment), which passed in the
+  run before and on the other OSes.
+- **An earlier run's Windows failures**, both fixed:
+  - the formats test found its files by a path with `/` in it;
+  - a scan's finish updated the pairs in a second transaction, so a reader
+    could see the scan finished with a pair out of date. They now share
+    the scan's transaction.
 
 **For the product owner, on the installed build:**
 
