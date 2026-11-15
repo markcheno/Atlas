@@ -78,6 +78,14 @@ pub enum Event {
         pause: Option<PauseReason>,
         throttle: Option<ThrottleReason>,
     },
+    /// Full speed began, or ended after `secs` (Slice 4.6).
+    FullSpeed {
+        on: bool,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        ended: Option<FullSpeedEnd>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        secs: Option<u64>,
+    },
     Snapshot {
         outcome: SnapshotOutcome,
         ms: u64,
@@ -158,6 +166,22 @@ impl FailureReason {
             _ => Self::Other,
         }
     }
+}
+
+/// Why full speed ended (Slice 4.6).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum FullSpeedEnd {
+    /// Nothing was left waiting to be read or indexed.
+    Done,
+    /// The owner pressed Stop.
+    Stopped,
+    /// The computer went on battery.
+    Unplugged,
+    /// Background work was Paused in Settings.
+    Paused,
+    /// The library closed, or Atlas quit.
+    Closed,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]

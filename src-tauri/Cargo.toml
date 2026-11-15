@@ -48,6 +48,8 @@ uuid = { version = "1.29.1", features = ["v4"] }
 usearch = "2.26.6"
 # The version rbook uses, for the EPUB pre-scan before rbook reads anything.
 zip = { version = "=9.4.2", default-features = false, features = ["deflate-flate2-zlib-rs"] }
+chrono = { version = "0.4.45", default-features = false, features = ["clock"] }
+listeners = "0.6.1"
 
 [target."cfg(unix)".dependencies]
 libc = "0.2.191"

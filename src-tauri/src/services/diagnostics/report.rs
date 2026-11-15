@@ -75,6 +75,11 @@ pub struct SettingsSummary {
     pub acknowledged_services: u32,
     pub record_trails: bool,
     pub expire_trails: bool,
+    /// When background work runs (Slice 4.6); the hours aren't reported.
+    #[serde(default)]
+    pub background_mode: crate::domain::dto::BackgroundMode,
+    #[serde(default)]
+    pub check_folders: crate::domain::dto::CheckFolders,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
@@ -200,6 +205,8 @@ pub fn build(inputs: &Inputs) -> AtlasResult<Report> {
             acknowledged_services: s.privacy.acknowledged.len() as u32,
             record_trails: s.privacy.record_trails,
             expire_trails: s.privacy.expire_trails,
+            background_mode: s.background.mode,
+            check_folders: s.background.check_folders,
         },
         storage: inputs.storage.clone(),
         library,

@@ -19,6 +19,7 @@ import type { ConnectionResult } from './bindings/ConnectionResult';
 import type { ConnectionTestTarget } from './bindings/ConnectionTestTarget';
 import type { DataRootCandidate } from './bindings/DataRootCandidate';
 import type { DeviceCheck } from './bindings/DeviceCheck';
+import type { ResourceStatus } from './bindings/ResourceStatus';
 import type { DataRootStatus } from './bindings/DataRootStatus';
 import type { DeviceSnapshot } from './bindings/DeviceSnapshot';
 import type { DocumentDetail } from './bindings/DocumentDetail';
@@ -151,6 +152,10 @@ export const atlas = {
   getAppStatus: () => call<AppStatus>('get_app_status'),
   getDeviceSnapshot: () => call<DeviceSnapshot>('get_device_snapshot'),
   getDeviceCheck: () => call<DeviceCheck>('get_device_check'),
+  /** What background work may do, the schedule and full speed (Slice 4.6). */
+  getResourceStatus: () => call<ResourceStatus>('get_resource_status'),
+  /** Run at full speed now, or Stop (Slice 4.6). */
+  setFullSpeed: (on: boolean) => call<ResourceStatus>('set_full_speed', { on }),
 
   getDataRootStatus: () => call<DataRootStatus>('get_data_root_status'),
   getDefaultDataRoot: () => call<string>('get_default_data_root'),

@@ -175,6 +175,10 @@ bench-formats:
 spike-explore $ATLAS_EXPLORE_DATA_ROOT $ATLAS_EXPLORE_OUT="":
     cargo test --manifest-path {{ manifest }} --locked --release --test explore -- --ignored --nocapture the_owners_library
 
+# What the busy rule's processor reading costs and reports (idle, Atlas's own threads busy, another program busy), and full speed against the Run duty cycle through the fake embedding service (Slice 4.6)
+bench-busy:
+    cargo test --manifest-path {{ manifest }} --locked --release --test schedule -- --ignored --nocapture --test-threads 1 measure_
+
 # What the Explore spike costs (Slice 4.1.2): neighbours, areas, the map and its measures at 5,000 and 30,000 synthetic books of 512 dimensions
 bench-explore:
     cargo test --manifest-path {{ manifest }} --locked --release --test explore -- --ignored --nocapture measure_explore_at_5k_and_30k

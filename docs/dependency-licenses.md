@@ -42,12 +42,12 @@ this report only when the app adopts it (ADR 0008).
 
 ## Summary
 
-### Rust crates (586, all platforms)
+### Rust crates (587, all platforms)
 
 | License expression | Count |
 | --- | --- |
 | MIT OR Apache-2.0 | 273 |
-| MIT | 132 |
+| MIT | 133 |
 | Apache-2.0 OR MIT | 56 |
 | Zlib OR Apache-2.0 OR MIT | 18 |
 | Unicode-3.0 | 18 |
@@ -350,6 +350,7 @@ this report only when the app adopts it (ADR 0008).
 | libsqlite3-sys | 0.39.1 | MIT |
 | link-cplusplus | 1.0.12 | MIT OR Apache-2.0 |
 | linux-raw-sys | 0.12.1 | Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT |
+| listeners | 0.6.1 | MIT |
 | litemap | 0.8.3 | Unicode-3.0 |
 | lock_api | 0.4.14 | MIT OR Apache-2.0 |
 | log | 0.4.35 | MIT OR Apache-2.0 |

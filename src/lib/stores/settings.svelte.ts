@@ -15,7 +15,7 @@ export const DEFAULT_SETTINGS: Settings = {
     recordTrails: true,
     expireTrails: true,
   },
-  background: { checkFolders: 'sixHours' },
+  background: { mode: 'automatic', from: '22:00', to: '07:00', checkFolders: 'sixHours' },
 };
 
 class SettingsStore {

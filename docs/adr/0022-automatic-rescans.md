@@ -1,7 +1,7 @@
 # ADR 0022: Automatic rescans, and a rescan that writes only what changed
 
-- **Status:** Accepted (Phase 4, Slice 4.5). Slice 4.6 completes it with
-  schedules. Amends [ADR 0005](0005-inventory-durability.md).
+- **Status:** Accepted (Phase 4, Slice 4.5); completed by Slice 4.6 with
+  the schedule. Amends [ADR 0005](0005-inventory-durability.md).
 - **Date:** 2026-11-13
 - **Context documents:** [Phase 4 spec](../phase4-spec.md) §5.3, §5.4,
   §6.3, §7.4, §12 (P4-11, P4-12), §13; [ADR 0004](0004-resource-policy.md)
@@ -155,5 +155,10 @@ checker through a shared value.
 - **No file watcher.** Changes are found on the interval, at launch and
   when a drive returns, or when asked. A watcher remains out of scope
   (phase4-spec §2).
-- **Slice 4.6** adds the schedule (modes, hours, full speed, the busy
-  rule). Automatic scans already obey the resource policy.
+- **Slice 4.6 added the schedule:** Automatic, Only while charging, Only
+  between two times and Paused, with full speed and the busy rule
+  ([ADR 0004's amendment](0004-resource-policy.md#amendment-the-owners-schedule-full-speed-and-other-applications-slice-46-2026-11-15)).
+  An automatic check still queues its scan whatever the schedule says.
+  The scan then waits under the policy like any other job, so a folder
+  checked at 18:00 under "Only between 22:00 and 07:00" is scanned at
+  22:00.

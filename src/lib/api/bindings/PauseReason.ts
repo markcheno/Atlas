@@ -3,4 +3,4 @@
 /**
  * Machine-readable pause reasons; display text is chosen by the UI.
  */
-export type PauseReason = "battery_low" | "low_disk_space" | "data_root_missing" | "source_root_missing" | "memory_pressure" | "thermal_pressure" | "on_battery";
+export type PauseReason = "battery_low" | "low_disk_space" | "data_root_missing" | "source_root_missing" | "memory_pressure" | "thermal_pressure" | "on_battery" | "paused_by_user" | "outside_hours" | "not_charging";

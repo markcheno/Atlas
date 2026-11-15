@@ -17,6 +17,7 @@ import type { Recommendations } from '../lib/api/bindings/Recommendations';
 import type { DataRootCandidate } from '../lib/api/bindings/DataRootCandidate';
 import type { DataRootStatus } from '../lib/api/bindings/DataRootStatus';
 import type { DeviceCheck } from '../lib/api/bindings/DeviceCheck';
+import type { ResourceStatus } from '../lib/api/bindings/ResourceStatus';
 import type { DeviceSnapshot } from '../lib/api/bindings/DeviceSnapshot';
 import type { DocumentDetail } from '../lib/api/bindings/DocumentDetail';
 import type { DocumentPage } from '../lib/api/bindings/DocumentPage';
@@ -74,7 +75,7 @@ export const fakeStatus: AppStatus = {
   os: 'macos',
   arch: 'aarch64',
   buildProfile: 'debug',
-  slice: '4.5.1',
+  slice: '4.6',
   features: [],
 };
 
@@ -149,7 +150,25 @@ export function deviceCheck(overrides: Partial<DeviceCheck> = {}): DeviceCheck {
       pauseReason: null,
       throttleReason: 'on_battery',
       maxMetadataOpsPerSecond: 20,
+      fullSpeed: false,
     },
+    ...overrides,
+  };
+}
+
+/** Plugged in, running normally, full speed offered (Slice 4.6). */
+export function resourceStatus(overrides: Partial<ResourceStatus> = {}): ResourceStatus {
+  return {
+    policy: {
+      mode: 'run',
+      pauseReason: null,
+      throttleReason: null,
+      maxMetadataOpsPerSecond: 500,
+      fullSpeed: false,
+    },
+    fullSpeed: { on: false, offered: true, blocked: null },
+    mode: 'automatic',
+    waitingUntil: null,
     ...overrides,
   };
 }
@@ -909,7 +928,7 @@ function defaults(): Record<string, Handler> {
       recordTrails: true,
       expireTrails: true,
     },
-    background: { checkFolders: 'sixHours' },
+    background: { mode: 'automatic', from: '22:00', to: '07:00', checkFolders: 'sixHours' },
   };
   let roots: SourceRoot[] = [];
   let firstStepNote = false;
@@ -986,6 +1005,11 @@ function defaults(): Record<string, Handler> {
     test_provider_connection: () => connectionResult(),
     detect_local_providers: () => [],
     get_device_check: () => deviceCheck(),
+    get_resource_status: () => resourceStatus(),
+    set_full_speed: (args) =>
+      resourceStatus({
+        fullSpeed: { on: Boolean((args as { on: boolean }).on), offered: true, blocked: null },
+      }),
     get_inventory_status: () => overview(),
     get_extraction_status: () => extractionOverview(),
     start_extraction: () => 'extract-2',

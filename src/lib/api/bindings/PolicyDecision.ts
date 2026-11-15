@@ -10,4 +10,8 @@ export type PolicyDecision = { mode: PolicyMode, pauseReason: PauseReason | null
 /**
  * Measured on one development machine (docs/benchmarks.md); not a guarantee.
  */
-maxMetadataOpsPerSecond: number | null, };
+maxMetadataOpsPerSecond: number | null, 
+/**
+ * Run at full speed now (Slice 4.6): no rests, scans unthrottled.
+ */
+fullSpeed: boolean, };

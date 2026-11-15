@@ -43,7 +43,7 @@ use crate::services::jobs::ProcessorFactory;
 use crate::services::jobs::{self, Flow, JobProcessor, JobRow, JobWaker, ProcessorContext, Signal};
 use crate::services::providers::profiles::{self, Prepared};
 use crate::services::providers::secrets::{Secret, SecretVault};
-use crate::services::scheduler::duty::rest_due;
+use crate::services::scheduler::duty::{duty_for, rest_due};
 use crate::services::system::ResourceGovernor;
 use crate::services::workspace::layout::CATALOG;
 use crate::services::workspace::settings;
@@ -353,14 +353,13 @@ impl EmbedProcessor {
             PolicyMode::Slow if policy.throttle_reason == Some(ThrottleReason::OnBattery) => {
                 Gate::Pause(PauseReason::OnBattery)
             }
-            mode => Gate::Go {
-                duty: if config.unthrottled {
-                    1.0
-                } else if mode == PolicyMode::Slow {
-                    config.slow_duty
-                } else {
-                    config.run_duty
-                },
+            _ => Gate::Go {
+                duty: duty_for(
+                    &policy,
+                    config.run_duty,
+                    config.slow_duty,
+                    config.unthrottled,
+                ),
                 throttle: policy.throttle_reason,
             },
         }
@@ -499,14 +498,32 @@ impl EmbedProcessor {
                 kind,
                 endpoint,
                 key,
-            })) => ResolvedService {
-                kind,
-                base: endpoint.base,
-                key,
-                model: model.model_name.clone(),
-                dims: model.dims,
-                native_dims: role.dims,
-            },
+            })) => {
+                // A service on this computer works because Atlas asks: the
+                // busy rule leaves it out (Slice 4.6).
+                let ports: Vec<u16> = if endpoint.on_this_computer {
+                    url::Url::parse(&endpoint.base)
+                        .ok()
+                        .and_then(|u| u.port_or_known_default())
+                        .into_iter()
+                        .collect()
+                } else {
+                    Vec::new()
+                };
+                self.deps
+                    .governor
+                    .lock()
+                    .unwrap_or_else(|p| p.into_inner())
+                    .exclude_ports(&ports);
+                ResolvedService {
+                    kind,
+                    base: endpoint.base,
+                    key,
+                    model: model.model_name.clone(),
+                    dims: model.dims,
+                    native_dims: role.dims,
+                }
+            }
             Some(Ok(Prepared::Blocked(_))) => {
                 self.fail(&job.id, "address_rejected");
                 return Flow::Continue;

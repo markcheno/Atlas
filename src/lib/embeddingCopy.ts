@@ -6,6 +6,7 @@
 import type { EmbeddingOverview } from './api/bindings/EmbeddingOverview';
 import type { PauseReason } from './api/bindings/PauseReason';
 import { count, slowedText } from './inventoryCopy';
+import { holdText } from './scheduleCopy';
 
 /** What the status line offers besides Pause, Resume and Cancel. */
 export type MeaningAction = 'retry' | 'choose_model' | 'allow_remote' | 'index_now' | null;
@@ -16,6 +17,8 @@ export interface MeaningLine {
 }
 
 function pausedText(reason: PauseReason | null): string {
+  const hold = holdText(reason);
+  if (hold) return `Paused indexing meaning · ${hold}`;
   switch (reason) {
     case 'on_battery':
       return 'Paused indexing meaning on battery · Resumes when plugged in';

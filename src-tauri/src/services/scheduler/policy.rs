@@ -11,8 +11,17 @@
 //! | On battery at ≤20%, or still below 25% after such a pause | paused, `battery_low` |
 //! | On battery | slow, `on_battery` |
 //! | Power unknown | slow, `power_unknown` (never assumes AC) |
+//! | The owner's schedule holds (Slice 4.6) | paused, `paused_by_user`, `not_charging` or `outside_hours` |
+//! | Full speed on, on mains power (Slice 4.6) | run at full speed |
 //! | Elevated memory pressure or thermal state | slow, `system_busy` |
+//! | Other applications keep the processor busy (Slice 4.6) | slow, `other_apps` |
 //! | AC power, or a desktop with no battery | run |
+//!
+//! The schedule sits after the hard pauses and before the slowing rules;
+//! full speed sits after the schedule's Paused and Only while charging
+//! but overrides its hours (the owner asked now), and overrides every
+//! slowing rule. On battery it doesn't apply: it is offered on mains power
+//! only, and the governor ends it on unplugging.
 //!
 //! The battery rule has hysteresis: once paused at 20%, work resumes only
 //! at 25% or on AC, so a reading that wobbles around 20% cannot flap.
@@ -24,6 +33,7 @@ use crate::domain::dto::{
     DeviceSnapshot, PauseReason, PolicyDecision, PolicyMode, PowerSource, PressureLevel,
     ThermalLevel, ThrottleReason,
 };
+use crate::services::scheduler::schedule::on_mains;
 use crate::services::system::low_space_threshold;
 
 pub const BATTERY_PAUSE_AT_PERCENT: f32 = 20.0;
@@ -44,12 +54,38 @@ pub struct ResourcePolicy {
     paused_for_battery: bool,
 }
 
+/// What the governor adds to the device's reading (Slice 4.6).
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct Layers {
+    /// Why the owner's schedule holds work now, if it does.
+    pub hold: Option<PauseReason>,
+    /// Run at full speed now.
+    pub full_speed: bool,
+    /// Other applications keep the processor busy.
+    pub other_apps_busy: bool,
+}
+
 impl ResourcePolicy {
     pub fn new() -> Self {
         Self::default()
     }
 
+    /// The device's rules alone (ADR 0004).
     pub fn evaluate(&mut self, s: &DeviceSnapshot) -> PolicyDecision {
+        self.evaluate_with(s, Layers::default())
+    }
+
+    /// Whether a hard pause holds every job now, whatever the owner chose.
+    pub fn hard_pause(&mut self, s: &DeviceSnapshot) -> Option<PauseReason> {
+        let d = self.evaluate(s);
+        (d.mode == PolicyMode::Paused)
+            .then_some(d.pause_reason)
+            .flatten()
+    }
+
+    /// The device's rules with the schedule, full speed and the busy rule
+    /// in the order the table above gives (phase4-spec §7.5).
+    pub fn evaluate_with(&mut self, s: &DeviceSnapshot, layers: Layers) -> PolicyDecision {
         // Track battery hysteresis on every sample, whatever rule wins, so
         // the state is right when higher-priority conditions clear.
         let on_battery = s.power == PowerSource::Battery;
@@ -80,6 +116,21 @@ impl ResourcePolicy {
         if self.paused_for_battery {
             return paused(PauseReason::BatteryLow);
         }
+        match layers.hold {
+            // Full speed overrides the hours: the owner asked now.
+            Some(PauseReason::OutsideHours) if layers.full_speed && on_mains(s) => {}
+            Some(reason) => return paused(reason),
+            None => {}
+        }
+        if layers.full_speed && on_mains(s) && !on_battery {
+            return PolicyDecision {
+                mode: PolicyMode::Run,
+                pause_reason: None,
+                throttle_reason: None,
+                max_metadata_ops_per_second: None,
+                full_speed: true,
+            };
+        }
         if on_battery {
             return slow(ThrottleReason::OnBattery);
         }
@@ -89,11 +140,15 @@ impl ResourcePolicy {
         if s.memory_pressure == PressureLevel::Elevated || s.thermal == ThermalLevel::Elevated {
             return slow(ThrottleReason::SystemBusy);
         }
+        if layers.other_apps_busy {
+            return slow(ThrottleReason::OtherApps);
+        }
         PolicyDecision {
             mode: PolicyMode::Run,
             pause_reason: None,
             throttle_reason: None,
             max_metadata_ops_per_second: Some(AC_OPS_PER_SECOND),
+            full_speed: false,
         }
     }
 }
@@ -104,6 +159,7 @@ fn paused(reason: PauseReason) -> PolicyDecision {
         pause_reason: Some(reason),
         throttle_reason: None,
         max_metadata_ops_per_second: None,
+        full_speed: false,
     }
 }
 
@@ -113,6 +169,7 @@ fn slow(reason: ThrottleReason) -> PolicyDecision {
         pause_reason: None,
         throttle_reason: Some(reason),
         max_metadata_ops_per_second: Some(SLOW_OPS_PER_SECOND),
+        full_speed: false,
     }
 }
 
@@ -322,5 +379,92 @@ mod tests {
             ..ac()
         };
         assert_eq!(p.evaluate(&unknown_readings).mode, PolicyMode::Run);
+    }
+
+    /// P4-13/P4-14: the schedule, full speed and the busy rule, in order.
+    #[test]
+    fn p4_14_the_layers_in_order() {
+        let mut p = ResourcePolicy::new();
+        let layers = |hold, full_speed, other_apps_busy| Layers {
+            hold,
+            full_speed,
+            other_apps_busy,
+        };
+        let full = |d: PolicyDecision| (d.mode, d.full_speed, d.max_metadata_ops_per_second);
+
+        // Full speed: run, unthrottled, over every slowing rule.
+        let busy_ac = DeviceSnapshot {
+            memory_pressure: PressureLevel::Elevated,
+            ..ac()
+        };
+        assert_eq!(
+            full(p.evaluate_with(&busy_ac, layers(None, true, true))),
+            (PolicyMode::Run, true, None)
+        );
+        // ...and over the hours, but not over Paused or a hard pause.
+        assert!(
+            p.evaluate_with(&ac(), layers(Some(PauseReason::OutsideHours), true, false))
+                .full_speed
+        );
+        assert_eq!(
+            p.evaluate_with(&ac(), layers(Some(PauseReason::PausedByUser), true, false))
+                .pause_reason,
+            Some(PauseReason::PausedByUser)
+        );
+        let low = DeviceSnapshot {
+            data_volume_free_bytes: Some(GIB),
+            data_volume_total_bytes: Some(1000 * GIB),
+            ..ac()
+        };
+        assert_eq!(
+            p.evaluate_with(&low, layers(None, true, false))
+                .pause_reason,
+            Some(PauseReason::LowDiskSpace)
+        );
+        // On battery or unknown power it doesn't apply.
+        let d = p.evaluate_with(&battery(80.0), layers(None, true, false));
+        assert_eq!((d.mode, d.full_speed), (PolicyMode::Slow, false));
+        let unknown = DeviceSnapshot {
+            power: PowerSource::Unknown,
+            battery_present: None,
+            ..ac()
+        };
+        assert!(
+            !p.evaluate_with(&unknown, layers(None, true, false))
+                .full_speed
+        );
+        // A desktop with no battery counts as mains power.
+        let desktop = DeviceSnapshot {
+            power: PowerSource::Unknown,
+            battery_present: Some(false),
+            battery_percent: None,
+            ..ac()
+        };
+        assert!(
+            p.evaluate_with(&desktop, layers(None, true, false))
+                .full_speed
+        );
+
+        // The schedule holds after the hard pauses...
+        assert_eq!(
+            mode(p.evaluate_with(&ac(), layers(Some(PauseReason::NotCharging), false, false))),
+            (PolicyMode::Paused, Some(PauseReason::NotCharging), None)
+        );
+        assert_eq!(
+            p.evaluate_with(&low, layers(Some(PauseReason::OutsideHours), false, false))
+                .pause_reason,
+            Some(PauseReason::LowDiskSpace)
+        );
+        // ...and other applications slow work last.
+        assert_eq!(
+            mode(p.evaluate_with(&ac(), layers(None, false, true))),
+            (PolicyMode::Slow, None, Some(ThrottleReason::OtherApps))
+        );
+        assert_eq!(
+            p.evaluate_with(&battery(80.0), layers(None, false, true))
+                .throttle_reason,
+            Some(ThrottleReason::OnBattery)
+        );
+        assert_eq!(p.evaluate_with(&ac(), Layers::default()), p.evaluate(&ac()));
     }
 }

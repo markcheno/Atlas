@@ -49,6 +49,8 @@ pub struct InventoryConfig {
     pub event_interval: Duration,
     /// How often the folder check looks (Slice 4.5).
     pub check_every: Duration,
+    /// How often full speed looks for work left (Slice 4.6).
+    pub full_speed_every: Duration,
 }
 
 impl Default for InventoryConfig {
@@ -63,6 +65,7 @@ impl Default for InventoryConfig {
             max_dir_attempts: 3,
             event_interval: Duration::from_millis(250),
             check_every: auto::CHECK_EVERY,
+            full_speed_every: crate::services::scheduler::watch::WATCH_EVERY,
         }
     }
 }

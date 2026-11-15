@@ -140,6 +140,20 @@ pub fn next_runnable(conn: &Connection, kind: JobKind) -> rusqlite::Result<Optio
     .optional()
 }
 
+/// Whether any scan, reading or indexing job has work it can do now:
+/// queued, running or paused by the policy (Slice 4.6: full speed ends
+/// once none has). A scan waiting for its folder's drive doesn't count.
+pub fn any_runnable(conn: &Connection) -> rusqlite::Result<bool> {
+    conn.query_row(
+        "SELECT EXISTS (SELECT 1 FROM jobs
+             WHERE state IN ('running', 'paused_policy', 'queued')
+               AND NOT (kind = 'scan' AND state = 'paused_policy'
+                        AND pause_reason = 'source_root_missing'))",
+        [],
+        |r| r.get(0),
+    )
+}
+
 /// The newest non-terminal job of `kind` for a root, if any.
 pub fn active_for_root(
     conn: &Connection,

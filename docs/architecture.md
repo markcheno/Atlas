@@ -340,6 +340,60 @@ Rationale in [ADR 0004](adr/0004-resource-policy.md).
 - **Sampling** is on demand: `get_device_check`, the Device check screen, and
   Settings every 30 seconds while it is open. The 0.5 scan loop samples
   before each batch.
+
+### Schedules and full speed (Slice 4.6)
+
+Rationale in [ADR 0004's amendment](adr/0004-resource-policy.md#amendment-the-owners-schedule-full-speed-and-other-applications-slice-46-2026-11-15).
+
+- **The governor** (`services/system/mod.rs`, one per app behind a mutex)
+  holds:
+  - the device monitor and the policy's hysteresis;
+  - the schedule from the open library's Settings, set when the library
+    opens and whenever `update_settings` changes it (then every job is
+    woken);
+  - full speed, in memory only;
+  - the busy rule and its `CpuProbe`;
+  - the clock, for the hours in local time.
+
+  `check()` evaluates `ResourcePolicy::evaluate_with` with those layers.
+  When the `ResourceStatus` changes, it emits `resource-status`.
+- **`ResourceStatus`:**
+  - the decision, now with `fullSpeed`;
+  - full speed's `on`, `offered` and, when not offered, why (on battery,
+    unknown power, Paused, or a hard pause);
+  - the mode;
+  - `waitingUntil` while outside the hours.
+
+  `get_resource_status` reads it; `set_full_speed(on)` starts full speed
+  (only when a job has work: `NothingWaiting` otherwise) or stops it.
+- **The jobs** take their duty cycle from `scheduler::duty::duty_for`: 1
+  at full speed, else the run or slow duty. Scans take the policy's rate,
+  which full speed lifts.
+- **`FullSpeedWatch`** (`services/scheduler/watch.rs`), one thread per
+  open library:
+  - while full speed is on, it checks every 5 s for a scan, reading or
+    indexing job that is queued, running or paused by the policy
+    (`jobs::db::any_runnable`);
+  - two empty checks end full speed;
+  - dropping the watch when the library closes ends it too.
+- **The busy rule** (`services/scheduler/busy.rs`, the OS probe in
+  `infrastructure/cpu_probe.rs`):
+  - readings are at most 5 s apart, weighted by the time each covers;
+  - a decision needs readings covering at least 80% of the 30 s window;
+  - `other_share` leaves out Atlas, its workers and the processes
+    listening on the AI service's port, which the embed job reports when
+    its service is on this computer.
+- **Settings** (`background.mode`, `from`, `to`) are read leniently: a
+  value this build doesn't know reads as its default.
+  - `update_settings` refuses hours that aren't two different times
+    (`InvalidHours`) when they're used or changed;
+  - the report counts the mode and the folder check, never the hours.
+- **The UI:**
+  - Settings › Performance & Battery has Background work, its state in
+    words and Run at full speed now / Stop;
+  - the status bar has Full speed / Stop while a job has work;
+  - copy is in `src/lib/scheduleCopy.ts`, and the store is
+    `stores/resources.svelte.ts`.
 - **Simulation:** debug builds honor `ATLAS_SIMULATE_POWER` and
   `ATLAS_SIMULATE_FREE_BYTES`, exposed as `just dev-simulate`.
 

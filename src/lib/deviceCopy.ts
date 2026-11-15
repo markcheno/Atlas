@@ -75,9 +75,12 @@ export const NOTE_TEXT: Record<AssessmentNote, string> = {
 
 /** Completes "When Atlas catalogs your folders, it will …". */
 export function policySentence(p: PolicyDecision, s: DeviceSnapshot): string {
-  if (p.mode === 'run') return 'run normally.';
+  if (p.mode === 'run')
+    return p.fullSpeed ? 'run at full speed until the work is done.' : 'run normally.';
   if (p.mode === 'slow') {
     switch (p.throttleReason) {
+      case 'other_apps':
+        return 'run slowly because other apps are keeping the computer busy.';
       case 'on_battery':
         return 'run slowly because this computer is on battery.';
       case 'power_unknown':
@@ -97,6 +100,12 @@ export function policySentence(p: PolicyDecision, s: DeviceSnapshot): string {
       return 'pause because the computer is short on memory.';
     case 'thermal_pressure':
       return 'pause because the computer is running hot.';
+    case 'paused_by_user':
+      return 'wait, because background work is paused.';
+    case 'outside_hours':
+      return 'wait until the hours you chose.';
+    case 'not_charging':
+      return 'wait until this computer is plugged in.';
     default:
       return 'pause for now.';
   }

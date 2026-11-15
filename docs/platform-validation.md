@@ -1397,6 +1397,86 @@ Memory shows yellow), it reads "… · Going slowly · The computer is busy".
 ([43351102234](https://github.com/markcheno/Atlas/actions/runs/43351102234))
 is green on three OSes at the first attempt.
 
+## Slice 4.6
+
+When background work runs: Automatic, Only while charging, Only between
+two times, Paused; full speed; the busy rule ([ADR 0004's amendment](adr/0004-resource-policy.md)).
+No catalog migration.
+
+**Verified locally (macOS arm64, M5 Pro):**
+
+- **P4-13** (`tests/schedule.rs`):
+  - Paused holds a scan and an indexing job, each `paused_by_user`, and
+    nothing is sent to the AI service; Automatic lets them go on;
+  - Only between 22:00 and 07:00 holds a scan at 21:58 and lets it go at
+    22:00. "Waiting until 22:00" is reported, and the window holds across
+    midnight and by the local offset (21:00 and 23:00 at UTC−6);
+  - Only while charging holds a scan on battery (`not_charging`) and lets
+    it go when plugged in. A desktop with no battery is never waiting for
+    power;
+  - two equal times, or a time that isn't one, can't be saved.
+- **P4-14:**
+  - full speed refuses when nothing is waiting;
+  - it runs indexing unthrottled, and waits out low space without ending;
+  - it ends on unplugging, on Stop, when the work runs out, on choosing
+    Paused and on closing the library, each in the log;
+  - other applications' processor use slows indexing (`other_apps`),
+    full speed overrides that, and it returns under 40%.
+- **P4-25 (settings):**
+  - a 0.4.0 file and a Slice 4.5 file read with the new defaults
+    (Automatic, 22:00 and 07:00);
+  - unknown values read as defaults without resetting the theme or the
+    folder check;
+  - hand-edited equal hours don't stop other settings from saving.
+- **Unit tests:**
+  - each mode against each power source and the window's edges;
+  - the policy's new order;
+  - the busy rule's hysteresis, its 30 s average and a missing reading;
+  - `other_share` leaving out Atlas, its workers and the AI service with
+    its helpers;
+  - the duty helper;
+  - the local offset;
+  - the real probe's first and second readings.
+- **Vitest:**
+  - the modes, hours and state in Settings;
+  - Run at full speed now and Stop in Settings and the status bar;
+  - "Plug in to run at full speed", and nothing offered while Paused;
+  - an error said;
+  - the new reasons' sentences.
+- **Measured** ([benchmarks](benchmarks.md#schedules-and-full-speed-slice-46)):
+  - the probe reads an idle Mac at 3%, Atlas's own busy threads not at
+    all, and another program on half the cores at 51%, about 10 ms a
+    reading;
+  - full speed embeds 1.92 times as fast as Run.
+
+**CI on `slice-46`:** the full run
+([43742378124](https://github.com/markcheno/Atlas/actions/runs/43742378124))
+is green on three OSes at the first attempt, smoke tests and release
+bundles included.
+
+**For the product owner, on the installed build:**
+
+1. **Full speed:**
+   - while Atlas is reading or indexing, plugged in, the status bar shows
+     **Full speed**;
+   - press it: the line says "Full speed" with **Stop**, and the meaning
+     count climbs about twice as fast;
+   - it switches itself off when nothing is left.
+2. **Stop and unplugging:**
+   - **Stop** goes back to the normal pace;
+   - unplugging ends full speed, and Settings says "Plug in to run at full
+     speed."
+3. **Settings › Performance & Battery › Background work:**
+   - **Paused:** the status lines say "Background work is paused in
+     Settings" and nothing runs;
+   - **Automatic:** work goes on at once.
+4. **Only between:**
+   - choose times that exclude now: the state reads "Waiting until …";
+   - choose times that include now: work goes on.
+5. **Other apps:** with something heavy running (a big build or an
+   export), the line may read "Going slowly · Other apps are busy". oMLX
+   working for Atlas should never cause it.
+
 ## Slice 4.5.1
 
 One book in two formats ([ADR 0023](adr/0023-one-book-two-formats.md)).

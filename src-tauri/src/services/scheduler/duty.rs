@@ -4,6 +4,8 @@
 
 use std::time::Duration;
 
+use crate::domain::dto::{PolicyDecision, PolicyMode};
+
 /// The shortest rest the duty cycle takes: shorter rests are added up
 /// first. The busy fraction is the same; work comes in bursts of about
 /// `REST_QUANTUM × duty / (1 − duty)` (100 ms at the Run duty cycle).
@@ -18,6 +20,19 @@ pub fn rest_due(owed: &mut Duration, busy: Duration, duty: f64) -> Option<Durati
     }
     *owed += busy.mul_f64((1.0 / duty.max(0.01)) - 1.0);
     (*owed >= REST_QUANTUM).then(|| std::mem::take(owed))
+}
+
+/// The duty cycle a job of steps runs at under `policy`: 1 at full speed
+/// (Slice 4.6) or when unthrottled for benchmarks, else `slow` while slowed
+/// and `run` otherwise.
+pub fn duty_for(policy: &PolicyDecision, run: f64, slow: f64, unthrottled: bool) -> f64 {
+    if unthrottled || policy.full_speed {
+        1.0
+    } else if policy.mode == PolicyMode::Slow {
+        slow
+    } else {
+        run
+    }
 }
 
 #[cfg(test)]
@@ -42,5 +57,32 @@ mod tests {
         assert_eq!(rest_due(&mut owed, ms(40), 0.5), None);
         assert_eq!(rest_due(&mut owed, ms(40), 1.0), None);
         assert_eq!(owed, Duration::ZERO);
+    }
+
+    #[test]
+    fn full_speed_runs_without_rests() {
+        let decision = |mode, full_speed| PolicyDecision {
+            mode,
+            pause_reason: None,
+            throttle_reason: None,
+            max_metadata_ops_per_second: None,
+            full_speed,
+        };
+        assert_eq!(
+            duty_for(&decision(PolicyMode::Run, false), 0.5, 0.2, false),
+            0.5
+        );
+        assert_eq!(
+            duty_for(&decision(PolicyMode::Slow, false), 0.5, 0.2, false),
+            0.2
+        );
+        assert_eq!(
+            duty_for(&decision(PolicyMode::Run, true), 0.5, 0.2, false),
+            1.0
+        );
+        assert_eq!(
+            duty_for(&decision(PolicyMode::Slow, false), 0.5, 0.2, true),
+            1.0
+        );
     }
 }

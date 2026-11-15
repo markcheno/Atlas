@@ -256,6 +256,7 @@ pub fn fast_config() -> InventoryConfig {
         max_dir_attempts: 3,
         event_interval: Duration::ZERO,
         check_every: Duration::from_millis(25),
+        full_speed_every: Duration::from_millis(25),
     }
 }
 

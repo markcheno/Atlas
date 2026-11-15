@@ -3,4 +3,4 @@
 /**
  * Why background work runs slower than normal.
  */
-export type ThrottleReason = "on_battery" | "power_unknown" | "system_busy";
+export type ThrottleReason = "on_battery" | "power_unknown" | "system_busy" | "other_apps";

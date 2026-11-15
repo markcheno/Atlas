@@ -601,7 +601,7 @@ Implement and verify **one slice at a time**. Build and rerun tests after each s
 | 4.4 | **Priority.** Read this now (migration 0018) for reading and meaning, `jobs.priority` in use (OCR's order and progress deferred with OCR) | P4-10 without its OCR cases; Vitest |
 | 4.5 | **Automatic rescans.** The rescan that writes only changes; launch, timer and returning drives; "Checked … ago"; ADR 0022 | P4-11, P4-12; the no-change rescan benchmarked at 30,000 files |
 | 4.5.1 | **One book, two formats.** A PDF and an EPUB beside each other with one name whose texts match are one book: indexed once, shown once (migration 0017); the owner's say; ADR 0023 | P4-27, P4-28, P4-29, P4-30; Vitest |
-| 4.6 | **Schedules.** Background work's modes, hours, full speed, the busy rule, the settings; ADR 0022 completed; ADR 0004 amended | P4-13, P4-14, P4-25 (settings); Vitest |
+| 4.6 | **Schedules.** Background work's modes, hours, full speed (also in the status bar), the busy rule, the settings; ADR 0022 completed; ADR 0004 amended | P4-13, P4-14, P4-25 (settings); Vitest; the probe and full speed measured |
 | 4.7 | **Check library and repairs.** The checks, the four repairs, the setup mirror, recovery from a damaged catalog; ADR 0024 | P4-15, P4-16, P4-17; Vitest |
 | 4.8 | **Backups and restore.** The catalog's backup, the second folder, restore of both databases; ADR 0025 and ADR 0001's amended list | P4-18, P4-19, P4-20, P4-21; Vitest |
 | 4.9 | **Move Atlas data.** The plan, the verified copy, the journal, the switch, the old copy; ADR 0026 (amends ADR 0002) | P4-22, P4-23, P4-24; the smoke's move step on Windows and Linux |
@@ -667,6 +667,33 @@ Do **not** add an OCR engine, an `ocr` job, a rescan timer or any backup code be
 ---
 
 ### Revision notes
+
+**2026-11-15, Slice 4.6** (schedules; [ADR 0004's amendment](adr/0004-resource-policy.md)):
+- **The product owner's choices:**
+  - full speed is in the status bar as well as in Settings, while a job
+    has work;
+  - it is offered on mains power only;
+  - it ends when the work runs out.
+
+  They asked for it after the first index of their library: about 38
+  hours at the Run duty cycle.
+- **Full speed overrides the hours** (the owner asked now). It doesn't
+  override Paused, Only while charging or a hard pause. Choosing Paused
+  ends it.
+- **`get_resource_status` and a `resource-status` event are added** beside
+  `set_full_speed`, so the status bar can offer full speed and show Stop.
+  `set_full_speed` refuses with `NothingWaiting` when no job has work.
+- **The AI service on this computer isn't "another application."** The
+  busy rule leaves out the process listening on its port, found with the
+  `listeners` crate (MIT). The thresholds stay at 60% and 40%: the probe
+  reads an idle Mac at 3% and nine busy processes on 18 cores at 51%
+  ([benchmarks](benchmarks.md#schedules-and-full-speed-slice-46)).
+- **Local time** comes from `chrono` (already in the dependency tree, now
+  direct, with only `clock`).
+- **P4-10's "a request runs outside the schedule"** waits for Read this
+  now (4.4).
+- **P4-14's "no rests"** is the duty helper's unit test plus a
+  measurement: embedding at full speed ran 1.92 times as fast as at Run.
 
 **2026-11-15, the Explore spike's answer** ([results](spike-explore.md#the-owners-library-2026-11-15-m5-pro-64-gb)):
 - **Go.** On the owner's 5,088 books every part of the rule holds: 16 of

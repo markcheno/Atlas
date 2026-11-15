@@ -241,7 +241,7 @@ describe('main shell', () => {
             recordTrails: true,
             expireTrails: true,
           },
-          background: { checkFolders: 'sixHours' },
+          background: { mode: 'automatic', from: '22:00', to: '07:00', checkFolders: 'sixHours' },
         },
       }),
     );
@@ -444,7 +444,13 @@ describe('device check', () => {
 
   it.each([
     [
-      { mode: 'run', pauseReason: null, throttleReason: null, maxMetadataOpsPerSecond: 100 },
+      {
+        mode: 'run',
+        pauseReason: null,
+        throttleReason: null,
+        maxMetadataOpsPerSecond: 100,
+        fullSpeed: false,
+      },
       {},
       /it will run normally\./,
     ],
@@ -454,6 +460,7 @@ describe('device check', () => {
         pauseReason: null,
         throttleReason: 'on_battery',
         maxMetadataOpsPerSecond: 20,
+        fullSpeed: false,
       },
       {},
       /run slowly because this computer is on battery/,
@@ -464,6 +471,7 @@ describe('device check', () => {
         pauseReason: 'battery_low',
         throttleReason: null,
         maxMetadataOpsPerSecond: null,
+        fullSpeed: false,
       },
       { batteryPercent: 18 },
       /battery is at 18%\. It resumes at 25% or when you plug in/,
@@ -474,9 +482,43 @@ describe('device check', () => {
         pauseReason: 'low_disk_space',
         throttleReason: null,
         maxMetadataOpsPerSecond: null,
+        fullSpeed: false,
       },
       {},
       /nearly full\. It resumes when at least 10\.7 GB is free/,
+    ],
+    [
+      {
+        mode: 'run',
+        pauseReason: null,
+        throttleReason: null,
+        maxMetadataOpsPerSecond: null,
+        fullSpeed: true,
+      },
+      {},
+      /run at full speed until the work is done/,
+    ],
+    [
+      {
+        mode: 'slow',
+        pauseReason: null,
+        throttleReason: 'other_apps',
+        maxMetadataOpsPerSecond: 100,
+        fullSpeed: false,
+      },
+      {},
+      /other apps are keeping the computer busy/,
+    ],
+    [
+      {
+        mode: 'paused',
+        pauseReason: 'not_charging',
+        throttleReason: null,
+        maxMetadataOpsPerSecond: null,
+        fullSpeed: false,
+      },
+      {},
+      /wait until this computer is plugged in/,
     ],
   ] as const)('Settings explains the policy %#', async (policy, snapshot, sentence) => {
     tauri.setHandler('get_device_check', () =>
@@ -2438,7 +2480,7 @@ describe('indexing meaning', () => {
             recordTrails: true,
             expireTrails: true,
           },
-          background: { checkFolders: 'sixHours' },
+          background: { mode: 'automatic', from: '22:00', to: '07:00', checkFolders: 'sixHours' },
         },
       }),
     );
@@ -2455,7 +2497,7 @@ describe('indexing meaning', () => {
             recordTrails: true,
             expireTrails: true,
           },
-          background: { checkFolders: 'sixHours' },
+          background: { mode: 'automatic', from: '22:00', to: '07:00', checkFolders: 'sixHours' },
         },
       }),
     );
@@ -2481,7 +2523,7 @@ describe('indexing meaning', () => {
             recordTrails: true,
             expireTrails: true,
           },
-          background: { checkFolders: 'sixHours' },
+          background: { mode: 'automatic', from: '22:00', to: '07:00', checkFolders: 'sixHours' },
         },
       }),
     );
@@ -2521,7 +2563,7 @@ describe('indexing meaning', () => {
             recordTrails: true,
             expireTrails: true,
           },
-          background: { checkFolders: 'sixHours' },
+          background: { mode: 'automatic', from: '22:00', to: '07:00', checkFolders: 'sixHours' },
         },
       }),
     );
@@ -4754,7 +4796,9 @@ describe('folder checks (Slice 4.5)', () => {
       expect(tauri.invoke).toHaveBeenCalledWith(
         'update_settings',
         expect.objectContaining({
-          settings: expect.objectContaining({ background: { checkFolders: 'never' } }),
+          settings: expect.objectContaining({
+            background: expect.objectContaining({ checkFolders: 'never' }),
+          }),
         }),
       ),
     );
@@ -4891,5 +4935,152 @@ describe('one book, two formats (Slice 4.5.1)', () => {
     const section = await screen.findByTestId('format-pair');
     expect(section).toHaveTextContent('Atlas will compare them once it has read both.');
     expect(within(section).queryByRole('button', { name: /same book/i })).not.toBeInTheDocument();
+  });
+});
+
+describe('schedules and full speed (Slice 4.6)', () => {
+  beforeEach(resetAll);
+
+  const meaning = (active: Partial<ReturnType<typeof tauri.embeddingStatus>> = {}) =>
+    tauri.embeddingOverview({
+      model: {
+        name: 'Qwen3-Embedding-0.6B-8bit',
+        dims: 1024,
+        profileLabel: 'oMLX',
+        location: 'this_computer',
+      },
+      needsModel: false,
+      hasAiService: true,
+      counts: tauri.embeddingCounts({ indexed: 3, waiting: 7, total: 10 }),
+      active: tauri.embeddingStatus({ state: 'running', ...active }),
+    });
+
+  async function openSettings() {
+    const user = await launchOpen();
+    await user.click(screen.getByRole('button', { name: 'Settings' }));
+    const group = await screen.findByRole('group', { name: 'Background work' });
+    return { user, group };
+  }
+
+  it('Settings chooses when background work runs, with the hours and the state in words', async () => {
+    const { user, group } = await openSettings();
+    expect(within(group).getByRole('radio', { name: 'Automatic' })).toBeChecked();
+    expect(screen.getByTestId('background-state')).toHaveTextContent('Running');
+    tauri.setHandler('get_resource_status', () =>
+      tauri.resourceStatus({
+        mode: 'hours',
+        waitingUntil: '22:00',
+        policy: {
+          mode: 'paused',
+          pauseReason: 'outside_hours',
+          throttleReason: null,
+          maxMetadataOpsPerSecond: null,
+          fullSpeed: false,
+        },
+      }),
+    );
+    await user.click(within(group).getByRole('radio', { name: 'Only between' }));
+    await waitFor(() =>
+      expect(tauri.invoke).toHaveBeenCalledWith(
+        'update_settings',
+        expect.objectContaining({
+          settings: expect.objectContaining({
+            background: expect.objectContaining({ mode: 'hours', from: '22:00', to: '07:00' }),
+          }),
+        }),
+      ),
+    );
+    expect(await screen.findByLabelText('From')).toHaveValue('22:00');
+    expect(screen.getByLabelText('to')).toHaveValue('07:00');
+    expect(screen.getByTestId('background-mode-note')).toHaveTextContent('may cross midnight');
+    await waitFor(() =>
+      expect(screen.getByTestId('background-state')).toHaveTextContent('Waiting until 22:00'),
+    );
+  });
+
+  it('Run at full speed now turns into Stop', async () => {
+    const { user } = await openSettings();
+    await user.click(screen.getByRole('button', { name: 'Run at full speed now' }));
+    expect(tauri.invoke).toHaveBeenCalledWith('set_full_speed', { on: true });
+    await user.click(await screen.findByRole('button', { name: 'Stop' }));
+    expect(tauri.invoke).toHaveBeenCalledWith('set_full_speed', { on: false });
+    expect(await screen.findByRole('button', { name: 'Run at full speed now' })).toBeEnabled();
+  });
+
+  it('full speed asks for power on battery, and is hidden while Paused', async () => {
+    tauri.setHandler('get_resource_status', () =>
+      tauri.resourceStatus({ fullSpeed: { on: false, offered: false, blocked: 'on_battery' } }),
+    );
+    const { user, group } = await openSettings();
+    expect(screen.getByTestId('full-speed-blocked')).toHaveTextContent(
+      'Plug in to run at full speed.',
+    );
+    expect(screen.queryByRole('button', { name: 'Run at full speed now' })).toBeNull();
+    await user.click(within(group).getByRole('radio', { name: 'Paused' }));
+    await waitFor(() =>
+      expect(screen.getByTestId('background-mode-note')).toHaveTextContent(
+        'does no background work',
+      ),
+    );
+    expect(screen.queryByTestId('full-speed-blocked')).toBeNull();
+  });
+
+  it('the status bar offers full speed while work runs, then Stop', async () => {
+    tauri.setHandler('get_embedding_status', () => meaning());
+    const user = await launchOpen();
+    const offer = await screen.findByTestId('full-speed');
+    await user.click(within(offer).getByRole('button', { name: 'Full speed' }));
+    expect(tauri.invoke).toHaveBeenCalledWith('set_full_speed', { on: true });
+    const on = await screen.findByRole('button', { name: 'Stop full speed' });
+    expect(screen.getByTestId('full-speed')).toHaveTextContent('Full speed');
+    await user.click(on);
+    expect(tauri.invoke).toHaveBeenCalledWith('set_full_speed', { on: false });
+  });
+
+  it('the status bar offers nothing when no work is waiting', async () => {
+    await launchOpen();
+    expect(screen.queryByTestId('full-speed')).toBeNull();
+  });
+
+  it('says why full speed could not start', async () => {
+    tauri.setHandler('get_embedding_status', () => meaning());
+    tauri.setHandler('set_full_speed', () => {
+      throw tauri.apiError('full_speed_on_battery', 'Full speed runs only on mains power.');
+    });
+    const user = await launchOpen();
+    await user.click(
+      within(await screen.findByTestId('full-speed')).getByRole('button', { name: 'Full speed' }),
+    );
+    expect(await screen.findByTestId('full-speed-error')).toHaveTextContent(
+      'Full speed runs only on mains power.',
+    );
+  });
+
+  it.each([
+    [
+      { state: 'paused_policy', pauseReason: 'paused_by_user' },
+      null,
+      'Paused indexing meaning · Background work is paused in Settings',
+    ],
+    [
+      { state: 'paused_policy', pauseReason: 'outside_hours' },
+      '22:00',
+      'Paused indexing meaning · Waiting until 22:00',
+    ],
+    [
+      { state: 'paused_policy', pauseReason: 'not_charging' },
+      null,
+      'Paused indexing meaning · Waiting for power',
+    ],
+    [
+      { state: 'running', throttleReason: 'other_apps' },
+      null,
+      'Indexing meaning · 3 of 10 files · Going slowly · Other apps are busy',
+    ],
+  ] as const)('the new reasons in words %#', async (active, until, text) => {
+    tauri.setHandler('get_embedding_status', () => meaning(active));
+    tauri.setHandler('get_resource_status', () => tauri.resourceStatus({ waitingUntil: until }));
+    await launchOpen();
+    await waitFor(() => expect(screen.getByTestId('embedding-status')).toHaveTextContent(text));
   });
 });

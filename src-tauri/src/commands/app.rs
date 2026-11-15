@@ -1,14 +1,14 @@
 use tauri::State;
 
 use crate::domain::dto::{
-    AppStatus, BuildProfile, DeviceCheck, DeviceSnapshot, FeatureStatus, OsKind,
+    AppStatus, BuildProfile, DeviceCheck, DeviceSnapshot, FeatureStatus, OsKind, ResourceStatus,
 };
 use crate::error::AtlasResult;
 use crate::state::AppState;
 
 /// The slice this build implements, "<phase>.<slice>" (Phase 1, Slice 1 is
 /// "1.1"). The UI derives the phase from it.
-pub const CURRENT_SLICE: &str = "4.5.1";
+pub const CURRENT_SLICE: &str = "4.6";
 
 /// (id, label, delivering slice, implemented in this build)
 const FEATURES: &[(&str, &str, &str, bool)] = &[
@@ -130,6 +130,24 @@ const FEATURES: &[(&str, &str, &str, bool)] = &[
         "4.5.1",
         true,
     ),
+    (
+        "schedules",
+        "Background work automatically, only while charging, between set hours, or paused",
+        "4.6",
+        true,
+    ),
+    (
+        "full_speed",
+        "Run at full speed now, until the work is done",
+        "4.6",
+        true,
+    ),
+    (
+        "busy_rule",
+        "Background work slows while other applications keep the computer busy",
+        "4.6",
+        true,
+    ),
 ];
 
 /// Builds the status from facts about this process only.
@@ -171,4 +189,16 @@ pub async fn get_device_snapshot(state: State<'_, AppState>) -> AtlasResult<Devi
 #[tauri::command]
 pub async fn get_device_check(state: State<'_, AppState>) -> AtlasResult<DeviceCheck> {
     state.device_check().await
+}
+
+/// What background work may do now, the schedule and full speed (Slice 4.6).
+#[tauri::command]
+pub async fn get_resource_status(state: State<'_, AppState>) -> AtlasResult<ResourceStatus> {
+    state.resource_status().await
+}
+
+/// "Run at full speed now" (`on`) or Stop (Slice 4.6).
+#[tauri::command]
+pub async fn set_full_speed(state: State<'_, AppState>, on: bool) -> AtlasResult<ResourceStatus> {
+    state.set_full_speed(on).await
 }

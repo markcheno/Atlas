@@ -130,3 +130,57 @@ same 20%/25% thresholds. The embedding job also doesn't check that library
 folders are reachable, since its text comes from the catalog
 ([ADR 0014](0014-the-embedding-job.md)).
 
+
+## Amendment: the owner's schedule, full speed and other applications (Slice 4.6, 2026-11-15)
+
+The policy gains three layers, in the order phase4-spec §7.5 gives. The
+first match still wins:
+
+1. **Hard pauses**, unchanged: the data drive missing, low space, critical
+   memory or heat, the battery at or under 20%.
+2. **The owner's schedule** (`services/scheduler/schedule.rs`):
+   - **Paused** holds every job (`paused_by_user`);
+   - **Only while charging** holds it unless on mains power
+     (`not_charging`). A computer with no battery always counts as on
+     mains power, and an unknown power source never does;
+   - **Only between two local times** holds it outside the window
+     (`outside_hours`). The window may cross midnight.
+3. **Full speed:** run with no rests and scans unthrottled. It applies on
+   mains power only, overrides the hours (the owner asked now) and every
+   slowing rule, and never a hard pause, Paused or Only while charging.
+4. **Slowing**, as before (on battery, unknown power, elevated pressure or
+   heat), then **other applications**: `other_apps` when processes other
+   than Atlas keep more than 60% of all cores busy, averaged over 30 s,
+   until that falls under 40%.
+5. Otherwise run.
+
+- **Full speed is held in memory, never in settings.** It ends:
+  - when no scan, reading or indexing job has had work for two checks in
+    a row, 5 s apart;
+  - on Stop;
+  - on unplugging;
+  - when Paused is chosen;
+  - when the library closes or Atlas quits.
+
+  The diagnostics log records when it started and why it ended. The owner
+  asked for it after the first index of their library took about 38 hours
+  at the Run duty cycle (0.5). At full speed, embedding through a fake
+  service ran 1.92 times as fast ([benchmarks](../benchmarks.md#schedules-and-full-speed-slice-46)).
+- **"Other applications" leaves out:**
+  - Atlas;
+  - its workers (children running Atlas's executable);
+  - **the AI service on this computer that Atlas is indexing with.** Its
+    process is found from its port (the `listeners` crate, looked up again
+    every minute). Counting it would slow Atlas because of its own work.
+
+  A reading refreshes every process's CPU time (`sysinfo`), about 10 ms on
+  the reference machine. It is taken at most every 5 s and only when a job
+  or Settings asks, so an idle Atlas takes none. Where nothing can be
+  measured, the rule doesn't apply.
+- **Elevated memory pressure still slows normal work.** The owner's
+  library showed 42 such slowings, of 1 to 5 minutes each, while the local
+  AI service was embedding. Full speed overrides them; critical pressure
+  still pauses.
+- **The hours use the computer's local time**, asked of the OS through
+  `chrono` each time, so a change of zone or daylight saving takes effect
+  at once.

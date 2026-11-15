@@ -61,6 +61,16 @@ pub enum ErrorCode {
     NoOtherFormat,
     /// A file of the pair hasn't been read yet (Slice 4.5.1).
     NotReadYet,
+    /// Full speed runs on mains power only (Slice 4.6).
+    FullSpeedOnBattery,
+    /// Background work is Paused in Settings (Slice 4.6).
+    BackgroundPaused,
+    /// A hard pause holds every job, so full speed can't start (Slice 4.6).
+    FullSpeedHeld,
+    /// Nothing is waiting to be read or indexed (Slice 4.6).
+    NothingWaiting,
+    /// The hours in Settings aren't two different times (Slice 4.6).
+    InvalidHours,
     /// The file is no longer where it was cataloged.
     FileMissing,
     /// The cataloged path is now a link or something other than a file.
@@ -222,6 +232,16 @@ pub enum AtlasError {
     NoOtherFormat,
     #[error("Atlas hasn't read both formats yet.")]
     NotReadYet,
+    #[error("Full speed runs only on mains power.")]
+    FullSpeedOnBattery,
+    #[error("Background work is paused.")]
+    BackgroundPaused,
+    #[error("Atlas can't run background work right now.")]
+    FullSpeedHeld,
+    #[error("Nothing is waiting to be read or indexed.")]
+    NothingWaiting,
+    #[error("Choose two different times, as hours and minutes.")]
+    InvalidHours,
     #[error("That file is no longer where Atlas found it.")]
     FileMissing,
     #[error("That item is no longer an ordinary file, so Atlas won't open it.")]
@@ -367,6 +387,11 @@ impl AtlasError {
             Self::FileNotFound => ErrorCode::FileNotFound,
             Self::NoOtherFormat => ErrorCode::NoOtherFormat,
             Self::NotReadYet => ErrorCode::NotReadYet,
+            Self::FullSpeedOnBattery => ErrorCode::FullSpeedOnBattery,
+            Self::BackgroundPaused => ErrorCode::BackgroundPaused,
+            Self::FullSpeedHeld => ErrorCode::FullSpeedHeld,
+            Self::NothingWaiting => ErrorCode::NothingWaiting,
+            Self::InvalidHours => ErrorCode::InvalidHours,
             Self::FileMissing => ErrorCode::FileMissing,
             Self::FileNotRegular => ErrorCode::FileNotRegular,
             Self::FileOutsideFolder => ErrorCode::FileOutsideFolder,
@@ -453,6 +478,13 @@ impl AtlasError {
             Self::FileNotFound => "Refresh the library list.",
             Self::NoOtherFormat => "Refresh the library list.",
             Self::NotReadYet => "Try again once Atlas has read both files.",
+            Self::FullSpeedOnBattery => "Plug in, then try again.",
+            Self::BackgroundPaused => {
+                "Choose Automatic under Background work in Settings › Performance & Battery."
+            }
+            Self::FullSpeedHeld => "Settings › Performance & Battery says why.",
+            Self::NothingWaiting => "Full speed is for when Atlas has work waiting.",
+            Self::InvalidHours => "For example, from 22:00 to 07:00.",
             Self::FileMissing => {
                 "It may have been moved, renamed, or deleted. Rescan its folder to update the library."
             }

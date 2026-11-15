@@ -8,6 +8,7 @@ import { appInfo } from './stores/app.svelte';
 import { inventory } from './stores/inventory.svelte';
 import { extraction } from './stores/extraction.svelte';
 import { embedding } from './stores/embedding.svelte';
+import { resources } from './stores/resources.svelte';
 import { answer } from './stores/answer.svelte';
 import { details } from './stores/details.svelte';
 import { duplicates } from './stores/duplicates.svelte';
@@ -53,6 +54,8 @@ export async function applyStatus(status: DataRootStatus, opts: { justChosen?: b
       extraction.subscribe(),
       embedding.refresh(),
       embedding.subscribe(),
+      resources.refresh(),
+      resources.subscribe(),
       answer.subscribe(),
       trails.refresh(),
       trails.subscribe(),
@@ -63,6 +66,7 @@ export async function applyStatus(status: DataRootStatus, opts: { justChosen?: b
     inventory.clear();
     extraction.clear();
     embedding.clear();
+    resources.clear();
     view.go('welcome');
   } else {
     view.go('unavailable');

@@ -2,6 +2,7 @@
 //! `domain::traits`, plus low-level filesystem and clock helpers.
 
 pub mod clock;
+pub mod cpu_probe;
 pub mod e2e;
 pub mod fsutil;
 pub mod http_probe;

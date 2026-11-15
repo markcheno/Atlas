@@ -41,7 +41,7 @@ use crate::services::workspace::settings;
 pub const UNTHROTTLED_ENV: &str = "ATLAS_EXTRACT_UNTHROTTLED";
 
 pub use crate::services::scheduler::duty::REST_QUANTUM;
-use crate::services::scheduler::duty::rest_due;
+use crate::services::scheduler::duty::{duty_for, rest_due};
 
 #[derive(Debug, Clone)]
 pub struct ExtractionConfig {
@@ -273,14 +273,13 @@ impl ExtractProcessor {
                     .pause_reason
                     .unwrap_or(PauseReason::LowDiskSpace),
             ),
-            mode => Gate::Go {
-                duty: if config.unthrottled {
-                    1.0
-                } else if mode == PolicyMode::Slow {
-                    config.slow_duty
-                } else {
-                    config.run_duty
-                },
+            _ => Gate::Go {
+                duty: duty_for(
+                    &check.policy,
+                    config.run_duty,
+                    config.slow_duty,
+                    config.unthrottled,
+                ),
                 throttle: check.policy.throttle_reason,
             },
         }

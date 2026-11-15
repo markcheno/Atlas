@@ -9,6 +9,7 @@ import type { ExtractionState } from './api/bindings/ExtractionState';
 import type { FileInstance } from './api/bindings/FileInstance';
 import type { PauseReason } from './api/bindings/PauseReason';
 import { count, slowedText } from './inventoryCopy';
+import { holdText } from './scheduleCopy';
 
 export const TEXT_LABEL: Record<ExtractionState, string> = {
   done: 'Text ready',
@@ -88,6 +89,8 @@ export function reasonText(item: FileInstance): string | null {
 }
 
 function pausedText(reason: PauseReason | null, folder: string): string {
+  const hold = holdText(reason);
+  if (hold) return `Paused reading text · ${hold}`;
   switch (reason) {
     case 'battery_low':
       return 'Paused reading text · Resumes at 25% or when plugged in';

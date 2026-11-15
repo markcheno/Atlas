@@ -34,6 +34,8 @@ pub const COMMAND_NAMES: &[&str] = &[
     "get_app_status",
     "get_device_snapshot",
     "get_device_check",
+    "get_resource_status",
+    "set_full_speed",
     "get_data_root_status",
     "get_default_data_root",
     "pick_folder",

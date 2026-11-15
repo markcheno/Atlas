@@ -12,12 +12,15 @@ import type { ScanRecord } from './api/bindings/ScanRecord';
 import type { SourceRootStatus } from './api/bindings/SourceRootStatus';
 import type { ThrottleReason } from './api/bindings/ThrottleReason';
 import { folderName } from './stores/sources.svelte';
+import { holdText } from './scheduleCopy';
 
 export function count(n: number, one: string, many = `${one}s`): string {
   return `${n.toLocaleString('en-US')} ${n === 1 ? one : many}`;
 }
 
 function pausedText(a: InventoryStatus, name: string): string {
+  const hold = holdText(a.pauseReason);
+  if (hold) return a.pauseReason === 'paused_by_user' ? `Paused · ${hold}` : hold;
   switch (a.pauseReason) {
     case 'battery_low':
       return 'Paused on battery · Resumes at 25% or when plugged in';
@@ -49,6 +52,8 @@ export function slowedText(reason: ThrottleReason | null | undefined): string {
       return 'Going slowly · Can’t tell if it’s plugged in';
     case 'system_busy':
       return 'Going slowly · The computer is busy';
+    case 'other_apps':
+      return 'Going slowly · Other apps are busy';
     default:
       return '';
   }

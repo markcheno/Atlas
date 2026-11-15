@@ -26,8 +26,8 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use crate::domain::dto::{
-    CandidateKind, CandidateProblem, DataRootCandidate, DataRootState, DataRootStatus, JobKind,
-    Settings, VolumeKind,
+    BackgroundMode, BackgroundSettings, CandidateKind, CandidateProblem, DataRootCandidate,
+    DataRootState, DataRootStatus, JobKind, Settings, VolumeKind, minute_of_day,
 };
 use crate::domain::traits::VolumeInspector;
 use crate::error::{AtlasError, AtlasResult, ErrorPayload};
@@ -45,6 +45,8 @@ use crate::services::jobs::{self, JobRunners, ProcessorFactory};
 use crate::services::knowledge::{KnowledgeStore, Recorder, TrailEvents, TrailSettings};
 use crate::services::library::{self, RootStatusCache};
 use crate::services::reader::{ReaderConfig, ReaderService};
+use crate::services::scheduler::schedule::Schedule;
+use crate::services::scheduler::watch::FullSpeedWatch;
 use crate::services::system::low_space_threshold;
 use layout::{CATALOG, DIRECTORIES, INIT_MARKER, TMP};
 use lock::RootLock;
@@ -61,7 +63,9 @@ pub struct WorkspaceConfig {
 /// declaration order: the job runners stop first, then the readers and the
 /// writer close, then the lock is released.
 pub struct OpenRoot {
-    /// The folder check (Slice 4.5), stopped first: it queues scans.
+    /// Ends full speed when the work runs out (Slice 4.6), and on closing.
+    _full_speed: Option<FullSpeedWatch>,
+    /// The folder check (Slice 4.5), stopped early: it queues scans.
     _checker: Option<inventory::auto::Checker>,
     check_setting: inventory::auto::CheckSetting,
     /// The workspace's clock, for the jobs queued in this library.
@@ -411,12 +415,27 @@ impl Workspace {
         let State::Open(root) = &mut self.state else {
             return Err(AtlasError::NoDataRoot);
         };
+        check_hours(&root.settings.background, &new.background)?;
         settings::write(&root.path, &new)?;
         let privacy_changed = root.settings.privacy != new.privacy;
+        let schedule_changed = Schedule::from_settings(&root.settings.background)
+            != Schedule::from_settings(&new.background);
         // The folder check reads its interval at every tick (Slice 4.5).
         *root.check_setting.lock().unwrap_or_else(|p| p.into_inner()) =
             new.background.check_folders;
         root.settings = new.clone();
+        if schedule_changed {
+            // A job paused by the schedule sees the change at once, not
+            // after its next wait (Slice 4.6).
+            if let Some(inventory) = &self.inventory {
+                inventory
+                    .governor
+                    .lock()
+                    .unwrap_or_else(|p| p.into_inner())
+                    .set_schedule(Schedule::from_settings(&new.background));
+            }
+            root.wake_jobs();
+        }
         if privacy_changed {
             // Recording and expiry take effect at once (Slice 3.3).
             root.knowledge.trail_settings().set(&new.privacy);
@@ -547,9 +566,11 @@ impl Workspace {
             knowledge: knowledge.state(),
             created: false,
         });
+        self.apply_schedule(&settings);
         let jobs = self.start_jobs(&catalog, path, &vectors)?;
         let check_setting = Arc::new(std::sync::Mutex::new(settings.background.check_folders));
         Ok(OpenRoot {
+            _full_speed: self.start_full_speed_watch(&catalog),
             _checker: self.start_checker(&catalog, &jobs, &check_setting),
             clock: Arc::clone(&self.clock),
             check_setting,
@@ -602,6 +623,28 @@ impl Workspace {
             Arc::clone(reader),
             self.trail_events.clone(),
         ))
+    }
+
+    /// The schedule in `settings`, for the jobs of the library opening
+    /// (Slice 4.6).
+    fn apply_schedule(&self, settings: &Settings) {
+        if let Some(inventory) = &self.inventory {
+            inventory
+                .governor
+                .lock()
+                .unwrap_or_else(|p| p.into_inner())
+                .set_schedule(Schedule::from_settings(&settings.background));
+        }
+    }
+
+    /// Ends full speed when the work runs out (Slice 4.6).
+    fn start_full_speed_watch(&self, catalog: &CatalogWriter) -> Option<FullSpeedWatch> {
+        let deps = self.inventory.as_ref()?;
+        FullSpeedWatch::start(
+            catalog.handle(),
+            Arc::clone(&deps.governor),
+            deps.config.full_speed_every,
+        )
     }
 
     /// The folder check (Slice 4.5), when this workspace runs scans.
@@ -688,9 +731,11 @@ impl Workspace {
             knowledge: knowledge.state(),
             created: true,
         });
+        self.apply_schedule(&settings);
         let jobs = self.start_jobs(&catalog, path, &vectors)?;
         let check_setting = Arc::new(std::sync::Mutex::new(settings.background.check_folders));
         Ok(OpenRoot {
+            _full_speed: self.start_full_speed_watch(&catalog),
             _checker: self.start_checker(&catalog, &jobs, &check_setting),
             clock: Arc::clone(&self.clock),
             check_setting,
@@ -711,6 +756,20 @@ impl Workspace {
             manifest,
             log,
         })
+    }
+}
+
+/// The hours must be two different local times when they're used or
+/// changed (Slice 4.6). Hours read leniently from an older or hand-edited
+/// file don't stop other settings from being saved.
+fn check_hours(old: &BackgroundSettings, new: &BackgroundSettings) -> AtlasResult<()> {
+    let changed = old.from != new.from || old.to != new.to;
+    if !(changed || new.mode == BackgroundMode::Hours) {
+        return Ok(());
+    }
+    match (minute_of_day(&new.from), minute_of_day(&new.to)) {
+        (Some(a), Some(b)) if a != b => Ok(()),
+        _ => Err(AtlasError::InvalidHours),
     }
 }
 

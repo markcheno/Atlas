@@ -449,6 +449,41 @@ Duplicates' first page takes 33 ms at p95 over 2,001 groups, and Settings
 › Storage 122 ms. Cataloging is unchanged since Phase 0: 483 files/s at
 the policy rate on 30k, browse p95 under 37 ms while scanning.
 
+## Schedules and full speed (Slice 4.6)
+
+`just bench-busy`, M5 Pro (release, 18 cores), 2026-11-15.
+
+**The processor reading** (`OsCpuProbe`, the busy rule's input). Each
+reading covered 5 s:
+
+| Measured | Share of all cores |
+| --- | ---: |
+| Idle (the owner's other apps open as usual) | 0.030 |
+| Nine of Atlas's own threads busy (must not count) | 0.011 |
+| Nine `sh` loops, another program (must count; expected 0.500) | 0.511 |
+
+- **One reading costs** 9.7 ms at p50 and 17.2 ms at most: a refresh of
+  every process's CPU time. The rule takes one at most every 5 s, only
+  while a job or Settings asks.
+- **The thresholds stay at 60% and 40%** (phase4-spec §7.5). An idle Mac
+  reads 3%, and half the cores busy in another program reads 51%: under
+  the slowing threshold, since the other half is still free for Atlas.
+
+**Full speed against the Run duty cycle.** The same 40 generated books
+(101 chunks) were embedded through the test suite's fake service, which
+takes 20 ms a request:
+
+| | Time | Chunks a second |
+| --- | ---: | ---: |
+| Run (duty 0.5) | 2.01 s | 50.2 |
+| Full speed (duty 1) | 1.05 s | 96.6 |
+
+- **Full speed is 1.92 times as fast**, as expected when Run rests as long
+  as it works. The owner's library embedded at about 20 chunks a second
+  under Run ([platform validation](platform-validation.md#the-owners-report-from-the-real-library)).
+  Plugged in at full speed, it should approach 40, if the AI service
+  keeps up.
+
 ## One book, two formats (Slice 4.5.1)
 
 `just bench-formats`, M5 Pro (release), 2026-11-13. It generates 23 name

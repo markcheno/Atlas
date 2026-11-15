@@ -164,6 +164,8 @@ pub enum ThrottleReason {
     PowerUnknown,
     /// Elevated memory pressure or thermal state.
     SystemBusy,
+    /// Other applications keep most of the processor busy (Slice 4.6).
+    OtherApps,
 }
 
 /// What background work may do right now (phase0-spec §7.2).
@@ -176,6 +178,48 @@ pub struct PolicyDecision {
     pub throttle_reason: Option<ThrottleReason>,
     /// Measured on one development machine (docs/benchmarks.md); not a guarantee.
     pub max_metadata_ops_per_second: Option<u32>,
+    /// Run at full speed now (Slice 4.6): no rests, scans unthrottled.
+    #[serde(default)]
+    pub full_speed: bool,
+}
+
+/// What background work may do now, and what the owner chose (Slice 4.6).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct ResourceStatus {
+    pub policy: PolicyDecision,
+    pub full_speed: FullSpeedStatus,
+    pub mode: BackgroundMode,
+    /// The local time ("HH:MM") the window opens, while outside it.
+    pub waiting_until: Option<String>,
+}
+
+/// "Run at full speed now" (phase4-spec §5.4, §7.5).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct FullSpeedStatus {
+    pub on: bool,
+    /// Whether it can be switched on now.
+    pub offered: bool,
+    /// Why it can't, when it isn't offered.
+    pub blocked: Option<FullSpeedBlock>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "snake_case")]
+#[ts(export)]
+pub enum FullSpeedBlock {
+    /// Offered on mains power only.
+    OnBattery,
+    /// The power source is unknown: Atlas never assumes mains power.
+    PowerUnknown,
+    /// Background work is Paused in Settings.
+    Paused,
+    /// A hard pause holds every job (space, the data drive, critical
+    /// memory or heat, a low battery).
+    Held,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
@@ -1194,6 +1238,12 @@ pub enum PauseReason {
     /// Embedding only: bulk embedding pauses on battery, where text
     /// extraction slows (product spec §9, Slice 2.3).
     OnBattery,
+    /// Background work is Paused in Settings (Slice 4.6).
+    PausedByUser,
+    /// Outside the hours chosen in Settings (Slice 4.6).
+    OutsideHours,
+    /// "Only while charging", and not on mains power (Slice 4.6).
+    NotCharging,
 }
 
 /// Progress of one scan session. Counts only: Atlas never shows a total or
@@ -1717,16 +1767,99 @@ pub struct Settings {
     pub background: BackgroundSettings,
 }
 
-/// When background work runs (phase4-spec §6.3). Slice 4.5 adds the folder
-/// check; 4.6 adds the rest.
-#[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize, TS)]
-#[serde(rename_all = "camelCase", default)]
+/// When background work runs (phase4-spec §6.3): the folder check (Slice
+/// 4.5) and the schedule (Slice 4.6). Every field is read leniently, so a
+/// value this build doesn't know reads as its default and can't reset the
+/// rest of the file.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
 #[ts(export)]
 pub struct BackgroundSettings {
-    /// How often Atlas checks every folder for changes by itself. A value
-    /// this build doesn't know reads as the default, so it can't reset the
-    /// rest of the file.
+    /// When background work runs.
+    pub mode: BackgroundMode,
+    /// "Only between": the window's start and end, local times as "HH:MM".
+    /// The window may cross midnight.
+    pub from: String,
+    pub to: String,
+    /// How often Atlas checks every folder for changes by itself.
     pub check_folders: CheckFolders,
+}
+
+pub const DEFAULT_FROM: &str = "22:00";
+pub const DEFAULT_TO: &str = "07:00";
+
+impl Default for BackgroundSettings {
+    fn default() -> Self {
+        Self {
+            mode: BackgroundMode::default(),
+            from: DEFAULT_FROM.into(),
+            to: DEFAULT_TO.into(),
+            check_folders: CheckFolders::default(),
+        }
+    }
+}
+
+/// Minutes after midnight of a local time written "HH:MM".
+pub fn minute_of_day(text: &str) -> Option<u16> {
+    let (h, m) = text.split_once(':')?;
+    if h.is_empty() || h.len() > 2 || m.len() != 2 {
+        return None;
+    }
+    let (h, m): (u16, u16) = (h.parse().ok()?, m.parse().ok()?);
+    (h < 24 && m < 60).then_some(h * 60 + m)
+}
+
+impl<'de> Deserialize<'de> for BackgroundSettings {
+    fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        #[derive(Deserialize, Default)]
+        #[serde(rename_all = "camelCase", default)]
+        struct Raw {
+            mode: BackgroundMode,
+            from: serde_json::Value,
+            to: serde_json::Value,
+            check_folders: CheckFolders,
+        }
+        let raw = Raw::deserialize(d)?;
+        let time = |v: &serde_json::Value, default: &str| {
+            v.as_str()
+                .filter(|t| minute_of_day(t).is_some())
+                .unwrap_or(default)
+                .to_owned()
+        };
+        Ok(Self {
+            mode: raw.mode,
+            from: time(&raw.from, DEFAULT_FROM),
+            to: time(&raw.to, DEFAULT_TO),
+            check_folders: raw.check_folders,
+        })
+    }
+}
+
+/// "Background work" (phase4-spec §5.4). Read leniently.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub enum BackgroundMode {
+    /// Today's behaviour: run, slowing as ADR 0004 says.
+    #[default]
+    Automatic,
+    /// Only on mains power, or on a computer with no battery.
+    Charging,
+    /// Only between `from` and `to`.
+    Hours,
+    /// Not at all, until the owner chooses otherwise.
+    Paused,
+}
+
+impl<'de> Deserialize<'de> for BackgroundMode {
+    fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        Ok(match serde_json::Value::deserialize(d)?.as_str() {
+            Some("charging") => Self::Charging,
+            Some("hours") => Self::Hours,
+            Some("paused") => Self::Paused,
+            _ => Self::Automatic,
+        })
+    }
 }
 
 /// "Check folders for changes" (phase4-spec §5.4). Read leniently: a value

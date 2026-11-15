@@ -13,7 +13,7 @@ use tauri::async_runtime::block_on;
 fn app_status_reports_only_true_facts() {
     let status = block_on(commands::app::get_app_status()).unwrap();
     assert_eq!(status.app_version, env!("CARGO_PKG_VERSION"));
-    assert_eq!(status.slice, "4.5.1");
+    assert_eq!(status.slice, "4.6");
     assert_eq!(status.arch, std::env::consts::ARCH);
     if cfg!(target_os = "macos") {
         assert_eq!(status.os, OsKind::Macos);
@@ -54,7 +54,10 @@ fn app_status_reports_only_true_facts() {
             "export_import",
             "diagnostics",
             "folder_checks",
-            "book_formats"
+            "book_formats",
+            "schedules",
+            "full_speed",
+            "busy_rule"
         ]
     );
     assert!(

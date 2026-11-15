@@ -19,7 +19,9 @@ use tauri::{Emitter, Manager};
 
 use domain::dto::{
     EmbeddingOverview, ExtractionOverview, InventoryOverview, JobKind, RecordingStatus,
+    ResourceStatus,
 };
+use infrastructure::cpu_probe::OsCpuProbe;
 use infrastructure::http_probe::ProbeConfig;
 use infrastructure::keychain::LazyKeychain;
 use infrastructure::local_source::LocalFsSource;
@@ -49,6 +51,10 @@ pub const EXTRACTION_EVENT: &str = "extraction-status";
 /// makes progress or changes state (at most four per second, plus every
 /// change; Slice 2.3).
 pub const EMBEDDING_EVENT: &str = "embedding-status";
+
+/// Tauri event carrying a `ResourceStatus` whenever what background work
+/// may do, the schedule or full speed changes (Slice 4.6).
+pub const RESOURCE_EVENT: &str = "resource-status";
 
 /// Tauri event carrying an `AnswerEvent`: one step of the Ask Atlas
 /// answer in progress (Slice 2.6).
@@ -117,6 +123,12 @@ pub fn run() {
             services::diagnostics::install(diagnostics.clone());
             let mut governor = ResourceGovernor::new(Box::new(monitor));
             governor.diagnostics = Some(diagnostics.clone());
+            // Other applications' processor use, for the busy rule (4.6).
+            governor.cpu = Box::new(OsCpuProbe::new());
+            let resource_emitter = app.handle().clone();
+            governor.events = Some(Arc::new(move |status: &ResourceStatus| {
+                let _ = resource_emitter.emit(RESOURCE_EVENT, status);
+            }));
             let governor = Arc::new(Mutex::new(governor));
             let emitter = app.handle().clone();
             let deps = InventoryDeps {
@@ -189,6 +201,8 @@ pub fn run() {
             commands::app::get_app_status,
             commands::app::get_device_snapshot,
             commands::app::get_device_check,
+            commands::app::get_resource_status,
+            commands::app::set_full_speed,
             commands::workspace::get_data_root_status,
             commands::workspace::get_default_data_root,
             commands::workspace::pick_folder,

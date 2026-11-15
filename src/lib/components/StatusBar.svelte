@@ -7,6 +7,7 @@
   import { extractionLine } from '../extractionCopy';
   import { meaningLine, stoppedFolders } from '../embeddingCopy';
   import { embedding } from '../stores/embedding.svelte';
+  import { resources } from '../stores/resources.svelte';
   import { view } from '../stores/view.svelte';
   import { extraction } from '../stores/extraction.svelte';
   import { inventory } from '../stores/inventory.svelte';
@@ -34,6 +35,17 @@
   const meaningPausable = $derived(
     meaning !== null && ['queued', 'running', 'paused_policy'].includes(meaning.state),
   );
+
+  /**
+   * Full speed (Slice 4.6): offered beside the lines while cataloging,
+   * reading or indexing has work, and Stop while it runs.
+   */
+  const working = $derived(
+    [active, reading, meaning].some(
+      (j) => j !== null && ['queued', 'running', 'paused_policy'].includes(j.state),
+    ),
+  );
+  const fullSpeed = $derived(resources.status?.fullSpeed ?? null);
 
   /** Index meaning now, in every folder whose job stopped for good. */
   function indexStopped() {
@@ -240,6 +252,36 @@
         {/if}
       </div>
     </div>
+  {/if}
+  {#if fullSpeed?.on}
+    <div class="cataloging" data-testid="full-speed">
+      <span role="status">Full speed</span>
+      <button
+        type="button"
+        class="small-button"
+        aria-label="Stop full speed"
+        title="Go back to the normal pace"
+        disabled={resources.busy}
+        onclick={() => void resources.setFullSpeed(false)}
+      >
+        Stop
+      </button>
+    </div>
+  {:else if working && fullSpeed?.offered}
+    <div class="cataloging" data-testid="full-speed">
+      <button
+        type="button"
+        class="small-button"
+        title="Run without resting until the work is done"
+        disabled={resources.busy}
+        onclick={() => void resources.setFullSpeed(true)}
+      >
+        Full speed
+      </button>
+    </div>
+  {/if}
+  {#if resources.error}
+    <span role="alert" class="muted" data-testid="full-speed-error">{resources.error.message}</span>
   {/if}
   {#if activity.length > 1 || (activity.length === 1 && activity[0].text.includes(' · '))}
     <details class="details activity" data-testid="all-activity">

@@ -3,7 +3,7 @@
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 
-use crate::domain::dto::{DeviceCheck, DeviceSnapshot};
+use crate::domain::dto::{DeviceCheck, DeviceSnapshot, ResourceStatus};
 use crate::domain::traits::SourceOpener;
 use crate::error::{AtlasError, AtlasResult};
 use crate::infrastructure::http_probe::ProbeConfig;
@@ -78,6 +78,30 @@ impl AppState {
         })
         .await
         .map_err(|_| AtlasError::Internal("a background task failed"))?
+    }
+
+    /// What background work may do now, and full speed (Slice 4.6).
+    pub async fn resource_status(&self) -> AtlasResult<ResourceStatus> {
+        let root = self.open_root_path().await?;
+        let governor = Arc::clone(&self.governor);
+        tauri::async_runtime::spawn_blocking(move || {
+            let mut guard = governor
+                .lock()
+                .map_err(|_| AtlasError::Internal("resource state is unavailable"))?;
+            Ok(guard.status(root.as_deref()))
+        })
+        .await
+        .map_err(|_| AtlasError::Internal("a background task failed"))?
+    }
+
+    /// Switches full speed on (when work is waiting and it's offered) or
+    /// off (Slice 4.6). The jobs are woken, so a rest ends at once.
+    pub async fn set_full_speed(&self, on: bool) -> AtlasResult<ResourceStatus> {
+        let governor = Arc::clone(&self.governor);
+        self.with_workspace(move |ws| {
+            crate::services::scheduler::watch::set_full_speed(ws.require_open()?, &governor, on)
+        })
+        .await
     }
 
     pub async fn device_check(&self) -> AtlasResult<DeviceCheck> {
