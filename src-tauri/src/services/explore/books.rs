@@ -14,7 +14,7 @@ use crate::services::documents::metadata::display_title;
 use crate::services::documents::related::sample_indices;
 use crate::services::embedding::chunk::{Span, slice};
 use crate::services::embedding::db::EmbeddingModel;
-use crate::services::embedding::vector::{from_f16_blob, normalize};
+use crate::services::embedding::vector::{from_f16_blob, normalize, to_f16_blob};
 
 /// Which chunks make a book's vector.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -123,7 +123,7 @@ pub fn book_vectors(
             }
         }
         let count = chunk_count.unwrap_or(0).max(0) as usize;
-        match mean(conn, model, &id, count, sampling)? {
+        match mean(conn, &model.id, model.dims, &id, count, sampling)? {
             Some(vector) => {
                 coverage.used += 1;
                 books.ids.push(id);
@@ -140,15 +140,16 @@ pub fn book_vectors(
 /// none or they cancel out. A chunk without a vector is passed over.
 fn mean(
     conn: &Connection,
-    model: &EmbeddingModel,
+    model_id: &str,
+    dims: usize,
     document: &str,
     count: usize,
     sampling: Sampling,
 ) -> rusqlite::Result<Option<Vec<f32>>> {
-    let mut sum = vec![0f32; model.dims];
+    let mut sum = vec![0f32; dims];
     let mut found = false;
     let mut add = |blob: Vec<u8>| {
-        if let Some(v) = from_f16_blob(&blob, model.dims) {
+        if let Some(v) = from_f16_blob(&blob, dims) {
             for (s, x) in sum.iter_mut().zip(&v) {
                 *s += x;
             }
@@ -164,7 +165,7 @@ fn mean(
             )?;
             for ordinal in sample_indices(count) {
                 let blob: Option<Vec<u8>> = stmt
-                    .query_row(params![model.id, document, ordinal as i64], |r| r.get(0))
+                    .query_row(params![model_id, document, ordinal as i64], |r| r.get(0))
                     .optional()?;
                 if let Some(blob) = blob {
                     add(blob);
@@ -177,13 +178,117 @@ fn mean(
                  JOIN embeddings e ON e.model_id = ?1 AND e.text_hash = c.text_hash
                  WHERE c.document_id = ?2 ORDER BY c.ordinal",
             )?;
-            let blobs = stmt.query_map(params![model.id, document], |r| r.get::<_, Vec<u8>>(0))?;
+            let blobs = stmt.query_map(params![model_id, document], |r| r.get::<_, Vec<u8>>(0))?;
             for blob in blobs {
                 add(blob?);
             }
         }
     }
     Ok((found && normalize(&mut sum)).then_some(sum))
+}
+
+// ------------------------------------------------- stored vectors (4.6.1)
+
+/// Stores the document's book vector for the model (Slice 4.6.1): the
+/// sampled mean, as Related documents averages, with the embedding's
+/// `seq`. A document the model hasn't done, or whose chunks give no vector,
+/// has none. Returns whether one is stored.
+pub fn store_vector(conn: &Connection, model_id: &str, document: &str) -> rusqlite::Result<bool> {
+    let row: Option<(i64, String, i64, i64)> = conn
+        .query_row(
+            "SELECT m.dims, e.status, e.chunk_count, e.seq
+             FROM embedding_models m
+             JOIN document_embeddings e ON e.model_id = m.id AND e.document_id = ?2
+             WHERE m.id = ?1",
+            params![model_id, document],
+            |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?)),
+        )
+        .optional()?;
+    let vector = match &row {
+        Some((dims, status, count, _)) if status == "done" => mean(
+            conn,
+            model_id,
+            *dims as usize,
+            document,
+            (*count).max(0) as usize,
+            Sampling::Sample,
+        )?,
+        _ => None,
+    };
+    match (vector, row) {
+        (Some(v), Some((_, _, count, seq))) => {
+            conn.execute(
+                "INSERT INTO book_vectors (model_id, document_id, vector, chunk_count, updated_seq)
+                 VALUES (?1, ?2, ?3, ?4, ?5)
+                 ON CONFLICT (model_id, document_id) DO UPDATE SET
+                     vector = excluded.vector, chunk_count = excluded.chunk_count,
+                     updated_seq = excluded.updated_seq",
+                params![model_id, document, to_f16_blob(&v), count, seq],
+            )?;
+            Ok(true)
+        }
+        _ => {
+            conn.execute(
+                "DELETE FROM book_vectors WHERE model_id = ?1 AND document_id = ?2",
+                params![model_id, document],
+            )?;
+            Ok(false)
+        }
+    }
+}
+
+/// Up to `limit` documents the model has done whose stored vector is
+/// missing or older than their embedding: the backfill's next batch.
+pub fn missing_vectors(
+    conn: &Connection,
+    model_id: &str,
+    limit: usize,
+) -> rusqlite::Result<Vec<String>> {
+    conn.prepare_cached(
+        "SELECT e.document_id FROM document_embeddings e
+         LEFT JOIN book_vectors bv ON bv.model_id = e.model_id AND bv.document_id = e.document_id
+         WHERE e.model_id = ?1 AND e.status = 'done'
+           AND (bv.document_id IS NULL OR bv.updated_seq < e.seq)
+         ORDER BY e.document_id LIMIT ?2",
+    )?
+    .query_map(params![model_id, limit as i64], |r| r.get(0))?
+    .collect()
+}
+
+/// Every book on the map's terms, with its stored vector, in one read:
+/// documents with text and a file, done by the model, not a copy kept out
+/// of a book in two formats. Document ids ascending.
+pub fn stored_vectors(conn: &Connection, model_id: &str, dims: usize) -> rusqlite::Result<Books> {
+    let mut stmt = conn.prepare(
+        "SELECT bv.document_id, bv.vector, bv.chunk_count FROM book_vectors bv
+         JOIN documents d ON d.id = bv.document_id
+         JOIN document_embeddings e ON e.document_id = d.id AND e.model_id = bv.model_id
+         WHERE bv.model_id = ?1 AND d.state = 'done' AND e.status = 'done'
+           AND EXISTS (SELECT 1 FROM file_instances f WHERE f.document_id = d.id)
+           AND NOT EXISTS (SELECT 1 FROM book_pairs bp WHERE bp.hidden_document_id = d.id)
+         ORDER BY d.id",
+    )?;
+    let mut books = Books {
+        ids: Vec::new(),
+        chunks: Vec::new(),
+        vectors: Points::new(dims),
+    };
+    let rows = stmt.query_map([model_id], |r| {
+        Ok((
+            r.get::<_, String>(0)?,
+            r.get::<_, Vec<u8>>(1)?,
+            r.get::<_, i64>(2)?,
+        ))
+    })?;
+    for row in rows {
+        let (id, blob, count) = row?;
+        if let Some(v) = from_f16_blob(&blob, dims) {
+            books.ids.push(id);
+            books.chunks.push(count.max(0) as u32);
+            books.vectors.push(&v);
+        }
+    }
+    Ok(books)
 }
 
 /// What Atlas calls each document, in the order of `ids`.

@@ -162,6 +162,17 @@
         />
         Include missing files
       </label>
+      {#if !showingDuplicates && library.area}
+        <span class="chip" data-testid="area-filter">
+          Area: {library.area.label}
+          <button
+            type="button"
+            class="chip-remove"
+            aria-label="Show every area"
+            onclick={() => library.setFilters({ area: null })}>×</button
+          >
+        </span>
+      {/if}
     </div>
 
     {#if showingDuplicates}
@@ -440,5 +451,26 @@
 
   .small {
     font-size: 12px;
+  }
+
+  .chip {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-1);
+    padding: 0 var(--space-1) 0 var(--space-3);
+    min-height: 32px;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    background: var(--accent-soft);
+    font-size: 13px;
+  }
+
+  .chip-remove {
+    min-width: 24px;
+    min-height: 24px;
+    border: 0;
+    border-radius: 999px;
+    background: transparent;
+    cursor: pointer;
   }
 </style>

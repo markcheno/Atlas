@@ -1397,6 +1397,89 @@ Memory shows yellow), it reads "… · Going slowly · The computer is busy".
 ([43351102234](https://github.com/markcheno/Atlas/actions/runs/43351102234))
 is green on three OSes at the first attempt.
 
+## Slice 4.6.1
+
+Explore, a map of the library by meaning ([ADR 0024](adr/0024-explore.md)).
+The catalog migrates to version 18.
+
+**Verified locally (macOS arm64, M5 Pro):**
+
+- **P4-31** (`tests/explore_app.rs`):
+  - each book's vector is stored with its embedding and matches Related's
+    mean to within f16 rounding;
+  - a library whose vectors are missing has them filled in when the map is
+    drawn;
+  - a copy kept out of a book in two formats isn't on the map.
+- **P4-32:**
+  - a library of three planted topics makes areas of one topic each;
+  - 27 books make no map;
+  - the watch waits while work is slowed and draws once plugged in;
+  - a redraw asked for under Paused waits, says why, and runs once
+    Automatic;
+  - closing while it runs doesn't hang.
+- **P4-33:**
+  - after the owner names an area, 3 new books don't make the map due,
+    and 12 (10%) do;
+  - the redraw keeps at least 90% of books in their area's number and
+    colour, keeps the name with its books, and leaves every old book
+    exactly in place;
+  - a redraw from scratch keeps the name;
+  - rename refuses a name over 60 characters or an area gone, and a blank
+    name goes back to the words.
+- **P4-34:**
+  - every point opens a file of its book;
+  - the Library's area filter lists exactly an area's books, and a
+    sub-area's.
+- **Unit tests:**
+  - matching old areas, and their numbers;
+  - colours never shared or too close between touching areas, kept when
+    they can be;
+  - the layout from an old map, and stopping early;
+  - the number of areas;
+  - staleness;
+  - migration 18.
+- **Vitest:**
+  - each empty state, and Draw the map now;
+  - the list, choosing an area, renaming with Enter and a blank name;
+  - Show in Library with its removable filter;
+  - Find on the map and its count;
+  - Redraw and Redraw from scratch;
+  - a new map reloaded on `explore-status`;
+  - a held redraw's reason;
+  - the shortcuts (Explore is Cmd/Ctrl+4);
+  - the map's geometry (fit, zoom about a point, the grid against a scan
+    of every book).
+- **Measured** ([benchmarks](benchmarks.md#explore-slice-461)): 2.2 s for
+  a first map of 5,000 books and 0.36 s for a redraw; 14 s and 10 s at
+  30,000.
+
+**CI on `slice-461`:** the full run
+([43749574187](https://github.com/markcheno/Atlas/actions/runs/43749574187))
+is green on three OSes at the first attempt, smoke tests and release
+bundles included.
+
+**For the product owner, on the installed build:**
+
+1. **The first map:**
+   - Explore, in the sidebar, says "The map is waiting" or "Drawing the
+     map…";
+   - plugged in and not busy, Atlas draws it by itself within a minute or
+     two of opening. It first fills in your books' vectors (about the
+     spike's 7 s), then draws in about as long again. **Draw the map now**
+     starts it at once.
+2. **The areas:** about 16, as in the spike, with their words and central
+   titles. Choose one to light it up; hover dots for titles; choose a dot
+   for its details.
+3. **Rename** an area, then **Show in Library**: the Library lists its
+   books with a filter you can remove.
+4. **Find on the map:** search something you know and see where the
+   results sit.
+5. **Stability:**
+   - after adding books (5% or more), the map redraws by itself, plugged
+     in;
+   - old books stay where they were, and areas keep their numbers,
+     colours and your names.
+
 ## Slice 4.6
 
 When background work runs: Automatic, Only while charging, Only between

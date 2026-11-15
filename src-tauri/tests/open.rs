@@ -92,6 +92,7 @@ impl Lib {
                 page_size: 200,
                 include_missing: true,
                 text_status: None,
+                area_id: None,
             },
         )
         .unwrap();

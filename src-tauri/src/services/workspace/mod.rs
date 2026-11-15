@@ -38,6 +38,7 @@ use crate::services::answers::AnswerRegistry;
 use crate::services::catalog::reader::CatalogReader;
 use crate::services::catalog::{self, CatalogWriter};
 use crate::services::embedding::{self, registry::VectorRegistry};
+use crate::services::explore::watch::{ExploreDeps, ExploreEvents, ExploreShared, ExploreWatch};
 use crate::services::export::import::Pending;
 use crate::services::extraction;
 use crate::services::inventory::{self, InventoryDeps};
@@ -63,6 +64,10 @@ pub struct WorkspaceConfig {
 /// declaration order: the job runners stop first, then the readers and the
 /// writer close, then the lock is released.
 pub struct OpenRoot {
+    /// Keeps Explore's map current (Slice 4.6.1), stopped first: a build in
+    /// progress ends at its next step.
+    _explore: Option<ExploreWatch>,
+    explore: Arc<ExploreShared>,
     /// Ends full speed when the work runs out (Slice 4.6), and on closing.
     _full_speed: Option<FullSpeedWatch>,
     /// The folder check (Slice 4.5), stopped early: it queues scans.
@@ -161,6 +166,11 @@ impl OpenRoot {
     pub fn root_status_handle(&self) -> Arc<RootStatusCache> {
         Arc::clone(&self.root_status)
     }
+    /// Explore's map: its status and redraws (Slice 4.6.1).
+    pub fn explore(&self) -> &Arc<ExploreShared> {
+        &self.explore
+    }
+
     /// Asks every job runner to re-read job states now, for example after
     /// a user pauses a job or adds a folder.
     pub fn wake_jobs(&self) {
@@ -195,6 +205,8 @@ pub struct Workspace {
     inventory: Option<InventoryDeps>,
     /// Records into the open library's log (Slice 4.1).
     diagnostics: Diagnostics,
+    /// Where Explore's status goes (`explore-status`, Slice 4.6.1).
+    explore_events: Option<ExploreEvents>,
     state: State,
 }
 
@@ -209,8 +221,16 @@ impl Workspace {
             processors: BTreeMap::new(),
             inventory: None,
             diagnostics: Diagnostics::new(),
+            explore_events: None,
             state: State::NotConfigured,
         }
+    }
+
+    /// Sends Explore's status of every root this workspace opens to
+    /// `events` (Slice 4.6.1).
+    pub fn with_explore_events(mut self, events: ExploreEvents) -> Self {
+        self.explore_events = Some(events);
+        self
     }
 
     /// Records into `diagnostics` for every root this workspace opens
@@ -569,7 +589,10 @@ impl Workspace {
         self.apply_schedule(&settings);
         let jobs = self.start_jobs(&catalog, path, &vectors)?;
         let check_setting = Arc::new(std::sync::Mutex::new(settings.background.check_folders));
+        let explore = Arc::new(ExploreShared::default());
         Ok(OpenRoot {
+            _explore: self.start_explore(&catalog, &reader, path, &explore),
+            explore,
             _full_speed: self.start_full_speed_watch(&catalog),
             _checker: self.start_checker(&catalog, &jobs, &check_setting),
             clock: Arc::clone(&self.clock),
@@ -645,6 +668,28 @@ impl Workspace {
             Arc::clone(&deps.governor),
             deps.config.full_speed_every,
         )
+    }
+
+    /// Explore's watch (Slice 4.6.1), when this workspace runs jobs.
+    fn start_explore(
+        &self,
+        catalog: &CatalogWriter,
+        reader: &Arc<CatalogReader>,
+        path: &Path,
+        shared: &Arc<ExploreShared>,
+    ) -> Option<ExploreWatch> {
+        let deps = self.inventory.as_ref()?;
+        ExploreWatch::start(ExploreDeps {
+            catalog: catalog.handle(),
+            reader: Arc::clone(reader),
+            governor: Arc::clone(&deps.governor),
+            data_root: path.to_path_buf(),
+            shared: Arc::clone(shared),
+            events: self.explore_events.clone(),
+            diagnostics: self.diagnostics.clone(),
+            clock: Arc::clone(&self.clock),
+            every: deps.config.explore_every,
+        })
     }
 
     /// The folder check (Slice 4.5), when this workspace runs scans.
@@ -734,7 +779,10 @@ impl Workspace {
         self.apply_schedule(&settings);
         let jobs = self.start_jobs(&catalog, path, &vectors)?;
         let check_setting = Arc::new(std::sync::Mutex::new(settings.background.check_folders));
+        let explore = Arc::new(ExploreShared::default());
         Ok(OpenRoot {
+            _explore: self.start_explore(&catalog, &reader, path, &explore),
+            explore,
             _full_speed: self.start_full_speed_watch(&catalog),
             _checker: self.start_checker(&catalog, &jobs, &check_setting),
             clock: Arc::clone(&self.clock),

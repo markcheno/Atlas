@@ -51,6 +51,8 @@ pub struct InventoryConfig {
     pub check_every: Duration,
     /// How often full speed looks for work left (Slice 4.6).
     pub full_speed_every: Duration,
+    /// How often Explore looks whether its map is due (Slice 4.6.1).
+    pub explore_every: Duration,
 }
 
 impl Default for InventoryConfig {
@@ -66,6 +68,7 @@ impl Default for InventoryConfig {
             event_interval: Duration::from_millis(250),
             check_every: auto::CHECK_EVERY,
             full_speed_every: crate::services::scheduler::watch::WATCH_EVERY,
+            explore_every: crate::services::explore::watch::WATCH_EVERY,
         }
     }
 }

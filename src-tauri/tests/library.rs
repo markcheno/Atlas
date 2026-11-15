@@ -81,6 +81,7 @@ fn query() -> DocumentQuery {
         page_size: 200,
         include_missing: false,
         text_status: None,
+        area_id: None,
     }
 }
 
@@ -228,6 +229,7 @@ fn missing_files_are_hidden_unless_asked_for() {
     let all = lib.list(&DocumentQuery {
         include_missing: true,
         text_status: None,
+        area_id: None,
         ..search("proof")
     });
     assert_eq!(all.items.len(), 1);

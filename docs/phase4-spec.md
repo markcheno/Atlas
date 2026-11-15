@@ -104,7 +104,7 @@ fixtures/scans/                                # new (4.3): page images with kno
 src-tauri/
   migrations/0015_ocr_pages.sql                # new (4.1): what a Needs OCR document is known to hold
   migrations/0016_ocr.sql                      # new (4.3): OCR staging, versions, passage source
-  migrations/0018_requested.sql                # new (4.4): Read this now
+  migrations/0019_requested.sql                # new (4.4): Read this now (0018 is Explore's, 4.6.1)
   src/services/diagnostics/{mod,event,log,report}.rs          # new (4.1)
   src/services/ocr/{mod,job,db,order}.rs       # new (4.3, 4.4)
   src/services/extraction/engine/ocr.rs        # new (4.3): the engine, in the worker only
@@ -123,7 +123,7 @@ src/
                   RestoreDialog,MoveDialog,ReadNowButton}.svelte   # new
   lib/stores/{diagnostics,maintenance,backups,relocate}.svelte.ts  # new
   lib/{diagnosticsCopy,ocrCopy,scheduleCopy,maintenanceCopy,backupCopy,moveCopy}.ts   # new
-docs/adr/0020-…0026-….md                       # new: OCR; diagnostics; rescans and schedules; one book in two formats; checks and repairs; backups and restore; moving the data root
+docs/adr/0020-…0027-….md                       # new: OCR; diagnostics; rescans and schedules; one book in two formats; Explore; checks and repairs; backups and restore; moving the data root
 docs/phase4-closeout.md                        # new (4.11)
 ```
 
@@ -225,7 +225,7 @@ CREATE TABLE ocr_pages (                 -- pages finished for a document still 
 
 `jobs.kind` gains `ocr` (the column has no CHECK; `catalog/codec.rs` does).
 
-**Migration 0018 (Slice 4.4):** Read this now.
+**Migration 0019 (Slice 4.4):** Read this now. (0018 is Explore's, Slice 4.6.1.)
 
 ```sql
 ALTER TABLE file_instances ADD COLUMN requested_at TEXT;   -- before the file has a document
@@ -556,12 +556,16 @@ Drills that would put the real library at risk (a damaged catalog, a full disk, 
 | P4-22 | A move with jobs running | The trees are equal by hash; the locator names the new root; jobs resume there; the old copy is no longer a library; Remove the old copy removes only Atlas's files |
 | P4-23 | SIGKILL in each state of a move (`copying`, `copied`, `switched`, during retirement) | At the next launch exactly one whole library opens, the one the journal names; a partial destination is removed only when it carries the marker and the root id |
 | P4-24 | A move to a network volume, a synced folder, a non-empty folder and a library folder; too little space; the destination disappearing; a hash mismatch; Cancel | Refused, or rolled back with the reason; the old library is open and unchanged |
-| P4-25 | Settings files from 0.4.0; migrations 0015 to 0018; a catalog from a newer Atlas | Old files are valid with the defaults; each migration applies once; the newer catalog is refused unaltered |
+| P4-25 | Settings files from 0.4.0; migrations 0015 to 0019; a catalog from a newer Atlas | Old files are valid with the defaults; each migration applies once; the newer catalog is refused unaltered |
 | P4-26 | **The lifecycle,** on a 1,000-file fixture with 50 scanned files: scan, read, OCR, embed, an automatic rescan, a backup, a check, a move, a restore | Every count as expected at each stage; originals unchanged throughout |
 | P4-27 | One book in two formats (Slice 4.5.1): books in PDF and EPUB beside each other; one name with different texts; a chapter beside its book; the formats in different folders; case and accents; a scan beside its EPUB | The same book only where the texts match (by name alone beside a scan); never across folders |
 | P4-28 | The meaning index for a book in two formats, in a new library and in one that indexed both copies before | One copy indexed, nothing waiting; after the upgrade nothing is sent to be indexed again and every vector is kept |
 | P4-29 | Search, Ask Atlas, Related, rediscovery, the Library and the map for a book in two formats | One result, row, source and point a book, with its other format; never related to itself; a type filter shows each format |
 | P4-30 | The owner's "Not the same book" and "Same book"; a rescan and a re-read after; a copy whose partner is deleted | The choice is kept; a copy shown again, or left alone, is indexed |
+| P4-31 | Books embedded, and a library embedded before 4.6.1; a copy kept out of a book in two formats | Each book's vector is stored with its embedding and matches Related's; missing ones are filled in without the AI service; kept-out copies aren't on the map |
+| P4-32 | A planted library; fewer than 30 books; the watch with the computer slowed, plugged in, and a redraw under Paused; closing | Each area holds one topic; too few books make no map; it waits while slowed, draws on mains power, holds a requested redraw under Paused and says why; closing doesn't wait |
+| P4-33 | A map, an area named by the owner, then 3 and 12 new books | 3 don't make it due, 12 do; the redraw keeps at least 90% of books in their area's number and colour, the name with its books, and every old book exactly in place |
+| P4-34 | The map as the window reads it; the Library's area filter | Every point opens a file of its book; an area's or sub-area's filter lists exactly its books |
 
 Use the injected fakes (§11). Add integrity checks on both databases after every crash test, and the originals-unchanged snapshot to every test that reads files, as before. Tests that need the real OCR engine are P4-05 and the spike; the rest use the fake engine.
 
@@ -598,13 +602,14 @@ Implement and verify **one slice at a time**. Build and rerun tests after each s
 | 4.1 | **Diagnostics and carry-overs.** The log, the panic hook, the report, the Diagnostics section; the protocol check; page counts for Needs OCR documents (migration 0015); slice strings to Phase 4; ADR 0021 | P4-01, P4-02, P4-03, P4-04. The product owner then saves a report from the real library; its counts are recorded and size Slices 4.3 to 4.5 |
 | 4.2 | **The OCR spike.** `spikes/ocr-bench/`, the corpus, the measurements on three OSes, the decision by §10.1's rule; ADR 0020; `docs/spike-ocr.md` | Every §10.1 measurement recorded for every candidate; a clean build and worker check on three OSes for the engine chosen; licences recorded |
 | 4.3 | ~~**OCR.**~~ *Deferred (2026-11-13).* The engine in the worker, `Ocr` (protocol 3), the `ocr` job, staging and commit (migration 0016), the policy, the scanned fixtures, the wording of §5.1 | P4-05, P4-06, P4-07, P4-08, P4-09; `benches/ocr.rs`; the floor of §10.2 set and met |
-| 4.4 | **Priority.** Read this now (migration 0018) for reading and meaning, `jobs.priority` in use (OCR's order and progress deferred with OCR) | P4-10 without its OCR cases; Vitest |
+| 4.4 | **Priority.** Read this now (migration 0019) for reading and meaning, `jobs.priority` in use (OCR's order and progress deferred with OCR) | P4-10 without its OCR cases; Vitest |
 | 4.5 | **Automatic rescans.** The rescan that writes only changes; launch, timer and returning drives; "Checked … ago"; ADR 0022 | P4-11, P4-12; the no-change rescan benchmarked at 30,000 files |
 | 4.5.1 | **One book, two formats.** A PDF and an EPUB beside each other with one name whose texts match are one book: indexed once, shown once (migration 0017); the owner's say; ADR 0023 | P4-27, P4-28, P4-29, P4-30; Vitest |
 | 4.6 | **Schedules.** Background work's modes, hours, full speed (also in the status bar), the busy rule, the settings; ADR 0022 completed; ADR 0004 amended | P4-13, P4-14, P4-25 (settings); Vitest; the probe and full speed measured |
-| 4.7 | **Check library and repairs.** The checks, the four repairs, the setup mirror, recovery from a damaged catalog; ADR 0024 | P4-15, P4-16, P4-17; Vitest |
-| 4.8 | **Backups and restore.** The catalog's backup, the second folder, restore of both databases; ADR 0025 and ADR 0001's amended list | P4-18, P4-19, P4-20, P4-21; Vitest |
-| 4.9 | **Move Atlas data.** The plan, the verified copy, the journal, the switch, the old copy; ADR 0026 (amends ADR 0002) | P4-22, P4-23, P4-24; the smoke's move step on Windows and Linux |
+| 4.6.1 | **Explore.** Book vectors; the map drawn in the background and kept stable (migration 0018); the Explore view with renaming, Show in Library and Find on the map; ADR 0024 | P4-31, P4-32, P4-33, P4-34; Vitest; the build measured at 5,000 and 30,000 books |
+| 4.7 | **Check library and repairs.** The checks, the four repairs, the setup mirror, recovery from a damaged catalog; ADR 0025 | P4-15, P4-16, P4-17; Vitest |
+| 4.8 | **Backups and restore.** The catalog's backup, the second folder, restore of both databases; ADR 0026 and ADR 0001's amended list | P4-18, P4-19, P4-20, P4-21; Vitest |
+| 4.9 | **Move Atlas data.** The plan, the verified copy, the journal, the switch, the old copy; ADR 0027 (amends ADR 0002) | P4-22, P4-23, P4-24; the smoke's move step on Windows and Linux |
 | 4.10 | **Scale.** The lifecycle test; `benches/maintenance.rs`; the 100,000-file runs; fixes for what they find; the release candidate the owner's run starts on | P4-26; §13's measurements on the reference machine; the owner's run started and its first report recorded |
 | 4.11 | **Evidence and close-out.** Benchmarks on three OSes; the licence report; the owner's run finished and recorded; the scratch drills; `docs/phase4-closeout.md`; version 0.5.0 | All CI green on `main`; §10.3 recorded; review against §1, §12, §13, §14 and §16 |
 
@@ -667,6 +672,32 @@ Do **not** add an OCR engine, an `ocr` job, a rescan timer or any backup code be
 ---
 
 ### Revision notes
+
+**2026-11-15, Slice 4.6.1** (Explore; [ADR 0024](adr/0024-explore.md)):
+- **Built before 4.7 to 4.9 at the product owner's request.** The spike
+  answered go on their library.
+- **The owner's choices:**
+  - a new Explore view in the sidebar, between Library and Trails;
+  - the map recomputed by itself and kept stable, plus Redraw;
+  - renaming areas, a Library filter by area, and search results lit on
+    the map.
+
+  Names from the chat model and "what the library is made of" stay
+  candidates.
+- **Renumbering:**
+  - Explore takes migration 0018, so 4.4's Read this now moves to 0019
+    and P4-25 covers 0015 to 0019;
+  - it takes ADR 0024, so 4.7, 4.8 and 4.9 take 0025, 0026 and 0027.
+- **New tests P4-31 to P4-34.**
+- **The keyboard shortcuts shift:** Explore is Cmd/Ctrl+4, Trails +5 and
+  Settings +6.
+- **The map is drawn by a watch thread, not a job,** because every job row
+  belongs to one folder. It obeys the policy: it draws only while running
+  normally or at full speed, and a requested redraw runs unless paused.
+- **The number of areas follows the library:** the square root of half
+  the books, from 2 to 16 (16 from 512 books).
+- **A redraw keeps old books exactly in place** and starts the areas from
+  the old ones; Redraw from scratch rearranges.
 
 **2026-11-15, Slice 4.6** (schedules; [ADR 0004's amendment](adr/0004-resource-policy.md)):
 - **The product owner's choices:**

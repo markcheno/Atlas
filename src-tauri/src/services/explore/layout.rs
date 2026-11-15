@@ -27,6 +27,11 @@ pub struct LayoutOptions {
     pub epochs: usize,
     /// Random books pushed away for each pull.
     pub negatives: usize,
+    /// The step size at the first pass, falling to 0 at the last.
+    pub start_rate: f32,
+    /// Books placed by `init` stay where they are; only the others move
+    /// (refining an old map, Slice 4.6.1).
+    pub keep_placed: bool,
 }
 
 impl LayoutOptions {
@@ -36,6 +41,19 @@ impl LayoutOptions {
             seed,
             epochs: if n <= 10_000 { 500 } else { 200 },
             negatives: 5,
+            start_rate: 1.0,
+            keep_placed: false,
+        }
+    }
+
+    /// Refining an old map (Slice 4.6.1): books on it keep their places
+    /// exactly, and new ones settle among them in a quarter of the passes.
+    pub fn refining(n: usize, seed: u64) -> Self {
+        let full = Self::for_count(n, seed);
+        Self {
+            epochs: (full.epochs / 4).max(1),
+            keep_placed: true,
+            ..full
         }
     }
 }
@@ -185,21 +203,50 @@ fn edges(graph: &Neighbours) -> Vec<Edge> {
 
 /// The map of `points` whose neighbours are `graph`.
 pub fn layout(points: &Points, graph: &Neighbours, opts: &LayoutOptions) -> Vec<[f32; 2]> {
+    layout_from(points, graph, None, opts, &|| false).unwrap_or_default()
+}
+
+/// The map of `points`, starting where `init` puts each book that has a
+/// place (an old map, Slice 4.6.1); a book without one starts among its
+/// placed neighbours, or at the middle of the placed books if none is.
+/// Without `init`, from PCA. `None` when `stop` asks it to end early.
+pub fn layout_from(
+    points: &Points,
+    graph: &Neighbours,
+    init: Option<&[Option<[f32; 2]>]>,
+    opts: &LayoutOptions,
+    stop: &dyn Fn() -> bool,
+) -> Option<Vec<[f32; 2]>> {
     let n = points.len();
-    let mut xy = pca2(points, opts.seed);
+    let mut xy = match init {
+        Some(init) if init.iter().any(Option::is_some) => start_from(init, graph),
+        _ => pca2(points, opts.seed),
+    };
     if n < 3 || graph.is_empty() {
-        return xy;
+        return Some(xy);
     }
     let mut rng = Rng::new(opts.seed ^ 0x5EED);
+    let fixed: Vec<bool> = match init {
+        Some(init) if opts.keep_placed => init.iter().map(Option::is_some).collect(),
+        _ => vec![false; n],
+    };
+    if fixed.iter().all(|f| *f) {
+        return Some(xy);
+    }
     // Points in one place can never be pulled apart: a small nudge.
-    for p in &mut xy {
-        p[0] += rng.signed() * 1e-3;
-        p[1] += rng.signed() * 1e-3;
+    for (p, f) in xy.iter_mut().zip(&fixed) {
+        if !f {
+            p[0] += rng.signed() * 1e-3;
+            p[1] += rng.signed() * 1e-3;
+        }
     }
     let mut edges = edges(graph);
     let epochs = opts.epochs.max(1);
     for epoch in 0..epochs {
-        let rate = 1.0 - epoch as f32 / epochs as f32;
+        if stop() {
+            return None;
+        }
+        let rate = opts.start_rate * (1.0 - epoch as f32 / epochs as f32);
         let now = (epoch + 1) as f32;
         for e in &mut edges {
             if e.next > now {
@@ -207,15 +254,25 @@ pub fn layout(points: &Points, graph: &Neighbours, opts: &LayoutOptions) -> Vec<
             }
             e.next += e.every;
             let (a, b) = (e.a as usize, e.b as usize);
+            if fixed[a] && fixed[b] {
+                continue;
+            }
             let (dx, dy) = (xy[a][0] - xy[b][0], xy[a][1] - xy[b][1]);
             let d2 = dx * dx + dy * dy;
             if d2 > 0.0 {
                 let pull = -2.0 * A * B * d2.powf(B - 1.0) / (1.0 + A * d2.powf(B));
                 let (sx, sy) = (step(pull * dx) * rate, step(pull * dy) * rate);
-                xy[a][0] += sx;
-                xy[a][1] += sy;
-                xy[b][0] -= sx;
-                xy[b][1] -= sy;
+                if !fixed[a] {
+                    xy[a][0] += sx;
+                    xy[a][1] += sy;
+                }
+                if !fixed[b] {
+                    xy[b][0] -= sx;
+                    xy[b][1] -= sy;
+                }
+            }
+            if fixed[a] {
+                continue;
             }
             for _ in 0..opts.negatives {
                 let other = rng.below(n);
@@ -235,7 +292,40 @@ pub fn layout(points: &Points, graph: &Neighbours, opts: &LayoutOptions) -> Vec<
             }
         }
     }
-    xy
+    Some(xy)
+}
+
+/// Starting places from an old map: placed books where they were, the
+/// rest at the mean of their placed neighbours (or of every placed book).
+fn start_from(init: &[Option<[f32; 2]>], graph: &Neighbours) -> Vec<[f32; 2]> {
+    let placed: Vec<[f32; 2]> = init.iter().flatten().copied().collect();
+    let middle = mean_of(&placed).unwrap_or([0.0, 0.0]);
+    (0..init.len())
+        .map(|i| {
+            init[i].unwrap_or_else(|| {
+                let near: Vec<[f32; 2]> = if graph.is_empty() {
+                    Vec::new()
+                } else {
+                    graph
+                        .ids_of(i)
+                        .iter()
+                        .filter_map(|&j| init.get(j as usize).copied().flatten())
+                        .collect()
+                };
+                mean_of(&near).unwrap_or(middle)
+            })
+        })
+        .collect()
+}
+
+fn mean_of(points: &[[f32; 2]]) -> Option<[f32; 2]> {
+    (!points.is_empty()).then(|| {
+        let n = points.len() as f32;
+        let (x, y) = points
+            .iter()
+            .fold((0f32, 0f32), |(x, y), p| (x + p[0], y + p[1]));
+        [x / n, y / n]
+    })
 }
 
 fn step(x: f32) -> f32 {
@@ -304,6 +394,8 @@ mod tests {
             seed: 9,
             epochs: 60,
             negatives: 5,
+            start_rate: 1.0,
+            keep_placed: false,
         };
         let first = layout(&points, &graph, &opts);
         assert_eq!(first, layout(&points, &graph, &opts));
@@ -324,9 +416,64 @@ mod tests {
                 seed: 1,
                 epochs: 100,
                 negatives: 5,
+                start_rate: 1.0,
+                keep_placed: false,
             },
         );
         assert_eq!(xy.len(), 40);
         assert!(xy.iter().all(|p| p[0].is_finite() && p[1].is_finite()));
+    }
+
+    #[test]
+    fn refining_an_old_map_keeps_books_near_their_places() {
+        let points = planted(6, 50, 48, 0.6, 21);
+        let graph = exact(&points, 15, 2);
+        let old = layout(&points, &graph, &LayoutOptions::for_count(300, 1));
+        // The old map, with the last 15 books new to it.
+        let init: Vec<Option<[f32; 2]>> =
+            (0..300).map(|i| (i % 20 != 19).then_some(old[i])).collect();
+        let new = layout_from(
+            &points,
+            &graph,
+            Some(&init),
+            &LayoutOptions::refining(300, 1),
+            &|| false,
+        )
+        .unwrap();
+        // Books on the old map stay exactly where they were.
+        for i in 0..300 {
+            if let Some(p) = init[i] {
+                assert_eq!(new[i], p);
+            }
+        }
+        // New books land with their own kind.
+        let groups: Vec<u32> = (0..300).map(|i| i / 50).collect();
+        assert!(area_agreement(&new, &groups, 10) >= 0.85);
+        // The same inputs give the same map.
+        let again = layout_from(
+            &points,
+            &graph,
+            Some(&init),
+            &LayoutOptions::refining(300, 1),
+            &|| false,
+        )
+        .unwrap();
+        assert_eq!(new, again);
+    }
+
+    #[test]
+    fn a_layout_stops_when_asked() {
+        let points = planted(3, 20, 16, 0.5, 2);
+        let graph = exact(&points, 5, 1);
+        assert!(
+            layout_from(
+                &points,
+                &graph,
+                None,
+                &LayoutOptions::for_count(60, 1),
+                &|| true
+            )
+            .is_none()
+        );
     }
 }

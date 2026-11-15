@@ -18,6 +18,8 @@ import type { DataRootCandidate } from '../lib/api/bindings/DataRootCandidate';
 import type { DataRootStatus } from '../lib/api/bindings/DataRootStatus';
 import type { DeviceCheck } from '../lib/api/bindings/DeviceCheck';
 import type { ResourceStatus } from '../lib/api/bindings/ResourceStatus';
+import type { ExploreMap } from '../lib/api/bindings/ExploreMap';
+import type { ExploreStatus } from '../lib/api/bindings/ExploreStatus';
 import type { DeviceSnapshot } from '../lib/api/bindings/DeviceSnapshot';
 import type { DocumentDetail } from '../lib/api/bindings/DocumentDetail';
 import type { DocumentPage } from '../lib/api/bindings/DocumentPage';
@@ -75,7 +77,7 @@ export const fakeStatus: AppStatus = {
   os: 'macos',
   arch: 'aarch64',
   buildProfile: 'debug',
-  slice: '4.6',
+  slice: '4.6.1',
   features: [],
 };
 
@@ -169,6 +171,64 @@ export function resourceStatus(overrides: Partial<ResourceStatus> = {}): Resourc
     fullSpeed: { on: false, offered: true, blocked: null },
     mode: 'automatic',
     waitingUntil: null,
+    ...overrides,
+  };
+}
+
+/** A map not drawn: no embedding model yet (Slice 4.6.1). */
+export function exploreStatus(overrides: Partial<ExploreStatus> = {}): ExploreStatus {
+  return {
+    state: 'no_model',
+    building: false,
+    books: 0,
+    libraryBooks: 0,
+    newSince: 0,
+    computedAt: null,
+    generation: null,
+    held: null,
+    minBooks: 30,
+    ...overrides,
+  };
+}
+
+/** A drawn map of two areas and four books. */
+export function exploreMap(overrides: Partial<ExploreMap> = {}): ExploreMap {
+  return {
+    status: exploreStatus({
+      state: 'ready',
+      books: 4,
+      libraryBooks: 4,
+      computedAt: new Date().toISOString(),
+      generation: 1,
+    }),
+    areas: [
+      {
+        id: 11,
+        number: 1,
+        name: null,
+        words: ['orbit', 'comet'],
+        hue: 0,
+        size: 3,
+        central: ['The Comet Book'],
+        subs: [{ id: 111, number: 1, name: null, words: ['comet'], size: 2 }],
+      },
+      {
+        id: 12,
+        number: 2,
+        name: 'Baking',
+        words: ['bread', 'yeast'],
+        hue: 1,
+        size: 1,
+        central: ['Bread'],
+        subs: [],
+      },
+    ],
+    points: [
+      { documentId: 'd1', fileId: 'f1', x: 0, y: 0, area: 11, sub: 111, title: 'The Comet Book' },
+      { documentId: 'd2', fileId: 'f2', x: 1, y: 0, area: 11, sub: 111, title: 'Orbits' },
+      { documentId: 'd3', fileId: 'f3', x: 0, y: 1, area: 11, sub: null, title: 'Stars' },
+      { documentId: 'd4', fileId: 'f4', x: 9, y: 9, area: 12, sub: null, title: 'Bread' },
+    ],
     ...overrides,
   };
 }
@@ -1006,6 +1066,11 @@ function defaults(): Record<string, Handler> {
     detect_local_providers: () => [],
     get_device_check: () => deviceCheck(),
     get_resource_status: () => resourceStatus(),
+    // Explore (Slice 4.6.1).
+    get_explore_status: () => exploreStatus(),
+    get_explore_map: () => exploreMap({ status: exploreStatus() }),
+    refresh_explore_map: () => exploreStatus({ state: 'not_drawn', building: true }),
+    rename_area: () => null,
     set_full_speed: (args) =>
       resourceStatus({
         fullSpeed: { on: Boolean((args as { on: boolean }).on), offered: true, blocked: null },

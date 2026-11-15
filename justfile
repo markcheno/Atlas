@@ -179,6 +179,10 @@ spike-explore $ATLAS_EXPLORE_DATA_ROOT $ATLAS_EXPLORE_OUT="":
 bench-busy:
     cargo test --manifest-path {{ manifest }} --locked --release --test schedule -- --ignored --nocapture --test-threads 1 measure_
 
+# What drawing Explore's map costs in the app (Slice 4.6.1): a first map and a redraw after 5% new books, at 5,000 and 30,000 synthetic books from stored vectors, and reading the map as the window does
+bench-explore-app:
+    cargo test --manifest-path {{ manifest }} --locked --release --test explore_app -- --ignored --nocapture measure_the_build
+
 # What the Explore spike costs (Slice 4.1.2): neighbours, areas, the map and its measures at 5,000 and 30,000 synthetic books of 512 dimensions
 bench-explore:
     cargo test --manifest-path {{ manifest }} --locked --release --test explore -- --ignored --nocapture measure_explore_at_5k_and_30k

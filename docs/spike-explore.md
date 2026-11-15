@@ -1,7 +1,7 @@
 # Slice 4.1.2 spike: a map of the library by meaning
 
 **Status:** done. **Go:** on the owner's library (2026-11-15) all four
-parts of the rule hold, with room to spare. The rule below was written
+parts of the rule hold, with room to spare; built in Slice 4.6.1. The rule below was written
 before any real library was measured.
 
 The product owner asked (2026-11-12) for visual ways to browse: a semantic
@@ -216,8 +216,11 @@ map should colour areas the same way.
 
 ## The answer is go
 
-Candidate slices, to be specified when the owner schedules them (not
-Phase 4 scope until decided):
+**Built in Slice 4.6.1** ([ADR 0024](adr/0024-explore.md)): candidates 1
+to 3 below, plus three the owner chose (renaming areas, a Library filter
+by area, search results lit on the map). Candidates 4 and 5 remain.
+
+The candidate slices, as written before the owner scheduled them:
 
 1. **A vector per book, and an areas job.** A table of book vectors for
    the serving model, filled as books are embedded; areas, names and the

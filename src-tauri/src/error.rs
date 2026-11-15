@@ -71,6 +71,10 @@ pub enum ErrorCode {
     NothingWaiting,
     /// The hours in Settings aren't two different times (Slice 4.6).
     InvalidHours,
+    /// No Explore area has that ID (Slice 4.6.1).
+    AreaNotFound,
+    /// An area's name is longer than 60 characters (Slice 4.6.1).
+    AreaNameTooLong,
     /// The file is no longer where it was cataloged.
     FileMissing,
     /// The cataloged path is now a link or something other than a file.
@@ -242,6 +246,10 @@ pub enum AtlasError {
     NothingWaiting,
     #[error("Choose two different times, as hours and minutes.")]
     InvalidHours,
+    #[error("That area is no longer on the map.")]
+    AreaNotFound,
+    #[error("An area's name can be at most 60 characters.")]
+    AreaNameTooLong,
     #[error("That file is no longer where Atlas found it.")]
     FileMissing,
     #[error("That item is no longer an ordinary file, so Atlas won't open it.")]
@@ -392,6 +400,8 @@ impl AtlasError {
             Self::FullSpeedHeld => ErrorCode::FullSpeedHeld,
             Self::NothingWaiting => ErrorCode::NothingWaiting,
             Self::InvalidHours => ErrorCode::InvalidHours,
+            Self::AreaNotFound => ErrorCode::AreaNotFound,
+            Self::AreaNameTooLong => ErrorCode::AreaNameTooLong,
             Self::FileMissing => ErrorCode::FileMissing,
             Self::FileNotRegular => ErrorCode::FileNotRegular,
             Self::FileOutsideFolder => ErrorCode::FileOutsideFolder,
@@ -485,6 +495,8 @@ impl AtlasError {
             Self::FullSpeedHeld => "Settings › Performance & Battery says why.",
             Self::NothingWaiting => "Full speed is for when Atlas has work waiting.",
             Self::InvalidHours => "For example, from 22:00 to 07:00.",
+            Self::AreaNotFound => "The map was drawn again; choose the area once more.",
+            Self::AreaNameTooLong => "Choose a shorter name.",
             Self::FileMissing => {
                 "It may have been moved, renamed, or deleted. Rescan its folder to update the library."
             }

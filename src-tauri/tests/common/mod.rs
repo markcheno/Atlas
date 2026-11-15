@@ -257,6 +257,8 @@ pub fn fast_config() -> InventoryConfig {
         event_interval: Duration::ZERO,
         check_every: Duration::from_millis(25),
         full_speed_every: Duration::from_millis(25),
+        // Explore draws only when a test asks (refresh) unless it sets this.
+        explore_every: Duration::from_secs(3600),
     }
 }
 

@@ -113,7 +113,7 @@ fn ms(since: Instant) -> u64 {
     since.elapsed().as_millis() as u64
 }
 
-fn area_options(n: usize, opts: &Options) -> AreaOptions {
+pub fn area_options(n: usize, opts: &Options) -> AreaOptions {
     AreaOptions {
         areas: opts.areas,
         min_area: (n / (opts.areas.max(1) * 8)).max(3),
@@ -328,7 +328,9 @@ fn book_words(
         .collect()
 }
 
-fn name_areas(
+/// Names for `areas`: words from their central books, and sub-areas'
+/// words against their siblings (also used by the app, Slice 4.6.1).
+pub fn name_areas(
     conn: &Connection,
     model: &EmbeddingModel,
     books: &Books,

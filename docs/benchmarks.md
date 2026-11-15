@@ -449,6 +449,30 @@ Duplicates' first page takes 33 ms at p95 over 2,001 groups, and Settings
 › Storage 122 ms. Cataloging is unchanged since Phase 0: 483 files/s at
 the policy rate on 30k, browse p95 under 37 ms while scanning.
 
+## Explore (Slice 4.6.1)
+
+`just bench-explore-app`, M5 Pro (release), 2026-11-15. Synthetic books
+are vectors of 512 dimensions around 40 planted centres, stored in a
+catalog as the app stores them. The run draws a first map from 95% of the
+books, adds the last 5%, and redraws, with 8 threads (the app uses half the
+cores, 9 here). Reading the map is as the window reads it.
+
+| Books | First map | Redraw after 5% new | Areas kept | Reading the map | Its size |
+| ---: | ---: | ---: | ---: | ---: | ---: |
+| 5,000 | 2.2 s | 0.36 s | 16 of 16 | 25 ms | 581 KiB |
+| 30,000 | 14.3 s | 10.3 s | 16 of 16 | 150 ms | 3.4 MiB |
+
+- **Finding neighbours is most of a draw at 30,000:** an exact search,
+  about 7 s ([the spike's stages](#explore-spike-slice-412)). A redraw
+  skips the layout's full run, which is why it is so much quicker at
+  5,000.
+- **No vector is read from chunks here:** the spike's 7.3 s on the
+  owner's library was reading up to 64 chunk vectors a book. That happens
+  once, for books embedded before 4.6.1; after it, a draw reads one row a
+  book.
+- **The window reads the map once a generation;** at 30,000 books, 150 ms
+  and 3.4 MiB of JSON.
+
 ## Schedules and full speed (Slice 4.6)
 
 `just bench-busy`, M5 Pro (release, 18 cores), 2026-11-15.

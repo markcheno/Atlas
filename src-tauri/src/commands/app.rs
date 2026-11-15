@@ -8,7 +8,7 @@ use crate::state::AppState;
 
 /// The slice this build implements, "<phase>.<slice>" (Phase 1, Slice 1 is
 /// "1.1"). The UI derives the phase from it.
-pub const CURRENT_SLICE: &str = "4.6";
+pub const CURRENT_SLICE: &str = "4.6.1";
 
 /// (id, label, delivering slice, implemented in this build)
 const FEATURES: &[(&str, &str, &str, bool)] = &[
@@ -146,6 +146,12 @@ const FEATURES: &[(&str, &str, &str, bool)] = &[
         "busy_rule",
         "Background work slows while other applications keep the computer busy",
         "4.6",
+        true,
+    ),
+    (
+        "explore",
+        "Explore: the library as named areas on a map by meaning, kept current",
+        "4.6.1",
         true,
     ),
 ];

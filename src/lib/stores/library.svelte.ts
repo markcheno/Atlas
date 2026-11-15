@@ -25,6 +25,8 @@ class LibraryState {
   fileType = $state<FileType | null>(null);
   includeMissing = $state(false);
   textStatus = $state<ExtractionState | null>(null);
+  /** An Explore area or sub-area, with what to call it (Slice 4.6.1). */
+  area = $state<{ id: number; label: string } | null>(null);
   sort = $state<DocumentSort>('name_asc');
   /** Files, or groups of identical copies (Library › Duplicates). */
   mode = $state<'files' | 'duplicates'>('files');
@@ -49,6 +51,7 @@ class LibraryState {
       pageSize: PAGE_SIZE,
       includeMissing: this.includeMissing,
       textStatus: this.textStatus,
+      areaId: this.area?.id ?? null,
     };
   }
 
@@ -82,7 +85,7 @@ class LibraryState {
 
   setFilters(
     change: Partial<
-      Pick<LibraryState, 'sourceRootId' | 'fileType' | 'includeMissing' | 'textStatus'>
+      Pick<LibraryState, 'sourceRootId' | 'fileType' | 'includeMissing' | 'textStatus' | 'area'>
     >,
   ) {
     Object.assign(this, change);
@@ -125,6 +128,7 @@ class LibraryState {
     this.fileType = null;
     this.includeMissing = false;
     this.textStatus = null;
+    this.area = null;
     this.sort = 'name_asc';
     this.mode = 'files';
     this.page = 0;

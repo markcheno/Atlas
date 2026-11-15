@@ -12,6 +12,7 @@ pub mod collections;
 pub mod diagnostics;
 pub mod documents;
 pub mod embedding;
+pub mod explore;
 pub mod export;
 pub mod extraction;
 pub mod inventory;
@@ -36,6 +37,10 @@ pub const COMMAND_NAMES: &[&str] = &[
     "get_device_check",
     "get_resource_status",
     "set_full_speed",
+    "get_explore_status",
+    "get_explore_map",
+    "refresh_explore_map",
+    "rename_area",
     "get_data_root_status",
     "get_default_data_root",
     "pick_folder",

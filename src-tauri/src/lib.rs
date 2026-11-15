@@ -18,8 +18,8 @@ use std::sync::{Arc, Mutex};
 use tauri::{Emitter, Manager};
 
 use domain::dto::{
-    EmbeddingOverview, ExtractionOverview, InventoryOverview, JobKind, RecordingStatus,
-    ResourceStatus,
+    EmbeddingOverview, ExploreStatus, ExtractionOverview, InventoryOverview, JobKind,
+    RecordingStatus, ResourceStatus,
 };
 use infrastructure::cpu_probe::OsCpuProbe;
 use infrastructure::http_probe::ProbeConfig;
@@ -55,6 +55,10 @@ pub const EMBEDDING_EVENT: &str = "embedding-status";
 /// Tauri event carrying a `ResourceStatus` whenever what background work
 /// may do, the schedule or full speed changes (Slice 4.6).
 pub const RESOURCE_EVENT: &str = "resource-status";
+
+/// Tauri event carrying an `ExploreStatus` whenever Explore's map starts
+/// or finishes being drawn, or a redraw waits (Slice 4.6.1).
+pub const EXPLORE_EVENT: &str = "explore-status";
 
 /// Tauri event carrying an `AnswerEvent`: one step of the Ask Atlas
 /// answer in progress (Slice 2.6).
@@ -166,8 +170,12 @@ pub fn run() {
                 backends: embedding_job::http_backends(ProbeConfig::embedding()),
             };
             let trail_emitter = app.handle().clone();
+            let explore_emitter = app.handle().clone();
             let mut workspace = Workspace::new(config, volumes)
                 .with_diagnostics(diagnostics)
+                .with_explore_events(Arc::new(move |status: &ExploreStatus| {
+                    let _ = explore_emitter.emit(EXPLORE_EVENT, status);
+                }))
                 .with_trail_events(Arc::new(move |status: &RecordingStatus| {
                     let _ = trail_emitter.emit(TRAIL_EVENT, status);
                 }))
@@ -203,6 +211,10 @@ pub fn run() {
             commands::app::get_device_check,
             commands::app::get_resource_status,
             commands::app::set_full_speed,
+            commands::explore::get_explore_status,
+            commands::explore::get_explore_map,
+            commands::explore::refresh_explore_map,
+            commands::explore::rename_area,
             commands::workspace::get_data_root_status,
             commands::workspace::get_default_data_root,
             commands::workspace::pick_folder,

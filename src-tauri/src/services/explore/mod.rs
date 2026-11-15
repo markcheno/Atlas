@@ -1,19 +1,22 @@
-//! The Explore spike (Slice 4.1.2, docs/spike-explore.md): can the
-//! library be laid out by meaning, as named areas on a map?
+//! Explore: the library laid out by meaning, as named areas on a map.
 //!
-//! Pure functions over the vectors the catalog already holds: one vector
-//! per book, areas by clustering, a 2-D layout, measures of both, and
-//! names from the books' own words. Nothing here is called by the app: a
-//! harness the owner runs (`tests/explore.rs`, `just spike-explore`) reads
-//! a library and writes one page to look at. If the spike says stop, this
-//! module is removed.
+//! Pure functions over the vectors the catalog holds: one vector per book,
+//! areas by clustering, a 2-D layout, measures of both, and names from the
+//! books' own words. The Explore spike (Slice 4.1.2, docs/spike-explore.md)
+//! judged them with a harness the owner runs (`tests/explore.rs`, `just
+//! spike-explore`); the answer was go, and Slice 4.6.1 builds the map in
+//! the app ([`build`], [`watch`], ADR 0024). The measures stay for the
+//! harness; the app doesn't compute them.
 //!
 //! Hand-written, with no new dependency: a few hundred lines of textbook
 //! methods, against crates to license, build on three OSes and then
 //! delete if the answer is no.
 
+pub mod app;
 pub mod books;
+pub mod build;
 pub mod cluster;
+pub mod hues;
 pub mod knn;
 pub mod layout;
 pub mod names;
@@ -21,6 +24,7 @@ pub mod quality;
 pub mod rng;
 pub mod survey;
 pub mod synthetic;
+pub mod watch;
 
 use crate::services::embedding::vector::normalize;
 

@@ -8,6 +8,7 @@
   import Home from './views/Home.svelte';
   import DocumentPanel from './lib/components/DocumentPanel.svelte';
   import Library from './views/Library.svelte';
+  import Explore from './views/Explore.svelte';
   import Trails from './views/Trails.svelte';
   import PageView from './lib/components/PageView.svelte';
   import ExportDialog from './lib/components/ExportDialog.svelte';
@@ -42,6 +43,8 @@
       <Search />
     {:else if view.current === 'library'}
       <Library />
+    {:else if view.current === 'explore'}
+      <Explore />
     {:else if view.current === 'trails'}
       <Trails />
     {:else}

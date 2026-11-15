@@ -41,6 +41,7 @@ Rules:
 | 15 | `0015_ocr_pages.sql` | `documents.text_pages`: a Needs OCR PDF's pages with usable text; PDFs marked Needs OCR before it are read once more for their counts (Phase 4) |
 | 16 | `0016_scan_history.sql` | `jobs.origin`, `new_files`, `changed_files`, `missing_files`; `scan_missing` (a scan's absent rows, until it finishes) and `scan_problems` (the folders a scan couldn't read, kept); a scan in progress keeps its count (Phase 4, Slice 4.5) |
 | 17 | `0017_book_pairs.sql` | `format_pairs` (a PDF and an EPUB side by side with one name) and `book_pairs` (whether two documents are one book, which is indexed and which kept out); `source_roots.formats_version` (Phase 4, Slice 4.5.1) |
+| 18 | `0018_explore.sql` | Explore (Phase 4, Slice 4.6.1): `book_vectors` (one vector a book a model), `explore_maps`, `explore_areas` (with sub-areas, stable numbers and colours, and the owner's names) and `explore_points` (where each book sits) |
 
 ## Knowledge store migrations
 

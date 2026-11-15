@@ -8,6 +8,7 @@ import { appInfo } from './stores/app.svelte';
 import { inventory } from './stores/inventory.svelte';
 import { extraction } from './stores/extraction.svelte';
 import { embedding } from './stores/embedding.svelte';
+import { explore } from './stores/explore.svelte';
 import { resources } from './stores/resources.svelte';
 import { answer } from './stores/answer.svelte';
 import { details } from './stores/details.svelte';
@@ -43,6 +44,7 @@ export async function applyStatus(status: DataRootStatus, opts: { justChosen?: b
   collections.reset();
   pageView.reset();
   exportDialog.reset();
+  explore.reset();
   if (!appInfo.status) void appInfo.load();
   if (status.state === 'open') {
     await Promise.all([
@@ -56,6 +58,7 @@ export async function applyStatus(status: DataRootStatus, opts: { justChosen?: b
       embedding.subscribe(),
       resources.refresh(),
       resources.subscribe(),
+      explore.subscribe(),
       answer.subscribe(),
       trails.refresh(),
       trails.subscribe(),

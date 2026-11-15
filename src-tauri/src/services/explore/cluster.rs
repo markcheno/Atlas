@@ -66,6 +66,141 @@ pub fn areas(points: &Points, opts: &AreaOptions) -> Vec<Area> {
     top
 }
 
+/// Areas that continue an old map's (Slice 4.6.1): each old area with at
+/// least `min_area` of its books still here is a starting centre, every
+/// book goes to its nearest, and a few rounds settle the borders, so an
+/// area keeps its books unless meaning moved them. Areas too small are
+/// let go; when the library has grown past the old count, the most
+/// spread-out are split, as from scratch. Each area's sub-areas continue
+/// its old ones the same way (`seeds[i].1`, the old sub-areas' books), or
+/// are split afresh. With fewer than two usable seeds, from scratch.
+pub fn areas_seeded(
+    points: &Points,
+    seeds: &[(Vec<u32>, Vec<Vec<u32>>)],
+    opts: &AreaOptions,
+) -> Vec<Area> {
+    let min = opts.min_area.max(1);
+    let usable: Vec<&(Vec<u32>, Vec<Vec<u32>>)> =
+        seeds.iter().filter(|(g, _)| g.len() >= min).collect();
+    if usable.len() < 2 {
+        return areas(points, opts);
+    }
+    let all: Vec<u32> = (0..points.len() as u32).collect();
+    let centres: Vec<Vec<f32>> = usable.iter().map(|(g, _)| centre_of(points, g)).collect();
+    let groups = nearest_groups(points, &all, centres, min);
+    let mut leaves: Vec<(Area, bool)> = groups
+        .into_iter()
+        .map(|g| (area_of(points, g), true))
+        .collect();
+    let mut rng = Rng::new(opts.seed);
+    // Grown past the old count: split the most spread out, as from scratch.
+    while leaves.len() < opts.areas {
+        let pick = leaves
+            .iter()
+            .enumerate()
+            .filter(|(_, (a, open))| *open && a.members.len() >= 2 * min)
+            .max_by(|(i, (a, _)), (j, (b, _))| spread(a).total_cmp(&spread(b)).then(j.cmp(i)))
+            .map(|(i, _)| i);
+        let Some(i) = pick else { break };
+        match bisect(points, &leaves[i].0.members, min, &mut rng) {
+            Some((left, right)) => {
+                leaves[i] = (area_of(points, left), true);
+                leaves.push((area_of(points, right), true));
+            }
+            None => leaves[i].1 = false,
+        }
+    }
+    let mut top: Vec<Area> = leaves.into_iter().map(|(a, _)| a).collect();
+    // Sub-areas: from the old sub-areas of the old area each continues
+    // most, else split afresh.
+    let sub_min = opts.min_sub_area.max(1);
+    for area in &mut top {
+        let members: std::collections::BTreeSet<u32> = area.members.iter().copied().collect();
+        let old = usable
+            .iter()
+            .max_by_key(|(g, _)| g.iter().filter(|m| members.contains(m)).count())
+            .map(|(_, subs)| subs);
+        let sub_centres: Vec<Vec<f32>> = old
+            .into_iter()
+            .flatten()
+            .map(|sub| {
+                sub.iter()
+                    .copied()
+                    .filter(|m| members.contains(m))
+                    .collect::<Vec<u32>>()
+            })
+            .filter(|sub| sub.len() >= sub_min)
+            .map(|sub| centre_of(points, &sub))
+            .collect();
+        let mut children = if sub_centres.len() >= 2 {
+            nearest_groups(points, &area.members, sub_centres, sub_min)
+                .into_iter()
+                .map(|g| area_of(points, g))
+                .collect()
+        } else {
+            bisect_until(
+                points,
+                area.members.clone(),
+                opts.sub_areas,
+                opts.min_sub_area,
+                &mut rng,
+            )
+        };
+        if children.len() < 2 {
+            children.clear();
+        }
+        sort(&mut children);
+        area.children = children;
+    }
+    sort(&mut top);
+    top
+}
+
+/// `members` grouped by their nearest of `centres`, for a few rounds of
+/// moving each centre to its group's middle. A group smaller than `min`
+/// is let go (the smallest first) and its books go to their next nearest.
+fn nearest_groups(
+    points: &Points,
+    members: &[u32],
+    mut centres: Vec<Vec<f32>>,
+    min: usize,
+) -> Vec<Vec<u32>> {
+    let mut groups: Vec<Vec<u32>> = Vec::new();
+    for _ in 0..TIDY_ROUNDS * 3 {
+        groups = vec![Vec::new(); centres.len()];
+        for &m in members {
+            let row = points.row(m as usize);
+            let mut best = (0usize, f32::MIN);
+            for (c, centre) in centres.iter().enumerate() {
+                let sim = dot(row, centre);
+                if sim > best.1 {
+                    best = (c, sim);
+                }
+            }
+            groups[best.0].push(m);
+        }
+        let small = groups
+            .iter()
+            .enumerate()
+            .filter(|(_, g)| g.len() < min)
+            .min_by_key(|(i, g)| (g.len(), *i))
+            .map(|(i, _)| i);
+        if let Some(i) = small
+            && centres.len() > 1
+        {
+            centres.remove(i);
+            continue;
+        }
+        let next: Vec<Vec<f32>> = groups.iter().map(|g| centre_of(points, g)).collect();
+        if next == centres {
+            break;
+        }
+        centres = next;
+    }
+    groups.retain(|g| !g.is_empty());
+    groups
+}
+
 /// Largest first; equal sizes by their first member.
 fn sort(areas: &mut [Area]) {
     areas.sort_by(|a, b| {

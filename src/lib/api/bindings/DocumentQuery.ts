@@ -14,4 +14,8 @@ includeMissing: boolean,
 /**
  * Only files with this text status (`reading` counts as `pending`).
  */
-textStatus: ExtractionState | null, };
+textStatus: ExtractionState | null, 
+/**
+ * Only books in this Explore area or sub-area (Slice 4.6.1).
+ */
+areaId: number | null, };

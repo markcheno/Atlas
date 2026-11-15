@@ -20,6 +20,8 @@ import type { ConnectionTestTarget } from './bindings/ConnectionTestTarget';
 import type { DataRootCandidate } from './bindings/DataRootCandidate';
 import type { DeviceCheck } from './bindings/DeviceCheck';
 import type { ResourceStatus } from './bindings/ResourceStatus';
+import type { ExploreMap } from './bindings/ExploreMap';
+import type { ExploreStatus } from './bindings/ExploreStatus';
 import type { DataRootStatus } from './bindings/DataRootStatus';
 import type { DeviceSnapshot } from './bindings/DeviceSnapshot';
 import type { DocumentDetail } from './bindings/DocumentDetail';
@@ -156,6 +158,14 @@ export const atlas = {
   getResourceStatus: () => call<ResourceStatus>('get_resource_status'),
   /** Run at full speed now, or Stop (Slice 4.6). */
   setFullSpeed: (on: boolean) => call<ResourceStatus>('set_full_speed', { on }),
+  /** Where Explore's map stands (Slice 4.6.1). */
+  getExploreStatus: () => call<ExploreStatus>('get_explore_status'),
+  /** The map: its areas and every book on it (Slice 4.6.1). */
+  getExploreMap: () => call<ExploreMap>('get_explore_map'),
+  /** Draws the map again, in the background (`fresh`: from scratch). */
+  refreshExploreMap: (fresh: boolean) => call<ExploreStatus>('refresh_explore_map', { fresh }),
+  /** The owner's name for an area; null or blank goes back to its words. */
+  renameArea: (areaId: number, name: string | null) => call<null>('rename_area', { areaId, name }),
 
   getDataRootStatus: () => call<DataRootStatus>('get_data_root_status'),
   getDefaultDataRoot: () => call<string>('get_default_data_root'),

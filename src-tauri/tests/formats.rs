@@ -93,6 +93,7 @@ fn list(
             page_size: 50,
             include_missing: false,
             text_status: None,
+            area_id: None,
         },
     )
     .unwrap()

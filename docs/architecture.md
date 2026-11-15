@@ -1509,15 +1509,66 @@ rationale in [ADR 0021](adr/0021-diagnostics.md).
   (`just bench-knowledge`; CI runs 10,000 steps). Method and results:
   [benchmarks](benchmarks.md).
 
-## The Explore spike (Slice 4.1.2)
+## Explore (Slice 4.6.1)
 
-`src-tauri/src/services/explore/` is a spike, not a feature: pure
-functions that lay a library out by meaning, called by nothing in the
-app. A harness (`src-tauri/tests/explore.rs`, `just spike-explore`) runs
-them against a library and writes one page for its owner to judge. The
-question, the rule and the results are in
-[spike-explore.md](spike-explore.md). The answer, on the owner's library,
-was go (2026-11-15): the module stays until the feature is specified.
+Rationale in [ADR 0024](adr/0024-explore.md). The library laid out by
+meaning, as named areas on a map, drawn in the background and kept
+stable.
+
+- **Book vectors** (`book_vectors`, migration 0018):
+  - `explore::books::store_vector` is called from `embedding::db::write_document`,
+    in the same transaction;
+  - `missing_vectors` lists books embedded before 4.6.1, filled in when a
+    map is drawn;
+  - `stored_vectors` reads every book on the map's terms in one statement.
+- **Drawing** (`explore/build.rs`):
+  - `staleness` says when the map is due: 30 books for a first map, then
+    5% (at least 10) new, changed or gone;
+  - `build` runs the backfill, the neighbours, the areas, the layout, the
+    names and the colours, then writes in one transaction;
+  - `area_count` is √(n/2), from 2 to 16;
+  - a redraw seeds the areas from the old ones (`cluster::areas_seeded`),
+    keeps old books in place (`layout::layout_from` with `keep_placed`),
+    and continues numbers, colours and names (`match_groups`);
+  - `hues.rs` ports the spike page's colouring.
+- **The watch** (`explore/watch.rs`):
+  - one thread per open library, owned by `OpenRoot`, stopped first when
+    the library closes;
+  - it looks every minute (`InventoryConfig.explore_every`) and on a
+    request, and draws when due under the policy's Run;
+  - a request runs unless paused; one that waits records why
+    (`ExploreShared.held`);
+  - each draw logs `Event::ExploreBuilt`;
+  - `explore-status` tells the window.
+- **What the window reads** (`explore/app.rs`):
+  - `status` and `map`: the areas with their central books' titles, and
+    every point with the file its details panel opens (the shown copy's,
+    available first);
+  - `rename` keeps the owner's name (at most 60 characters; blank goes
+    back to the words).
+- **Commands:** `get_explore_status`, `get_explore_map`,
+  `refresh_explore_map(fresh)` and `rename_area(areaId, name)`.
+  `DocumentQuery.areaId` filters the Library by an area or sub-area,
+  through a kept-out copy's shown copy.
+- **The window:**
+  - `views/Explore.svelte`: status, Redraw, Find on the map, the area list
+    with Rename and Show in Library;
+  - `components/ExploreMap.svelte`: a canvas, pan, zoom, hover, click
+    opens details;
+  - `lib/exploreMath.ts`: fit, zoom and a grid hit-test;
+  - `lib/exploreColours.ts` and `lib/exploreCopy.ts`;
+  - `stores/explore.svelte.ts`.
+
+  Colours are set through CSSOM, since style attributes are blocked. The
+  canvas is hidden from assistive technology, and the list is its
+  equivalent.
+
+### The spike's harness (Slice 4.1.2)
+
+The pure functions were first a spike, judged on the owner's library by
+a harness (`src-tauri/tests/explore.rs`, `just spike-explore`) that writes
+one page. The question, the rule and the results are in
+[spike-explore.md](spike-explore.md); the answer was go (2026-11-15).
 
 - **`books.rs`:** one unit vector per book for one embedding model, the
   mean of the sample Related documents averages, read in one short

@@ -99,6 +99,7 @@ fn state_of(ws: &Workspace, path: &Path) -> (ExtractionState, Option<String>) {
         page_size: 200,
         include_missing: false,
         text_status: None,
+        area_id: None,
     };
     let canonical = dunce::canonicalize(path).unwrap();
     let page = library::list(root.reader(), root.root_status(), &q).unwrap();

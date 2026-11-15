@@ -91,6 +91,21 @@ fn filter(q: &DocumentQuery) -> Filter {
         conditions.push(format!("({EFFECTIVE_STATE_SQL}) = ?"));
         params.push(Value::Text(to_db(&status)));
     }
+    // A book in an Explore area: by its document, or the shown copy's
+    // for a copy kept out of a book in two formats (Slice 4.6.1).
+    if let Some(area) = q.area_id {
+        conditions.push(
+            "EXISTS (SELECT 1 FROM explore_points p
+                     WHERE (p.area_id = ? OR p.sub_area_id = ?)
+                       AND p.document_id = COALESCE(
+                           (SELECT bp.index_document_id FROM book_pairs bp
+                            WHERE bp.hidden_document_id = f.document_id),
+                           f.document_id))"
+                .to_owned(),
+        );
+        params.push(Value::Integer(area));
+        params.push(Value::Integer(area));
+    }
     // A book in two formats is one row, unless the type or text status is
     // asked for, when each file stands alone (Slice 4.5.1).
     if q.file_type.is_none() && q.text_status.is_none() {

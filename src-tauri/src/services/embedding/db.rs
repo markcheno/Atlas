@@ -231,6 +231,8 @@ pub fn write_document(
             now
         ],
     )?;
+    // The book's vector for Explore, in the same transaction (Slice 4.6.1).
+    crate::services::explore::books::store_vector(tx, model_id, document_id)?;
     Ok(document_chunks(tx, document_id)?
         .into_iter()
         .map(|(id, c)| StoredChunk { id, hash: c.hash })

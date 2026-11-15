@@ -136,6 +136,7 @@ impl Lib {
                 page_size: 200,
                 include_missing: false,
                 text_status: None,
+                area_id: None,
             };
             let got = library::list(self.root().reader(), self.root().root_status(), &q).unwrap();
             if got.items.is_empty() {

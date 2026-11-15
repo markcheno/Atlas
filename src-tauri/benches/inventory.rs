@@ -250,6 +250,7 @@ fn query() -> DocumentQuery {
         page_size: 200,
         include_missing: false,
         text_status: None,
+        area_id: None,
     }
 }
 

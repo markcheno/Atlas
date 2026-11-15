@@ -78,6 +78,14 @@ pub enum Event {
         pause: Option<PauseReason>,
         throttle: Option<ThrottleReason>,
     },
+    /// Explore's map was drawn (Slice 4.6.1): how many books and areas,
+    /// how many areas continue the last map's, and how long it took.
+    ExploreBuilt {
+        books: u64,
+        areas: u32,
+        kept: u32,
+        ms: u64,
+    },
     /// Full speed began, or ended after `secs` (Slice 4.6).
     FullSpeed {
         on: bool,

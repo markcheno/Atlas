@@ -460,6 +460,10 @@ pub struct DocumentQuery {
     /// Only files with this text status (`reading` counts as `pending`).
     #[serde(default)]
     pub text_status: Option<ExtractionState>,
+    /// Only books in this Explore area or sub-area (Slice 4.6.1).
+    #[serde(default)]
+    #[ts(type = "number | null")]
+    pub area_id: Option<i64>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
@@ -2814,4 +2818,101 @@ pub struct ReportSaved {
 pub enum DiagnosticsFolder {
     Reports,
     Log,
+}
+
+// ------------------------------------------------------- Explore (Slice 4.6.1)
+
+/// Where the map stands.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "snake_case")]
+#[ts(export)]
+pub enum ExploreState {
+    /// No embedding model yet: nothing to lay out.
+    NoModel,
+    /// Fewer books have meaning than a map needs.
+    TooFew,
+    /// Not drawn yet: it will be once the computer allows.
+    NotDrawn,
+    Ready,
+}
+
+/// The map's state, for the window (phase4-spec revision of 2026-11-15).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct ExploreStatus {
+    pub state: ExploreState,
+    /// Being drawn now.
+    pub building: bool,
+    /// Books on the map, and books the model has done now.
+    pub books: u32,
+    pub library_books: u32,
+    /// Books new, changed or gone since the map was drawn.
+    pub new_since: u32,
+    pub computed_at: Option<String>,
+    /// Changes each time the map is drawn.
+    #[ts(type = "number | null")]
+    pub generation: Option<i64>,
+    /// Why a requested redraw waits.
+    pub held: Option<PauseReason>,
+    /// How many books a map needs.
+    pub min_books: u32,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct ExploreArea {
+    #[ts(type = "number")]
+    pub id: i64,
+    /// Shown on the map; kept across redraws.
+    pub number: u32,
+    /// The owner's name for it, if any.
+    pub name: Option<String>,
+    /// Its books' own words.
+    pub words: Vec<String>,
+    /// Its colour, an index into the palette (0–7).
+    pub hue: u8,
+    pub size: u32,
+    /// Its most central books' titles.
+    pub central: Vec<String>,
+    pub subs: Vec<ExploreSubArea>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct ExploreSubArea {
+    #[ts(type = "number")]
+    pub id: i64,
+    pub number: u32,
+    pub name: Option<String>,
+    pub words: Vec<String>,
+    pub size: u32,
+}
+
+/// A book on the map.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct ExplorePoint {
+    pub document_id: RecordId,
+    /// The file its details panel opens: the shown copy's, available first.
+    pub file_id: RecordId,
+    pub x: f32,
+    pub y: f32,
+    #[ts(type = "number")]
+    pub area: i64,
+    #[ts(type = "number | null")]
+    pub sub: Option<i64>,
+    pub title: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct ExploreMap {
+    pub status: ExploreStatus,
+    pub areas: Vec<ExploreArea>,
+    pub points: Vec<ExplorePoint>,
 }

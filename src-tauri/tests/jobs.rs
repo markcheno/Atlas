@@ -537,6 +537,7 @@ impl Lib {
             page_size: 10,
             include_missing: false,
             text_status: None,
+            area_id: None,
         };
         library::list(self.root().reader(), self.root().root_status(), &q)
             .unwrap()

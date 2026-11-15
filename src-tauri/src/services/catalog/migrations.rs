@@ -96,6 +96,11 @@ pub const MIGRATIONS: &[Migration] = &[
         name: "book_pairs",
         sql: include_str!("../../../migrations/0017_book_pairs.sql"),
     },
+    Migration {
+        version: 18,
+        name: "explore",
+        sql: include_str!("../../../migrations/0018_explore.sql"),
+    },
 ];
 
 /// Highest catalog schema version this build can read and write.
@@ -657,6 +662,54 @@ mod tests {
                     .query_row("SELECT COUNT(*) FROM format_pairs", [], |r| r.get(0))
                     .unwrap();
                 assert_eq!(pairs, 0);
+            })
+            .unwrap();
+    }
+
+    #[test]
+    fn version_18_adds_the_map_that_follows_its_books_and_model() {
+        use crate::services::catalog::writer::CatalogWriter;
+
+        let dir = tempfile::tempdir().unwrap();
+        let writer = CatalogWriter::open(&dir.path().join("catalog.sqlite")).unwrap();
+        writer
+            .call(|c| {
+                assert_eq!(migrate_to(c, 18, "t").unwrap(), 18);
+                c.execute_batch(
+                    "INSERT INTO documents (id, content_hash, state, created_at, updated_at)
+                         VALUES ('d1', x'01', 'done', 't', 't'), ('d2', x'02', 'done', 't', 't');
+                     INSERT INTO embedding_models (id, model_name, dims, quantization,
+                         chunker_version, status, created_at, updated_at)
+                         VALUES ('m', 'test', 4, 'f16', 1, 'ready', 't', 't');
+                     INSERT INTO book_vectors VALUES ('m', 'd1', x'00', 3, 1), ('m', 'd2', x'00', 3, 2);
+                     INSERT INTO explore_maps VALUES ('m', 1, 2, 2, '0:', 't', 5);
+                     INSERT INTO explore_areas (id, model_id, number, hue, words, central, size, cohesion)
+                         VALUES (1, 'm', 1, 0, '[]', '[]', 2, 0.8);
+                     INSERT INTO explore_areas (id, model_id, parent_id, number, hue, words, central,
+                         size, cohesion)
+                         VALUES (2, 'm', 1, 1, 0, '[]', '[]', 2, 0.9);
+                     INSERT INTO explore_points VALUES ('m', 'd1', 0, 0, 1, 2), ('m', 'd2', 1, 1, 1, 2);",
+                )
+                .unwrap();
+                let count = |c: &Connection, table: &str| -> i64 {
+                    c.query_row(&format!("SELECT COUNT(*) FROM {table}"), [], |r| r.get(0))
+                        .unwrap()
+                };
+                // A document gone takes its vector and its point.
+                c.execute("DELETE FROM documents WHERE id = 'd1'", []).unwrap();
+                assert_eq!(count(c, "book_vectors"), 1);
+                assert_eq!(count(c, "explore_points"), 1);
+                // A sub-area gone leaves its books in their area.
+                c.execute("DELETE FROM explore_areas WHERE id = 2", []).unwrap();
+                let sub: Option<i64> = c
+                    .query_row("SELECT sub_area_id FROM explore_points", [], |r| r.get(0))
+                    .unwrap();
+                assert_eq!(sub, None);
+                // A model gone takes its whole map.
+                c.execute("DELETE FROM embedding_models WHERE id = 'm'", []).unwrap();
+                for table in ["book_vectors", "explore_maps", "explore_areas", "explore_points"] {
+                    assert_eq!(count(c, table), 0, "{table}");
+                }
             })
             .unwrap();
     }

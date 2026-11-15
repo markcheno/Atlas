@@ -215,10 +215,12 @@ describe('main shell', () => {
 
   it('keyboard shortcuts switch views', async () => {
     const user = await launchOpen();
-    await user.keyboard('{Control>}5{/Control}');
+    await user.keyboard('{Control>}6{/Control}');
     expect(await h1('Settings')).toHaveFocus();
-    await user.keyboard('{Control>}4{/Control}');
+    await user.keyboard('{Control>}5{/Control}');
     expect(await h1('Trails')).toHaveFocus();
+    await user.keyboard('{Control>}4{/Control}');
+    expect(await h1('Explore')).toHaveFocus();
     await user.keyboard('{Control>}3{/Control}');
     expect(await h1('Library')).toHaveFocus();
     await user.keyboard('{Control>}2{/Control}');
@@ -1532,7 +1534,7 @@ describe('search', () => {
       within(nav)
         .getAllByRole('button')
         .map((b) => b.textContent?.trim()),
-    ).toEqual(['Home', 'Search', 'Library', 'Trails', 'Settings']);
+    ).toEqual(['Home', 'Search', 'Library', 'Explore', 'Trails', 'Settings']);
     await user.click(within(nav).getByRole('button', { name: 'Search' }));
     await h1('Search');
     expect(screen.getByText(/Use quotes for an exact phrase/)).toBeInTheDocument();
@@ -5082,5 +5084,151 @@ describe('schedules and full speed (Slice 4.6)', () => {
     tauri.setHandler('get_resource_status', () => tauri.resourceStatus({ waitingUntil: until }));
     await launchOpen();
     await waitFor(() => expect(screen.getByTestId('embedding-status')).toHaveTextContent(text));
+  });
+});
+
+describe('Explore (Slice 4.6.1)', () => {
+  beforeEach(resetAll);
+
+  async function openExplore(
+    status = tauri.exploreStatus(),
+    map: ReturnType<typeof tauri.exploreMap> | null = null,
+  ) {
+    tauri.setHandler('get_explore_status', () => status);
+    if (map) tauri.setHandler('get_explore_map', () => map);
+    const user = await launchOpen();
+    await user.click(screen.getByRole('button', { name: 'Explore' }));
+    await h1('Explore');
+    return user;
+  }
+
+  const ready = () => {
+    const map = tauri.exploreMap();
+    return { status: map.status, map };
+  };
+
+  it('asks for meaning indexing first, with a way to Settings', async () => {
+    const user = await openExplore();
+    const empty = await screen.findByTestId('explore-empty');
+    expect(empty).toHaveTextContent('Explore needs meaning indexing');
+    await user.click(within(empty).getByRole('button', { name: 'Open Settings' }));
+    await h1('Settings');
+  });
+
+  it('says how many books a map needs, and draws one when asked', async () => {
+    const user = await openExplore(tauri.exploreStatus({ state: 'not_drawn', libraryBooks: 40 }));
+    expect(await screen.findByTestId('explore-empty')).toHaveTextContent('The map is waiting');
+    await user.click(screen.getByRole('button', { name: 'Draw the map now' }));
+    expect(tauri.invoke).toHaveBeenCalledWith('refresh_explore_map', { fresh: false });
+    expect(await screen.findByTestId('explore-empty')).toHaveTextContent('Drawing the map…');
+  });
+
+  it('too few books', async () => {
+    await openExplore(tauri.exploreStatus({ state: 'too_few', libraryBooks: 12 }));
+    expect(await screen.findByTestId('explore-empty')).toHaveTextContent(
+      'A map needs at least 30 books indexed for meaning; 12 are so far.',
+    );
+  });
+
+  it('lists the areas by their words or the owner’s name, and lights one up', async () => {
+    const { status, map } = ready();
+    const user = await openExplore(status, map);
+    expect(await screen.findByTestId('explore-status')).toHaveTextContent('4 books · drawn');
+    const areas = screen.getByRole('region', { name: 'Areas' });
+    const first = within(areas).getByRole('button', { name: 'orbit · comet' });
+    expect(within(areas).getByRole('button', { name: 'Baking' })).toBeInTheDocument();
+    expect(within(areas).getByText('The Comet Book')).toBeInTheDocument();
+    await user.click(first);
+    expect(first).toHaveAttribute('aria-pressed', 'true');
+    await user.click(first);
+    expect(first).toHaveAttribute('aria-pressed', 'false');
+  });
+
+  it('renames an area, and a blank name goes back to its words', async () => {
+    const { status, map } = ready();
+    const user = await openExplore(status, map);
+    const areas = await screen.findByRole('region', { name: 'Areas' });
+    await user.click(within(areas).getAllByRole('button', { name: 'Rename' })[0]);
+    const input = screen.getByRole('textbox', { name: 'Name for area 1' });
+    expect(input).toHaveFocus();
+    await user.type(input, '  Astronomy  {Enter}');
+    expect(tauri.invoke).toHaveBeenCalledWith('rename_area', { areaId: 11, name: 'Astronomy' });
+    await user.click(within(areas).getAllByRole('button', { name: 'Rename' })[0]);
+    await user.keyboard('{Enter}');
+    expect(tauri.invoke).toHaveBeenCalledWith('rename_area', { areaId: 11, name: null });
+  });
+
+  it('shows an area’s books in the Library, with a filter that can be removed', async () => {
+    const { status, map } = ready();
+    tauri.setHandler('list_source_roots', () => [tauri.sourceRoot()]);
+    const user = await openExplore(status, map);
+    await user.click(await screen.findByRole('button', { name: 'Show area 1 in the Library' }));
+    await h1('Library');
+    expect(screen.getByTestId('area-filter')).toHaveTextContent('Area: 1 · orbit · comet');
+    await waitFor(() =>
+      expect(tauri.invoke).toHaveBeenCalledWith(
+        'list_documents',
+        expect.objectContaining({ query: expect.objectContaining({ areaId: 11 }) }),
+      ),
+    );
+    await user.click(screen.getByRole('button', { name: 'Show every area' }));
+    expect(screen.queryByTestId('area-filter')).toBeNull();
+    await waitFor(() =>
+      expect(tauri.invoke).toHaveBeenLastCalledWith(
+        'list_documents',
+        expect.objectContaining({ query: expect.objectContaining({ areaId: null }) }),
+      ),
+    );
+  });
+
+  it('finds a search’s books on the map', async () => {
+    const { status, map } = ready();
+    tauri.setHandler('search_documents', () =>
+      tauri.searchPage({
+        hits: [
+          tauri.searchHit({ documentId: 'd1' }),
+          tauri.searchHit({ documentId: 'd4' }),
+          tauri.searchHit({ documentId: 'not-on-the-map' }),
+        ],
+      }),
+    );
+    const user = await openExplore(status, map);
+    await user.type(
+      await screen.findByRole('searchbox', { name: 'Find on the map' }),
+      'comet{Enter}',
+    );
+    expect(await screen.findByTestId('found-note')).toHaveTextContent('2 results of 3 on the map');
+    expect(tauri.invoke).toHaveBeenCalledWith(
+      'search_documents',
+      expect.objectContaining({
+        intent: 'refresh',
+        query: expect.objectContaining({ text: 'comet' }),
+      }),
+    );
+    await user.click(screen.getByRole('button', { name: 'Clear' }));
+    expect(screen.queryByTestId('found-note')).toBeNull();
+  });
+
+  it('redraws when asked, from the old map or from scratch, and reloads a new map', async () => {
+    const { status, map } = ready();
+    tauri.setHandler('refresh_explore_map', () => status);
+    const user = await openExplore(status, map);
+    await user.click(await screen.findByRole('button', { name: 'Redraw' }));
+    expect(tauri.invoke).toHaveBeenCalledWith('refresh_explore_map', { fresh: false });
+    await user.click(screen.getByRole('button', { name: 'Redraw from scratch' }));
+    expect(tauri.invoke).toHaveBeenCalledWith('refresh_explore_map', { fresh: true });
+    const maps = () => tauri.invoke.mock.calls.filter(([c]) => c === 'get_explore_map').length;
+    const before = maps();
+    events.emit('explore-status', { ...status, generation: 2 });
+    await waitFor(() => expect(maps()).toBe(before + 1));
+  });
+
+  it('says why a redraw waits', async () => {
+    const { map } = ready();
+    const status = { ...map.status, held: 'paused_by_user' as const };
+    await openExplore(status, { ...map, status });
+    expect(
+      await screen.findByText('The redraw waits. Background work is paused in Settings.'),
+    ).toBeInTheDocument();
   });
 });
