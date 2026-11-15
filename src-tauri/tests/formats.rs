@@ -250,7 +250,17 @@ fn p4_28_an_upgraded_library_indexes_nothing_again() {
     let c = lib.catalog();
     let (_, pdf_doc) = file_id(&c, "paired 0001.pdf");
     assert!(embedded(&c, &pdf_doc), "the PDF was indexed too");
-    let sent = lib.h.script.answered().len();
+    // Book text sent to the service; the test's own searches send their
+    // query to it too, and don't count.
+    let books_sent = |lib: &Lib| {
+        lib.h
+            .script
+            .answered()
+            .iter()
+            .filter(|t| t.as_str() != "Pairs marker 9001")
+            .count()
+    };
+    let sent = books_sent(&lib);
     c.execute("UPDATE source_roots SET formats_version = 0", [])
         .unwrap();
     drop(c);
@@ -294,7 +304,7 @@ fn p4_28_an_upgraded_library_indexes_nothing_again() {
         .unwrap();
     assert_eq!(behind, 0);
     assert_eq!(
-        lib.h.script.answered().len(),
+        books_sent(&lib),
         sent,
         "nothing was sent to be indexed again"
     );

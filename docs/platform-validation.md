@@ -1476,6 +1476,20 @@ order differs between runs; about 1 run in 6 failed locally.
     areas.
 - **No failures in 60 runs** after the fix.
 
+**`main` after that fix failed in two other tests:**
+
+- **On macOS, P4-28 (Slice 4.5.1)** counted the test's own search query
+  as a book sent to be indexed again (138 against 137).
+  - **How:** a search whose query vector is late goes on without it, and
+    the vector arrives after the test has counted.
+  - **Why only now:** 4.6.1's extra write for each book shifted the
+    timing enough. The test passed 15 of 15 runs at the commit before
+    4.6.1, and failed 2 in 10 after.
+  - **The fix:** it counts only book text. No failures in 15 runs since.
+- **On Windows, P2-05 (Slice 2.3)** found nothing indexed once the
+  indexing job had ended. It didn't recur in 10 local runs or in either
+  branch run on Windows, and is watched.
+
 **For the product owner, on the installed build:**
 
 1. **The first map:**
