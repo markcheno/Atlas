@@ -668,6 +668,17 @@ Do **not** add an OCR engine, an `ocr` job, a rescan timer or any backup code be
 
 ### Revision notes
 
+**2026-11-15, the Explore spike's answer** ([results](spike-explore.md#the-owners-library-2026-11-15-m5-pro-64-gb)):
+- **Go.** On the owner's 5,088 books every part of the rule holds: 16 of
+  16 areas belong together and are recognisable, trustworthiness 0.978,
+  area agreement 0.830, 11.8 s in all. Names from the chat model aren't
+  needed.
+- **The spike's page colours its areas**, at the owner's request: eight
+  palette hues, different and easy to tell apart for areas that touch.
+- **Not yet Phase 4 scope:** the feature's slices are still to be
+  specified and scheduled by the owner. `services/explore` stays until
+  then.
+
 **2026-11-13, Slice 4.5.1** (asked by the product owner, whose library holds
 many books in both PDF and EPUB; [ADR 0023](adr/0023-one-book-two-formats.md)):
 

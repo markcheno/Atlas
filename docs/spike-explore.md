@@ -1,8 +1,8 @@
 # Slice 4.1.2 spike: a map of the library by meaning
 
-**Status:** harness built and measured on synthetic data; the owner's run
-on the real library is to be recorded. The rule below was written before
-any real library was measured.
+**Status:** done. **Go:** on the owner's library (2026-11-15) all four
+parts of the rule hold, with room to spare. The rule below was written
+before any real library was measured.
 
 The product owner asked (2026-11-12) for visual ways to browse: a semantic
 explorer, with books clustered by meaning into named **areas**, shown as a
@@ -171,14 +171,53 @@ loaded or named.
   are no true nearest neighbours to keep. On real vectors it is recorded
   with the rest.
 
-### The owner's library
+### The owner's library (2026-11-15, M5 Pro, 64 GB)
 
-To be recorded: coverage, books, areas' sizes and cohesion, the map's
-measures, timings, and the ticks.
+Run with `just spike-explore` on the 4.5.1 build's catalog (schema 17),
+after meaning indexing finished. A book in two formats is one book here:
+its hidden copy is left out (Slice 4.5.1).
 
-## If the answer is go
+- **Coverage:** 5,088 of the 5,094 documents with text have vectors
+  (99.9%); the other 6 have no passages. The precondition holds.
+- **Books:** 5,088, from 2,513,158 chunks (median 282 a book, fewest 1,
+  most 15,265), one model of 512 dimensions.
+- **Areas:** 16, from 632 books down to 119. Cohesion (how alike an
+  area's books are) runs from 0.67 to 0.91, median 0.81. Every area has 4
+  sub-areas but one, which has 2.
+- **Near pairs:** 1,489 pairs of books almost alike (editions, volumes of
+  one work, copies the format pairing doesn't cover).
 
-Candidate slices, to be specified then (not Phase 4 scope until decided):
+| Rule | Needed | Measured | |
+| --- | --- | --- | --- |
+| 1. Areas ticked "belong together" | 12 of 16, holding 70% of books | **16 of 16, 100%** | pass |
+| 2. Trustworthiness at 15 | 0.85 | **0.978** (PCA alone 0.840) | pass |
+| 2. Area agreement at 10 | 0.70 | **0.830** | pass |
+| 3. The whole run | 120 s | **11.8 s** | pass |
+| 3. After loading | 60 s | **4.5 s** | pass |
+| 4. Areas ticked "I'd recognise" | 60% | **100%** | pass |
+
+- **Timings:** loading 7.3 s; neighbours 0.12 s, areas 0.34 s, the map
+  2.0 s, names 0.36 s, the measures 1.6 s.
+- **Other measures:** neighbour preservation 0.43; silhouette 0.34 plain
+  and 0.38 centred. Centring would help a little, but nothing failed, so
+  it isn't needed.
+- **Names from the chat model aren't needed:** the local words were
+  recognisable for every area. They stay a candidate, not a requirement.
+
+**The owner asked for colour by area** once the run was done. The page
+now colours each area with one of the eight hues of the reference chart
+palette. Areas that touch on the map (books whose six nearest books on
+the map are in the other area) take different hues, and avoid the pairs
+of hues the palette validator finds too close side by side, for normal
+or colour-blind vision, in light or dark mode. Hues repeat across areas
+far apart, so the numbers on the map still name each area. The colours
+can be switched off, and choosing an area greys the rest. The feature's
+map should colour areas the same way.
+
+## The answer is go
+
+Candidate slices, to be specified when the owner schedules them (not
+Phase 4 scope until decided):
 
 1. **A vector per book, and an areas job.** A table of book vectors for
    the serving model, filled as books are embedded; areas, names and the
@@ -188,7 +227,7 @@ Candidate slices, to be specified then (not Phase 4 scope until decided):
 2. **Areas in the Library.** The list: areas, sub-areas and their books,
    which is also the map's text equivalent.
 3. **The map.** A new view on a canvas, with pan and zoom, opening the
-   details panel.
+   details panel, each area in its colour as on the spike's page.
 4. **Names from the chat model**, optional, with the disclosure that
    titles are sent to it.
 5. **What the library is made of.**

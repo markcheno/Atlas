@@ -1337,7 +1337,36 @@ library: the report you share is the evidence.
    `catalog.sqlite-shm` beside it. Open 0.4.0. The `logs/` and
    `exports/diagnostics/` folders can stay; 0.4.0 ignores them.
 
-**Result:** to be recorded when the owner reports it.
+**Result (2026-11-15):** the owner's report, saved by the 4.5.1 build
+(catalog schema 17) after meaning indexing finished:
+
+- **The library:** 2 folders and 6,218 files: 5,236 PDFs (76.7 GB) and
+  982 EPUBs (31.1 GB).
+- **Text:** 5,943 files read. 222 need OCR (213 documents, 45,475 pages,
+  2,020 of them with some text), and 53 can't be read. Of the documents,
+  5,709 are done, 29 crashed their worker, 9 are malformed, 8 too large
+  and 7 unsupported.
+- **Empty pages in read PDFs:** 20,654, in 2,475 PDFs.
+- **Passages and chunks:** 1,192,296 passages, 2,517,272 chunks and
+  2,386,879 vectors for the one model (512 dimensions).
+- **Storage:** the catalog 7.4 GB (text 2.9 GB, meaning 3.4 GB, the search
+  index 1.0 GB), the meaning index file 3.0 GB, with 1.1 TB free.
+- **Meaning indexing's pace:** about 20 chunks a second (1,526,729 in
+  21.5 hours, then 133,759 in 1.9 hours), and 25 a second for the last
+  726,108 under 4.5.1. Embedding rests as long as it works under the Run
+  duty cycle (0.5), so full speed (Slice 4.6) could nearly double that.
+- **Slowing:** the log since 12 November 23:07 shows 42 slowings for
+  "the computer is busy" (elevated memory pressure), each 1 to 5 minutes,
+  about an hour and a half in all, while the local AI service was
+  embedding. Two slowings on battery.
+- **Failures:** 13 meaning jobs ended `failed_terminal`, all from the
+  period when the AI service no longer had the configured model (below).
+  The reading worker hit its memory cap six times in two minutes during
+  one job, on 13 November.
+
+These numbers size the OCR work (Slices 4.3 and 4.4: 213 scanned
+documents, about 45,000 pages) and show the cost of the Run duty cycle
+for Slice 4.6.
 
 **Found while the owner imported the real library** (fixed in
 [Slice 4.1.1](#slice-411)):
@@ -1442,6 +1471,13 @@ is green on three OSes, smoke tests and release bundles included.
    EPUB." Not the same book makes them two again.
 5. **Meaning indexing:** the number still waiting drops by the PDFs of
    books whose EPUB is indexed.
+
+**Result (2026-11-15):** the owner reports that the pairing works. The
+4.5.1 build opened the library (migrated from 16 to 17), paired the books
+in two reading passes of 2 and 27 seconds, and finished the meaning
+indexing still waiting without starting any of it again. The Explore run
+afterwards found 5,088 books among 5,709 read documents, the hidden
+copies left out.
 
 ## Slice 4.5
 
@@ -1608,8 +1644,11 @@ the evidence.
 7. The page holds your titles. Delete the folder when you're done, or
    `just clean` removes it.
 
-**Result:** to be recorded when the owner reports it, with the rule
-applied.
+**Result (2026-11-15): go.** All four parts of the rule hold: 16 of 16
+areas belong together and are recognisable, trustworthiness 0.978, area
+agreement 0.830, 11.8 s in all. The numbers are in
+[spike-explore.md](spike-explore.md#the-owners-library-2026-11-15-m5-pro-64-gb).
+The page now colours the areas, at the owner's request.
 
 **CI on `slice-412`:** the full run
 ([43345116631](https://github.com/markcheno/Atlas/actions/runs/43345116631))

@@ -1462,8 +1462,8 @@ functions that lay a library out by meaning, called by nothing in the
 app. A harness (`src-tauri/tests/explore.rs`, `just spike-explore`) runs
 them against a library and writes one page for its owner to judge. The
 question, the rule and the results are in
-[spike-explore.md](spike-explore.md); if the answer is stop, the module is
-removed.
+[spike-explore.md](spike-explore.md). The answer, on the owner's library,
+was go (2026-11-15): the module stays until the feature is specified.
 
 - **`books.rs`:** one unit vector per book for one embedding model, the
   mean of the sample Related documents averages, read in one short
@@ -1473,6 +1473,11 @@ removed.
   then UMAP's pulls and pushes). Seeded; no dependency.
 - **`quality.rs`, `names.rs`:** measures of the areas and the map, and
   area names from the books' own words.
+- **The page (`tests/explore/page.html`):** self-contained, the data
+  inlined. It colours each area with one of eight palette hues: areas
+  that touch on the map (by each book's six nearest books there) take
+  different hues and avoid pairs the palette validator finds too close
+  side by side.
 - **`survey.rs`:** the pipeline, and `Numbers`, which holds counts,
   measures and timings only.
 - **`catalog::reader::open_offline`:** a catalog opened from outside
