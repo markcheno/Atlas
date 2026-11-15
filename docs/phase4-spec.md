@@ -1,6 +1,6 @@
 # Atlas — Phase 4 Implementation Specification v0.1
 
-**Status:** Ready for coding-agent implementation, beginning with Slice 4.1  
+**Status:** In progress: Slices 4.1 to 4.6.1 done, 4.3 deferred, 4.4 skipped for now, 4.7 next. Paused on 2026-11-15 while the product owner uses the app; [phase4-progress.md](phase4-progress.md) says where things stand and how to resume  
 **Date:** 2026-11-12 (see Revision notes at the end)  
 **Parent:** [Atlas Product Specification v0.2](product-spec.md) §5, §7, §8, §9, §13; builds on the [Phase 3 Implementation Specification](phase3-spec.md), the [Phase 3 close-out review](phase3-closeout.md), [ADR 0001](adr/0001-local-ipc-no-server-single-data-root.md) (the single data root), [ADR 0002](adr/0002-data-root-creation-locking-and-compatibility.md) (creating and locking it), [ADR 0004](adr/0004-resource-policy.md) (the resource policy), [ADR 0008](adr/0008-extraction-and-vector-engines.md) and [ADR 0009](adr/0009-jobs-and-extraction.md) (engines, jobs and the worker), [ADR 0011](adr/0011-re-reading-without-losing-search.md) (re-reading), [ADR 0013](adr/0013-embeddings-durable-index-disposable.md) (the meaning index) and [ADR 0016](adr/0016-the-knowledge-store.md) (the knowledge store and its snapshots)  
 **Target platforms:** macOS arm64, Windows x64, Linux x64  

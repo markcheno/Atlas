@@ -227,7 +227,7 @@ Main views: Home, Search, Library, Trails and Settings (`NAV_VIEWS` in
   is the Text status badge.
 
 Accessibility baseline: landmarks and a skip link, `aria-current` on
-navigation, focus moved to each view's heading, Cmd/Ctrl+1–5 view shortcuts,
+navigation, focus moved to each view's heading, Cmd/Ctrl+1–6 view shortcuts (6 since Explore, Slice 4.6.1),
 visible focus rings, 44px major controls, `prefers-reduced-motion`, and
 system light/dark via `prefers-color-scheme` with a `data-theme` override.
 

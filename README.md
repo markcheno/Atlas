@@ -4,7 +4,7 @@ Atlas is a local-first personal AI librarian for large private collections of
 PDFs, EPUBs, books and papers. *Collect freely. Organize minimally. Retrieve
 intelligently.*
 
-**Status: Phase 3 complete (version 0.4.0, [close-out review](docs/phase3-closeout.md)): research trails, bookmarks and findings, interests and projects, the PDF page view, export and import. Phases 0 to 2 complete ([Phase 2 review](docs/phase2-closeout.md), [Phase 1 review](docs/phase1-closeout.md)). Phase 4, full-collection readiness, is under way ([specification](docs/phase4-spec.md)): Slice 4.1 adds a local log and a diagnostics report; Slice 4.1.1 makes a stopped meaning job say why and Clear the log ask first, and Slice 4.1.3 says why work is going slowly; Slice 4.1.2 is a [spike](docs/spike-explore.md) on a map of the library by meaning (the answer on the real library: go), and Slice 4.2 an [OCR spike](docs/spike-ocr.md), measured and then deferred: neither changes the app. Slice 4.5 checks folders for changes by itself, with a rescan that writes only what changed, and shows what each check found; Slice 4.5.1 treats a book in PDF and EPUB beside each other as one book, indexed once; Slice 4.6 lets you choose when background work runs (automatically, only while charging, between set hours, or paused), run it at full speed until it is done, and slows it while other apps keep the computer busy; Slice 4.6.1 adds Explore, a map of the library by meaning.** Atlas asks where to keep its library and
+**Status: Phase 3 complete (version 0.4.0, [close-out review](docs/phase3-closeout.md)): research trails, bookmarks and findings, interests and projects, the PDF page view, export and import. Phases 0 to 2 complete ([Phase 2 review](docs/phase2-closeout.md), [Phase 1 review](docs/phase1-closeout.md)). Phase 4, full-collection readiness, is under way ([specification](docs/phase4-spec.md)): Slice 4.1 adds a local log and a diagnostics report; Slice 4.1.1 makes a stopped meaning job say why and Clear the log ask first, and Slice 4.1.3 says why work is going slowly; Slice 4.1.2 is a [spike](docs/spike-explore.md) on a map of the library by meaning (the answer on the real library: go), and Slice 4.2 an [OCR spike](docs/spike-ocr.md), measured and then deferred: neither changes the app. Slice 4.5 checks folders for changes by itself, with a rescan that writes only what changed, and shows what each check found; Slice 4.5.1 treats a book in PDF and EPUB beside each other as one book, indexed once; Slice 4.6 lets you choose when background work runs (automatically, only while charging, between set hours, or paused), run it at full speed until it is done, and slows it while other apps keep the computer busy; Slice 4.6.1 adds Explore, a map of the library by meaning. Work is paused while the product owner uses the app; [Phase 4 progress](docs/phase4-progress.md) says where things stand and what comes next.** Atlas asks where to keep its library and
 which folders hold your books and papers, then catalogs every PDF and EPUB
 in them in the background, read-only. Cataloging slows on battery, pauses
 when the battery is low or the drive is nearly full, survives quitting and
@@ -157,7 +157,8 @@ with semantic search.
 
 Specifications: [product](docs/product-spec.md), [Phase 0](docs/phase0-spec.md),
 [Phase 1](docs/phase1-spec.md), [Phase 2](docs/phase2-spec.md),
-[Phase 3](docs/phase3-spec.md), [Phase 4](docs/phase4-spec.md),
+[Phase 3](docs/phase3-spec.md), [Phase 4](docs/phase4-spec.md)
+([progress](docs/phase4-progress.md)),
 [architecture](docs/architecture.md),
 [ADRs](docs/adr/). Evidence:
 [Phase 0 close-out review](docs/phase0-closeout.md),

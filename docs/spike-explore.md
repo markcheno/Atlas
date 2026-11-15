@@ -63,8 +63,9 @@ looked at again for the real feature.
 Earlier spikes live in `spikes/`, outside the app. This one reads the
 catalog through the app's own code (the schema check, the vector
 encoding, the sampling Related documents uses, the title rules), and on
-"go" its functions become the feature's. Nothing in the app calls the
-module. If the spike says stop, the module is removed.
+"go" its functions become the feature's. During the spike nothing in the
+app called the module; the answer was go, and since Slice 4.6.1 the app
+does.
 
 ## The harness
 
