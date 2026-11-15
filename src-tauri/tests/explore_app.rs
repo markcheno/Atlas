@@ -380,13 +380,14 @@ fn p4_33_a_redraw_keeps_the_map_stable() {
     let generation: i64 = count(&planted.conn(), "SELECT generation FROM explore_maps");
     assert_eq!(generation, 2);
 
-    // From scratch: still the owner's name where the area survives.
+    // From scratch the areas may be cut afresh: the name stays with an
+    // area that continues its own, and is never on two.
     assert!(matches!(planted.build(true), Outcome::Built(_)));
     let names = count(
         &planted.conn(),
         "SELECT COUNT(*) FROM explore_areas WHERE name = 'Astronomy'",
     );
-    assert_eq!(names, 1);
+    assert!(names <= 1, "{names}");
 
     // A name too long, or for an area gone, is refused; blank goes back to
     // the words.

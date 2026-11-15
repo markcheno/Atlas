@@ -365,7 +365,19 @@ pub fn build(
     let areas = if fresh || old.of.is_empty() {
         cluster::areas(points, &area_opts)
     } else {
-        cluster::areas_seeded(points, &seeds(&books, &old), &area_opts)
+        // As many areas as the old map had, and more only as far as the
+        // library has grown into them.
+        let seeds = seeds(&books, &old);
+        let grown = area_count(n).saturating_sub(area_count(old.of.len()));
+        let target = (seeds.len() + grown).clamp(2, 16);
+        cluster::areas_seeded(
+            points,
+            &seeds,
+            &cluster::AreaOptions {
+                areas: target,
+                ..area_opts
+            },
+        )
     };
     if stop() {
         return Ok(Outcome::Stopped);

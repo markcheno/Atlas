@@ -67,9 +67,11 @@ pub fn areas(points: &Points, opts: &AreaOptions) -> Vec<Area> {
 }
 
 /// Areas that continue an old map's (Slice 4.6.1): each old area with at
-/// least `min_area` of its books still here is a starting centre, every
-/// book goes to its nearest, and a few rounds settle the borders, so an
-/// area keeps its books unless meaning moved them. Areas too small are
+/// least `min_area` of its books still here gives a centre (its books'
+/// middle), and every book goes to its nearest. The centres don't move:
+/// an old book's nearest is the one it had, so it keeps its area, and new
+/// books join the area they're most like. (Redraw from scratch lets the
+/// areas move.) Areas too small are
 /// let go; when the library has grown past the old count, the most
 /// spread-out are split, as from scratch. Each area's sub-areas continue
 /// its old ones the same way (`seeds[i].1`, the old sub-areas' books), or
@@ -87,7 +89,7 @@ pub fn areas_seeded(
     }
     let all: Vec<u32> = (0..points.len() as u32).collect();
     let centres: Vec<Vec<f32>> = usable.iter().map(|(g, _)| centre_of(points, g)).collect();
-    let groups = nearest_groups(points, &all, centres, min);
+    let groups = nearest_groups(points, &all, centres, min, false);
     let mut leaves: Vec<(Area, bool)> = groups
         .into_iter()
         .map(|g| (area_of(points, g), true))
@@ -133,7 +135,7 @@ pub fn areas_seeded(
             .map(|sub| centre_of(points, &sub))
             .collect();
         let mut children = if sub_centres.len() >= 2 {
-            nearest_groups(points, &area.members, sub_centres, sub_min)
+            nearest_groups(points, &area.members, sub_centres, sub_min, false)
                 .into_iter()
                 .map(|g| area_of(points, g))
                 .collect()
@@ -156,14 +158,16 @@ pub fn areas_seeded(
     top
 }
 
-/// `members` grouped by their nearest of `centres`, for a few rounds of
-/// moving each centre to its group's middle. A group smaller than `min`
-/// is let go (the smallest first) and its books go to their next nearest.
+/// `members` grouped by their nearest of `centres` (and, if `settle`, a few
+/// rounds of moving each centre to its group's middle). A group smaller
+/// than `min` is let go (the smallest first) and its books go to their
+/// next nearest.
 fn nearest_groups(
     points: &Points,
     members: &[u32],
     mut centres: Vec<Vec<f32>>,
     min: usize,
+    settle: bool,
 ) -> Vec<Vec<u32>> {
     let mut groups: Vec<Vec<u32>> = Vec::new();
     for _ in 0..TIDY_ROUNDS * 3 {
@@ -190,6 +194,9 @@ fn nearest_groups(
         {
             centres.remove(i);
             continue;
+        }
+        if !settle {
+            break;
         }
         let next: Vec<Vec<f32>> = groups.iter().map(|g| centre_of(points, g)).collect();
         if next == centres {

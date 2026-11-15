@@ -1527,9 +1527,11 @@ stable.
   - `build` runs the backfill, the neighbours, the areas, the layout, the
     names and the colours, then writes in one transaction;
   - `area_count` is √(n/2), from 2 to 16;
-  - a redraw seeds the areas from the old ones (`cluster::areas_seeded`),
-    keeps old books in place (`layout::layout_from` with `keep_placed`),
-    and continues numbers, colours and names (`match_groups`);
+  - a redraw continues the areas from the old ones
+    (`cluster::areas_seeded`: fixed centres, every book to its nearest,
+    more areas only as the library grows into them), keeps old books in
+    place (`layout::layout_from` with `keep_placed`), and continues
+    numbers, colours and names (`match_groups`);
   - `hues.rs` ports the spike page's colouring.
 - **The watch** (`explore/watch.rs`):
   - one thread per open library, owned by `OpenRoot`, stopped first when

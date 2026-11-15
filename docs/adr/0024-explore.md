@@ -66,9 +66,13 @@ that suits an app that keeps a map current while the library grows.
   - **Stopping:** the layout stops at its next pass when the library
     closes.
 - **Stable redraws:**
-  - **Areas start from the old ones:** each old area's books still here
-    make a starting centre, and every book goes to its nearest. Areas are
-    split further only when the library has grown past the old count.
+  - **Areas continue the old ones:** each old area's books still here
+    make its centre, which doesn't move, and every book goes to its
+    nearest. An old book's nearest is the area it had, so it stays; new
+    books join the area they're most like.
+  - **More areas only as the library grows into them:** the old count,
+    plus as many as the larger library calls for (√(n/2) then against
+    now).
   - **A new area continues an old one** when they share at least 30% of
     the larger of the two. It keeps the old number, colour and name.
   - **Books on the old map stay exactly where they were;** new books start

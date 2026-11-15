@@ -1458,6 +1458,24 @@ The catalog migrates to version 18.
 is green on three OSes at the first attempt, smoke tests and release
 bundles included.
 
+**`main` after the merge failed on macOS,** in P4-33: 96 of 120 books kept
+their area against the 90% asked. Document ids are random, so the books'
+order differs between runs; about 1 run in 6 failed locally.
+
+- **Two causes,** both in a redraw:
+  - its areas still moved their centres for a few rounds, so inside one
+    topic a group could shrink away and another area be split to make up
+    the count;
+  - it split areas up to the target count even when the old map had
+    fewer, because the target couldn't be reached from scratch either.
+- **The fix:**
+  - the old areas' centres stay fixed, so every old book keeps its area;
+  - more areas come only as the library grows into them;
+  - the test no longer expects a redraw from scratch, which may cut areas
+    afresh, to keep the owner's name: only that it is never on two
+    areas.
+- **No failures in 60 runs** after the fix.
+
 **For the product owner, on the installed build:**
 
 1. **The first map:**
